@@ -20,7 +20,6 @@ struct SettingsView: View {
         case general = "general"
         case registries = "registries"
         case dns = "dns"
-        case kernel = "kernel"
 
         var title: String {
             switch self {
@@ -30,8 +29,6 @@ struct SettingsView: View {
                 return "Registries"
             case .dns:
                 return "DNS"
-            case .kernel:
-                return "Kernel"
             }
         }
 
@@ -43,8 +40,6 @@ struct SettingsView: View {
                 return "server.rack"
             case .dns:
                 return "network"
-            case .kernel:
-                return "cpu"
             }
         }
     }
@@ -68,12 +63,6 @@ struct SettingsView: View {
                     Label("DNS", systemImage: "network")
                 }
                 .tag(SettingsTab.dns)
-
-            kernelView
-                .tabItem {
-                    Label("Kernel", systemImage: "cpu")
-                }
-                .tag(SettingsTab.kernel)
         }
         .frame(width: 600, height: 500)
         .alert("Error", isPresented: $showingErrorAlert) {
@@ -435,46 +424,6 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(domain.isDefault ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
         )
-    }
-
-    // MARK: - Kernel View
-
-    private var kernelView: some View {
-        VStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    SwiftUI.Image(systemName: "cpu")
-                        .font(.title2)
-                        .foregroundColor(.purple)
-
-                    Text("Kernel Configuration")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                }
-
-                Text("Custom kernel configuration will be supported in a future version of Orchard.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Text("For now, the system uses the default recommended kernel configuration automatically.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                HStack {
-                    SwiftUI.Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Using recommended kernel configuration")
-                        .font(.subheadline)
-                        .foregroundColor(.green)
-                }
-            }
-            .padding(20)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
-
-            Spacer()
-        }
-        .padding(20)
     }
 
     // MARK: - Registry View
