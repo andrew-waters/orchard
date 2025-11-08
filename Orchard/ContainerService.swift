@@ -1014,17 +1014,15 @@ class ContainerService: ObservableObject {
                 let domains = parseDNSDomains(output, defaultDomain: defaultDomain)
                 await MainActor.run {
                     self.dnsDomains = domains
-                    if showLoading {
-                        self.isDNSLoading = false
-                    }
+                    self.isDNSLoading = false
                 }
             }
         } catch {
             await MainActor.run {
                 if showLoading {
                     self.errorMessage = "Failed to load DNS domains: \(error.localizedDescription)"
-                    self.isDNSLoading = false
                 }
+                self.isDNSLoading = false
             }
         }
     }
