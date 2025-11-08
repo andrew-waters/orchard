@@ -119,7 +119,7 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                     .frame(width: 200, alignment: .leading)
-                    
+
                     Text("The frequency that the app will check for updates from cotnainers. Lower intervals increase responsiveness but add system load.")
                         .foregroundColor(.secondary)
                         .padding(.leading, 10)
@@ -327,7 +327,7 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
 
-                        Button("Add First Domain") {
+                        Button("Add your first domain") {
                             showAddDNSDomainSheet()
                         }
                         .buttonStyle(.borderedProminent)
@@ -397,19 +397,21 @@ struct SettingsView: View {
                 }
             }
 
-            HStack {
-                Text("")
-                    .frame(width: 220, alignment: .trailing)
-
+            if !containerService.dnsDomains.isEmpty {
                 HStack {
-                    Button("Add Domain") {
-                        showAddDNSDomainSheet()
-                    }
-                    .buttonStyle(.borderedProminent)
+                    Text("")
+                        .frame(width: 220, alignment: .trailing)
 
-                    Spacer()
+                    HStack {
+                        Button("Add Domain") {
+                            showAddDNSDomainSheet()
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Spacer()
