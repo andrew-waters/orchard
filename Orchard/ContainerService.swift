@@ -40,12 +40,15 @@ class ContainerService: ObservableObject {
     private let updateCheckInterval: TimeInterval = 1 * 60 * 60 // 1 hour
 
     enum RefreshInterval: String, CaseIterable {
+        case oneSecond = "1"
         case fiveSeconds = "5"
         case fifteenSeconds = "15"
         case thirtySeconds = "30"
 
         var displayName: String {
             switch self {
+            case .oneSecond:
+                return "1 second"
             case .fiveSeconds:
                 return "5 seconds"
             case .fifteenSeconds:

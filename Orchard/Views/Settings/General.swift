@@ -35,18 +35,9 @@ struct GeneralSettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .frame(width: 120)
+                    .frame(width: 250)
 
                     Spacer()
-
-                    HStack {
-                        SwiftUI.Image(systemName: "info.circle")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Current: \(containerService.refreshInterval.displayName)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
                 }
             }
             .padding()

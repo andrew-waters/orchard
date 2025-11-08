@@ -8,7 +8,6 @@ struct DNSSettingsView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-
             if containerService.isDNSLoading {
                 VStack {
                     ProgressView()
