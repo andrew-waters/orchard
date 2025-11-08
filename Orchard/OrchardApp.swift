@@ -190,7 +190,7 @@ struct MenuBarView: View {
             await containerService.checkSystemStatus()
             await containerService.loadContainers(showLoading: true)
             await containerService.loadBuilders()
-            await containerService.loadRegistries(showLoading: true)
+
             await containerService.loadDNSDomains(showLoading: true)
 
             startRefreshTimer()
@@ -209,7 +209,7 @@ struct MenuBarView: View {
                 await containerService.checkSystemStatus()
                 await containerService.loadContainers(showLoading: false)
                 await containerService.loadBuilders()
-                await containerService.loadRegistries(showLoading: false)
+
                 await containerService.loadDNSDomains(showLoading: false)
             }
         }

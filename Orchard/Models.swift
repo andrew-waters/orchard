@@ -287,47 +287,7 @@ enum KernelArch: String, CaseIterable, Codable {
     }
 }
 
-// MARK: - Registry Models
 
-struct Registry: Codable, Equatable, Identifiable {
-    let server: String
-    let username: String?
-    let isDefault: Bool
-    let scheme: RegistryScheme
-
-    var id: String { server }
-
-    init(server: String, username: String? = nil, isDefault: Bool = false, scheme: RegistryScheme = .auto) {
-        self.server = server
-        self.username = username
-        self.isDefault = isDefault
-        self.scheme = scheme
-    }
-}
-
-enum RegistryScheme: String, CaseIterable, Codable {
-    case http = "http"
-    case https = "https"
-    case auto = "auto"
-
-    var displayName: String {
-        switch self {
-        case .http:
-            return "HTTP"
-        case .https:
-            return "HTTPS"
-        case .auto:
-            return "Auto"
-        }
-    }
-}
-
-struct RegistryLoginRequest {
-    let server: String
-    let username: String
-    let password: String
-    let scheme: RegistryScheme
-}
 
 // MARK: - Builder Models
 

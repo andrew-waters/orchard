@@ -174,127 +174,44 @@ struct SettingsView: View {
 
     private var registrySettings: some View {
         VStack(spacing: 20) {
-            if containerService.isRegistriesLoading {
-                HStack {
-                    Spacer()
-                    VStack {
-                        ProgressView()
-                        Text("Loading registries...")
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                }
-                .frame(minHeight: 200)
-            } else if containerService.registries.isEmpty {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 16) {
-                        SwiftUI.Image(systemName: "server.rack")
-                            .font(.system(size: 48))
-                            .foregroundColor(.secondary)
-
-                        Text("No Registries")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-
-                        Text("Add a registry login to pull images from private repositories.")
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-
-                        Button("Add Registry") {
-                            showRegistryLoginSheet()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    Spacer()
-                }
-                .frame(minHeight: 200)
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(containerService.registries) { registry in
-                        HStack {
-                            Text("\(registry.server):")
-                                .frame(width: 220, alignment: .trailing)
-
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text(registry.server)
-                                            .font(.system(.body, design: .monospaced))
-                                            .fontWeight(registry.isDefault ? .semibold : .medium)
-
-                                        if registry.isDefault {
-                                            SwiftUI.Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.blue)
-                                                .font(.caption)
-                                        }
-                                    }
-
-                                    if let username = registry.username {
-                                        Text("User: \(username)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-
-                                    if registry.isDefault {
-                                        Text("Default Registry")
-                                            .font(.caption2)
-                                            .foregroundColor(.blue)
-                                    }
-                                }
-
-                                Spacer()
-
-                                HStack(spacing: 8) {
-                                    if registry.isDefault {
-                                        Button("Unset Default") {
-                                            Task { await containerService.unsetDefaultRegistry() }
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                    } else {
-                                        Button("Set Default") {
-                                            Task { await containerService.setDefaultRegistry(registry.server) }
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                    }
-
-                                    Button("Logout") {
-                                        confirmRegistryLogout(registry: registry.server)
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                }
-            }
-
             HStack {
-                Text("")
-                    .frame(width: 220, alignment: .trailing)
+                Spacer()
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Registries cannot be listed due to limitations with container itself. To add regsitries and amage them, you'll need to open a terminal and run a login / default command.")
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
 
-                HStack {
-                    Button("Add Registry") {
-                        showRegistryLoginSheet()
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("# copy your password to your clipboard\n\npbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin")
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+
+                            Spacer()
+
+                            Button(action: {
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setString("pbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin", forType: .string)
+                            }) {
+                                SwiftUI.Image(systemName: "doc.on.clipboard")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Copy command to clipboard")
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-
-                    Spacer()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
             }
+            .frame(minHeight: 200)
 
             Spacer()
         }
     }
+
 
     // MARK: - DNS Settings
 
@@ -419,68 +336,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Dialog Methods
-
-    private func showRegistryLoginSheet() {
-        let alert = NSAlert()
-        alert.messageText = "Registry Login"
-        alert.informativeText = "Login to a container registry to access private repositories."
-        alert.alertStyle = .informational
-
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 120))
-
-        let serverField = NSTextField(frame: NSRect(x: 0, y: 90, width: 400, height: 24))
-        serverField.placeholderString = "docker.io, ghcr.io, registry.example.com"
-
-        let usernameField = NSTextField(frame: NSRect(x: 0, y: 60, width: 400, height: 24))
-        usernameField.placeholderString = "Username"
-
-        let passwordField = NSSecureTextField(frame: NSRect(x: 0, y: 30, width: 400, height: 24))
-        passwordField.placeholderString = "Password or token"
-
-        view.addSubview(createLabel(text: "Server:", frame: NSRect(x: 0, y: 110, width: 100, height: 20)))
-        view.addSubview(serverField)
-        view.addSubview(createLabel(text: "Username:", frame: NSRect(x: 0, y: 80, width: 100, height: 20)))
-        view.addSubview(usernameField)
-        view.addSubview(createLabel(text: "Password:", frame: NSRect(x: 0, y: 50, width: 100, height: 20)))
-        view.addSubview(passwordField)
-
-        alert.accessoryView = view
-        alert.addButton(withTitle: "Login")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            let server = serverField.stringValue.trimmingCharacters(in: .whitespaces)
-            let username = usernameField.stringValue.trimmingCharacters(in: .whitespaces)
-            let password = passwordField.stringValue
-
-            guard !server.isEmpty, !username.isEmpty, !password.isEmpty else {
-                containerService.errorMessage = "Please fill in all fields."
-                return
-            }
-
-            let request = RegistryLoginRequest(
-                server: server,
-                username: username,
-                password: password,
-                scheme: .auto
-            )
-
-            Task { await containerService.loginToRegistry(request) }
-        }
-    }
-
-    private func confirmRegistryLogout(registry: String) {
-        let alert = NSAlert()
-        alert.messageText = "Registry Logout"
-        alert.informativeText = "Are you sure you want to logout from '\(registry)'?"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Logout")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.logoutFromRegistry(registry) }
-        }
-    }
 
     private func showAddDNSDomainSheet() {
         let alert = NSAlert()

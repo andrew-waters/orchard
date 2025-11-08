@@ -540,18 +540,9 @@ struct AppFooter: View {
 
     var body: some View {
         HStack {
-            // Left side - Registry, Domain, and Binary info
+            // Left side - Domain and Binary info
             HStack(spacing: 16) {
-                // Default Registry
-                HStack(spacing: 4) {
-                    SwiftUI.Image(systemName: "externaldrive.connected.to.line.below")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    Text(containerService.defaultRegistry ?? "None")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-                .help("Default Registry: \(containerService.defaultRegistry ?? "None")")
+
 
                 // Default Domain
                 HStack(spacing: 4) {

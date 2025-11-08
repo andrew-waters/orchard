@@ -283,7 +283,7 @@ struct ContentView: View {
             await containerService.loadContainers(showLoading: true)
             await containerService.loadImages()
             await containerService.loadBuilders()
-            await containerService.loadRegistries(showLoading: true)
+
             await containerService.loadDNSDomains(showLoading: true)
 
             // Check for updates on startup
@@ -308,7 +308,7 @@ struct ContentView: View {
                 await containerService.loadContainers(showLoading: false)
                 await containerService.loadImages()
                 await containerService.loadBuilders()
-                await containerService.loadRegistries(showLoading: false)
+
                 await containerService.loadDNSDomains(showLoading: false)
 
                 // Check for updates periodically

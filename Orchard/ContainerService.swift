@@ -6,18 +6,15 @@ class ContainerService: ObservableObject {
     @Published var containers: [Container] = []
     @Published var images: [ContainerImage] = []
     @Published var builders: [Builder] = []
-    @Published var registries: [Registry] = []
     @Published var isLoading: Bool = false
     @Published var isImagesLoading: Bool = false
     @Published var isBuildersLoading: Bool = false
-    @Published var isRegistriesLoading: Bool = false
     @Published var errorMessage: String?
     @Published var systemStatus: SystemStatus = .unknown
     @Published var isSystemLoading = false
     @Published var loadingContainers: Set<String> = []
     @Published var isBuilderLoading = false
     @Published var builderStatus: BuilderStatus = .stopped
-    @Published var defaultRegistry: String?
     @Published var dnsDomains: [DNSDomain] = []
     @Published var isDNSLoading = false
     @Published var kernelConfig: KernelConfig = KernelConfig()
@@ -489,57 +486,7 @@ class ContainerService: ObservableObject {
         }
     }
 
-    func loadRegistries() async {
-        await loadRegistries(showLoading: false)
-    }
 
-    func loadRegistries(showLoading: Bool = true) async {
-        if showLoading {
-            await MainActor.run {
-                isRegistriesLoading = true
-                errorMessage = nil
-            }
-        }
-
-        do {
-            // Get default registry
-            let defaultResult = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["registry", "default", "inspect"])
-
-            let defaultRegistry = defaultResult.stdout?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Create a registry list with the default registry
-            var registryList: [Registry] = []
-
-            if let defaultReg = defaultRegistry, !defaultReg.isEmpty {
-                registryList.append(Registry(server: defaultReg, isDefault: true))
-            }
-
-            // Add common registries that might not be default
-            let commonRegistries = ["docker.io", "ghcr.io", "quay.io", "registry.gitlab.com"]
-            for registry in commonRegistries {
-                if !registryList.contains(where: { $0.server == registry }) {
-                    registryList.append(Registry(server: registry))
-                }
-            }
-
-            await MainActor.run {
-                self.registries = registryList
-                self.defaultRegistry = defaultRegistry
-                if showLoading {
-                    self.isRegistriesLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                if showLoading {
-                    self.errorMessage = "Failed to load registries: \(error.localizedDescription)"
-                    self.isRegistriesLoading = false
-                }
-            }
-        }
-    }
 
     private func areContainersEqual(_ old: [Container], _ new: [Container]) -> Bool {
         return old == new
@@ -1274,148 +1221,7 @@ class ContainerService: ObservableObject {
         }
     }
 
-    // MARK: - Registry Management
 
-    func loginToRegistry(_ request: RegistryLoginRequest) async {
-        await MainActor.run {
-            isRegistriesLoading = true
-        }
-
-        do {
-            var arguments = ["registry", "login", "--username", request.username, request.server]
-
-            if request.scheme != .auto {
-                arguments.insert(contentsOf: ["--scheme", request.scheme.rawValue], at: 2)
-            }
-
-            // Create a process to handle password input
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: safeContainerBinaryPath())
-            process.arguments = arguments + ["--password-stdin"]
-
-            let inputPipe = Pipe()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            try process.run()
-
-            // Send password through stdin
-            inputPipe.fileHandleForWriting.write(request.password.data(using: .utf8) ?? Data())
-            inputPipe.fileHandleForWriting.closeFile()
-
-            process.waitUntilExit()
-
-            if process.terminationStatus == 0 {
-                await loadRegistries()
-                await MainActor.run {
-                    self.successMessage = "Successfully logged into \(request.server)"
-                }
-            } else {
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorMessage = String(data: errorData, encoding: .utf8) ?? "Login failed"
-                await MainActor.run {
-                    self.errorMessage = errorMessage
-                    self.isRegistriesLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to login to registry: \(error.localizedDescription)"
-                self.isRegistriesLoading = false
-            }
-        }
-    }
-
-    func logoutFromRegistry(_ server: String) async {
-        await MainActor.run {
-            isRegistriesLoading = true
-        }
-
-        do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["registry", "logout", server])
-
-            if !result.failed {
-                await loadRegistries()
-                await MainActor.run {
-                    self.successMessage = "Successfully logged out from \(server)"
-                }
-            } else {
-                await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to logout from registry"
-                    self.isRegistriesLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to logout from registry: \(error.localizedDescription)"
-                self.isRegistriesLoading = false
-            }
-        }
-    }
-
-    func setDefaultRegistry(_ server: String) async {
-        await MainActor.run {
-            isRegistriesLoading = true
-        }
-
-        do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["registry", "default", "set", server])
-
-            if !result.failed {
-                await loadRegistries()
-                await MainActor.run {
-                    self.successMessage = "Set \(server) as default registry"
-                }
-            } else {
-                await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to set default registry"
-                    self.isRegistriesLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to set default registry: \(error.localizedDescription)"
-                self.isRegistriesLoading = false
-            }
-        }
-    }
-
-    func unsetDefaultRegistry() async {
-        await MainActor.run {
-            isRegistriesLoading = true
-        }
-
-        do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["registry", "default", "unset"])
-
-            if !result.failed {
-                await loadRegistries()
-                await MainActor.run {
-                    self.successMessage = "Unset default registry"
-                }
-            } else {
-                await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to unset default registry"
-                    self.isRegistriesLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to unset default registry: \(error.localizedDescription)"
-                self.isRegistriesLoading = false
-            }
-        }
-    }
 
     private func parseDNSDomains(_ output: String, defaultDomain: String?) -> [DNSDomain] {
         let lines = output.components(separatedBy: .newlines)
