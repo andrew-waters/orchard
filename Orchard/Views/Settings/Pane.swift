@@ -520,7 +520,7 @@ struct SettingsView: View {
     }
 
     private func isValidDomainName(_ domain: String) -> Bool {
-        let regex = "^[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.[a-zA-Z]{2,}$"
+        let regex = "^[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.[a-zA-Z0-9]+$"
         return domain.range(of: regex, options: .regularExpression) != nil
     }
 
