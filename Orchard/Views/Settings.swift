@@ -7,8 +7,8 @@ struct SettingsView: View {
 
     enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "general"
-        case registries = "registries"
         case dns = "dns"
+        case registries = "registries"
 
         var id: String { rawValue }
 
@@ -68,10 +68,10 @@ struct SettingsView: View {
                     switch selectedTab {
                     case .general:
                         generalSettings
-                    case .registries:
-                        registrySettings
                     case .dns:
                         dnsSettings
+                    case .registries:
+                        registrySettings
                     }
                 }
                 .padding(.top, 30)
@@ -130,9 +130,10 @@ struct SettingsView: View {
 
             // Software Updates Section
             VStack(spacing: 15) {
-                HStack {
-                    Text("Software Updates:")
+                HStack(alignment: .top) {
+                    Text("Updates:")
                         .frame(width: 220, alignment: .trailing)
+                        .padding(.top, 2)
 
                     VStack(alignment: .leading, spacing: 8) {
                         if containerService.isCheckingForUpdates {
@@ -141,25 +142,29 @@ struct SettingsView: View {
                                     .controlSize(.small)
                                 Text("Checking for updates...")
                                     .foregroundColor(.secondary)
+                                    .padding(.leading, 10)
                             }
                         } else if containerService.updateAvailable {
-                            Text("Update available: v\(containerService.latestVersion ?? "")")
-                                .foregroundColor(.green)
-
                             Button("Download Update") {
                                 containerService.openReleasesPage()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                        } else {
-                            Text("Orchard is up to date (v\(containerService.currentVersion))")
-                                .foregroundColor(.secondary)
 
+                            Text("Update available: v\(containerService.latestVersion ?? "")")
+                                .foregroundColor(.green)
+                                .padding(.leading, 10)
+
+                        } else {
                             Button("Check for Updates") {
                                 Task { await containerService.checkForUpdates() }
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+
+                            Text("Orchard is up to date (v\(containerService.currentVersion))")
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 10)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -177,13 +182,13 @@ struct SettingsView: View {
             HStack {
                 Spacer()
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Registries cannot be listed due to limitations with container itself. To add regsitries and amage them, you'll need to open a terminal and run a login / default command.")
+                    Text("Registries cannot be listed due to limitations with container itself. To add them, you'll need to open a terminal and run the container commands. Copy your registry password to your clipboard and run:")
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("# copy your password to your clipboard\n\npbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin")
+                            Text("pbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin")
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.leading)
                                 .font(.system(.body, design: .monospaced))
