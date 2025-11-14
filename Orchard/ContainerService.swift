@@ -1386,7 +1386,13 @@ class ContainerService: ObservableObject {
     func openTerminal(for containerId: String, shell: String = "/bin/sh") {
         // Build the command to execute in Terminal.app
         let containerBinary = safeContainerBinaryPath()
-        let command = "\(containerBinary) exec -it \(containerId) \(shell)"
+        
+        // Escape the command properly for AppleScript
+        let escapedBinary = containerBinary.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedContainerId = containerId.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedShell = shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        
+        let command = "\(escapedBinary) exec -it \(escapedContainerId) \(escapedShell)"
         
         // Create AppleScript to open Terminal with the command
         let script = """
@@ -1396,15 +1402,22 @@ class ContainerService: ObservableObject {
         end tell
         """
         
+        // Debug: print the command and script
+        print("Opening terminal with command: \(command)")
+        print("AppleScript: \(script)")
+        
         // Execute the AppleScript
         let appleScript = NSAppleScript(source: script)
         var error: NSDictionary?
-        appleScript?.executeAndReturnError(&error)
+        let result = appleScript?.executeAndReturnError(&error)
         
         if let error = error {
+            print("AppleScript error: \(error)")
             DispatchQueue.main.async {
                 self.errorMessage = "Failed to open terminal: \(error)"
             }
+        } else if let result = result {
+            print("AppleScript result: \(result)")
         }
     }
     
