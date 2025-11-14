@@ -31,6 +31,11 @@ All notable changes to Orchard will be documented in this file.
   - Edit ports, volumes, environment variables, working directory, and commands
   - Container is automatically deleted and recreated with new settings
   - Warning banner explains the recreation process
+- **Terminal Attachment**: Added ability to attach terminal to running containers
+  - "Terminal" button with dropdown menu in toolbar for running containers
+  - Choose between sh (default shell) or bash
+  - Opens in Terminal.app with interactive session
+  - Context menu option to open terminal from container list
 
 ### Changed
 - 

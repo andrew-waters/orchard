@@ -228,6 +228,8 @@ struct ContainerRow: View {
     let stopContainer: (String) -> Void
     let startContainer: (String) -> Void
     let removeContainer: (String) -> Void
+    let openTerminal: ((String) -> Void)?
+    let openTerminalBash: ((String) -> Void)?
     @State private var copyFeedbackStates: [String: Bool] = [:]
 
     private var networkAddress: String {
@@ -269,12 +271,38 @@ struct ContainerRow: View {
                     }
                     .background(copyFeedbackStates["networkAddress"] == true ? Color.green : Color.clear)
                 }
+                
+                Divider()
             }
 
             if isLoading {
                 Text("Loading...")
                     .foregroundColor(.gray)
             } else if container.status.lowercased() == "running" {
+                if let openTerminal = openTerminal, let openTerminalBash = openTerminalBash {
+                    Menu("Open Terminal") {
+                        Button {
+                            openTerminal(container.configuration.id)
+                        } label: {
+                            HStack {
+                                SwiftUI.Image(systemName: "terminal")
+                                Text("Shell (sh)")
+                            }
+                        }
+                        
+                        Button {
+                            openTerminalBash(container.configuration.id)
+                        } label: {
+                            HStack {
+                                SwiftUI.Image(systemName: "terminal.fill")
+                                Text("Bash (bash)")
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                }
+                
                 Button("Stop Container") {
                     stopContainer(container.configuration.id)
                 }
@@ -440,6 +468,38 @@ struct ContainerRemoveButton: View {
             CursorModifier(
                 cursor: (isLoading || container.status.lowercased() == "running")
                     ? .arrow : .pointingHand))
+    }
+}
+
+struct ContainerTerminalButton: View {
+    let container: Container
+    let onOpenTerminal: () -> Void
+    let onOpenTerminalBash: () -> Void
+    @State private var showingMenu = false
+
+    var body: some View {
+        Menu {
+            Button(action: onOpenTerminal) {
+                HStack {
+                    SwiftUI.Image(systemName: "terminal")
+                    Text("Open Terminal (sh)")
+                }
+            }
+            
+            Button(action: onOpenTerminalBash) {
+                HStack {
+                    SwiftUI.Image(systemName: "terminal.fill")
+                    Text("Open Terminal (bash)")
+                }
+            }
+        } label: {
+            SwiftUI.Image(systemName: "terminal")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.gray)
+        }
+        .menuStyle(.borderlessButton)
+        .frame(width: 30, height: 30)
+        .help("Open Terminal")
     }
 }
 
