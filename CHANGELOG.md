@@ -25,6 +25,12 @@ All notable changes to Orchard will be documented in this file.
   - Context menu delete option in image list
   - Safety check: prevents deletion if image is in use by any container
   - Confirmation dialog before deletion
+- **Edit Container Configuration**: Added ability to edit stopped containers
+  - "Edit Configuration" button appears for stopped containers
+  - Pre-filled configuration dialog with all current settings
+  - Edit ports, volumes, environment variables, working directory, and commands
+  - Container is automatically deleted and recreated with new settings
+  - Warning banner explains the recreation process
 
 ### Changed
 - 

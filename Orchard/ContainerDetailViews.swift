@@ -9,6 +9,7 @@ struct ContainerDetailView: View {
     let onTabChanged: (String) -> Void
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedTab: ContainerTab = .overview
+    @State private var showEditConfiguration = false
 
     enum ContainerTab: String, CaseIterable {
         case overview = "Overview"
@@ -44,6 +45,10 @@ struct ContainerDetailView: View {
         .onAppear {
             selectedTab = tabFromString(initialSelectedTab)
         }
+        .sheet(isPresented: $showEditConfiguration) {
+            EditContainerView(container: container)
+                .environmentObject(containerService)
+        }
     }
 
     private var tabPickerSection: some View {
@@ -53,6 +58,23 @@ struct ContainerDetailView: View {
                     tabButton(for: tab)
                 }
                 Spacer()
+                
+                // Edit Configuration button - only for stopped containers
+                if container.status.lowercased() != "running" {
+                    Button(action: {
+                        showEditConfiguration = true
+                    }) {
+                        HStack(spacing: 6) {
+                            SwiftUI.Image(systemName: "pencil.circle")
+                            Text("Edit Configuration")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)

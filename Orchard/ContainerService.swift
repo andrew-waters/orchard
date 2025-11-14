@@ -1419,6 +1419,42 @@ class ContainerService: ObservableObject {
     
     // MARK: - Container Run Management
     
+    func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+        
+        // First, delete the old container
+        do {
+            let deleteResult = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["delete", oldContainerId])
+            
+            if deleteResult.failed {
+                await MainActor.run {
+                    let errorMsg = deleteResult.stderr ?? "Unknown error"
+                    self.errorMessage = "Failed to delete old container: \(errorMsg)"
+                }
+                return
+            }
+            
+            // Now create the new container with updated config
+            await runContainer(config: newConfig)
+            
+            await MainActor.run {
+                if self.errorMessage == nil {
+                    self.successMessage = "Container '\(newConfig.name)' has been recreated with new configuration"
+                }
+            }
+            
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to recreate container: \(error.localizedDescription)"
+            }
+        }
+    }
+    
     func runContainer(config: ContainerRunConfig) async {
         await MainActor.run {
             errorMessage = nil
