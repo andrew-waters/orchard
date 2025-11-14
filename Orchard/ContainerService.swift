@@ -1381,6 +1381,42 @@ class ContainerService: ObservableObject {
         searchResults = []
     }
     
+    // MARK: - Image Management
+    
+    func deleteImage(_ imageReference: String) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+        
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["image", "delete", imageReference])
+            
+            await MainActor.run {
+                if !result.failed {
+                    self.successMessage = "Successfully deleted image: \(imageReference)"
+                    
+                    // Remove from local array immediately
+                    self.images.removeAll { $0.reference == imageReference }
+                    
+                    // Refresh images list
+                    Task {
+                        await loadImages()
+                    }
+                } else {
+                    let errorMsg = result.stderr ?? "Unknown error"
+                    self.errorMessage = "Failed to delete image: \(errorMsg)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to delete image: \(error.localizedDescription)"
+            }
+        }
+    }
+    
     // MARK: - Container Run Management
     
     func runContainer(config: ContainerRunConfig) async {

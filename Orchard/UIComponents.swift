@@ -8,6 +8,7 @@ struct ContainerImageRow: View {
     let image: ContainerImage
     @EnvironmentObject var containerService: ContainerService
     @State private var copyFeedbackStates: [String: Bool] = [:]
+    @State private var showDeleteConfirmation = false
 
     private var imageName: String {
         // Extract the image name from the reference (e.g., "docker.io/library/alpine:3" -> "alpine")
@@ -32,6 +33,12 @@ struct ContainerImageRow: View {
         containerService.containers.contains { container in
             container.configuration.image.reference == image.reference &&
             container.status.lowercased() == "running"
+        }
+    }
+    
+    private var isUsedByAnyContainer: Bool {
+        containerService.containers.contains { container in
+            container.configuration.image.reference == image.reference
         }
     }
 
@@ -83,6 +90,40 @@ struct ContainerImageRow: View {
                 }
                 .background(copyFeedbackStates["digest"] == true ? Color.green : Color.clear)
             }
+            
+            Divider()
+            
+            // Only show delete if not in use by any container
+            if !isUsedByAnyContainer {
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        SwiftUI.Image(systemName: "trash")
+                        Text("Delete Image")
+                    }
+                }
+            } else {
+                Button(role: .destructive) {
+                    // Disabled - show why
+                } label: {
+                    HStack {
+                        SwiftUI.Image(systemName: "exclamationmark.triangle")
+                        Text("Image in Use")
+                    }
+                }
+                .disabled(true)
+            }
+        }
+        .alert("Delete Image?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await containerService.deleteImage(image.reference)
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete '\(imageName):\(imageTag)'? This action cannot be undone.")
         }
     }
 

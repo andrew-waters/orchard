@@ -20,6 +20,11 @@ All notable changes to Orchard will be documented in this file.
   - Volume mounts: bind mount host directories into containers with read-only option
   - Environment variables: set custom environment variables
   - Advanced options: working directory and command override
+- **Delete Images**: Added ability to delete downloaded images
+  - "Delete" button in image detail view (only shown if image is not in use)
+  - Context menu delete option in image list
+  - Safety check: prevents deletion if image is in use by any container
+  - Confirmation dialog before deletion
 
 ### Changed
 - 

@@ -508,6 +508,8 @@ struct ContainerImageDetailView: View {
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedTab: ImageTab = .overview
     @State private var showRunContainer = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
 
     enum ImageTab: String, CaseIterable {
         case overview = "Overview"
@@ -591,6 +593,39 @@ struct ContainerImageDetailView: View {
                     .padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(isDeleting)
+                
+                // Delete Image button - only show if no containers are using it
+                if containersUsingImage.isEmpty {
+                    Button(action: {
+                        showDeleteConfirmation = true
+                    }) {
+                        HStack(spacing: 6) {
+                            if isDeleting {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                SwiftUI.Image(systemName: "trash")
+                            }
+                            Text(isDeleting ? "Deleting..." : "Delete")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                    .disabled(isDeleting)
+                    .alert("Delete Image?", isPresented: $showDeleteConfirmation) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Delete", role: .destructive) {
+                            deleteImage()
+                        }
+                    } message: {
+                        Text("Are you sure you want to delete '\(imageName)'? This action cannot be undone.")
+                    }
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -770,6 +805,18 @@ struct ContainerImageDetailView: View {
             return displayFormatter.string(from: date)
         }
         return dateString
+    }
+    
+    private func deleteImage() {
+        isDeleting = true
+        
+        Task {
+            await containerService.deleteImage(image.reference)
+            
+            await MainActor.run {
+                isDeleting = false
+            }
+        }
     }
 }
 
