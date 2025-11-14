@@ -1381,6 +1381,37 @@ class ContainerService: ObservableObject {
         searchResults = []
     }
     
+    // MARK: - Container Terminal
+    
+    func openTerminal(for containerId: String, shell: String = "/bin/sh") {
+        // Build the command to execute in Terminal.app
+        let containerBinary = safeContainerBinaryPath()
+        let command = "\(containerBinary) exec -it \(containerId) \(shell)"
+        
+        // Create AppleScript to open Terminal with the command
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "\(command)"
+        end tell
+        """
+        
+        // Execute the AppleScript
+        let appleScript = NSAppleScript(source: script)
+        var error: NSDictionary?
+        appleScript?.executeAndReturnError(&error)
+        
+        if let error = error {
+            DispatchQueue.main.async {
+                self.errorMessage = "Failed to open terminal: \(error)"
+            }
+        }
+    }
+    
+    func openTerminalWithBash(for containerId: String) {
+        openTerminal(for: containerId, shell: "/bin/bash")
+    }
+    
     // MARK: - Image Management
     
     func deleteImage(_ imageReference: String) async {

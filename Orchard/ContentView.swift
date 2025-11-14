@@ -243,7 +243,17 @@ struct ContentView: View {
                             }
                         )
 
-                        if container.status.lowercased() != "running" {
+                        if container.status.lowercased() == "running" {
+                            ContainerTerminalButton(
+                                container: container,
+                                onOpenTerminal: {
+                                    containerService.openTerminal(for: container.configuration.id)
+                                },
+                                onOpenTerminalBash: {
+                                    containerService.openTerminalWithBash(for: container.configuration.id)
+                                }
+                            )
+                        } else {
                             ContainerRemoveButton(
                                 container: container,
                                 isLoading: containerService.loadingContainers.contains(
@@ -718,6 +728,12 @@ struct ContentView: View {
                             Task { @MainActor in
                                 await containerService.removeContainer(id)
                             }
+                        },
+                        openTerminal: { id in
+                            containerService.openTerminal(for: id)
+                        },
+                        openTerminalBash: { id in
+                            containerService.openTerminalWithBash(for: id)
                         }
                     )
                     .tag(container.configuration.id)
