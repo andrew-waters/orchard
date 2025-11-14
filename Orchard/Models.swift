@@ -332,3 +332,73 @@ struct BuilderConfiguration: Codable, Equatable {
         case dns
     }
 }
+
+// MARK: - Image Pull Models
+
+struct ImagePullProgress: Identifiable, Equatable {
+    let id = UUID()
+    let imageName: String
+    var status: PullStatus
+    var progress: Double
+    var message: String
+    
+    enum PullStatus: Equatable {
+        case pulling
+        case completed
+        case failed(String)
+    }
+}
+
+// MARK: - Registry Search Models
+
+struct RegistrySearchResult: Identifiable, Equatable {
+    let id = UUID()
+    let name: String
+    let description: String?
+    let isOfficial: Bool
+    let starCount: Int?
+    
+    var displayName: String {
+        // Remove docker.io/library/ prefix for cleaner display
+        if name.hasPrefix("docker.io/library/") {
+            return String(name.dropFirst("docker.io/library/".count))
+        } else if name.hasPrefix("docker.io/") {
+            return String(name.dropFirst("docker.io/".count))
+        }
+        return name
+    }
+}
+
+// MARK: - Container Run Configuration Models
+
+struct ContainerRunConfig: Equatable {
+    var name: String
+    var image: String
+    var detached: Bool = true
+    var removeAfterStop: Bool = false
+    var environmentVariables: [EnvironmentVariable] = []
+    var portMappings: [PortMapping] = []
+    var volumeMappings: [VolumeMapping] = []
+    var workingDirectory: String = ""
+    var commandOverride: String = ""
+    
+    struct EnvironmentVariable: Identifiable, Equatable {
+        let id = UUID()
+        var key: String
+        var value: String
+    }
+    
+    struct PortMapping: Identifiable, Equatable {
+        let id = UUID()
+        var hostPort: String
+        var containerPort: String
+        var transportProtocol: String = "tcp"
+    }
+    
+    struct VolumeMapping: Identifiable, Equatable {
+        let id = UUID()
+        var hostPath: String
+        var containerPath: String
+        var readonly: Bool = false
+    }
+}

@@ -25,6 +25,9 @@ class ContainerService: ObservableObject {
     @Published var updateAvailable: Bool = false
     @Published var latestVersion: String?
     @Published var isCheckingForUpdates: Bool = false
+    @Published var pullProgress: [String: ImagePullProgress] = [:]
+    @Published var isSearching: Bool = false
+    @Published var searchResults: [RegistrySearchResult] = []
 
     private let defaultBinaryPath = "/usr/local/bin/container"
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
@@ -379,7 +382,7 @@ class ContainerService: ObservableObject {
         do {
             result = try exec(
                 program: safeContainerBinaryPath(),
-                arguments: ["images", "list", "--format", "json"])
+                arguments: ["image", "list", "--format", "json"])
         } catch {
             let error = error as! ExecError
             result = error.execResult
@@ -1239,6 +1242,233 @@ class ContainerService: ObservableObject {
         }
 
         return domains
+    }
+
+    // MARK: - Image Pull Management
+    
+    func pullImage(_ imageName: String) async {
+        let cleanImageName = imageName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        await MainActor.run {
+            pullProgress[cleanImageName] = ImagePullProgress(
+                imageName: cleanImageName,
+                status: .pulling,
+                progress: 0.0,
+                message: "Pulling image..."
+            )
+        }
+        
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["image", "pull", cleanImageName])
+            
+            await MainActor.run {
+                if !result.failed {
+                    pullProgress[cleanImageName] = ImagePullProgress(
+                        imageName: cleanImageName,
+                        status: .completed,
+                        progress: 1.0,
+                        message: "Pull completed successfully"
+                    )
+                    self.successMessage = "Successfully pulled image: \(cleanImageName)"
+                    
+                    // Refresh images list
+                    Task {
+                        await loadImages()
+                    }
+                    
+                    // Remove from progress after a delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        self.pullProgress.removeValue(forKey: cleanImageName)
+                    }
+                } else {
+                    let errorMsg = result.stderr ?? "Unknown error"
+                    pullProgress[cleanImageName] = ImagePullProgress(
+                        imageName: cleanImageName,
+                        status: .failed(errorMsg),
+                        progress: 0.0,
+                        message: "Pull failed: \(errorMsg)"
+                    )
+                    self.errorMessage = "Failed to pull image: \(errorMsg)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                let errorMsg = error.localizedDescription
+                pullProgress[cleanImageName] = ImagePullProgress(
+                    imageName: cleanImageName,
+                    status: .failed(errorMsg),
+                    progress: 0.0,
+                    message: "Pull failed: \(errorMsg)"
+                )
+                self.errorMessage = "Failed to pull image: \(errorMsg)"
+            }
+        }
+    }
+    
+    // MARK: - Registry Search
+    
+    func searchImages(_ query: String) async {
+        guard !query.isEmpty else {
+            await MainActor.run {
+                searchResults = []
+            }
+            return
+        }
+        
+        await MainActor.run {
+            isSearching = true
+        }
+        
+        // Use Docker Hub API to search for images
+        do {
+            let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+            let urlString = "https://hub.docker.com/v2/search/repositories/?query=\(encodedQuery)&page_size=25"
+            
+            guard let url = URL(string: urlString) else {
+                await MainActor.run {
+                    isSearching = false
+                    errorMessage = "Invalid search query"
+                }
+                return
+            }
+            
+            let (data, _) = try await URLSession.shared.data(from: url)
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let results = json["results"] as? [[String: Any]] {
+                
+                let searchResults: [RegistrySearchResult] = results.compactMap { result in
+                    guard let name = result["repo_name"] as? String else { return nil }
+                    
+                    // Build full image name with registry
+                    let fullName: String
+                    if name.contains("/") {
+                        fullName = "docker.io/\(name)"
+                    } else {
+                        fullName = "docker.io/library/\(name)"
+                    }
+                    
+                    return RegistrySearchResult(
+                        name: fullName,
+                        description: result["short_description"] as? String,
+                        isOfficial: (result["is_official"] as? Bool) ?? false,
+                        starCount: result["star_count"] as? Int
+                    )
+                }
+                
+                await MainActor.run {
+                    self.searchResults = searchResults
+                    self.isSearching = false
+                }
+            } else {
+                await MainActor.run {
+                    self.searchResults = []
+                    self.isSearching = false
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to search images: \(error.localizedDescription)"
+                self.isSearching = false
+                self.searchResults = []
+            }
+        }
+    }
+    
+    func clearSearchResults() {
+        searchResults = []
+    }
+    
+    // MARK: - Container Run Management
+    
+    func runContainer(config: ContainerRunConfig) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+        
+        var arguments = ["run"]
+        
+        // Add detached flag
+        if config.detached {
+            arguments.append("-d")
+        }
+        
+        // Add remove after stop flag
+        if config.removeAfterStop {
+            arguments.append("--rm")
+        }
+        
+        // Add container name
+        if !config.name.isEmpty {
+            arguments.append(contentsOf: ["--name", config.name])
+        }
+        
+        // Add environment variables
+        for envVar in config.environmentVariables {
+            if !envVar.key.isEmpty {
+                arguments.append(contentsOf: ["-e", "\(envVar.key)=\(envVar.value)"])
+            }
+        }
+        
+        // Add port mappings
+        for portMapping in config.portMappings {
+            if !portMapping.hostPort.isEmpty && !portMapping.containerPort.isEmpty {
+                let mapping = "\(portMapping.hostPort):\(portMapping.containerPort)/\(portMapping.transportProtocol)"
+                arguments.append(contentsOf: ["-p", mapping])
+            }
+        }
+        
+        // Add volume mappings
+        for volumeMapping in config.volumeMappings {
+            if !volumeMapping.hostPath.isEmpty && !volumeMapping.containerPath.isEmpty {
+                let mapping = volumeMapping.readonly 
+                    ? "\(volumeMapping.hostPath):\(volumeMapping.containerPath):ro"
+                    : "\(volumeMapping.hostPath):\(volumeMapping.containerPath)"
+                arguments.append(contentsOf: ["-v", mapping])
+            }
+        }
+        
+        // Add working directory
+        if !config.workingDirectory.isEmpty {
+            arguments.append(contentsOf: ["-w", config.workingDirectory])
+        }
+        
+        // Add image name
+        arguments.append(config.image)
+        
+        // Add command override if specified
+        if !config.commandOverride.isEmpty {
+            let commandArgs = config.commandOverride.split(separator: " ").map(String.init)
+            arguments.append(contentsOf: commandArgs)
+        }
+        
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: arguments)
+            
+            await MainActor.run {
+                if !result.failed {
+                    let containerName = config.name.isEmpty ? "Container" : config.name
+                    self.successMessage = "Successfully started container: \(containerName)"
+                    
+                    // Refresh containers list
+                    Task {
+                        await loadContainers()
+                    }
+                } else {
+                    let errorMsg = result.stderr ?? "Unknown error"
+                    self.errorMessage = "Failed to run container: \(errorMsg)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to run container: \(error.localizedDescription)"
+            }
+        }
     }
 
     // MARK: - Sudo Helper

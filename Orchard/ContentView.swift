@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var showOnlyRunning: Bool = false
     @State private var showOnlyImagesInUse: Bool = false
     @State private var refreshTimer: Timer?
+    @State private var showImageSearch: Bool = false
 
     @FocusState private var listFocusedTab: TabSelection?
     @State private var showingTabSwitcherPopover = false
@@ -759,7 +760,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(.black))
+                .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(6)
             }
             .padding()
@@ -819,12 +820,34 @@ struct ContentView: View {
                 }
 
             // Filter controls at bottom
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Search & Download button
+                Button(action: {
+                    showImageSearch = true
+                }) {
+                    HStack {
+                        SwiftUI.Image(systemName: "arrow.down.circle.fill")
+                            .font(.body)
+                        Text("Search & Download Images")
+                            .fontWeight(.medium)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showImageSearch) {
+                    ImageSearchView()
+                        .environmentObject(containerService)
+                        .frame(minWidth: 700, minHeight: 500)
+                }
+                
                 Toggle("Only show images in use", isOn: $showOnlyImagesInUse)
                     .toggleStyle(CheckboxToggleStyle())
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .padding(.bottom, 8)
 
                 // Search field
                 HStack {
@@ -835,7 +858,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(.black))
+                .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(6)
                 .transaction { transaction in
                     transaction.animation = nil
@@ -953,7 +976,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(.black))
+                .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(6)
                 .transaction { transaction in
                     transaction.animation = nil

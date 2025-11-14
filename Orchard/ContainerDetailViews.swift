@@ -507,6 +507,7 @@ struct ContainerImageDetailView: View {
     let onTabChanged: (String) -> Void
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedTab: ImageTab = .overview
+    @State private var showRunContainer = false
 
     enum ImageTab: String, CaseIterable {
         case overview = "Overview"
@@ -557,6 +558,10 @@ struct ContainerImageDetailView: View {
         .onAppear {
             selectedTab = imageTabFromString(initialSelectedTab)
         }
+        .sheet(isPresented: $showRunContainer) {
+            RunContainerView(imageName: image.reference)
+                .environmentObject(containerService)
+        }
     }
 
     // Helper function to convert string to enum
@@ -571,6 +576,21 @@ struct ContainerImageDetailView: View {
                     tabButton(for: tab)
                 }
                 Spacer()
+                
+                // Run Container button
+                Button(action: {
+                    showRunContainer = true
+                }) {
+                    HStack(spacing: 6) {
+                        SwiftUI.Image(systemName: "play.circle.fill")
+                        Text("Run Container")
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
