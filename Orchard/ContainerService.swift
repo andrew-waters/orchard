@@ -25,6 +25,9 @@ class ContainerService: ObservableObject {
     @Published var updateAvailable: Bool = false
     @Published var latestVersion: String?
     @Published var isCheckingForUpdates: Bool = false
+    @Published var pullProgress: [String: ImagePullProgress] = [:]
+    @Published var isSearching: Bool = false
+    @Published var searchResults: [RegistrySearchResult] = []
 
     private let defaultBinaryPath = "/usr/local/bin/container"
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
@@ -379,7 +382,7 @@ class ContainerService: ObservableObject {
         do {
             result = try exec(
                 program: safeContainerBinaryPath(),
-                arguments: ["images", "list", "--format", "json"])
+                arguments: ["image", "list", "--format", "json"])
         } catch {
             let error = error as! ExecError
             result = error.execResult
@@ -419,74 +422,106 @@ class ContainerService: ObservableObject {
         do {
             result = try exec(
                 program: safeContainerBinaryPath(),
-                arguments: ["builder", "status", "--json"])
+                arguments: ["builder", "status", "--format", "json"]
+            )
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
+            let execError = error as? ExecError
+            result = execError?.execResult ?? ExecResult(
+                failed: true,
+                message: error.localizedDescription,
+                exitCode: nil,
+                stdout: nil,
+                stderr: nil
+            )
         }
 
+        if result.failed {
+            await MainActor.run {
+                self.builders = []
+                self.builderStatus = .stopped
+                self.isBuildersLoading = false
+            }
+            if let stderr = result.stderr, !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                print("Builder status command failed (exit \(result.exitCode ?? -1)). Stderr:\n\(stderr)")
+            } else if let message = result.message {
+                print("Builder status command failed: \(message)")
+            } else {
+                print("Builder status command failed with unknown error.")
+            }
+            return
+        }
+
+        let raw = result.stdout ?? ""
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+
+        // Known non-JSON "not running" output
+        if lower.hasPrefix("builder is not running") || lower.hasPrefix("no builder") {
+            await MainActor.run {
+                self.builders = []
+                self.builderStatus = .stopped
+                self.isBuildersLoading = false
+            }
+            print("Builder status indicates not running (plain text).")
+            return
+        }
+
+        // Empty or explicit empty JSON
+        if trimmed.isEmpty || trimmed == "null" || trimmed == "[]" {
+            await MainActor.run {
+                self.builders = []
+                self.builderStatus = .stopped
+                self.isBuildersLoading = false
+            }
+            if trimmed.isEmpty {
+                print("Builder status returned empty output; assuming no builder.")
+            } else {
+                print("Builder status returned \(trimmed); no builder present.")
+            }
+            return
+        }
+
+        // Try decoding JSON (single object or array)
         do {
-            let data = result.stdout?.data(using: .utf8)
+            let data = Data(trimmed.utf8)
 
-            // Try to decode as single builder first
-            if let data = data {
-                do {
-                    let newBuilder = try JSONDecoder().decode(Builder.self, from: data)
-                    await MainActor.run {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            self.builders = [newBuilder]
-                        }
-                        // Update status without animation to prevent flicker
-                        self.builderStatus = newBuilder.status.lowercased() == "running" ? .running : .stopped
-                        self.isBuildersLoading = false
+            if let single = try? JSONDecoder().decode(Builder.self, from: data) {
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        self.builders = [single]
                     }
-                    print("Builder: \(newBuilder.configuration.id), Status: \(newBuilder.status)")
-                    return
-                } catch {
-                    // If single builder decode fails, try array
-                    do {
-                        let newBuilders = try JSONDecoder().decode([Builder].self, from: data)
-                        await MainActor.run {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                self.builders = newBuilders
-                            }
-                            // Update status without animation to prevent flicker
-                            if let firstBuilder = newBuilders.first {
-                                self.builderStatus = firstBuilder.status.lowercased() == "running" ? .running : .stopped
-                            } else {
-                                self.builderStatus = .stopped
-                            }
-                            self.isBuildersLoading = false
-                        }
-                        for builder in newBuilders {
-                            print("Builder: \(builder.configuration.id), Status: \(builder.status)")
-                        }
-                        return
-                    } catch {
-                        print("Failed to decode builders as array: \(error)")
-                    }
+                    self.builderStatus = single.status.lowercased() == "running" ? .running : .stopped
+                    self.isBuildersLoading = false
                 }
+                print("Builder: \(single.configuration.id), Status: \(single.status)")
+                return
             }
 
-            // If we get here, decoding failed
+            let array = try JSONDecoder().decode([Builder].self, from: data)
             await MainActor.run {
-                self.builders = []
-                self.builderStatus = .stopped
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    self.builders = array
+                }
+                if let first = array.first {
+                    self.builderStatus = first.status.lowercased() == "running" ? .running : .stopped
+                } else {
+                    self.builderStatus = .stopped
+                }
                 self.isBuildersLoading = false
             }
-            print("No builder data or failed to decode")
+            for b in array {
+                print("Builder: \(b.configuration.id), Status: \(b.status)")
+            }
         } catch {
+            let preview = String(trimmed.prefix(200))
+            print("Failed to decode builder status. Error: \(error)\nStdout preview (first 200 chars):\n\(preview)")
             await MainActor.run {
-                // If no builder exists, set empty array
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
             }
-            print("No builder found or error loading builder: \(error)")
         }
     }
-
-
 
     private func areContainersEqual(_ old: [Container], _ new: [Container]) -> Bool {
         return old == new
@@ -1239,6 +1274,361 @@ class ContainerService: ObservableObject {
         }
 
         return domains
+    }
+
+    // MARK: - Image Pull Management
+    
+    func pullImage(_ imageName: String) async {
+        let cleanImageName = imageName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        await MainActor.run {
+            pullProgress[cleanImageName] = ImagePullProgress(
+                imageName: cleanImageName,
+                status: .pulling,
+                progress: 0.0,
+                message: "Pulling image..."
+            )
+        }
+        
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["image", "pull", cleanImageName])
+            
+            await MainActor.run {
+                if !result.failed {
+                    pullProgress[cleanImageName] = ImagePullProgress(
+                        imageName: cleanImageName,
+                        status: .completed,
+                        progress: 1.0,
+                        message: "Pull completed successfully"
+                    )
+                    self.successMessage = "Successfully pulled image: \(cleanImageName)"
+                    
+                    // Refresh images list
+                    Task {
+                        await loadImages()
+                    }
+                    
+                    // Remove from progress after a delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        self.pullProgress.removeValue(forKey: cleanImageName)
+                    }
+                } else {
+                    let errorMsg = result.stderr ?? "Unknown error"
+                    pullProgress[cleanImageName] = ImagePullProgress(
+                        imageName: cleanImageName,
+                        status: .failed(errorMsg),
+                        progress: 0.0,
+                        message: "Pull failed: \(errorMsg)"
+                    )
+                    self.errorMessage = "Failed to pull image: \(errorMsg)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                let errorMsg = error.localizedDescription
+                pullProgress[cleanImageName] = ImagePullProgress(
+                    imageName: cleanImageName,
+                    status: .failed(errorMsg),
+                    progress: 0.0,
+                    message: "Pull failed: \(errorMsg)"
+                )
+                self.errorMessage = "Failed to pull image: \(errorMsg)"
+            }
+        }
+    }
+    
+    // MARK: - Registry Search
+    
+    func searchImages(_ query: String) async {
+        guard !query.isEmpty else {
+            await MainActor.run {
+                searchResults = []
+            }
+            return
+        }
+        
+        await MainActor.run {
+            isSearching = true
+        }
+        
+        // Use Docker Hub API to search for images
+        do {
+            let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+            let urlString = "https://hub.docker.com/v2/search/repositories/?query=\(encodedQuery)&page_size=25"
+            
+            guard let url = URL(string: urlString) else {
+                await MainActor.run {
+                    isSearching = false
+                    errorMessage = "Invalid search query"
+                }
+                return
+            }
+            
+            let (data, _) = try await URLSession.shared.data(from: url)
+            
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let results = json["results"] as? [[String: Any]] {
+                
+                let searchResults: [RegistrySearchResult] = results.compactMap { result in
+                    guard let name = result["repo_name"] as? String else { return nil }
+                    
+                    // Build full image name with registry
+                    let fullName: String
+                    if name.contains("/") {
+                        fullName = "docker.io/\(name)"
+                    } else {
+                        fullName = "docker.io/library/\(name)"
+                    }
+                    
+                    return RegistrySearchResult(
+                        name: fullName,
+                        description: result["short_description"] as? String,
+                        isOfficial: (result["is_official"] as? Bool) ?? false,
+                        starCount: result["star_count"] as? Int
+                    )
+                }
+                
+                await MainActor.run {
+                    self.searchResults = searchResults
+                    self.isSearching = false
+                }
+            } else {
+                await MainActor.run {
+                    self.searchResults = []
+                    self.isSearching = false
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to search images: \(error.localizedDescription)"
+                self.isSearching = false
+                self.searchResults = []
+            }
+        }
+    }
+    
+    func clearSearchResults() {
+        searchResults = []
+    }
+    
+    // MARK: - Container Terminal
+    
+    func openTerminal(for containerId: String, shell: String = "/bin/sh") {
+        // Build the command to execute in Terminal.app
+        let containerBinary = safeContainerBinaryPath()
+        
+        // Build the complete command - note: we need to quote the shell path if it has spaces
+        let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
+        
+        // Escape for AppleScript - replace backslashes and quotes
+        let escapedCommand = fullCommand
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        
+        // Create AppleScript to open Terminal with the command
+        // Using 'do script' opens a new Terminal window/tab and executes the command
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "\(escapedCommand)"
+        end tell
+        """
+        
+        // Debug: print the command and script
+        print(String(repeating: "=", count: 60))
+        print("Opening terminal with:")
+        print("  Binary: \(containerBinary)")
+        print("  Container: \(containerId)")
+        print("  Shell: \(shell)")
+        print("  Full command: \(fullCommand)")
+        print("  Escaped command: \(escapedCommand)")
+        print(String(repeating: "=", count: 60))
+        print("AppleScript:")
+        print(script)
+        print(String(repeating: "=", count: 60))
+        
+        // Execute the AppleScript
+        let appleScript = NSAppleScript(source: script)
+        var error: NSDictionary?
+        let result = appleScript?.executeAndReturnError(&error)
+        
+        if let error = error {
+            print("❌ AppleScript error: \(error)")
+            DispatchQueue.main.async {
+                self.errorMessage = "Failed to open terminal: \(error)"
+            }
+        } else if let result = result {
+            print("✓ AppleScript executed successfully")
+            print("  Result: \(result)")
+        }
+    }
+    
+    func openTerminalWithBash(for containerId: String) {
+        openTerminal(for: containerId, shell: "/bin/bash")
+    }
+    
+    // MARK: - Image Management
+    
+    func deleteImage(_ imageReference: String) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+        
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["image", "delete", imageReference])
+            
+            await MainActor.run {
+                if !result.failed {
+                    self.successMessage = "Successfully deleted image: \(imageReference)"
+                    
+                    // Remove from local array immediately
+                    self.images.removeAll { $0.reference == imageReference }
+                    
+                    // Refresh images list
+                    Task {
+                        await loadImages()
+                    }
+                } else {
+                    let errorMsg = result.stderr ?? "Unknown error"
+                    self.errorMessage = "Failed to delete image: \(errorMsg)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to delete image: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    // MARK: - Container Run Management
+    
+    func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+        
+        // First, delete the old container
+        do {
+            let deleteResult = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["delete", oldContainerId])
+            
+            if deleteResult.failed {
+                await MainActor.run {
+                    let errorMsg = deleteResult.stderr ?? "Unknown error"
+                    self.errorMessage = "Failed to delete old container: \(errorMsg)"
+                }
+                return
+            }
+            
+            // Now create the new container with updated config
+            await runContainer(config: newConfig)
+            
+            await MainActor.run {
+                if self.errorMessage == nil {
+                    self.successMessage = "Container '\(newConfig.name)' has been recreated with new configuration"
+                }
+            }
+            
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to recreate container: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    func runContainer(config: ContainerRunConfig) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+        
+        var arguments = ["run"]
+        
+        // Add detached flag
+        if config.detached {
+            arguments.append("-d")
+        }
+        
+        // Add remove after stop flag
+        if config.removeAfterStop {
+            arguments.append("--rm")
+        }
+        
+        // Add container name
+        if !config.name.isEmpty {
+            arguments.append(contentsOf: ["--name", config.name])
+        }
+        
+        // Add environment variables
+        for envVar in config.environmentVariables {
+            if !envVar.key.isEmpty {
+                arguments.append(contentsOf: ["-e", "\(envVar.key)=\(envVar.value)"])
+            }
+        }
+        
+        // Add port mappings
+        for portMapping in config.portMappings {
+            if !portMapping.hostPort.isEmpty && !portMapping.containerPort.isEmpty {
+                let mapping = "\(portMapping.hostPort):\(portMapping.containerPort)/\(portMapping.transportProtocol)"
+                arguments.append(contentsOf: ["-p", mapping])
+            }
+        }
+        
+        // Add volume mappings
+        for volumeMapping in config.volumeMappings {
+            if !volumeMapping.hostPath.isEmpty && !volumeMapping.containerPath.isEmpty {
+                let mapping = volumeMapping.readonly 
+                    ? "\(volumeMapping.hostPath):\(volumeMapping.containerPath):ro"
+                    : "\(volumeMapping.hostPath):\(volumeMapping.containerPath)"
+                arguments.append(contentsOf: ["-v", mapping])
+            }
+        }
+        
+        // Add working directory
+        if !config.workingDirectory.isEmpty {
+            arguments.append(contentsOf: ["-w", config.workingDirectory])
+        }
+        
+        // Add image name
+        arguments.append(config.image)
+        
+        // Add command override if specified
+        if !config.commandOverride.isEmpty {
+            let commandArgs = config.commandOverride.split(separator: " ").map(String.init)
+            arguments.append(contentsOf: commandArgs)
+        }
+        
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: arguments)
+            
+            await MainActor.run {
+                if !result.failed {
+                    let containerName = config.name.isEmpty ? "Container" : config.name
+                    self.successMessage = "Successfully started container: \(containerName)"
+                    
+                    // Refresh containers list
+                    Task {
+                        await loadContainers()
+                    }
+                } else {
+                    let errorMsg = result.stderr ?? "Unknown error"
+                    self.errorMessage = "Failed to run container: \(errorMsg)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to run container: \(error.localizedDescription)"
+            }
+        }
     }
 
     // MARK: - Sudo Helper

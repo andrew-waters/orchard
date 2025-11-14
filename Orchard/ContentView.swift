@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var showOnlyRunning: Bool = false
     @State private var showOnlyImagesInUse: Bool = false
     @State private var refreshTimer: Timer?
+    @State private var showImageSearch: Bool = false
 
     @FocusState private var listFocusedTab: TabSelection?
     @State private var showingTabSwitcherPopover = false
@@ -242,7 +243,17 @@ struct ContentView: View {
                             }
                         )
 
-                        if container.status.lowercased() != "running" {
+                        if container.status.lowercased() == "running" {
+                            ContainerTerminalButton(
+                                container: container,
+                                onOpenTerminal: {
+                                    containerService.openTerminal(for: container.configuration.id)
+                                },
+                                onOpenTerminalBash: {
+                                    containerService.openTerminalWithBash(for: container.configuration.id)
+                                }
+                            )
+                        } else {
                             ContainerRemoveButton(
                                 container: container,
                                 isLoading: containerService.loadingContainers.contains(
@@ -717,6 +728,12 @@ struct ContentView: View {
                             Task { @MainActor in
                                 await containerService.removeContainer(id)
                             }
+                        },
+                        openTerminal: { id in
+                            containerService.openTerminal(for: id)
+                        },
+                        openTerminalBash: { id in
+                            containerService.openTerminalWithBash(for: id)
                         }
                     )
                     .tag(container.configuration.id)
@@ -759,7 +776,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(.black))
+                .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(6)
             }
             .padding()
@@ -819,12 +836,34 @@ struct ContentView: View {
                 }
 
             // Filter controls at bottom
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Search & Download button
+                Button(action: {
+                    showImageSearch = true
+                }) {
+                    HStack {
+                        SwiftUI.Image(systemName: "arrow.down.circle.fill")
+                            .font(.body)
+                        Text("Search & Download Images")
+                            .fontWeight(.medium)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showImageSearch) {
+                    ImageSearchView()
+                        .environmentObject(containerService)
+                        .frame(minWidth: 700, minHeight: 500)
+                }
+                
                 Toggle("Only show images in use", isOn: $showOnlyImagesInUse)
                     .toggleStyle(CheckboxToggleStyle())
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .padding(.bottom, 8)
 
                 // Search field
                 HStack {
@@ -835,7 +874,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(.black))
+                .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(6)
                 .transaction { transaction in
                     transaction.animation = nil
@@ -953,7 +992,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(.black))
+                .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(6)
                 .transaction { transaction in
                     transaction.animation = nil

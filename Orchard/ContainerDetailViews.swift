@@ -9,6 +9,7 @@ struct ContainerDetailView: View {
     let onTabChanged: (String) -> Void
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedTab: ContainerTab = .overview
+    @State private var showEditConfiguration = false
 
     enum ContainerTab: String, CaseIterable {
         case overview = "Overview"
@@ -44,6 +45,10 @@ struct ContainerDetailView: View {
         .onAppear {
             selectedTab = tabFromString(initialSelectedTab)
         }
+        .sheet(isPresented: $showEditConfiguration) {
+            EditContainerView(container: container)
+                .environmentObject(containerService)
+        }
     }
 
     private var tabPickerSection: some View {
@@ -53,6 +58,23 @@ struct ContainerDetailView: View {
                     tabButton(for: tab)
                 }
                 Spacer()
+                
+                // Edit Configuration button - only for stopped containers
+                if container.status.lowercased() != "running" {
+                    Button(action: {
+                        showEditConfiguration = true
+                    }) {
+                        HStack(spacing: 6) {
+                            SwiftUI.Image(systemName: "pencil.circle")
+                            Text("Edit Configuration")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -507,6 +529,9 @@ struct ContainerImageDetailView: View {
     let onTabChanged: (String) -> Void
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedTab: ImageTab = .overview
+    @State private var showRunContainer = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
 
     enum ImageTab: String, CaseIterable {
         case overview = "Overview"
@@ -557,6 +582,10 @@ struct ContainerImageDetailView: View {
         .onAppear {
             selectedTab = imageTabFromString(initialSelectedTab)
         }
+        .sheet(isPresented: $showRunContainer) {
+            RunContainerView(imageName: image.reference)
+                .environmentObject(containerService)
+        }
     }
 
     // Helper function to convert string to enum
@@ -571,6 +600,54 @@ struct ContainerImageDetailView: View {
                     tabButton(for: tab)
                 }
                 Spacer()
+                
+                // Run Container button
+                Button(action: {
+                    showRunContainer = true
+                }) {
+                    HStack(spacing: 6) {
+                        SwiftUI.Image(systemName: "play.circle.fill")
+                        Text("Run Container")
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isDeleting)
+                
+                // Delete Image button - only show if no containers are using it
+                if containersUsingImage.isEmpty {
+                    Button(action: {
+                        showDeleteConfirmation = true
+                    }) {
+                        HStack(spacing: 6) {
+                            if isDeleting {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                SwiftUI.Image(systemName: "trash")
+                            }
+                            Text(isDeleting ? "Deleting..." : "Delete")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                    .disabled(isDeleting)
+                    .alert("Delete Image?", isPresented: $showDeleteConfirmation) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Delete", role: .destructive) {
+                            deleteImage()
+                        }
+                    } message: {
+                        Text("Are you sure you want to delete '\(imageName)'? This action cannot be undone.")
+                    }
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -750,6 +827,18 @@ struct ContainerImageDetailView: View {
             return displayFormatter.string(from: date)
         }
         return dateString
+    }
+    
+    private func deleteImage() {
+        isDeleting = true
+        
+        Task {
+            await containerService.deleteImage(image.reference)
+            
+            await MainActor.run {
+                isDeleting = false
+            }
+        }
     }
 }
 
