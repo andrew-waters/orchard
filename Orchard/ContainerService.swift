@@ -1387,24 +1387,35 @@ class ContainerService: ObservableObject {
         // Build the command to execute in Terminal.app
         let containerBinary = safeContainerBinaryPath()
         
-        // Escape the command properly for AppleScript
-        let escapedBinary = containerBinary.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let escapedContainerId = containerId.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let escapedShell = shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        // Build the complete command - note: we need to quote the shell path if it has spaces
+        let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
         
-        let command = "\(escapedBinary) exec -it \(escapedContainerId) \(escapedShell)"
+        // Escape for AppleScript - replace backslashes and quotes
+        let escapedCommand = fullCommand
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
         
         // Create AppleScript to open Terminal with the command
+        // Using 'do script' opens a new Terminal window/tab and executes the command
         let script = """
         tell application "Terminal"
             activate
-            do script "\(command)"
+            do script "\(escapedCommand)"
         end tell
         """
         
         // Debug: print the command and script
-        print("Opening terminal with command: \(command)")
-        print("AppleScript: \(script)")
+        print(String(repeating: "=", count: 60))
+        print("Opening terminal with:")
+        print("  Binary: \(containerBinary)")
+        print("  Container: \(containerId)")
+        print("  Shell: \(shell)")
+        print("  Full command: \(fullCommand)")
+        print("  Escaped command: \(escapedCommand)")
+        print(String(repeating: "=", count: 60))
+        print("AppleScript:")
+        print(script)
+        print(String(repeating: "=", count: 60))
         
         // Execute the AppleScript
         let appleScript = NSAppleScript(source: script)
@@ -1412,12 +1423,13 @@ class ContainerService: ObservableObject {
         let result = appleScript?.executeAndReturnError(&error)
         
         if let error = error {
-            print("AppleScript error: \(error)")
+            print("❌ AppleScript error: \(error)")
             DispatchQueue.main.async {
                 self.errorMessage = "Failed to open terminal: \(error)"
             }
         } else if let result = result {
-            print("AppleScript result: \(result)")
+            print("✓ AppleScript executed successfully")
+            print("  Result: \(result)")
         }
     }
     
