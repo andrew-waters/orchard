@@ -15,7 +15,6 @@ struct ContainerDetailView: View {
         case overview = "Overview"
         case environment = "Environment"
         case mounts = "Mounts"
-        case labels = "Labels"
         case logs = "Logs"
 
         var systemImage: String {
@@ -26,8 +25,6 @@ struct ContainerDetailView: View {
                 return "gearshape"
             case .mounts:
                 return "externaldrive"
-            case .labels:
-                return "tag"
             case .logs:
                 return "doc.text"
             }
@@ -109,8 +106,6 @@ struct ContainerDetailView: View {
                 containerEnvironmentTab
             case .mounts:
                 containerMountsTab
-            case .labels:
-                containerLabelsTab
             case .logs:
                 LogsView(containerId: container.configuration.id)
                     .environmentObject(containerService)
@@ -152,6 +147,11 @@ struct ContainerDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 containerEnvironmentSection(container: container)
+
+                Divider()
+
+                containerLabelsSection(container: container)
+
                 Spacer(minLength: 20)
             }
             .padding()
@@ -167,14 +167,7 @@ struct ContainerDetailView: View {
         }
     }
 
-    private var containerLabelsTab: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                containerLabelsSection(container: container)
-            }
-            .padding()
-        }
-    }
+
 
     // MARK: - Detail Sections
 
