@@ -284,10 +284,7 @@ struct ContentView: View {
                 }
             }
 
-            AppFooter(onOpenSettings: {
-                openWindow(id: "settings")
-            })
-            .environmentObject(containerService)
+
         }
         .task {
             await containerService.checkSystemStatus()
@@ -859,7 +856,7 @@ struct ContentView: View {
                         .environmentObject(containerService)
                         .frame(minWidth: 700, minHeight: 500)
                 }
-                
+
                 Toggle("Only show images in use", isOn: $showOnlyImagesInUse)
                     .toggleStyle(CheckboxToggleStyle())
                     .font(.caption)

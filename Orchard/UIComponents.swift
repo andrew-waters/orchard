@@ -35,7 +35,7 @@ struct ContainerImageRow: View {
             container.status.lowercased() == "running"
         }
     }
-    
+
     private var isUsedByAnyContainer: Bool {
         containerService.containers.contains { container in
             container.configuration.image.reference == image.reference
@@ -90,9 +90,9 @@ struct ContainerImageRow: View {
                 }
                 .background(copyFeedbackStates["digest"] == true ? Color.green : Color.clear)
             }
-            
+
             Divider()
-            
+
             // Only show delete if not in use by any container
             if !isUsedByAnyContainer {
                 Button(role: .destructive) {
@@ -271,7 +271,7 @@ struct ContainerRow: View {
                     }
                     .background(copyFeedbackStates["networkAddress"] == true ? Color.green : Color.clear)
                 }
-                
+
                 Divider()
             }
 
@@ -289,7 +289,7 @@ struct ContainerRow: View {
                                 Text("Shell (sh)")
                             }
                         }
-                        
+
                         Button {
                             openTerminalBash(container.configuration.id)
                         } label: {
@@ -299,10 +299,10 @@ struct ContainerRow: View {
                             }
                         }
                     }
-                    
+
                     Divider()
                 }
-                
+
                 Button("Stop Container") {
                     stopContainer(container.configuration.id)
                 }
@@ -485,7 +485,7 @@ struct ContainerTerminalButton: View {
                     Text("Open Terminal (sh)")
                 }
             }
-            
+
             Button(action: onOpenTerminalBash) {
                 HStack {
                     SwiftUI.Image(systemName: "terminal.fill")
@@ -624,118 +624,5 @@ struct CopyButton: View {
         }
         .buttonStyle(.plain)
         .help(label)
-    }
-}
-
-struct AppFooter: View {
-    @EnvironmentObject var containerService: ContainerService
-    let onOpenSettings: () -> Void
-
-    private var containerSystemStatusColor: Color {
-        return containerService.systemStatus.color
-    }
-
-    private var builderStatusColor: Color {
-        return containerService.builderStatus.color
-    }
-
-    var body: some View {
-        HStack {
-            // Left side - Domain and Binary info
-            HStack(spacing: 16) {
-
-
-                // Default Domain
-                HStack(spacing: 4) {
-                    SwiftUI.Image(systemName: "globe")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    Text(containerService.currentDefaultDomain ?? "None")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-                .help("Default Domain: \(containerService.currentDefaultDomain ?? "None")")
-
-                // Binary Status
-                HStack(spacing: 4) {
-                    SwiftUI.Image(systemName: containerService.isUsingCustomBinary ? "terminal.fill" : "terminal")
-                        .font(.system(size: 11))
-                        .foregroundColor(containerService.isUsingCustomBinary ? .blue : .secondary)
-                    Text(containerService.isUsingCustomBinary ? "Custom" : "Default")
-                        .font(.system(size: 11))
-                        .foregroundColor(containerService.isUsingCustomBinary ? .blue : .secondary)
-                }
-                .help("Binary Path: \(containerService.isUsingCustomBinary ? "Custom" : "Default") (\(containerService.containerBinaryPath))")
-            }
-
-            Spacer()
-
-            // Update indicator (when available)
-            if containerService.updateAvailable {
-                Button(action: {
-                    containerService.openReleasesPage()
-                }) {
-                    HStack(spacing: 4) {
-                        SwiftUI.Image(systemName: "arrow.down.circle")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 12))
-                        Text("Update Available")
-                            .font(.system(size: 11))
-                            .foregroundColor(.blue)
-                    }
-                }
-                .buttonStyle(.plain)
-                .help("New version \(containerService.latestVersion ?? "") is available. Click to download.")
-            }
-
-            // Right side - Separate System and Builder Status
-            HStack(spacing: 12) {
-                // Container System Status
-                HStack(spacing: 4) {
-                    SwiftUI.Image(systemName: "cube.box")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
-
-                    Text(containerService.systemStatus.text)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-                .help("Container System: \(containerService.systemStatus.text)")
-
-                // Builder Status
-                HStack(spacing: 4) {
-                    SwiftUI.Image(systemName: "hammer")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
-
-                    Text(containerService.builderStatus.text)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-                .help("Builder: \(containerService.builderStatus.text)")
-
-                // Settings Icon
-                Button(action: {
-                    onOpenSettings()
-                }) {
-                    SwiftUI.Image(systemName: "gearshape")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-                .help("Open Settings")
-            }
-            .transaction { transaction in
-                transaction.animation = nil
-            }
-        }
-        .padding(12)
-        .background(Color(NSColor.controlBackgroundColor))
-        .overlay(
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundColor(Color(NSColor.separatorColor)),
-            alignment: .top
-        )
     }
 }
