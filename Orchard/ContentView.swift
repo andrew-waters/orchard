@@ -626,13 +626,10 @@ struct ContentView: View {
 
     private var registriesView: some View {
         VStack {
-            Text("Registries")
-                .font(.title)
+            Text("No registries to display")
                 .foregroundColor(.secondary)
-            Text("Container registries will go here")
-                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var systemLogsView: some View {
@@ -1100,9 +1097,53 @@ struct ContentView: View {
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        case .settings, .registries, .systemLogs:
+        case .registries:
+            registriesDetailView
+        case .settings, .systemLogs:
             EmptyView()
         }
+    }
+
+    private var registriesDetailView: some View {
+        VStack(spacing: 20) {
+            HStack {
+                Spacer()
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Registries cannot be listed due to limitations with container itself. To add them, you'll need to open a terminal and run the container commands. Copy your registry password to your clipboard and run:")
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("pbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin")
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+
+                            Spacer()
+
+                            Button(action: {
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setString("pbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin", forType: .string)
+                            }) {
+                                SwiftUI.Image(systemName: "doc.on.clipboard")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Copy command to clipboard")
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .frame(minHeight: 200)
+            .padding()
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
