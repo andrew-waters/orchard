@@ -331,7 +331,35 @@ struct ContentView: View {
                 detailView
             }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Search input
+                HStack {
+                    SwiftUI.Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 12))
 
+                    TextField("Search", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .frame(width: 150)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(6)
+
+                // Settings button
+                Button {
+                    selectedTab = .settings
+                } label: {
+                    SwiftUI.Image(systemName: "gear")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             isWindowFocused = true
         }
