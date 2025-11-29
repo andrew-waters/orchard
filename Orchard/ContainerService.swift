@@ -981,19 +981,13 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            // Get list of domains
+            // Get list of domains in JSON format
             let listResult = try exec(
                 program: safeContainerBinaryPath(),
-                arguments: ["system", "dns", "ls"])
-
-            // Get default domain
-            let defaultResult = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["system", "dns", "default", "inspect"])
+                arguments: ["system", "dns", "ls", "--format=json"])
 
             if let output = listResult.stdout {
-                let defaultDomain = defaultResult.stdout?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let domains = parseDNSDomains(output, defaultDomain: defaultDomain)
+                let domains = parseDNSDomainsFromJSON(output, defaultDomain: nil)
                 await MainActor.run {
                     self.dnsDomains = domains
                     self.isDNSLoading = false
@@ -1258,29 +1252,33 @@ class ContainerService: ObservableObject {
 
 
 
-    private func parseDNSDomains(_ output: String, defaultDomain: String?) -> [DNSDomain] {
-        let lines = output.components(separatedBy: .newlines)
+    private func parseDNSDomainsFromJSON(_ output: String, defaultDomain: String?) -> [DNSDomain] {
         var domains: [DNSDomain] = []
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty && !trimmed.starts(with: "DOMAIN") {
-                let components = trimmed.components(separatedBy: .whitespaces)
-                if let domain = components.first {
-                    let isDefault = domain == defaultDomain
-                    domains.append(DNSDomain(domain: domain, isDefault: isDefault))
+        do {
+            guard let data = output.data(using: .utf8) else {
+                return domains
+            }
+
+            // Parse JSON array of domain strings
+            if let domainArray = try JSONSerialization.jsonObject(with: data) as? [String] {
+                for domainName in domainArray {
+                    let isDefault = domainName == defaultDomain
+                    domains.append(DNSDomain(domain: domainName, isDefault: isDefault))
                 }
             }
+        } catch {
+            // Ignore JSON parsing errors
         }
 
         return domains
     }
 
     // MARK: - Image Pull Management
-    
+
     func pullImage(_ imageName: String) async {
         let cleanImageName = imageName.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         await MainActor.run {
             pullProgress[cleanImageName] = ImagePullProgress(
                 imageName: cleanImageName,
@@ -1289,12 +1287,12 @@ class ContainerService: ObservableObject {
                 message: "Pulling image..."
             )
         }
-        
+
         do {
             let result = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["image", "pull", cleanImageName])
-            
+
             await MainActor.run {
                 if !result.failed {
                     pullProgress[cleanImageName] = ImagePullProgress(
@@ -1304,12 +1302,12 @@ class ContainerService: ObservableObject {
                         message: "Pull completed successfully"
                     )
                     self.successMessage = "Successfully pulled image: \(cleanImageName)"
-                    
+
                     // Refresh images list
                     Task {
                         await loadImages()
                     }
-                    
+
                     // Remove from progress after a delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         self.pullProgress.removeValue(forKey: cleanImageName)
@@ -1338,9 +1336,9 @@ class ContainerService: ObservableObject {
             }
         }
     }
-    
+
     // MARK: - Registry Search
-    
+
     func searchImages(_ query: String) async {
         guard !query.isEmpty else {
             await MainActor.run {
@@ -1348,16 +1346,16 @@ class ContainerService: ObservableObject {
             }
             return
         }
-        
+
         await MainActor.run {
             isSearching = true
         }
-        
+
         // Use Docker Hub API to search for images
         do {
             let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
             let urlString = "https://hub.docker.com/v2/search/repositories/?query=\(encodedQuery)&page_size=25"
-            
+
             guard let url = URL(string: urlString) else {
                 await MainActor.run {
                     isSearching = false
@@ -1365,15 +1363,15 @@ class ContainerService: ObservableObject {
                 }
                 return
             }
-            
+
             let (data, _) = try await URLSession.shared.data(from: url)
-            
+
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let results = json["results"] as? [[String: Any]] {
-                
+
                 let searchResults: [RegistrySearchResult] = results.compactMap { result in
                     guard let name = result["repo_name"] as? String else { return nil }
-                    
+
                     // Build full image name with registry
                     let fullName: String
                     if name.contains("/") {
@@ -1381,7 +1379,7 @@ class ContainerService: ObservableObject {
                     } else {
                         fullName = "docker.io/library/\(name)"
                     }
-                    
+
                     return RegistrySearchResult(
                         name: fullName,
                         description: result["short_description"] as? String,
@@ -1389,7 +1387,7 @@ class ContainerService: ObservableObject {
                         starCount: result["star_count"] as? Int
                     )
                 }
-                
+
                 await MainActor.run {
                     self.searchResults = searchResults
                     self.isSearching = false
@@ -1408,25 +1406,25 @@ class ContainerService: ObservableObject {
             }
         }
     }
-    
+
     func clearSearchResults() {
         searchResults = []
     }
-    
+
     // MARK: - Container Terminal
-    
+
     func openTerminal(for containerId: String, shell: String = "/bin/sh") {
         // Build the command to execute in Terminal.app
         let containerBinary = safeContainerBinaryPath()
-        
+
         // Build the complete command - note: we need to quote the shell path if it has spaces
         let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
-        
+
         // Escape for AppleScript - replace backslashes and quotes
         let escapedCommand = fullCommand
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        
+
         // Create AppleScript to open Terminal with the command
         // Using 'do script' opens a new Terminal window/tab and executes the command
         let script = """
@@ -1435,7 +1433,7 @@ class ContainerService: ObservableObject {
             do script "\(escapedCommand)"
         end tell
         """
-        
+
         // Debug: print the command and script
         print(String(repeating: "=", count: 60))
         print("Opening terminal with:")
@@ -1448,12 +1446,12 @@ class ContainerService: ObservableObject {
         print("AppleScript:")
         print(script)
         print(String(repeating: "=", count: 60))
-        
+
         // Execute the AppleScript
         let appleScript = NSAppleScript(source: script)
         var error: NSDictionary?
         let result = appleScript?.executeAndReturnError(&error)
-        
+
         if let error = error {
             print("❌ AppleScript error: \(error)")
             DispatchQueue.main.async {
@@ -1464,31 +1462,31 @@ class ContainerService: ObservableObject {
             print("  Result: \(result)")
         }
     }
-    
+
     func openTerminalWithBash(for containerId: String) {
         openTerminal(for: containerId, shell: "/bin/bash")
     }
-    
+
     // MARK: - Image Management
-    
+
     func deleteImage(_ imageReference: String) async {
         await MainActor.run {
             errorMessage = nil
             successMessage = nil
         }
-        
+
         do {
             let result = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["image", "delete", imageReference])
-            
+
             await MainActor.run {
                 if !result.failed {
                     self.successMessage = "Successfully deleted image: \(imageReference)"
-                    
+
                     // Remove from local array immediately
                     self.images.removeAll { $0.reference == imageReference }
-                    
+
                     // Refresh images list
                     Task {
                         await loadImages()
@@ -1504,21 +1502,21 @@ class ContainerService: ObservableObject {
             }
         }
     }
-    
+
     // MARK: - Container Run Management
-    
+
     func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
         await MainActor.run {
             errorMessage = nil
             successMessage = nil
         }
-        
+
         // First, delete the old container
         do {
             let deleteResult = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["delete", oldContainerId])
-            
+
             if deleteResult.failed {
                 await MainActor.run {
                     let errorMsg = deleteResult.stderr ?? "Unknown error"
@@ -1526,53 +1524,53 @@ class ContainerService: ObservableObject {
                 }
                 return
             }
-            
+
             // Now create the new container with updated config
             await runContainer(config: newConfig)
-            
+
             await MainActor.run {
                 if self.errorMessage == nil {
                     self.successMessage = "Container '\(newConfig.name)' has been recreated with new configuration"
                 }
             }
-            
+
         } catch {
             await MainActor.run {
                 self.errorMessage = "Failed to recreate container: \(error.localizedDescription)"
             }
         }
     }
-    
+
     func runContainer(config: ContainerRunConfig) async {
         await MainActor.run {
             errorMessage = nil
             successMessage = nil
         }
-        
+
         var arguments = ["run"]
-        
+
         // Add detached flag
         if config.detached {
             arguments.append("-d")
         }
-        
+
         // Add remove after stop flag
         if config.removeAfterStop {
             arguments.append("--rm")
         }
-        
+
         // Add container name
         if !config.name.isEmpty {
             arguments.append(contentsOf: ["--name", config.name])
         }
-        
+
         // Add environment variables
         for envVar in config.environmentVariables {
             if !envVar.key.isEmpty {
                 arguments.append(contentsOf: ["-e", "\(envVar.key)=\(envVar.value)"])
             }
         }
-        
+
         // Add port mappings
         for portMapping in config.portMappings {
             if !portMapping.hostPort.isEmpty && !portMapping.containerPort.isEmpty {
@@ -1580,41 +1578,41 @@ class ContainerService: ObservableObject {
                 arguments.append(contentsOf: ["-p", mapping])
             }
         }
-        
+
         // Add volume mappings
         for volumeMapping in config.volumeMappings {
             if !volumeMapping.hostPath.isEmpty && !volumeMapping.containerPath.isEmpty {
-                let mapping = volumeMapping.readonly 
+                let mapping = volumeMapping.readonly
                     ? "\(volumeMapping.hostPath):\(volumeMapping.containerPath):ro"
                     : "\(volumeMapping.hostPath):\(volumeMapping.containerPath)"
                 arguments.append(contentsOf: ["-v", mapping])
             }
         }
-        
+
         // Add working directory
         if !config.workingDirectory.isEmpty {
             arguments.append(contentsOf: ["-w", config.workingDirectory])
         }
-        
+
         // Add image name
         arguments.append(config.image)
-        
+
         // Add command override if specified
         if !config.commandOverride.isEmpty {
             let commandArgs = config.commandOverride.split(separator: " ").map(String.init)
             arguments.append(contentsOf: commandArgs)
         }
-        
+
         do {
             let result = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: arguments)
-            
+
             await MainActor.run {
                 if !result.failed {
                     let containerName = config.name.isEmpty ? "Container" : config.name
                     self.successMessage = "Successfully started container: \(containerName)"
-                    
+
                     // Refresh containers list
                     Task {
                         await loadContainers()

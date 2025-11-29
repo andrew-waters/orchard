@@ -7,7 +7,6 @@ struct SettingsView: View {
 
     enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "general"
-        case dns = "dns"
         case registries = "registries"
 
         var id: String { rawValue }
@@ -16,7 +15,6 @@ struct SettingsView: View {
             switch self {
             case .general: return "General"
             case .registries: return "Registries"
-            case .dns: return "DNS"
             }
         }
 
@@ -24,7 +22,6 @@ struct SettingsView: View {
             switch self {
             case .general: return "gearshape"
             case .registries: return "server.rack"
-            case .dns: return "network"
             }
         }
     }
@@ -68,10 +65,8 @@ struct SettingsView: View {
                     switch selectedTab {
                     case .general:
                         generalSettings
-                    case .dns:
-                        dnsSettings
                     case .registries:
-                        registrySettings
+                        registriesSettings
                     }
                 }
                 .padding(.top, 30)
@@ -177,7 +172,7 @@ struct SettingsView: View {
 
     // MARK: - Registry Settings
 
-    private var registrySettings: some View {
+    private var registriesSettings: some View {
         VStack(spacing: 20) {
             HStack {
                 Spacer()
@@ -217,172 +212,6 @@ struct SettingsView: View {
         }
     }
 
-
-    // MARK: - DNS Settings
-
-    private var dnsSettings: some View {
-        VStack(spacing: 20) {
-            if containerService.isDNSLoading {
-                HStack {
-                    Spacer()
-                    VStack {
-                        ProgressView()
-                        Text("Loading DNS domains...")
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                }
-                .frame(minHeight: 200)
-            } else if containerService.dnsDomains.isEmpty {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 16) {
-                        SwiftUI.Image(systemName: "network.slash")
-                            .font(.system(size: 48))
-                            .foregroundColor(.secondary)
-
-                        Text("No DNS Domains")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-
-                        Text("Add a DNS domain to enable local container networking.\nThis requires administrator privileges.")
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-
-                        Button("Add your first domain") {
-                            showAddDNSDomainSheet()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    Spacer()
-                }
-                .frame(minHeight: 200)
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(containerService.dnsDomains) { domain in
-                        HStack {
-                            Text("\(domain.domain):")
-                                .frame(width: 220, alignment: .trailing)
-
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text(domain.domain)
-                                            .font(.system(.body, design: .monospaced))
-                                            .fontWeight(domain.isDefault ? .semibold : .medium)
-
-                                        if domain.isDefault {
-                                            SwiftUI.Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.blue)
-                                                .font(.caption)
-                                        }
-                                    }
-
-                                    if domain.isDefault {
-                                        Text("Default Domain")
-                                            .font(.caption2)
-                                            .foregroundColor(.blue)
-                                    }
-                                }
-
-                                Spacer()
-
-                                HStack(spacing: 8) {
-                                    if domain.isDefault {
-                                        Button("Unset Default") {
-                                            Task { await containerService.unsetDefaultDNSDomain() }
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                    } else {
-                                        Button("Set Default") {
-                                            Task { await containerService.setDefaultDNSDomain(domain.domain) }
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                    }
-
-                                    Button("Delete") {
-                                        confirmDNSDomainDeletion(domain: domain.domain)
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                }
-            }
-
-            if !containerService.dnsDomains.isEmpty {
-                HStack {
-                    Text("")
-                        .frame(width: 220, alignment: .trailing)
-
-                    HStack {
-                        Button("Add Domain") {
-                            showAddDNSDomainSheet()
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            Spacer()
-        }
-    }
-
-    // MARK: - Dialog Methods
-
-    private func showAddDNSDomainSheet() {
-        let alert = NSAlert()
-        alert.messageText = "Add DNS Domain"
-        alert.informativeText = "Enter a domain name for local container networking. This requires administrator privileges."
-        alert.alertStyle = .informational
-
-        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        textField.placeholderString = "e.g., local.dev, myapp.local"
-        alert.accessoryView = textField
-
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            let domain = textField.stringValue.trimmingCharacters(in: .whitespaces)
-            guard !domain.isEmpty, isValidDomainName(domain) else {
-                containerService.errorMessage = "Invalid domain name format."
-                return
-            }
-
-            Task { await containerService.createDNSDomain(domain) }
-        }
-    }
-
-    private func confirmDNSDomainDeletion(domain: String) {
-        let alert = NSAlert()
-        alert.messageText = "Delete DNS Domain"
-        alert.informativeText = "Are you sure you want to delete '\(domain)'? This requires administrator privileges."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.deleteDNSDomain(domain) }
-        }
-    }
-
-    private func isValidDomainName(_ domain: String) -> Bool {
-        let regex = "^[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.[a-zA-Z0-9]+$"
-        return domain.range(of: regex, options: .regularExpression) != nil
-    }
 
     private func createLabel(text: String, frame: NSRect) -> NSTextField {
         let label = NSTextField(labelWithString: text)

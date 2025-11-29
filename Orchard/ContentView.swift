@@ -15,11 +15,13 @@ struct ContentView: View {
     @State private var selectedContainer: String?
     @State private var selectedImage: String?
     @State private var selectedMount: String?
+    @State private var selectedDNSDomain: String?
 
     // Last selected items to restore state
     @State private var lastSelectedContainer: String?
     @State private var lastSelectedImage: String?
     @State private var lastSelectedMount: String?
+    @State private var lastSelectedDNSDomain: String?
 
     // Last selected tabs for each section
     @State private var lastSelectedContainerTab: String = "overview"
@@ -64,6 +66,9 @@ struct ContentView: View {
         case .settings:
             return ""
         case .dns:
+            if let selectedDNSDomain = selectedDNSDomain {
+                return selectedDNSDomain
+            }
             return ""
         case .registries:
             return ""
@@ -156,6 +161,12 @@ struct ContentView: View {
             }
             if selectedMount == nil && !containerService.allMounts.isEmpty {
                 selectedMount = containerService.allMounts[0].id
+            }
+        }
+        .onChange(of: containerService.dnsDomains) { _, newDomains in
+            // Auto-select first DNS domain when domains load
+            if selectedDNSDomain == nil && !newDomains.isEmpty {
+                selectedDNSDomain = newDomains[0].domain
             }
         }
 
@@ -394,7 +405,14 @@ struct ContentView: View {
                 } else if !filteredMounts.isEmpty {
                     selectedMount = filteredMounts.first?.id
                 }
-            case .settings, .dns, .registries, .systemLogs:
+            case .dns:
+                if let lastSelected = lastSelectedDNSDomain,
+                   containerService.dnsDomains.contains(where: { $0.domain == lastSelected }) {
+                    selectedDNSDomain = lastSelected
+                } else if !containerService.dnsDomains.isEmpty {
+                    selectedDNSDomain = containerService.dnsDomains.first?.domain
+                }
+            case .settings, .registries, .systemLogs:
                 // No selection state for these tabs
                 break
             }
@@ -482,12 +500,101 @@ struct ContentView: View {
     }
 
     private var dnsView: some View {
-        VStack {
-            Text("DNS")
-                .font(.title)
-                .foregroundColor(.secondary)
-            Text("DNS configuration will go here")
-                .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            if containerService.isDNSLoading {
+                VStack {
+                    ProgressView()
+                        .padding()
+                    Text("Loading DNS domains...")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if containerService.dnsDomains.isEmpty {
+                VStack {
+                    SwiftUI.Image(systemName: "network.slash")
+                        .font(.system(size: 32))
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 8)
+                    Text("No DNS Domains")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    Text("Add a domain to get started")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // DNS domain list
+                List(selection: $selectedDNSDomain) {
+                    ForEach(containerService.dnsDomains) { domain in
+                        HStack {
+                            SwiftUI.Image(systemName: "network")
+                                .foregroundColor(domain.isDefault ? .blue : .gray)
+                                .frame(width: 16, height: 16)
+
+                            VStack(alignment: .leading) {
+                                Text(domain.domain)
+                                if domain.isDefault {
+                                    Text("Default Domain")
+                                        .font(.subheadline)
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                        .tag(domain.domain)
+                    }
+                }
+                .listStyle(PlainListStyle())
+                .animation(.easeInOut(duration: 0.3), value: containerService.dnsDomains)
+                .focused($listFocusedTab, equals: .dns)
+                .onChange(of: selectedDNSDomain) { _, newValue in
+                    lastSelectedDNSDomain = newValue
+                }
+            }
+
+            // Add domain button
+            HStack {
+                Button(action: {
+                    showAddDNSDomainSheet()
+                }) {
+                    HStack {
+                        SwiftUI.Image(systemName: "plus")
+                            .font(.system(size: 12))
+                        Text("Add Domain")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                // Debug refresh button
+                Button(action: {
+                    Task {
+                        await containerService.loadDNSDomains(showLoading: true)
+                    }
+                }) {
+                    HStack {
+                        SwiftUI.Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12))
+                        Text("Refresh")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.controlBackgroundColor))
+            .overlay(
+                Rectangle()
+                    .frame(height: 0.5)
+                    .foregroundColor(Color(NSColor.separatorColor)),
+                alignment: .top
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -539,7 +646,9 @@ struct ContentView: View {
                     imagePopoverItems
                 case .mounts:
                     mountPopoverItems
-                case .settings, .dns, .registries, .systemLogs:
+                case .dns:
+                    dnsPopoverItems
+                case .settings, .registries, .systemLogs:
                     EmptyView()
                 }
             }
@@ -688,6 +797,50 @@ struct ContentView: View {
         reference.split(separator: "/").last?.split(separator: ":").first.map(String.init) ?? reference
     }
 
+    private var dnsPopoverItems: some View {
+        ForEach(containerService.dnsDomains) { domain in
+            dnsPopoverRow(domain)
+        }
+    }
+
+    private func dnsPopoverRow(_ domain: DNSDomain) -> some View {
+        Button(action: {
+            selectedDNSDomain = domain.domain
+            lastSelectedDNSDomain = domain.domain
+            showingItemNavigatorPopover = false
+        }) {
+            HStack {
+                SwiftUI.Image(systemName: "network")
+                    .font(.subheadline)
+                    .foregroundColor(domain.isDefault ? .blue : .secondary)
+
+                VStack(alignment: .leading) {
+                    Text(domain.domain)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    if domain.isDefault {
+                        Text("Default")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                }
+
+                Spacer()
+
+                if selectedDNSDomain == domain.domain {
+                    SwiftUI.Image(systemName: "checkmark")
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(selectedDNSDomain == domain.domain ? Color.accentColor.opacity(0.1) : Color.clear)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
+
 
 
 
@@ -744,6 +897,10 @@ struct ContentView: View {
                 if newTab == .containers {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         listFocusedTab = .containers
+                    }
+                } else if newTab == .dns {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        listFocusedTab = .dns
                     }
                 }
             }
@@ -853,7 +1010,9 @@ struct ContentView: View {
                     ImageSearchView()
                         .environmentObject(containerService)
                         .frame(minWidth: 700, minHeight: 500)
-                }
+                    }
+
+
 
                 Toggle("Only show images in use", isOn: $showOnlyImagesInUse)
                     .toggleStyle(CheckboxToggleStyle())
@@ -911,9 +1070,115 @@ struct ContentView: View {
             imageDetailView
         case .mounts:
             mountDetailView
-        case .settings, .dns, .registries, .systemLogs:
+        case .dns:
+            if let selectedDNSDomain = selectedDNSDomain {
+                dnsDetailView(domain: selectedDNSDomain)
+            } else {
+                Text("Select a DNS domain")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        case .settings, .registries, .systemLogs:
             EmptyView()
         }
+    }
+
+    @ViewBuilder
+    private func dnsDetailView(domain: String) -> some View {
+        if let dnsDomain = containerService.dnsDomains.first(where: { $0.domain == domain }) {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("DNS Domain: \(dnsDomain.domain)")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+
+                if dnsDomain.isDefault {
+                    HStack {
+                        SwiftUI.Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.blue)
+                        Text("Default Domain")
+                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Actions")
+                        .font(.headline)
+
+                    HStack(spacing: 12) {
+                        if !dnsDomain.isDefault {
+                            Button("Set as Default") {
+                                Task {
+                                    await containerService.setDefaultDNSDomain(dnsDomain.domain)
+                                }
+                            }
+                        } else {
+                            Button("Unset Default") {
+                                Task {
+                                    await containerService.unsetDefaultDNSDomain()
+                                }
+                            }
+                        }
+
+                        Button("Delete Domain") {
+                            confirmDNSDomainDeletion(domain: dnsDomain.domain)
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            Text("Domain not found")
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func showAddDNSDomainSheet() {
+        let alert = NSAlert()
+        alert.messageText = "Add DNS Domain"
+        alert.informativeText = "Enter a domain name for local container networking. This requires administrator privileges."
+        alert.alertStyle = .informational
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        textField.placeholderString = "e.g., local.dev, myapp.local"
+        alert.accessoryView = textField
+
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            let domain = textField.stringValue.trimmingCharacters(in: .whitespaces)
+            guard !domain.isEmpty, isValidDomainName(domain) else {
+                containerService.errorMessage = "Invalid domain name format."
+                return
+            }
+
+            Task { await containerService.createDNSDomain(domain) }
+        }
+    }
+
+    private func confirmDNSDomainDeletion(domain: String) {
+        let alert = NSAlert()
+        alert.messageText = "Delete DNS Domain"
+        alert.informativeText = "Are you sure you want to delete '\(domain)'? This requires administrator privileges."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await containerService.deleteDNSDomain(domain) }
+        }
+    }
+
+    private func isValidDomainName(_ domain: String) -> Bool {
+        let domainRegex = "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+        let predicate = NSPredicate(format: "SELF MATCHES %@", domainRegex)
+        return predicate.evaluate(with: domain)
     }
 
     @ViewBuilder
