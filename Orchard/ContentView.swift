@@ -198,6 +198,30 @@ struct ContentView: View {
                 selectedMount = mountId
             }
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToDNSDomain"))
+        ) { notification in
+            if let domainName = notification.object as? String {
+                // Switch to DNS view and select the specific domain
+                selectedTab = .dns
+
+                // Ensure DNS domains are loaded before selecting
+                Task {
+                    await containerService.loadDNSDomains()
+                    await MainActor.run {
+                        // Verify the domain exists in the loaded list
+                        if containerService.dnsDomains.contains(where: { $0.domain == domainName }) {
+                            // Add delay to ensure list is rendered before selection
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                selectedDNSDomain = domainName
+                                lastSelectedDNSDomain = domainName
+                                listFocusedTab = .dns
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var emptyStateView: some View {
@@ -876,6 +900,10 @@ struct ContentView: View {
                 } else if newTab == .dns {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         listFocusedTab = .dns
+                    }
+                    // Load DNS domains when switching to DNS tab
+                    Task {
+                        await containerService.loadDNSDomains()
                     }
                 }
             }
