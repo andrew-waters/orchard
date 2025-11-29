@@ -73,9 +73,7 @@ class ContainerService: ObservableObject {
         return customPath != defaultBinaryPath && validateBinaryPath(customPath)
     }
 
-    var currentDefaultDomain: String? {
-        return dnsDomains.first { $0.isDefault }?.domain
-    }
+
 
     init() {
         loadCustomBinaryPath()
@@ -1025,23 +1023,6 @@ class ContainerService: ObservableObject {
 
     func deleteDNSDomain(_ domain: String) async {
         do {
-            // Check if the domain being deleted is the default
-            let isDefaultDomain = dnsDomains.first { $0.domain == domain }?.isDefault ?? false
-
-            // If it's the default domain, unset it first
-            if isDefaultDomain {
-                let unsetResult = try exec(
-                    program: safeContainerBinaryPath(),
-                    arguments: ["system", "dns", "default", "unset"])
-
-                if unsetResult.failed {
-                    await MainActor.run {
-                        self.errorMessage = unsetResult.stderr ?? "Failed to unset default DNS domain before deletion"
-                    }
-                    return
-                }
-            }
-
             let result = try execWithSudo(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "dns", "delete", domain])
@@ -1060,57 +1041,7 @@ class ContainerService: ObservableObject {
         }
     }
 
-    func setDefaultDNSDomain(_ domain: String) async {
-        await MainActor.run {
-            isDNSLoading = true
-        }
 
-        do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["system", "dns", "default", "set", domain])
-
-            if !result.failed {
-                await loadDNSDomains()
-            } else {
-                await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to set default DNS domain"
-                    self.isDNSLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to set default DNS domain: \(error.localizedDescription)"
-                self.isDNSLoading = false
-            }
-        }
-    }
-
-    func unsetDefaultDNSDomain() async {
-        await MainActor.run {
-            isDNSLoading = true
-        }
-
-        do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["system", "dns", "default", "unset"])
-
-            if !result.failed {
-                await loadDNSDomains()
-            } else {
-                await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to unset default DNS domain"
-                    self.isDNSLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to unset default DNS domain: \(error.localizedDescription)"
-                self.isDNSLoading = false
-            }
-        }
-    }
 
     // MARK: - Kernel Management
 
