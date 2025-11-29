@@ -13,7 +13,6 @@ struct ContainerDetailView: View {
 
     enum ContainerTab: String, CaseIterable {
         case overview = "Overview"
-        case network = "Network"
         case environment = "Environment"
         case mounts = "Mounts"
         case labels = "Labels"
@@ -23,8 +22,6 @@ struct ContainerDetailView: View {
             switch self {
             case .overview:
                 return "info.circle"
-            case .network:
-                return "network"
             case .environment:
                 return "gearshape"
             case .mounts:
@@ -104,12 +101,10 @@ struct ContainerDetailView: View {
     }
 
     private var tabContentSection: some View {
-        Group {
+        VStack {
             switch selectedTab {
             case .overview:
                 containerOverviewTab
-            case .network:
-                containerNetworkTab
             case .environment:
                 containerEnvironmentTab
             case .mounts:
@@ -134,6 +129,11 @@ struct ContainerDetailView: View {
 
                 Divider()
 
+                // Network section
+                containerNetworkSection(container: container)
+
+                Divider()
+
                 // Resources and Process side by side
                 HStack(alignment: .top, spacing: 20) {
                     containerResourcesSection(container: container)
@@ -146,15 +146,7 @@ struct ContainerDetailView: View {
         }
     }
 
-    private var containerNetworkTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                containerNetworkSection(container: container)
-                Spacer(minLength: 20)
-            }
-            .padding()
-        }
-    }
+
 
     private var containerEnvironmentTab: some View {
         ScrollView {
