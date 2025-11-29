@@ -381,41 +381,7 @@ struct ContainerDetailView: View {
                 .foregroundColor(.primary)
 
             if !container.configuration.initProcess.environment.isEmpty {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
-                        ForEach(container.configuration.initProcess.environment, id: \.self) {
-                            envVar in
-                            let components = envVar.split(separator: "=", maxSplits: 1)
-                            if components.count == 2 {
-                                HStack(alignment: .top) {
-                                    Text(String(components[0]))
-                                        .font(.system(.subheadline, design: .monospaced))
-                                        .foregroundColor(.primary)
-                                        .frame(minWidth: 100, alignment: .leading)
-
-                                    Text("=")
-                                        .font(.system(.subheadline, design: .monospaced))
-                                        .foregroundColor(.secondary)
-
-                                    Text(String(components[1]))
-                                        .font(.system(.subheadline, design: .monospaced))
-                                        .foregroundColor(.secondary)
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .padding(.vertical, 2)
-                            } else {
-                                Text(envVar)
-                                    .font(.system(.subheadline, design: .monospaced))
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: 200)
-                .padding()
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                .cornerRadius(8)
+                EnvironmentVariablesTable(environment: container.configuration.initProcess.environment)
             } else {
                 Text("No environment variables")
                     .foregroundColor(.secondary)
@@ -495,33 +461,7 @@ struct ContainerDetailView: View {
                 .foregroundColor(.primary)
 
             if let labels = container.configuration.labels, !labels.isEmpty {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(labels.keys.sorted()), id: \.self) { key in
-                            HStack(alignment: .top) {
-                                Text(key)
-                                    .font(.system(.subheadline, design: .monospaced))
-                                    .foregroundColor(.primary)
-                                    .frame(minWidth: 100, alignment: .leading)
-
-                                Text("=")
-                                    .font(.system(.subheadline, design: .monospaced))
-                                    .foregroundColor(.secondary)
-
-                                Text(labels[key] ?? "")
-                                    .font(.system(.subheadline, design: .monospaced))
-                                    .foregroundColor(.secondary)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-                }
-                .frame(maxHeight: 200)
-                .padding()
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                .cornerRadius(8)
+                LabelsTable(labels: labels)
             } else {
                 Text("No labels")
                     .foregroundColor(.secondary)
@@ -533,6 +473,186 @@ struct ContainerDetailView: View {
     // Helper function to convert string to enum
     private func tabFromString(_ tabString: String) -> ContainerTab {
         return ContainerTab.allCases.first { $0.rawValue == tabString } ?? .overview
+    }
+}
+
+// MARK: - Environment Variables Table
+
+struct EnvironmentVariablesTable: View {
+    let environment: [String]
+
+    private var parsedEnvironment: [(key: String, value: String)] {
+        environment.compactMap { envVar in
+            let components = envVar.split(separator: "=", maxSplits: 1)
+            guard components.count == 2 else { return nil }
+            return (key: String(components[0]), value: String(components[1]))
+        }
+    }
+
+    private var maxKeyWidth: CGFloat {
+        let keys = parsedEnvironment.map { $0.key }
+        let maxKey = keys.max { $0.count < $1.count } ?? ""
+
+        // Approximate character width for monospaced font at subheadline size
+        // This is a rough estimation - actual width may vary
+        return CGFloat(maxKey.count) * 7.5 + 20 // 7.5 points per character + padding
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Table header
+            HStack {
+                Text("Variable")
+                    .font(.system(.caption, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                    .frame(width: maxKeyWidth, alignment: .leading)
+
+                Text("Value")
+                    .font(.system(.caption, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+
+            Divider()
+
+            // Table rows
+            if parsedEnvironment.isEmpty {
+                // Handle malformed environment variables
+                ForEach(environment, id: \.self) { envVar in
+                    HStack {
+                        Text(envVar)
+                            .font(.system(.subheadline, design: .monospaced))
+                            .foregroundColor(.primary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.clear)
+
+                    if envVar != environment.last {
+                        Divider()
+                            .padding(.leading, 12)
+                    }
+                }
+            } else {
+                ForEach(Array(parsedEnvironment.enumerated()), id: \.offset) { index, envPair in
+                    HStack(alignment: .top, spacing: 0) {
+                        // Key column
+                        Text(envPair.key)
+                            .font(.system(.subheadline, design: .monospaced))
+                            .foregroundColor(.primary)
+                            .fontWeight(.medium)
+                            .frame(width: maxKeyWidth, alignment: .leading)
+                            .textSelection(.enabled)
+
+                        // Value column
+                        Text(envPair.value)
+                            .font(.system(.subheadline, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                            .lineLimit(nil)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(index % 2 == 0 ? Color.clear : Color(NSColor.controlBackgroundColor).opacity(0.1))
+
+                    if index < parsedEnvironment.count - 1 {
+                        Divider()
+                            .padding(.leading, 12)
+                    }
+                }
+            }
+        }
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.05))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Labels Table
+
+struct LabelsTable: View {
+    let labels: [String: String]
+
+    private var sortedLabels: [(key: String, value: String)] {
+        labels.sorted { $0.key < $1.key }.map { (key: $0.key, value: $0.value) }
+    }
+
+    private var maxKeyWidth: CGFloat {
+        let keys = sortedLabels.map { $0.key }
+        let maxKey = keys.max { $0.count < $1.count } ?? ""
+
+        // Approximate character width for monospaced font at subheadline size
+        return CGFloat(maxKey.count) * 7.5 + 20 // 7.5 points per character + padding
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Table header
+            HStack {
+                Text("Label")
+                    .font(.system(.caption, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                    .frame(width: maxKeyWidth, alignment: .leading)
+
+                Text("Value")
+                    .font(.system(.caption, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+
+            Divider()
+
+            // Table rows
+            ForEach(Array(sortedLabels.enumerated()), id: \.offset) { index, labelPair in
+                HStack(alignment: .top, spacing: 0) {
+                    // Key column
+                    Text(labelPair.key)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .fontWeight(.medium)
+                        .frame(width: maxKeyWidth, alignment: .leading)
+                        .textSelection(.enabled)
+
+                    // Value column
+                    Text(labelPair.value)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .lineLimit(nil)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(index % 2 == 0 ? Color.clear : Color(NSColor.controlBackgroundColor).opacity(0.1))
+
+                if index < sortedLabels.count - 1 {
+                    Divider()
+                        .padding(.leading, 12)
+                }
+            }
+        }
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.05))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
