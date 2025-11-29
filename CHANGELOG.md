@@ -2,7 +2,7 @@
 
 All notable changes to Orchard will be documented in this file.
 
-## [Unreleased]
+## [1.1.8]
 
 ### Added
 - **Image Search and Download**: New feature to search Docker Hub for container images and download them directly from the UI
@@ -38,13 +38,17 @@ All notable changes to Orchard will be documented in this file.
   - Context menu option to open terminal from container list
 
 ### Changed
-- 
+- **Settings page deprecated**: You can not access them in the main window
+  - Loading state now displays to prevent jarring view changes
+  - We now required `0.6.0` and check the CLI version for compatibility
 
 ### Fixed
 - Fixed image commands to use correct CLI syntax for container 0.6.0 (`container image pull` and `container image list` instead of plural `images`)
 
 
 ## [1.1.7] - 2025-11-08
+
+Note this should have been 0.1.7 but was incorrectly tagged.
 
 ### Added
 - 
@@ -126,4 +130,3 @@ All notable changes to Orchard will be documented in this file.
 
 ### Fixed
 -
-
