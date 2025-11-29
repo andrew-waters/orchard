@@ -40,6 +40,7 @@ struct ContentView: View {
 
     @State private var showingItemNavigatorPopover = false
     @State private var isInIntentionalSettingsMode = false
+    @State private var isInitialLoadComplete = false
     @Environment(\.openWindow) private var openWindow
 
     // Computed property for window title
@@ -160,9 +161,12 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
     var body: some View {
         Group {
-            if containerService.systemStatus == .stopped {
+            if !isInitialLoadComplete {
+                splashScreenView
+            } else if containerService.systemStatus == .stopped {
                 emptyStateView
             } else if containerService.systemStatus == .unsupportedVersion {
                 versionIncompatibilityView
@@ -437,27 +441,52 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
             isWindowFocused = false
         }
-        .task {
-            await containerService.checkSystemStatus()
-            await containerService.loadContainers(showLoading: true)
-            await containerService.loadImages()
-            await containerService.loadBuilders()
 
-            await containerService.loadDNSDomains(showLoading: true)
-
-            // Check for updates on startup
-            if containerService.shouldCheckForUpdates() {
-                await containerService.checkForUpdates()
-            }
-
-            startRefreshTimer()
-        }
         .onDisappear {
             stopRefreshTimer()
         }
         .onChange(of: containerService.refreshInterval) { _, _ in
             restartRefreshTimer()
         }
+    }
+
+    private var splashScreenView: some View {
+        VStack(spacing: 20) {
+            // App icon or logo
+            SwiftUI.Image(systemName: "cube.box.fill")
+                .font(.system(size: 80))
+                .foregroundColor(.white)
+
+            Text(windowTitle)
+                .font(.title)
+                .fontWeight(.semibold)
+
+
+
+
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(red: 0.0, green: 0.3, blue: 0.6))
+        .task {
+            await performInitialLoad()
+            isInitialLoadComplete = true
+        }
+    }
+
+    private func performInitialLoad() async {
+        await containerService.checkSystemStatus()
+        await containerService.loadContainers(showLoading: true)
+        await containerService.loadImages()
+        await containerService.loadBuilders()
+
+        await containerService.loadDNSDomains(showLoading: true)
+
+        // Check for updates on startup
+        if containerService.shouldCheckForUpdates() {
+            await containerService.checkForUpdates()
+        }
+
+        startRefreshTimer()
     }
 
     private func startRefreshTimer() {
