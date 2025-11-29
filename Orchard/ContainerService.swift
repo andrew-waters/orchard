@@ -3,6 +3,8 @@ import SwiftExec
 import SwiftUI
 
 class ContainerService: ObservableObject {
+    let supportedContainerVersion = "0.6.0"
+
     @Published var containers: [Container] = []
     @Published var images: [ContainerImage] = []
     @Published var builders: [Builder] = []
@@ -14,6 +16,7 @@ class ContainerService: ObservableObject {
     @Published var isSystemLoading = false
     @Published var loadingContainers: Set<String> = []
     @Published var containerVersion: String?
+    @Published var parsedContainerVersion: String?
     @Published var isBuilderLoading = false
     @Published var builderStatus: BuilderStatus = .stopped
     @Published var dnsDomains: [DNSDomain] = []
@@ -607,27 +610,52 @@ class ContainerService: ObservableObject {
                 arguments: ["--version"])
 
             let output = result.stdout
-            await MainActor.run {
-                self.containerVersion = output
-            }
 
             // Parse version from output like "container CLI version 0.6.0 (build: release, commit: a23bcf0)"
-            let supportedVersion = "0.6.0"
+            var extractedVersion: String?
+            if let output = output {
+                // Try regex pattern first
+                let pattern = #"version\s+(\d+\.\d+\.\d+)"#
+                if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+                    let range = NSRange(location: 0, length: output.utf16.count)
+                    if let match = regex.firstMatch(in: output, options: [], range: range),
+                       let versionRange = Range(match.range(at: 1), in: output) {
+                        extractedVersion = String(output[versionRange])
+                    }
+                }
 
-            if output?.contains("version \(supportedVersion)") == true {
-                await MainActor.run {
+                // Fallback if regex failed
+                if extractedVersion == nil {
+                    let components = output.components(separatedBy: " ")
+                    if let versionIndex = components.firstIndex(of: "version"),
+                       versionIndex + 1 < components.count {
+                        let versionCandidate = components[versionIndex + 1]
+                        // Simple check for version-like format
+                        let versionPattern = #"^\d+\.\d+\.\d+"#
+                        if versionCandidate.range(of: versionPattern, options: .regularExpression) != nil {
+                            extractedVersion = versionCandidate
+                        }
+                    }
+                }
+            }
+
+            await MainActor.run {
+                self.containerVersion = output
+                self.parsedContainerVersion = extractedVersion
+
+                if let version = extractedVersion, version == self.supportedContainerVersion {
                     // Only update to running if we're not already stopped
                     if self.systemStatus != .stopped {
                         self.systemStatus = .running
                     }
-                }
-            } else {
-                await MainActor.run {
+                } else {
                     self.systemStatus = .unsupportedVersion
                 }
             }
         } catch {
             await MainActor.run {
+                self.containerVersion = nil
+                self.parsedContainerVersion = nil
                 self.systemStatus = .stopped
             }
         }

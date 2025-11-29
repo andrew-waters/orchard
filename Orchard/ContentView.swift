@@ -262,31 +262,48 @@ struct ContentView: View {
                     .font(.title)
                     .fontWeight(.semibold)
 
-                if let version = containerService.containerVersion {
-                    Text("Detected version: \(version)")
+                if let installedVersion = containerService.parsedContainerVersion {
+                    Text("We require Apple Container version \(containerService.supportedContainerVersion), but you are running version \(installedVersion)")
+                        .padding(.horizontal)
+                        .multilineTextAlignment(.center)
+                } else if let rawVersion = containerService.containerVersion {
+                    Text("Detected version: \(rawVersion)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
                         .multilineTextAlignment(.center)
+
+                    Text("We require Apple Container version \(containerService.supportedContainerVersion)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("We require Apple Container version \(containerService.supportedContainerVersion)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
 
-                Text("Orchard requires Container CLI version 0.6.0")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Text("Please update your Container installation to continue using Orchard.")
+                Text("Please update your Container installation to continue using this application.")
                     .font(.body)
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
 
-            Button("Check Again") {
-                Task { @MainActor in
-                    await containerService.checkSystemStatus()
+            HStack(spacing: 16) {
+                Button("View upgrade instructions") {
+                    if let url = URL(string: "https://github.com/apple/container?tab=readme-ov-file#install-or-upgrade") {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
+                .buttonStyle(.borderedProminent)
+
+                Button("Check Again") {
+                    Task { @MainActor in
+                        await containerService.checkSystemStatus()
+                    }
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
