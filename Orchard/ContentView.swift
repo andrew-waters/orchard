@@ -260,30 +260,34 @@ struct ContentView: View {
         }
         .navigationTitle("")
         .toolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                // Breadcrumb navigation for current resource
-                if !currentResourceTitle.isEmpty {
-                    HStack(spacing: 4) {
-                        Text(selectedTab.title)
-                            .foregroundColor(.secondary)
-
-                        SwiftUI.Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        // Current resource with item navigator
-                        Button(currentResourceTitle) {
-                            showingItemNavigatorPopover = true
-                        }
-                        .buttonStyle(.plain)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .popover(isPresented: $showingItemNavigatorPopover) {
-                            itemNavigatorPopoverView
-                        }
-                    }
+            // Clean breadcrumb navigation on the left - individual items to avoid bubble
+            if !currentResourceTitle.isEmpty {
+                ToolbarItem(placement: .navigation) {
+                    Text(selectedTab.title)
+                        .foregroundColor(.secondary)
                 }
 
+                ToolbarItem(placement: .navigation) {
+                    SwiftUI.Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                ToolbarItem(placement: .navigation) {
+                    Button(currentResourceTitle) {
+                        showingItemNavigatorPopover = true
+                    }
+                    .buttonStyle(.plain)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .popover(isPresented: $showingItemNavigatorPopover) {
+                        itemNavigatorPopoverView
+                    }
+                }
+            }
+
+            // Action buttons on the right
+            ToolbarItemGroup(placement: .primaryAction) {
                 if let container = currentContainer {
                     ContainerControlButton(
                         container: container,
