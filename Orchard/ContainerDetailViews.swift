@@ -58,7 +58,7 @@ struct ContainerDetailView: View {
                     tabButton(for: tab)
                 }
                 Spacer()
-                
+
                 // Edit Configuration button - only for stopped containers
                 if container.status.lowercased() != "running" {
                     Button(action: {
@@ -264,6 +264,21 @@ struct ContainerDetailView: View {
                         if network.hostname != container.configuration.hostname {
                             InfoRow(label: "Hostname", value: network.hostname)
                         }
+
+                        // Show domain under hostname if available
+                        if let domain = container.configuration.dns.domain {
+                            ClickableInfoRow(
+                                label: "Domain",
+                                value: domain,
+                                onTap: {
+                                    // Post notification to navigate to DNS domain
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("NavigateToDNSDomain"),
+                                        object: domain
+                                    )
+                                }
+                            )
+                        }
                     }
                     .padding()
                     .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
@@ -273,11 +288,26 @@ struct ContainerDetailView: View {
                 // DNS Configuration
                 if !container.configuration.dns.nameservers.isEmpty
                     || !container.configuration.dns.searchDomains.isEmpty
+                    || container.configuration.dns.domain != nil
                 {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("DNS Configuration")
                             .font(.subheadline)
                             .fontWeight(.medium)
+
+                        if let domain = container.configuration.dns.domain {
+                            ClickableInfoRow(
+                                label: "Domain",
+                                value: domain,
+                                onTap: {
+                                    // Post notification to navigate to DNS domain
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("NavigateToDNSDomain"),
+                                        object: domain
+                                    )
+                                }
+                            )
+                        }
 
                         if !container.configuration.dns.nameservers.isEmpty {
                             InfoRow(
@@ -600,7 +630,7 @@ struct ContainerImageDetailView: View {
                     tabButton(for: tab)
                 }
                 Spacer()
-                
+
                 // Run Container button
                 Button(action: {
                     showRunContainer = true
@@ -616,7 +646,7 @@ struct ContainerImageDetailView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isDeleting)
-                
+
                 // Delete Image button - only show if no containers are using it
                 if containersUsingImage.isEmpty {
                     Button(action: {
@@ -828,16 +858,39 @@ struct ContainerImageDetailView: View {
         }
         return dateString
     }
-    
+
     private func deleteImage() {
         isDeleting = true
-        
+
         Task {
             await containerService.deleteImage(image.reference)
-            
+
             await MainActor.run {
                 isDeleting = false
             }
+        }
+    }
+}
+
+struct ClickableInfoRow: View {
+    let label: String
+    let value: String
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack {
+            Text("\(label):")
+                .frame(width: 120, alignment: .trailing)
+                .foregroundColor(.secondary)
+
+            Button(value) {
+                onTap()
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.accentColor)
+            .help("View \(label.lowercased()) details")
+
+            Spacer()
         }
     }
 }
