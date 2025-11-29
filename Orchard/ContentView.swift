@@ -33,6 +33,7 @@ struct ContentView: View {
     @State private var showOnlyImagesInUse: Bool = false
     @State private var refreshTimer: Timer?
     @State private var showImageSearch: Bool = false
+    @State private var showAddDNSDomainSheet: Bool = false
 
     @FocusState private var listFocusedTab: TabSelection?
 
@@ -530,17 +531,10 @@ struct ContentView: View {
                     ForEach(containerService.dnsDomains) { domain in
                         HStack {
                             SwiftUI.Image(systemName: "network")
-                                .foregroundColor(domain.isDefault ? .blue : .gray)
+                                .foregroundColor(.gray)
                                 .frame(width: 16, height: 16)
 
-                            VStack(alignment: .leading) {
-                                Text(domain.domain)
-                                if domain.isDefault {
-                                    Text("Default Domain")
-                                        .font(.subheadline)
-                                        .foregroundColor(.blue)
-                                }
-                            }
+                            Text(domain.domain)
                         }
                         .tag(domain.domain)
                     }
@@ -556,7 +550,7 @@ struct ContentView: View {
             // Add domain button
             HStack {
                 Button(action: {
-                    showAddDNSDomainSheet()
+                    showAddDNSDomainSheet = true
                 }) {
                     HStack {
                         SwiftUI.Image(systemName: "plus")
@@ -569,22 +563,6 @@ struct ContentView: View {
                 .buttonStyle(.plain)
 
                 Spacer()
-
-                // Debug refresh button
-                Button(action: {
-                    Task {
-                        await containerService.loadDNSDomains(showLoading: true)
-                    }
-                }) {
-                    HStack {
-                        SwiftUI.Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12))
-                        Text("Refresh")
-                            .font(.system(size: 12))
-                    }
-                    .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -597,6 +575,10 @@ struct ContentView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showAddDNSDomainSheet) {
+            AddDNSDomainView()
+                .environmentObject(containerService)
+        }
     }
 
     private var registriesView: some View {
@@ -812,18 +794,11 @@ struct ContentView: View {
             HStack {
                 SwiftUI.Image(systemName: "network")
                     .font(.subheadline)
-                    .foregroundColor(domain.isDefault ? .blue : .secondary)
+                    .foregroundColor(.secondary)
 
-                VStack(alignment: .leading) {
-                    Text(domain.domain)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    if domain.isDefault {
-                        Text("Default")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                    }
-                }
+                Text(domain.domain)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
 
                 Spacer()
 
@@ -1091,40 +1066,14 @@ struct ContentView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
 
-                if dnsDomain.isDefault {
-                    HStack {
-                        SwiftUI.Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.blue)
-                        Text("Default Domain")
-                            .foregroundColor(.blue)
-                            .fontWeight(.medium)
-                    }
-                }
-
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Actions")
                         .font(.headline)
 
-                    HStack(spacing: 12) {
-                        if !dnsDomain.isDefault {
-                            Button("Set as Default") {
-                                Task {
-                                    await containerService.setDefaultDNSDomain(dnsDomain.domain)
-                                }
-                            }
-                        } else {
-                            Button("Unset Default") {
-                                Task {
-                                    await containerService.unsetDefaultDNSDomain()
-                                }
-                            }
-                        }
-
-                        Button("Delete Domain") {
-                            confirmDNSDomainDeletion(domain: dnsDomain.domain)
-                        }
-                        .foregroundColor(.red)
+                    Button("Delete Domain") {
+                        confirmDNSDomainDeletion(domain: dnsDomain.domain)
                     }
+                    .foregroundColor(.red)
                 }
 
                 Spacer()
@@ -1138,29 +1087,7 @@ struct ContentView: View {
         }
     }
 
-    private func showAddDNSDomainSheet() {
-        let alert = NSAlert()
-        alert.messageText = "Add DNS Domain"
-        alert.informativeText = "Enter a domain name for local container networking. This requires administrator privileges."
-        alert.alertStyle = .informational
 
-        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        textField.placeholderString = "e.g., local.dev, myapp.local"
-        alert.accessoryView = textField
-
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            let domain = textField.stringValue.trimmingCharacters(in: .whitespaces)
-            guard !domain.isEmpty, isValidDomainName(domain) else {
-                containerService.errorMessage = "Invalid domain name format."
-                return
-            }
-
-            Task { await containerService.createDNSDomain(domain) }
-        }
-    }
 
     private func confirmDNSDomainDeletion(domain: String) {
         let alert = NSAlert()
@@ -1295,8 +1222,114 @@ struct ContentView: View {
             }
         }
     }
+}
 
+struct AddDNSDomainView: View {
+    @EnvironmentObject var containerService: ContainerService
+    @Environment(\.dismiss) private var dismiss
+    @State private var domainName: String = ""
+    @State private var isCreating: Bool = false
 
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Add DNS Domain")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Spacer()
+
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color(NSColor.separatorColor)),
+                alignment: .bottom
+            )
+
+            // Content
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Domain Name")
+                        .font(.headline)
+
+                    TextField("e.g., local.dev, myapp.local", text: $domainName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(height: 32)
+
+                    Text("Enter a domain name for local container networking. This requires administrator privileges.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding()
+
+            // Footer
+            HStack {
+                Spacer()
+
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Add Domain") {
+                    createDomain()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(domainName.trimmingCharacters(in: .whitespaces).isEmpty || isCreating)
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color(NSColor.separatorColor)),
+                alignment: .top
+            )
+        }
+        .frame(width: 500, height: 300)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private func createDomain() {
+        let trimmedDomain = domainName.trimmingCharacters(in: .whitespaces)
+
+        guard !trimmedDomain.isEmpty else { return }
+        guard isValidDomainName(trimmedDomain) else {
+            containerService.errorMessage = "Invalid domain name format."
+            return
+        }
+
+        isCreating = true
+
+        Task {
+            await containerService.createDNSDomain(trimmedDomain)
+
+            await MainActor.run {
+                isCreating = false
+                if containerService.errorMessage == nil {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private func isValidDomainName(_ domain: String) -> Bool {
+        let domainRegex = "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+        let predicate = NSPredicate(format: "SELF MATCHES %@", domainRegex)
+        return predicate.evaluate(with: domain)
+    }
 }
 
 #Preview {
