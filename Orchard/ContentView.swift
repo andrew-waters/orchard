@@ -1282,7 +1282,6 @@ struct ContentView: View {
 
                         Text("The frequency that the app will check for updates from containers. Lower intervals increase responsiveness but add system load.")
                             .foregroundColor(.secondary)
-                            .font(.caption)
                             .padding(.leading, 10)
                     }
 
