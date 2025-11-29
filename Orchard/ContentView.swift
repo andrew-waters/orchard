@@ -31,9 +31,10 @@ struct ContentView: View {
     @State private var searchText: String = ""
     @State private var showOnlyRunning: Bool = false
     @State private var showOnlyImagesInUse: Bool = false
-    @State private var refreshTimer: Timer?
     @State private var showImageSearch: Bool = false
     @State private var showAddDNSDomainSheet: Bool = false
+
+    @State private var refreshTimer: Timer?
 
     @FocusState private var listFocusedTab: TabSelection?
 
@@ -42,6 +43,13 @@ struct ContentView: View {
 
     // Computed property for current resource title
     private var currentResourceTitle: String {
+        // Check if we're in settings mode (no selections)
+        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+
+        if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
+            return "Settings"
+        }
+
         switch selectedTab {
         case .containers:
             if let selectedContainer = selectedContainer {
@@ -64,8 +72,7 @@ struct ContentView: View {
                 return URL(fileURLWithPath: mount.mount.source).lastPathComponent
             }
             return ""
-        case .settings:
-            return ""
+
         case .dns:
             if let selectedDNSDomain = selectedDNSDomain {
                 return selectedDNSDomain
@@ -100,7 +107,6 @@ struct ContentView: View {
         case containers = "containers"
         case images = "images"
         case mounts = "mounts"
-        case settings = "settings"
         case dns = "dns"
         case registries = "registries"
         case systemLogs = "systemLogs"
@@ -108,19 +114,17 @@ struct ContentView: View {
         var icon: String {
             switch self {
             case .containers:
-                return "cube.box"
+                return "cube"
             case .images:
                 return "cube.transparent"
             case .mounts:
                 return "externaldrive"
-            case .settings:
-                return "gearshape"
             case .dns:
                 return "network"
             case .registries:
                 return "server.rack"
             case .systemLogs:
-                return "doc.text"
+                return "doc.text.below.ecg"
             }
         }
 
@@ -132,8 +136,6 @@ struct ContentView: View {
                 return "Images"
             case .mounts:
                 return "Mounts"
-            case .settings:
-                return "Settings"
             case .dns:
                 return "DNS"
             case .registries:
@@ -396,26 +398,17 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                // Search input
-                HStack {
-                    SwiftUI.Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
-
-                    TextField("Search", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .frame(width: 150)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(6)
-
                 // Settings button
                 Button {
-                    selectedTab = .settings
+                    // Set to settings "tab" (special state)
+                    selectedTab = .containers
+                    // Deselect any sidebar items to show settings
+                    selectedContainer = nil
+                    selectedImage = nil
+                    selectedMount = nil
+                    selectedDNSDomain = nil
                 } label: {
-                    SwiftUI.Image(systemName: "gear")
+                    SwiftUI.Image(systemName: "gearshape")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.secondary)
                 }
@@ -519,7 +512,7 @@ struct ContentView: View {
                 } else if !containerService.dnsDomains.isEmpty {
                     selectedDNSDomain = containerService.dnsDomains.first?.domain
                 }
-            case .settings, .registries, .systemLogs:
+            case .registries, .systemLogs:
                 // No selection state for these tabs
                 break
             }
@@ -554,12 +547,15 @@ struct ContentView: View {
                     Button(action: {
                         selectedTab = tab
                     }) {
+                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+                        let isActiveTab = selectedTab == tab && !isSettingsMode
+
                         SwiftUI.Image(systemName: tab.icon)
                             .font(.system(size: 14))
-                            .foregroundColor(selectedTab == tab ? (isWindowFocused ? .accentColor : .secondary) : (isWindowFocused ? .secondary : Color.secondary.opacity(0.5)))
+                            .foregroundColor(isActiveTab ? (isWindowFocused ? .accentColor : .secondary) : (isWindowFocused ? .secondary : Color.secondary.opacity(0.5)))
                             .frame(width: 32, height: 32)
                             .background(
-                                selectedTab == tab ? Color.accentColor.opacity(isWindowFocused ? 0.15 : 0.08) : Color.clear
+                                isActiveTab ? Color.accentColor.opacity(isWindowFocused ? 0.15 : 0.08) : Color.clear
                             )
                             .cornerRadius(6)
                     }
@@ -574,34 +570,43 @@ struct ContentView: View {
     }
 
     private var selectedContentView: some View {
-        Group {
-            switch selectedTab {
-            case .containers:
-                containersList
-            case .images:
-                imagesList
-            case .mounts:
-                mountsList
-            case .settings:
-                settingsView
-            case .dns:
-                dnsView
-            case .registries:
-                registriesView
-            case .systemLogs:
-                systemLogsView
+        VStack(alignment: .leading, spacing: 0) {
+                // Check if we're in settings mode (no selections)
+                let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+
+                if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
+                    // Show empty state when in settings mode
+                    VStack {
+                        Text("Settings")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                        Text("Configure app preferences")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    switch selectedTab {
+                    case .containers:
+                        containersList
+                    case .images:
+                        imagesList
+                    case .mounts:
+                        mountsList
+                    case .dns:
+                        dnsView
+                    case .registries:
+                        registriesView
+                    case .systemLogs:
+                        systemLogsView
+                    }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var settingsView: some View {
-        VStack {
-            Text("No settings categories")
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
+
+
 
     private var dnsView: some View {
         VStack(spacing: 0) {
@@ -730,7 +735,7 @@ struct ContentView: View {
                     mountPopoverItems
                 case .dns:
                     dnsPopoverItems
-                case .settings, .registries, .systemLogs:
+                case .registries, .systemLogs:
                     EmptyView()
                 }
             }
@@ -1142,27 +1147,32 @@ struct ContentView: View {
 
     @ViewBuilder
     private var detailView: some View {
-        switch selectedTab {
-        case .containers:
-            containerDetailView
-        case .images:
-            imageDetailView
-        case .mounts:
-            mountDetailView
-        case .dns:
-            if let selectedDNSDomain = selectedDNSDomain {
-                dnsDetailView(domain: selectedDNSDomain)
-            } else {
-                Text("Select a DNS domain")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        case .registries:
-            registriesDetailView
-        case .settings:
+        // Check if we're in settings mode (no selections)
+        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+
+        if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
             settingsDetailView
-        case .systemLogs:
-            EmptyView()
+        } else {
+            switch selectedTab {
+            case .containers:
+                containerDetailView
+            case .images:
+                imageDetailView
+            case .mounts:
+                mountDetailView
+            case .dns:
+                if let selectedDNSDomain = selectedDNSDomain {
+                    dnsDetailView(domain: selectedDNSDomain)
+                } else {
+                    Text("Select a DNS domain")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            case .registries:
+                registriesDetailView
+            case .systemLogs:
+                EmptyView()
+            }
         }
     }
 
