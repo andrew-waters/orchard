@@ -36,17 +36,7 @@ struct OrchardApp: App {
             }
         }
 
-        Settings {
-            SettingsView()
-                .environmentObject(containerService)
-        }
 
-        WindowGroup(id: "settings") {
-            SettingsView()
-                .environmentObject(containerService)
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
 
         MenuBarExtra("Orchard", systemImage: "cube.box") {
             MenuBarView()
