@@ -42,8 +42,21 @@ struct ContentView: View {
     @State private var isInIntentionalSettingsMode = false
     @Environment(\.openWindow) private var openWindow
 
+    // Computed property for window title
+    private var windowTitle: String {
+        if let version = containerService.parsedContainerVersion {
+            return "Container \(version)"
+        }
+        return "Container"
+    }
+
     // Computed property for current resource title
     private var currentResourceTitle: String {
+        // Check if we're in intentional settings mode first
+        if isInIntentionalSettingsMode {
+            return "Settings"
+        }
+
         // Check if we're in settings mode (no selections)
         let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
 
@@ -327,7 +340,7 @@ struct ContentView: View {
                 if !currentResourceTitle.isEmpty {
                     CustomHeaderView(
                         title: currentResourceTitle,
-                        subtitle: selectedTab.title,
+                        subtitle: isInIntentionalSettingsMode ? nil : selectedTab.title,
                         showItemNavigator: true,
                         onItemNavigatorTap: {
                             showingItemNavigatorPopover = true
@@ -397,6 +410,7 @@ struct ContentView: View {
                 detailView
             }
         }
+        .navigationTitle(windowTitle)
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
