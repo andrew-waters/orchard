@@ -18,7 +18,6 @@ struct OrchardApp: App {
                 .environmentObject(containerService)
 
         }
-        .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .help) {
                 Button("Check for Updates...") {
