@@ -148,6 +148,8 @@ struct ContentView: View {
         Group {
             if containerService.systemStatus == .stopped {
                 emptyStateView
+            } else if containerService.systemStatus == .unsupportedVersion {
+                versionIncompatibilityView
             } else {
                 mainInterfaceView
             }
@@ -246,6 +248,50 @@ struct ContentView: View {
             await containerService.loadContainers(showLoading: true)
             await containerService.loadImages()
             await containerService.loadBuilders()
+        }
+    }
+
+    private var versionIncompatibilityView: some View {
+        VStack(spacing: 30) {
+            SwiftUI.Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 60))
+                .foregroundColor(.orange)
+
+            VStack(spacing: 16) {
+                Text("Unsupported Container Version")
+                    .font(.title)
+                    .fontWeight(.semibold)
+
+                if let version = containerService.containerVersion {
+                    Text("Detected version: \(version)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                        .multilineTextAlignment(.center)
+                }
+
+                Text("Orchard requires Container CLI version 0.6.0")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Text("Please update your Container installation to continue using Orchard.")
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+
+            Button("Check Again") {
+                Task { @MainActor in
+                    await containerService.checkSystemStatus()
+                }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+        .task {
+            await containerService.checkSystemStatus()
         }
     }
 

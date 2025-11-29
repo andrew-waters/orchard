@@ -13,6 +13,7 @@ class ContainerService: ObservableObject {
     @Published var systemStatus: SystemStatus = .unknown
     @Published var isSystemLoading = false
     @Published var loadingContainers: Set<String> = []
+    @Published var containerVersion: String?
     @Published var isBuilderLoading = false
     @Published var builderStatus: BuilderStatus = .stopped
     @Published var dnsDomains: [DNSDomain] = []
@@ -277,6 +278,7 @@ class ContainerService: ObservableObject {
         case unknown
         case stopped
         case running
+        case unsupportedVersion
 
         var color: Color {
             switch self {
@@ -284,17 +286,21 @@ class ContainerService: ObservableObject {
                 return .gray
             case .running:
                 return .green
+            case .unsupportedVersion:
+                return .red
             }
         }
 
         var text: String {
             switch self {
             case .unknown:
-                return "Unknown"
+                return "unknown"
             case .stopped:
-                return "Stopped"
+                return "stopped"
             case .running:
-                return "Running"
+                return "running"
+            case .unsupportedVersion:
+                return "unsupported version"
             }
         }
     }
@@ -568,6 +574,15 @@ class ContainerService: ObservableObject {
     }
 
     func checkSystemStatus() async {
+        // First check if container CLI is available and get version
+        await checkContainerVersion()
+
+        // If version is unsupported, don't check if system is running
+        if await MainActor.run(body: { self.systemStatus }) == .unsupportedVersion {
+            return
+        }
+
+        // Check if system is running
         var result: ExecResult
         do {
             result = try exec(
@@ -575,8 +590,41 @@ class ContainerService: ObservableObject {
                 arguments: ["ls"])
 
             await MainActor.run {
-                // Assuming the command returns success when running
+                // Only set to running if version is supported
                 self.systemStatus = .running
+            }
+        } catch {
+            await MainActor.run {
+                self.systemStatus = .stopped
+            }
+        }
+    }
+
+    func checkContainerVersion() async {
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["--version"])
+
+            let output = result.stdout
+            await MainActor.run {
+                self.containerVersion = output
+            }
+
+            // Parse version from output like "container CLI version 0.6.0 (build: release, commit: a23bcf0)"
+            let supportedVersion = "0.6.0"
+
+            if output?.contains("version \(supportedVersion)") == true {
+                await MainActor.run {
+                    // Only update to running if we're not already stopped
+                    if self.systemStatus != .stopped {
+                        self.systemStatus = .running
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    self.systemStatus = .unsupportedVersion
+                }
             }
         } catch {
             await MainActor.run {
