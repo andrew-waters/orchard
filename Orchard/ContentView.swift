@@ -39,6 +39,7 @@ struct ContentView: View {
     @FocusState private var listFocusedTab: TabSelection?
 
     @State private var showingItemNavigatorPopover = false
+    @State private var isInIntentionalSettingsMode = false
     @Environment(\.openWindow) private var openWindow
 
     // Computed property for current resource title
@@ -160,17 +161,17 @@ struct ContentView: View {
             // Default tab is already set to containers
         }
         .onChange(of: containerService.containers) { _, newContainers in
-            // Auto-select first container when containers load
-            if selectedContainer == nil && !newContainers.isEmpty {
+            // Auto-select first container when containers load, but not if we're intentionally in settings mode
+            if selectedContainer == nil && !newContainers.isEmpty && !isInIntentionalSettingsMode {
                 selectedContainer = newContainers[0].configuration.id
             }
-            if selectedMount == nil && !containerService.allMounts.isEmpty {
+            if selectedMount == nil && !containerService.allMounts.isEmpty && !isInIntentionalSettingsMode {
                 selectedMount = containerService.allMounts[0].id
             }
         }
         .onChange(of: containerService.dnsDomains) { _, newDomains in
-            // Auto-select first DNS domain when domains load
-            if selectedDNSDomain == nil && !newDomains.isEmpty {
+            // Auto-select first DNS domain when domains load, but not if we're intentionally in settings mode
+            if selectedDNSDomain == nil && !newDomains.isEmpty && !isInIntentionalSettingsMode {
                 selectedDNSDomain = newDomains[0].domain
             }
         }
@@ -397,20 +398,20 @@ struct ContentView: View {
             }
         }
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // Settings button
+            ToolbarItem(placement: .automatic) {
                 Button {
-                    // Set to settings "tab" (special state)
-                    selectedTab = .containers
-                    // Deselect any sidebar items to show settings
+                    // Always force settings mode without changing the tab
                     selectedContainer = nil
                     selectedImage = nil
                     selectedMount = nil
                     selectedDNSDomain = nil
+                    isInIntentionalSettingsMode = true
                 } label: {
                     SwiftUI.Image(systemName: "gearshape")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
@@ -546,9 +547,35 @@ struct ContentView: View {
                 ForEach(TabSelection.allCases, id: \.self) { tab in
                     Button(action: {
                         selectedTab = tab
+
+                        // If we're in settings mode and clicking a tab, select a default item to exit settings mode
+                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+                        if isSettingsMode {
+                            isInIntentionalSettingsMode = false
+                            switch tab {
+                            case .containers:
+                                if let firstContainer = containerService.containers.first {
+                                    selectedContainer = firstContainer.configuration.id
+                                }
+                            case .images:
+                                if let firstImage = containerService.images.first {
+                                    selectedImage = firstImage.reference
+                                }
+                            case .mounts:
+                                if let firstMount = containerService.allMounts.first {
+                                    selectedMount = firstMount.id
+                                }
+                            case .dns:
+                                if let firstDomain = containerService.dnsDomains.first {
+                                    selectedDNSDomain = firstDomain.domain
+                                }
+                            case .registries, .systemLogs:
+                                break // These don't have selectable items
+                            }
+                        }
                     }) {
                         let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
-                        let isActiveTab = selectedTab == tab && !isSettingsMode
+                        let isActiveTab = selectedTab == tab && !isSettingsMode && !isInIntentionalSettingsMode
 
                         SwiftUI.Image(systemName: tab.icon)
                             .font(.system(size: 14))
@@ -1150,7 +1177,7 @@ struct ContentView: View {
         // Check if we're in settings mode (no selections)
         let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
 
-        if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
+        if isInIntentionalSettingsMode || (isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts)) {
             settingsDetailView
         } else {
             switch selectedTab {
