@@ -10,6 +10,7 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var containerService: ContainerService
+    @State private var isWindowFocused: Bool = true
     @State private var selectedTab: TabSelection = .containers
     @State private var selectedContainer: String?
     @State private var selectedImage: String?
@@ -185,106 +186,109 @@ struct ContentView: View {
     }
 
     private var mainInterfaceView: some View {
-        VStack(spacing: 0) {
-            NavigationSplitView {
-                primaryColumnView
-                    .navigationSplitViewColumnWidth(
-                        min: 400, ideal: 500, max: 600)
-            } detail: {
-                detailView
-            }
-            .navigationTitle("")
-            .toolbar {
-                ToolbarItemGroup(placement: .navigation) {
-                    // Xcode-style breadcrumb navigation
-                    HStack(spacing: 4) {
-                        // Tab switcher
-                        Button(selectedTab.title) {
-                            showingTabSwitcherPopover = true
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.secondary)
-                        .popover(isPresented: $showingTabSwitcherPopover) {
-                            tabSwitcherPopoverView
-                        }
-
-                        if !currentResourceTitle.isEmpty {
-                            SwiftUI.Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            // Current resource with item navigator
-                            Button(currentResourceTitle) {
-                                showingItemNavigatorPopover = true
-                            }
-                            .buttonStyle(.plain)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                            .popover(isPresented: $showingItemNavigatorPopover) {
-                                itemNavigatorPopoverView
-                            }
-                        }
+        NavigationSplitView {
+            primaryColumnView
+                .navigationSplitViewColumnWidth(
+                    min: 400, ideal: 500, max: 600)
+                .opacity(isWindowFocused ? 1.0 : 0.75)
+        } detail: {
+            detailView
+        }
+        .navigationTitle("")
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                // Xcode-style breadcrumb navigation
+                HStack(spacing: 4) {
+                    // Tab switcher
+                    Button(selectedTab.title) {
+                        showingTabSwitcherPopover = true
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                    .popover(isPresented: $showingTabSwitcherPopover) {
+                        tabSwitcherPopoverView
                     }
 
-                    if let container = currentContainer {
-                        ContainerControlButton(
+                    if !currentResourceTitle.isEmpty {
+                        SwiftUI.Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        // Current resource with item navigator
+                        Button(currentResourceTitle) {
+                            showingItemNavigatorPopover = true
+                        }
+                        .buttonStyle(.plain)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .popover(isPresented: $showingItemNavigatorPopover) {
+                            itemNavigatorPopoverView
+                        }
+                    }
+                }
+
+                if let container = currentContainer {
+                    ContainerControlButton(
+                        container: container,
+                        isLoading: containerService.loadingContainers.contains(
+                            container.configuration.id),
+                        onStart: {
+                            Task { @MainActor in
+                                await containerService.startContainer(container.configuration.id)
+                            }
+                        },
+                        onStop: {
+                            Task { @MainActor in
+                                await containerService.stopContainer(container.configuration.id)
+                            }
+                        }
+                    )
+
+                    if container.status.lowercased() == "running" {
+                        ContainerTerminalButton(
+                            container: container,
+                            onOpenTerminal: {
+                                containerService.openTerminal(for: container.configuration.id)
+                            },
+                            onOpenTerminalBash: {
+                                containerService.openTerminalWithBash(for: container.configuration.id)
+                            }
+                        )
+                    } else {
+                        ContainerRemoveButton(
                             container: container,
                             isLoading: containerService.loadingContainers.contains(
                                 container.configuration.id),
-                            onStart: {
+                            onRemove: {
                                 Task { @MainActor in
-                                    await containerService.startContainer(container.configuration.id)
-                                }
-                            },
-                            onStop: {
-                                Task { @MainActor in
-                                    await containerService.stopContainer(container.configuration.id)
+                                    await containerService.removeContainer(container.configuration.id)
                                 }
                             }
                         )
-
-                        if container.status.lowercased() == "running" {
-                            ContainerTerminalButton(
-                                container: container,
-                                onOpenTerminal: {
-                                    containerService.openTerminal(for: container.configuration.id)
-                                },
-                                onOpenTerminalBash: {
-                                    containerService.openTerminalWithBash(for: container.configuration.id)
-                                }
-                            )
-                        } else {
-                            ContainerRemoveButton(
-                                container: container,
-                                isLoading: containerService.loadingContainers.contains(
-                                    container.configuration.id),
-                                onRemove: {
-                                    Task { @MainActor in
-                                        await containerService.removeContainer(container.configuration.id)
-                                    }
-                                }
-                            )
-                        }
-
-                    } else if let image = currentImage {
-
-                        // no real actions or conveniences here yet
-
-                    } else if let mount = currentMount {
-
-                        Button(action: {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
-                        }) {
-                            SwiftUI.Image(systemName: "folder")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Open in Finder")
                     }
+
+                } else if let image = currentImage {
+
+                    // no real actions or conveniences here yet
+
+                } else if let mount = currentMount {
+
+                    Button(action: {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
+                    }) {
+                        SwiftUI.Image(systemName: "folder")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Open in Finder")
                 }
             }
-
-
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            isWindowFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
+            isWindowFocused = false
         }
         .task {
             await containerService.checkSystemStatus()
@@ -340,10 +344,12 @@ struct ContentView: View {
     private var primaryColumnView: some View {
         VStack(spacing: 0) {
             tabNavigationView
+                .background(.clear)
             Divider()
             selectedContentView
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.controlBackgroundColor))
     }
 
     private var tabNavigationView: some View {
@@ -356,6 +362,7 @@ struct ContentView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
+        .background(Color(NSColor.controlBackgroundColor))
         .transaction { transaction in
             transaction.animation = nil
         }
@@ -402,9 +409,9 @@ struct ContentView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                selectedTab == tab ? Color.accentColor.opacity(0.2) : Color.clear
+                selectedTab == tab ? Color.accentColor.opacity(isWindowFocused ? 0.2 : 0.1) : Color.clear
             )
-            .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
+            .foregroundColor(selectedTab == tab ? (isWindowFocused ? .accentColor : .secondary) : .secondary)
             .cornerRadius(6)
         }
         .buttonStyle(.plain)
