@@ -511,7 +511,7 @@ struct EditContainerView: View {
                 reference: "docker.io/library/nginx:latest"
             ),
             rosetta: false,
-            dns: DNS(nameservers: [], searchDomains: [], options: []),
+            dns: DNS(nameservers: [], searchDomains: [], options: [], domain: "a.com"),
             resources: Resources(cpus: 2, memoryInBytes: 2147483648),
             labels: nil
         ),

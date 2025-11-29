@@ -158,11 +158,13 @@ struct DNS: Codable, Equatable {
     let nameservers: [String]
     let searchDomains: [String]
     let options: [String]
+    let domain: String?
 
     enum CodingKeys: String, CodingKey {
         case nameservers
         case searchDomains
         case options
+        case domain
     }
 }
 
@@ -341,7 +343,7 @@ struct ImagePullProgress: Identifiable, Equatable {
     var status: PullStatus
     var progress: Double
     var message: String
-    
+
     enum PullStatus: Equatable {
         case pulling
         case completed
@@ -357,7 +359,7 @@ struct RegistrySearchResult: Identifiable, Equatable {
     let description: String?
     let isOfficial: Bool
     let starCount: Int?
-    
+
     var displayName: String {
         // Remove docker.io/library/ prefix for cleaner display
         if name.hasPrefix("docker.io/library/") {
@@ -381,20 +383,20 @@ struct ContainerRunConfig: Equatable {
     var volumeMappings: [VolumeMapping] = []
     var workingDirectory: String = ""
     var commandOverride: String = ""
-    
+
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()
         var key: String
         var value: String
     }
-    
+
     struct PortMapping: Identifiable, Equatable {
         let id = UUID()
         var hostPort: String
         var containerPort: String
         var transportProtocol: String = "tcp"
     }
-    
+
     struct VolumeMapping: Identifiable, Equatable {
         let id = UUID()
         var hostPath: String
