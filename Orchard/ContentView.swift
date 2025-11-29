@@ -33,7 +33,7 @@ struct ContentView: View {
     @State private var showImageSearch: Bool = false
 
     @FocusState private var listFocusedTab: TabSelection?
-    @State private var showingTabSwitcherPopover = false
+
     @State private var showingItemNavigatorPopover = false
     @Environment(\.openWindow) private var openWindow
 
@@ -61,6 +61,14 @@ struct ContentView: View {
                 return URL(fileURLWithPath: mount.mount.source).lastPathComponent
             }
             return ""
+        case .settings:
+            return ""
+        case .dns:
+            return ""
+        case .registries:
+            return ""
+        case .systemLogs:
+            return ""
         }
     }
 
@@ -86,6 +94,10 @@ struct ContentView: View {
         case containers = "containers"
         case images = "images"
         case mounts = "mounts"
+        case settings = "settings"
+        case dns = "dns"
+        case registries = "registries"
+        case systemLogs = "systemLogs"
 
         var icon: String {
             switch self {
@@ -95,6 +107,14 @@ struct ContentView: View {
                 return "cube.transparent"
             case .mounts:
                 return "externaldrive"
+            case .settings:
+                return "gearshape"
+            case .dns:
+                return "network"
+            case .registries:
+                return "server.rack"
+            case .systemLogs:
+                return "doc.text"
             }
         }
 
@@ -106,6 +126,14 @@ struct ContentView: View {
                 return "Images"
             case .mounts:
                 return "Mounts"
+            case .settings:
+                return "Settings"
+            case .dns:
+                return "DNS"
+            case .registries:
+                return "Registries"
+            case .systemLogs:
+                return "System Logs"
             }
         }
     }
@@ -197,19 +225,12 @@ struct ContentView: View {
         .navigationTitle("")
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
-                // Xcode-style breadcrumb navigation
-                HStack(spacing: 4) {
-                    // Tab switcher
-                    Button(selectedTab.title) {
-                        showingTabSwitcherPopover = true
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-                    .popover(isPresented: $showingTabSwitcherPopover) {
-                        tabSwitcherPopoverView
-                    }
+                // Breadcrumb navigation for current resource
+                if !currentResourceTitle.isEmpty {
+                    HStack(spacing: 4) {
+                        Text(selectedTab.title)
+                            .foregroundColor(.secondary)
 
-                    if !currentResourceTitle.isEmpty {
                         SwiftUI.Image(systemName: "chevron.right")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -267,7 +288,7 @@ struct ContentView: View {
                         )
                     }
 
-                } else if let image = currentImage {
+                } else if currentImage != nil {
 
                     // no real actions or conveniences here yet
 
@@ -343,37 +364,15 @@ struct ContentView: View {
 
     private var primaryColumnView: some View {
         VStack(spacing: 0) {
-            tabNavigationView
-                .background(.clear)
+            iconTabBar
             Divider()
             selectedContentView
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.controlBackgroundColor))
-    }
-
-    private var tabNavigationView: some View {
-        VStack(spacing: 0) {
-            HStack {
-                ForEach(TabSelection.allCases, id: \.self) { tab in
-                    tabButton(for: tab)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-        .background(Color(NSColor.controlBackgroundColor))
-        .transaction { transaction in
-            transaction.animation = nil
-        }
-    }
-
-    private func tabButton(for tab: TabSelection) -> some View {
-        Button(action: {
-            selectedTab = tab
-
+        .onChange(of: selectedTab) { _, newTab in
             // Restore previous selection or select first element when changing tabs
-            switch tab {
+            switch newTab {
             case .containers:
                 if let lastSelected = lastSelectedContainer,
                    filteredContainers.contains(where: { $0.configuration.id == lastSelected }) {
@@ -395,113 +394,23 @@ struct ContentView: View {
                 } else if !filteredMounts.isEmpty {
                     selectedMount = filteredMounts.first?.id
                 }
+            case .settings, .dns, .registries, .systemLogs:
+                // No selection state for these tabs
+                break
             }
 
             // Set focus to the current tab's list
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                listFocusedTab = tab
-            }
-        }) {
-            HStack {
-                SwiftUI.Image(systemName: tab.icon)
-                Text(tab.title)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                selectedTab == tab ? Color.accentColor.opacity(isWindowFocused ? 0.2 : 0.1) : Color.clear
-            )
-            .foregroundColor(selectedTab == tab ? (isWindowFocused ? .accentColor : .secondary) : .secondary)
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var tabSwitcherPopoverView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            tabSwitcherHeader
-            Divider()
-            tabSwitcherOptions
-        }
-        .frame(width: 200)
-        .background(Color(NSColor.controlBackgroundColor))
-    }
-
-    private var tabSwitcherHeader: some View {
-        HStack {
-            Text("Switch Tab")
-                .font(.headline)
-                .fontWeight(.medium)
-            Spacer()
-        }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-    }
-
-    private var tabSwitcherOptions: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(TabSelection.allCases, id: \.self) { tab in
-                tabSwitcherRow(tab)
-                if tab != TabSelection.allCases.last {
-                    Divider().padding(.leading)
-                }
+                listFocusedTab = newTab
             }
         }
     }
 
-    private func tabSwitcherRow(_ tab: TabSelection) -> some View {
-        Button(action: {
-            selectedTab = tab
-            showingTabSwitcherPopover = false
 
-            // Auto-select first item in new tab
-            switch tab {
-            case .containers:
-                if !filteredContainers.isEmpty {
-                    selectedContainer = filteredContainers.first?.configuration.id
-                    lastSelectedContainer = selectedContainer
-                }
-            case .images:
-                if !filteredImages.isEmpty {
-                    selectedImage = filteredImages.first?.reference
-                    lastSelectedImage = selectedImage
-                }
-            case .mounts:
-                if !filteredMounts.isEmpty {
-                    selectedMount = filteredMounts.first?.id
-                    lastSelectedMount = selectedMount
-                }
-            }
 
-            // Set focus
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                listFocusedTab = tab
-            }
-        }) {
-            HStack {
-                SwiftUI.Image(systemName: tab.icon)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
 
-                Text(tab.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
 
-                Spacer()
 
-                if selectedTab == tab {
-                    SwiftUI.Image(systemName: "checkmark")
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(selectedTab == tab ? Color.accentColor.opacity(0.1) : Color.clear)
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-    }
 
     private var itemNavigatorPopoverView: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -512,6 +421,100 @@ struct ContentView: View {
         .frame(width: 300)
         .background(Color(NSColor.controlBackgroundColor))
     }
+
+    private var iconTabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 2) {
+                ForEach(TabSelection.allCases, id: \.self) { tab in
+                    Button(action: {
+                        selectedTab = tab
+                    }) {
+                        SwiftUI.Image(systemName: tab.icon)
+                            .font(.system(size: 14))
+                            .foregroundColor(selectedTab == tab ? (isWindowFocused ? .accentColor : .secondary) : (isWindowFocused ? .secondary : Color.secondary.opacity(0.5)))
+                            .frame(width: 32, height: 32)
+                            .background(
+                                selectedTab == tab ? Color.accentColor.opacity(isWindowFocused ? 0.15 : 0.08) : Color.clear
+                            )
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help(tab.title)
+                }
+            }
+            .padding(.horizontal, 12)
+        }
+        .padding(.vertical, 8)
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private var selectedContentView: some View {
+        Group {
+            switch selectedTab {
+            case .containers:
+                containersList
+            case .images:
+                imagesList
+            case .mounts:
+                mountsList
+            case .settings:
+                settingsView
+            case .dns:
+                dnsView
+            case .registries:
+                registriesView
+            case .systemLogs:
+                systemLogsView
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var settingsView: some View {
+        VStack {
+            Text("Settings")
+                .font(.title)
+                .foregroundColor(.secondary)
+            Text("Settings configuration will go here")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var dnsView: some View {
+        VStack {
+            Text("DNS")
+                .font(.title)
+                .foregroundColor(.secondary)
+            Text("DNS configuration will go here")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var registriesView: some View {
+        VStack {
+            Text("Registries")
+                .font(.title)
+                .foregroundColor(.secondary)
+            Text("Container registries will go here")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var systemLogsView: some View {
+        VStack {
+            Text("System Logs")
+                .font(.title)
+                .foregroundColor(.secondary)
+            Text("System logs will go here")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+
 
     private var popoverHeader: some View {
         HStack {
@@ -536,6 +539,8 @@ struct ContentView: View {
                     imagePopoverItems
                 case .mounts:
                     mountPopoverItems
+                case .settings, .dns, .registries, .systemLogs:
+                    EmptyView()
                 }
             }
         }
@@ -681,20 +686,6 @@ struct ContentView: View {
 
     private func imageDisplayName(_ reference: String) -> String {
         reference.split(separator: "/").last?.split(separator: ":").first.map(String.init) ?? reference
-    }
-
-    private var selectedContentView: some View {
-        Group {
-            switch selectedTab {
-            case .containers:
-                containersList
-            case .images:
-                imagesList
-            case .mounts:
-                mountsList
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
 
@@ -920,6 +911,8 @@ struct ContentView: View {
             imageDetailView
         case .mounts:
             mountDetailView
+        case .settings, .dns, .registries, .systemLogs:
+            EmptyView()
         }
     }
 
