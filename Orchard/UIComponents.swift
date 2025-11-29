@@ -626,3 +626,79 @@ struct CopyButton: View {
         .help(label)
     }
 }
+
+// MARK: - Custom Header Component
+
+struct CustomHeaderView: View {
+    let title: String
+    let subtitle: String?
+    let showItemNavigator: Bool
+    let onItemNavigatorTap: () -> Void
+    let actionButtons: AnyView?
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        showItemNavigator: Bool = false,
+        onItemNavigatorTap: @escaping () -> Void = {},
+        @ViewBuilder actionButtons: () -> AnyView? = { nil }
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.showItemNavigator = showItemNavigator
+        self.onItemNavigatorTap = onItemNavigatorTap
+        self.actionButtons = actionButtons()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            // Left side - Breadcrumbs
+            HStack(spacing: 8) {
+                if let subtitle = subtitle {
+                    Text(subtitle)
+                        .foregroundColor(.secondary)
+                        .font(.title3)
+
+                    SwiftUI.Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .opacity(0.6)
+                }
+
+                if showItemNavigator {
+                    Button(title) {
+                        onItemNavigatorTap()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                } else {
+                    Text(title)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                }
+            }
+
+            Spacer()
+
+            // Right side - Action buttons
+            if let actionButtons = actionButtons {
+                HStack(spacing: 8) {
+                    actionButtons
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(.regularMaterial, in: Rectangle())
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color(NSColor.separatorColor))
+                .opacity(0.2),
+            alignment: .bottom
+        )
+    }
+}

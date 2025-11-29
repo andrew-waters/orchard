@@ -256,95 +256,82 @@ struct ContentView: View {
                     min: 400, ideal: 500, max: 600)
                 .opacity(isWindowFocused ? 1.0 : 0.75)
         } detail: {
-            detailView
-        }
-        .navigationTitle("")
-        .toolbar {
-            // Clean breadcrumb navigation on the left - individual items to avoid bubble
-            if !currentResourceTitle.isEmpty {
-                ToolbarItem(placement: .navigation) {
-                    Text(selectedTab.title)
-                        .foregroundColor(.secondary)
-                }
-
-                ToolbarItem(placement: .navigation) {
-                    SwiftUI.Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                ToolbarItem(placement: .navigation) {
-                    Button(currentResourceTitle) {
-                        showingItemNavigatorPopover = true
-                    }
-                    .buttonStyle(.plain)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .popover(isPresented: $showingItemNavigatorPopover) {
-                        itemNavigatorPopoverView
-                    }
-                }
-            }
-
-            // Action buttons on the right
-            ToolbarItemGroup(placement: .primaryAction) {
-                if let container = currentContainer {
-                    ContainerControlButton(
-                        container: container,
-                        isLoading: containerService.loadingContainers.contains(
-                            container.configuration.id),
-                        onStart: {
-                            Task { @MainActor in
-                                await containerService.startContainer(container.configuration.id)
-                            }
-                        },
-                        onStop: {
-                            Task { @MainActor in
-                                await containerService.stopContainer(container.configuration.id)
-                            }
+            VStack(spacing: 0) {
+                // Custom header
+                if !currentResourceTitle.isEmpty {
+                    CustomHeaderView(
+                        title: currentResourceTitle,
+                        subtitle: selectedTab.title,
+                        showItemNavigator: true,
+                        onItemNavigatorTap: {
+                            showingItemNavigatorPopover = true
                         }
-                    )
+                    ) {
+                        AnyView(
+                            HStack(spacing: 8) {
+                                if let container = currentContainer {
+                                    ContainerControlButton(
+                                        container: container,
+                                        isLoading: containerService.loadingContainers.contains(
+                                            container.configuration.id),
+                                        onStart: {
+                                            Task { @MainActor in
+                                                await containerService.startContainer(container.configuration.id)
+                                            }
+                                        },
+                                        onStop: {
+                                            Task { @MainActor in
+                                                await containerService.stopContainer(container.configuration.id)
+                                            }
+                                        }
+                                    )
 
-                    if container.status.lowercased() == "running" {
-                        ContainerTerminalButton(
-                            container: container,
-                            onOpenTerminal: {
-                                containerService.openTerminal(for: container.configuration.id)
-                            },
-                            onOpenTerminalBash: {
-                                containerService.openTerminalWithBash(for: container.configuration.id)
-                            }
-                        )
-                    } else {
-                        ContainerRemoveButton(
-                            container: container,
-                            isLoading: containerService.loadingContainers.contains(
-                                container.configuration.id),
-                            onRemove: {
-                                Task { @MainActor in
-                                    await containerService.removeContainer(container.configuration.id)
+                                    if container.status.lowercased() == "running" {
+                                        ContainerTerminalButton(
+                                            container: container,
+                                            onOpenTerminal: {
+                                                containerService.openTerminal(for: container.configuration.id)
+                                            },
+                                            onOpenTerminalBash: {
+                                                containerService.openTerminalWithBash(for: container.configuration.id)
+                                            }
+                                        )
+                                    } else {
+                                        ContainerRemoveButton(
+                                            container: container,
+                                            isLoading: containerService.loadingContainers.contains(
+                                                container.configuration.id),
+                                            onRemove: {
+                                                Task { @MainActor in
+                                                    await containerService.removeContainer(container.configuration.id)
+                                                }
+                                            }
+                                        )
+                                    }
+
+                                } else if let mount = currentMount {
+                                    Button(action: {
+                                        NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
+                                    }) {
+                                        SwiftUI.Image(systemName: "folder")
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .help("Open in Finder")
                                 }
                             }
                         )
                     }
-
-                } else if currentImage != nil {
-
-                    // no real actions or conveniences here yet
-
-                } else if let mount = currentMount {
-
-                    Button(action: {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
-                    }) {
-                        SwiftUI.Image(systemName: "folder")
-                            .font(.system(size: 14, weight: .medium))
+                    .popover(isPresented: $showingItemNavigatorPopover) {
+                        itemNavigatorPopoverView
                     }
-                    .buttonStyle(.borderless)
-                    .help("Open in Finder")
                 }
+
+                // Main content
+                detailView
             }
         }
+        .navigationTitle("")
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             isWindowFocused = true
         }
