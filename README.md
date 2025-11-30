@@ -27,14 +27,14 @@ You can build from source or download a prebuilt package.
 
 ### Prebuilt
 
-1. Download the latest release from [GitHub Releases](https://github.com/container-compose/orchard/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/andrew-waters/orchard/releases)
 2. Open the `.dmg` file and drag Orchard to your Applications folder
 3. Launch Orchard - you may need to go to **System Settings > Privacy & Security** and click "Open Anyway" to allow the app to run
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/container-compose/orchard.git
+git clone https://github.com/andrew-waters/orchard.git
 cd orchard
 open Orchard.xcodeproj
 ```
