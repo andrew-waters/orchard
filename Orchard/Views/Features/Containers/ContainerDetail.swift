@@ -237,88 +237,64 @@ struct ContainerDetailView: View {
 
             if !container.networks.isEmpty {
                 ForEach(container.networks, id: \.hostname) { network in
-                    VStack(alignment: .leading, spacing: 8) {
-                        let addressValue = network.address.replacingOccurrences(of: "/24", with: "")
-                        CopyableInfoRow(
-                            label: "Address",
-                            value: network.address,
-                            copyValue: addressValue
-                        )
-                        InfoRow(label: "Gateway", value: network.gateway)
-                        InfoRow(label: "Network", value: network.network)
-                        if network.hostname != container.configuration.hostname {
-                            InfoRow(label: "Hostname", value: network.hostname)
-                        }
-
-                        // Show domain under hostname if available
-                        if let domain = container.configuration.dns.domain {
-                            ClickableInfoRow(
-                                label: "Domain",
-                                value: domain,
-                                onTap: {
-                                    // Post notification to navigate to DNS domain
-                                    NotificationCenter.default.post(
-                                        name: NSNotification.Name("NavigateToDNSDomain"),
-                                        object: domain
-                                    )
+                    let addressValue = network.address.replacingOccurrences(of: "/24", with: "")
+                    CopyableInfoRow(
+                        label: "Address",
+                        value: network.address,
+                        copyValue: addressValue
+                    )
+                    InfoRow(label: "Gateway", value: network.gateway)
+                    InfoRow(label: "Network", value: network.network)
+                    if network.hostname != container.configuration.hostname {
+                        let cleanHostname = network.hostname.hasSuffix(".") ? String(network.hostname.dropLast()) : network.hostname
+                        ClickableInfoRow(
+                            label: "Hostname",
+                            value: cleanHostname,
+                            onTap: {
+                                if let url = URL(string: "http://\(cleanHostname)") {
+                                    NSWorkspace.shared.open(url)
                                 }
+                            }
+                        )
+                    }
+
+                    // Show domain under hostname if available
+                    if let domain = container.configuration.dns.domain {
+                        InfoRow(label: "Domain", value: domain)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Published Ports")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
+                    if !container.configuration.publishedPorts.isEmpty {
+                        ForEach(container.configuration.publishedPorts, id: \.containerPort) { port in
+                            let portSpec = port.hostAddress != nil ?
+                                "\(port.hostAddress!):\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)" :
+                                "\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)"
+
+                            CopyableInfoRow(
+                                label: "Port",
+                                value: portSpec,
+                                copyValue: portSpec
                             )
                         }
-
-                        // Show published ports section
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Published Ports")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.primary)
-
-                            if !container.configuration.publishedPorts.isEmpty {
-                                ForEach(container.configuration.publishedPorts, id: \.containerPort) { port in
-                                    let portSpec = port.hostAddress != nil ?
-                                        "\(port.hostAddress!):\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)" :
-                                        "\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)"
-
-                                    CopyableInfoRow(
-                                        label: "Port",
-                                        value: portSpec,
-                                        copyValue: portSpec
-                                    )
-                                }
-                            } else {
-                                Text("None configured")
-                                    .foregroundColor(.secondary)
-                                    .italic()
-                            }
-                        }
+                    } else {
+                        InfoRow(label: "Port", value: "None configured")
                     }
-                    .padding()
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                    .cornerRadius(8)
                 }
 
                 // DNS Configuration
                 if !container.configuration.dns.nameservers.isEmpty
                     || !container.configuration.dns.searchDomains.isEmpty
-                    || container.configuration.dns.domain != nil
                 {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("DNS Configuration")
                             .font(.subheadline)
                             .fontWeight(.medium)
-
-                        if let domain = container.configuration.dns.domain {
-                            ClickableInfoRow(
-                                label: "Domain",
-                                value: domain,
-                                onTap: {
-                                    // Post notification to navigate to DNS domain
-                                    NotificationCenter.default.post(
-                                        name: NSNotification.Name("NavigateToDNSDomain"),
-                                        object: domain
-                                    )
-                                }
-                            )
-                        }
 
                         if !container.configuration.dns.nameservers.isEmpty {
                             InfoRow(
@@ -1010,16 +986,19 @@ struct ClickableInfoRow: View {
 
     var body: some View {
         HStack {
-            Text("\(label):")
-                .frame(width: 120, alignment: .trailing)
+            Text(label)
+                .font(.subheadline)
                 .foregroundColor(.secondary)
+                .frame(width: 100, alignment: .leading)
 
             Button(value) {
                 onTap()
             }
             .buttonStyle(.plain)
+            .font(.subheadline)
+            .monospaced()
             .foregroundColor(.accentColor)
-            .help("View \(label.lowercased()) details")
+            .help("Click to open in browser")
 
             Spacer()
         }

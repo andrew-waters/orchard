@@ -243,6 +243,12 @@ struct ContainerRow: View {
         return container.networks[0].address.replacingOccurrences(of: "/24", with: "")
     }
 
+    private var hostname: String {
+        guard !container.networks.isEmpty else { return "" }
+        let hostname = container.networks[0].hostname
+        return hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname
+    }
+
     var body: some View {
         NavigationLink(value: container.configuration.id) {
             HStack {
@@ -252,9 +258,19 @@ struct ContainerRow: View {
 
                 VStack(alignment: .leading) {
                     Text(container.configuration.id)
-                    Text(networkAddress)
-                        .font(.subheadline)
-                        .monospaced()
+                    HStack {
+                        Text(networkAddress)
+                            .font(.subheadline)
+                            .monospaced()
+                            .foregroundColor(.secondary)
+
+                        if !hostname.isEmpty {
+                            Spacer()
+                            Text(hostname)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
             }
         }
@@ -270,6 +286,30 @@ struct ContainerRow: View {
                         Text("Copy IP address")
                     }
                     .background(copyFeedbackStates["networkAddress"] == true ? Color.green : Color.clear)
+                }
+
+                Button {
+                    if let url = URL(string: "http://\(networkAddress)") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    HStack {
+                        SwiftUI.Image(systemName: "globe")
+                        Text("Open IP in Browser")
+                    }
+                }
+
+                if !hostname.isEmpty {
+                    Button {
+                        if let url = URL(string: "http://\(hostname)") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        HStack {
+                            SwiftUI.Image(systemName: "globe")
+                            Text("Open Hostname in Browser")
+                        }
+                    }
                 }
 
                 Divider()
