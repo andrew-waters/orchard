@@ -75,10 +75,88 @@ struct SettingsDetailView: View {
                     }
                 }
 
+                // System Properties Section
+                VStack(alignment: .leading, spacing: 15) {
+                    HStack(alignment: .top) {
+                        Text("System Properties:")
+                            .frame(width: 220, alignment: .trailing)
+                            .padding(.top, 2)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                if containerService.isSystemPropertiesLoading {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Loading properties...")
+                                        .foregroundColor(.secondary)
+                                        .padding(.leading, 10)
+                                } else {
+                                    Button("Refresh Properties") {
+                                        Task { await containerService.loadSystemProperties() }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+
+                            if !containerService.systemProperties.isEmpty {
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible())
+                                ], alignment: .leading, spacing: 12) {
+                                    ForEach(containerService.systemProperties) { property in
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack {
+                                                Text(property.id)
+                                                    .font(.system(.caption, design: .monospaced))
+                                                    .fontWeight(.medium)
+
+                                                Text(property.type.displayName)
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .foregroundColor(.secondary)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.secondary.opacity(0.1))
+                                                    .cornerRadius(4)
+
+                                                Spacer()
+                                            }
+
+                                            Text(property.displayValue)
+                                                .font(.caption)
+                                                .foregroundColor(property.isUndefined ? .secondary : .primary)
+                                                .padding(.bottom, 2)
+
+                                            Text(property.description)
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                                .lineLimit(2)
+                                        }
+                                        .padding(8)
+                                        .background(Color.secondary.opacity(0.05))
+                                        .cornerRadius(6)
+                                    }
+                                }
+                                .padding(.top, 8)
+                            } else if !containerService.isSystemPropertiesLoading {
+                                Text("No system properties available. Try refreshing.")
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 8)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+
                 Spacer()
             }
             .padding(40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            Task {
+                await containerService.loadSystemProperties()
+            }
+        }
     }
 }

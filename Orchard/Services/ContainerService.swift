@@ -32,6 +32,8 @@ class ContainerService: ObservableObject {
     @Published var pullProgress: [String: ImagePullProgress] = [:]
     @Published var isSearching: Bool = false
     @Published var searchResults: [RegistrySearchResult] = []
+    @Published var systemProperties: [SystemProperty] = []
+    @Published var isSystemPropertiesLoading = false
 
     private let defaultBinaryPath = "/usr/local/bin/container"
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
@@ -1279,6 +1281,102 @@ class ContainerService: ObservableObject {
         }
 
         return domains
+    }
+
+    // MARK: - System Properties Management
+
+    func loadSystemProperties() async {
+        await loadSystemProperties(showLoading: false)
+    }
+
+    func loadSystemProperties(showLoading: Bool = true) async {
+        if showLoading {
+            await MainActor.run {
+                isSystemPropertiesLoading = true
+                errorMessage = nil
+            }
+        }
+
+        var result: ExecResult
+        do {
+            result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["system", "property", "list", "--format=json"])
+        } catch {
+            let error = error as! ExecError
+            result = error.execResult
+        }
+
+        if result.failed {
+            await MainActor.run {
+                self.errorMessage = result.stderr ?? "Failed to load system properties"
+                self.isSystemPropertiesLoading = false
+            }
+            return
+        }
+
+        guard let output = result.stdout else {
+            await MainActor.run {
+                self.systemProperties = []
+                self.isSystemPropertiesLoading = false
+            }
+            return
+        }
+
+        let properties = parseSystemPropertiesFromOutput(output)
+        await MainActor.run {
+            self.systemProperties = properties
+            self.isSystemPropertiesLoading = false
+        }
+    }
+
+    private func parseSystemPropertiesFromOutput(_ output: String) -> [SystemProperty] {
+        var properties: [SystemProperty] = []
+
+        do {
+            guard let data = output.data(using: .utf8) else {
+                return properties
+            }
+
+            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                for propertyDict in jsonArray {
+                    guard let id = propertyDict["id"] as? String,
+                          let typeString = propertyDict["type"] as? String,
+                          let description = propertyDict["description"] as? String else {
+                        continue
+                    }
+
+                    // Handle value which can be null, bool, or string
+                    let valueString: String
+                    if let value = propertyDict["value"] {
+                        if value is NSNull {
+                            valueString = "*undefined*"
+                        } else if let boolValue = value as? Bool {
+                            valueString = boolValue ? "true" : "false"
+                        } else if let stringValue = value as? String {
+                            valueString = stringValue
+                        } else {
+                            valueString = String(describing: value)
+                        }
+                    } else {
+                        valueString = "*undefined*"
+                    }
+
+                    let type: SystemProperty.PropertyType = typeString.lowercased() == "bool" ? .bool : .string
+
+                    properties.append(SystemProperty(
+                        id: id,
+                        type: type,
+                        value: valueString,
+                        description: description
+                    ))
+                }
+            }
+        } catch {
+            print("Error parsing system properties JSON: \(error)")
+        }
+
+        return properties
     }
 
     // MARK: - Image Pull Management

@@ -371,6 +371,37 @@ struct RegistrySearchResult: Identifiable, Equatable {
     }
 }
 
+// MARK: - System Property Models
+
+struct SystemProperty: Identifiable, Equatable {
+    let id: String
+    let type: PropertyType
+    let value: String
+    let description: String
+
+    enum PropertyType: String, CaseIterable {
+        case bool = "Bool"
+        case string = "String"
+
+        var displayName: String {
+            return rawValue
+        }
+    }
+
+    var displayValue: String {
+        if type == .bool {
+            return value == "true" ? "✓ Enabled" : "✗ Disabled"
+        } else if value == "*undefined*" {
+            return "Not set"
+        }
+        return value
+    }
+
+    var isUndefined: Bool {
+        return value == "*undefined*"
+    }
+}
+
 // MARK: - Container Run Configuration Models
 
 struct ContainerRunConfig: Equatable {
