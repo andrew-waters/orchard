@@ -260,7 +260,17 @@ struct ContainerDetailView: View {
 
                     // Show domain under hostname if available
                     if let domain = container.configuration.dns.domain {
-                        InfoRow(label: "Domain", value: domain)
+                        ClickableInfoRow(
+                            label: "Domain",
+                            value: domain,
+                            onTap: {
+                                // Post notification to navigate to DNS domain
+                                NotificationCenter.default.post(
+                                    name: NSNotification.Name("NavigateToDNSDomain"),
+                                    object: domain
+                                )
+                            }
+                        )
                     }
                 }
 
