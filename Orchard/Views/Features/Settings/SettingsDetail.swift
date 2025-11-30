@@ -103,8 +103,10 @@ struct SettingsDetailView: View {
                             Picker("", selection: Binding(
                                 get: { currentDomain },
                                 set: { newValue in
-                                    Task {
-                                        await containerService.setSystemProperty("dns.domain", value: newValue)
+                                    DispatchQueue.main.async {
+                                        Task {
+                                            await containerService.setSystemProperty("dns.domain", value: newValue)
+                                        }
                                     }
                                 }
                             )) {

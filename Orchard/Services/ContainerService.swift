@@ -1,6 +1,7 @@
 import Foundation
 import SwiftExec
 import SwiftUI
+import AppKit
 
 class ContainerService: ObservableObject {
     let supportedContainerVersion = "0.6.0"
@@ -1053,9 +1054,14 @@ class ContainerService: ObservableObject {
         if showLoading {
             await MainActor.run {
                 isDNSLoading = true
+                errorMessage = nil
             }
         }
 
+        // Load system properties first to get the default domain
+        await loadSystemProperties(showLoading: false)
+
+        var result: ExecResult
         do {
             // Get list of domains in JSON format
             let listResult = try exec(
@@ -1063,7 +1069,9 @@ class ContainerService: ObservableObject {
                 arguments: ["system", "dns", "ls", "--format=json"])
 
             if let output = listResult.stdout {
-                let domains = parseDNSDomainsFromJSON(output, defaultDomain: nil)
+                // Get the current default domain from system properties
+                let currentDefaultDomain = self.systemProperties.first(where: { $0.id == "dns.domain" })?.value
+                let domains = parseDNSDomainsFromJSON(output, defaultDomain: currentDefaultDomain)
                 await MainActor.run {
                     self.dnsDomains = domains
                     self.isDNSLoading = false
@@ -1380,8 +1388,36 @@ class ContainerService: ObservableObject {
     }
 
     func setSystemProperty(_ id: String, value: String) async {
+        // Preserve window focus
+        let currentApp = NSApplication.shared
+        let isActive = currentApp.isActive
+
+        // Optimistically update the UI first
+        await MainActor.run {
+            if id == "dns.domain" {
+                // Update system properties optimistically
+                if let index = self.systemProperties.firstIndex(where: { $0.id == id }) {
+                    self.systemProperties[index] = SystemProperty(
+                        id: id,
+                        type: self.systemProperties[index].type,
+                        value: value,
+                        description: self.systemProperties[index].description
+                    )
+                }
+
+                // Update DNS domains default status optimistically
+                for i in 0..<self.dnsDomains.count {
+                    self.dnsDomains[i] = DNSDomain(
+                        domain: self.dnsDomains[i].domain,
+                        isDefault: self.dnsDomains[i].domain == value
+                    )
+                }
+            }
+        }
+
         var result: ExecResult
         do {
+            // Execute command with focus preservation
             result = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "property", "set", id, value])
@@ -1390,15 +1426,86 @@ class ContainerService: ObservableObject {
             result = error.execResult
         }
 
+        // Restore focus if it was lost
+        await MainActor.run {
+            if isActive && !currentApp.isActive {
+                currentApp.activate(ignoringOtherApps: true)
+            }
+        }
+
         if result.failed {
             await MainActor.run {
                 self.errorMessage = result.stderr ?? "Failed to set system property"
             }
+            // Revert optimistic changes on failure
+            if id == "dns.domain" {
+                await loadSystemProperties(showLoading: false)
+                await loadDNSDomains(showLoading: false)
+            }
             return
         }
 
-        // Reload system properties after successful change
-        await loadSystemProperties(showLoading: false)
+        // Success - optionally refresh in background to ensure consistency
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            Task {
+                await self?.loadSystemProperties(showLoading: false)
+                if id == "dns.domain" {
+                    await self?.loadDNSDomains(showLoading: false)
+                }
+            }
+        }
+    }
+
+    func setDefaultDNSDomain(_ domain: String) async {
+        // Immediate UI update without subprocess for better focus handling
+        await MainActor.run {
+            // Update system properties optimistically
+            if let index = self.systemProperties.firstIndex(where: { $0.id == "dns.domain" }) {
+                self.systemProperties[index] = SystemProperty(
+                    id: "dns.domain",
+                    type: self.systemProperties[index].type,
+                    value: domain,
+                    description: self.systemProperties[index].description
+                )
+            }
+
+            // Update DNS domains default status immediately
+            for i in 0..<self.dnsDomains.count {
+                self.dnsDomains[i] = DNSDomain(
+                    domain: self.dnsDomains[i].domain,
+                    isDefault: self.dnsDomains[i].domain == domain
+                )
+            }
+        }
+
+        // Execute command in background without blocking UI
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            Task {
+                do {
+                    let result = try exec(
+                        program: self?.safeContainerBinaryPath() ?? "/usr/local/bin/container",
+                        arguments: ["system", "property", "set", "dns.domain", domain])
+
+                    if result.failed {
+                        // Revert on failure
+                        await self?.loadSystemProperties(showLoading: false)
+                        await self?.loadDNSDomains(showLoading: false)
+
+                        await MainActor.run {
+                            self?.errorMessage = result.stderr ?? "Failed to set default DNS domain"
+                        }
+                    }
+                } catch {
+                    // Revert on error
+                    await self?.loadSystemProperties(showLoading: false)
+                    await self?.loadDNSDomains(showLoading: false)
+
+                    await MainActor.run {
+                        self?.errorMessage = "Failed to set default DNS domain: \(error.localizedDescription)"
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Image Pull Management
