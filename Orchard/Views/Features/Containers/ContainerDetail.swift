@@ -10,6 +10,8 @@ struct ContainerDetailView: View {
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedTab: ContainerTab = .overview
     @State private var showEditConfiguration = false
+    @Binding var selectedTabBinding: TabSelection
+    @Binding var selectedNetwork: String?
 
     enum ContainerTab: String, CaseIterable {
         case overview = "Overview"
@@ -244,7 +246,14 @@ struct ContainerDetailView: View {
                         copyValue: addressValue
                     )
                     InfoRow(label: "Gateway", value: network.gateway)
-                    InfoRow(label: "Network", value: network.network)
+                    ClickableInfoRow(
+                        label: "Network",
+                        value: network.network,
+                        onTap: {
+                            selectedTabBinding = .networks
+                            selectedNetwork = network.network
+                        }
+                    )
                     if network.hostname != container.configuration.hostname {
                         let cleanHostname = network.hostname.hasSuffix(".") ? String(network.hostname.dropLast()) : network.hostname
                         ClickableInfoRow(

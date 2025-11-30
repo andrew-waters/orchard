@@ -221,7 +221,8 @@ struct MainInterfaceView: View {
                     lastSelectedImageTab: $lastSelectedImageTab,
                     lastSelectedMountTab: $lastSelectedMountTab,
                     selectedTabBinding: $selectedTab,
-                    selectedContainerBinding: $selectedContainer
+                    selectedContainerBinding: $selectedContainer,
+                    selectedNetworkBinding: $selectedNetwork
                 )
             }
         }

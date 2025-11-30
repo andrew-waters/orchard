@@ -14,6 +14,7 @@ struct DetailContentView: View {
     @Binding var lastSelectedMountTab: String
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
+    @Binding var selectedNetworkBinding: String?
 
     var body: some View {
         // Check if we're in settings mode (no selections)
@@ -70,7 +71,9 @@ struct DetailContentView: View {
                     initialSelectedTab: lastSelectedContainerTab,
                     onTabChanged: { newTab in
                         lastSelectedContainerTab = newTab
-                    }
+                    },
+                    selectedTabBinding: $selectedTabBinding,
+                    selectedNetwork: $selectedNetworkBinding
                 )
                 .environmentObject(containerService)
             }

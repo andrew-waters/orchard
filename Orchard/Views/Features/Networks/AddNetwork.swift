@@ -121,6 +121,19 @@ struct AddNetworkView: View {
                     }
                 }
 
+                // Error/Success message display
+                if let errorMessage = containerService.errorMessage {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                        .padding(.top, 8)
+                } else if let successMessage = containerService.successMessage {
+                    Text(successMessage)
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                        .padding(.top, 8)
+                }
+
                 Spacer()
             }
             .padding()
@@ -134,7 +147,7 @@ struct AddNetworkView: View {
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button("Create Network") {
+                Button(isCreating ? "Creating..." : "Create Network") {
                     createNetwork()
                 }
                 .buttonStyle(.borderedProminent)
@@ -180,6 +193,10 @@ struct AddNetworkView: View {
 
         isCreating = true
 
+        // Clear any previous messages
+        containerService.errorMessage = nil
+        containerService.successMessage = nil
+
         Task {
             await containerService.createNetwork(
                 name: trimmedName,
@@ -193,6 +210,7 @@ struct AddNetworkView: View {
 
             await MainActor.run {
                 isCreating = false
+
                 if containerService.errorMessage == nil {
                     dismiss()
                 }

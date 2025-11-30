@@ -73,7 +73,7 @@ struct NetworksListView: View {
 
     @ViewBuilder
     private func networkRowView(network: ContainerNetwork) -> some View {
-        HStack {
+        HStack(spacing: 8) {
             SwiftUI.Image(systemName: networkIcon(for: network))
                 .foregroundStyle(networkColor(for: network))
                 .frame(width: 16, height: 16)
@@ -106,11 +106,6 @@ struct NetworksListView: View {
     @ViewBuilder
     private func networkInfoRow(network: ContainerNetwork) -> some View {
         HStack(spacing: 8) {
-            // State
-            Text(network.state.capitalized)
-                .font(.system(size: 11))
-                .foregroundStyle(network.state == "running" ? .green : .secondary)
-
             // Labels count
             if !network.config.labels.isEmpty {
                 Text("\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
@@ -159,14 +154,7 @@ struct NetworksListView: View {
     }
 
     private func networkColor(for network: ContainerNetwork) -> Color {
-        switch network.state.lowercased() {
-        case "running":
-            return .green
-        case "stopped":
-            return .red
-        default:
-            return .gray
-        }
+        return .blue
     }
 
     private func confirmNetworkDeletion(networkId: String) {

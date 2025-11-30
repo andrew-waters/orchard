@@ -17,7 +17,7 @@ struct NetworkDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 // Network header
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
+                    HStack(spacing: 12) {
                         SwiftUI.Image(systemName: networkIcon(for: network))
                             .foregroundStyle(networkColor(for: network))
                             .font(.system(size: 24))
@@ -28,12 +28,6 @@ struct NetworkDetailView: View {
                                 .fontWeight(.bold)
 
                             HStack {
-                                Text(network.state.capitalized)
-                                    .foregroundStyle(network.state == "running" ? .green : .secondary)
-
-                                Text("•")
-                                    .foregroundStyle(.secondary)
-
                                 if !network.config.labels.isEmpty {
                                     Text("\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
                                         .font(.system(size: 12, weight: .medium))
@@ -57,8 +51,6 @@ struct NetworkDetailView: View {
 
                     VStack(spacing: 0) {
                         networkDetailRow(label: "Network ID", value: network.id)
-                        Divider().padding(.leading, 100)
-                        networkDetailRow(label: "State", value: network.state.capitalized)
 
                         if !network.config.labels.isEmpty {
                             Divider().padding(.leading, 100)
@@ -261,14 +253,7 @@ struct NetworkDetailView: View {
     }
 
     private func networkColor(for network: ContainerNetwork) -> Color {
-        switch network.state.lowercased() {
-        case "running":
-            return .green
-        case "stopped":
-            return .red
-        default:
-            return .gray
-        }
+        return .blue
     }
 
     private func confirmNetworkDeletion(networkId: String) {

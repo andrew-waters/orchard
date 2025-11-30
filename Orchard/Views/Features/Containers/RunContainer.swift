@@ -67,6 +67,9 @@ struct RunContainerView: View {
             footerView
         }
         .frame(width: 700, height: 600)
+        .task {
+            await containerService.loadNetworks()
+        }
     }
 
     private var headerView: some View {
@@ -172,18 +175,18 @@ struct RunContainerView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Publish port", isOn: $config.enablePublish)
+                Text("Network")
                     .font(.subheadline)
                     .fontWeight(.medium)
 
-                if config.enablePublish {
-                    TextField("[host-ip:]host-port:container-port[/protocol]", text: $config.publishSpec)
-                        .textFieldStyle(.roundedBorder)
-
-                    Text("Example: 8080:80, 127.0.0.1:3000:3000/tcp")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                Picker("Network", selection: $config.network) {
+                    Text("Default").tag("")
+                    ForEach(containerService.networks, id: \.id) { network in
+                        Text(network.id).tag(network.id)
+                    }
                 }
+                .pickerStyle(.menu)
+                .frame(width: 200, alignment: .leading)
             }
 
             VStack(alignment: .leading, spacing: 8) {

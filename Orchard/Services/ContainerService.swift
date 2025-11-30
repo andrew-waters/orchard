@@ -1145,18 +1145,23 @@ class ContainerService: ObservableObject {
 
         do {
             // Get list of networks in JSON format
+
             let result = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["network", "ls", "--format=json"])
 
+
+
             if let output = result.stdout {
                 let networks = parseNetworksFromJSON(output)
+
                 await MainActor.run {
                     self.networks = networks
                     self.isNetworksLoading = false
                 }
             }
         } catch {
+
             await MainActor.run {
                 if showLoading {
                     self.errorMessage = "Failed to load networks: \(error.localizedDescription)"
@@ -1183,18 +1188,32 @@ class ContainerService: ObservableObject {
             // Add network name
             arguments.append(name)
 
-            let result = try execWithSudo(
+
+
+            let result = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: arguments)
 
-            if !result.failed {
+
+
+            if result.exitCode == 0 {
+                await MainActor.run {
+                    self.successMessage = "Network '\(name)' created successfully"
+                    self.errorMessage = nil
+
+                    // Clear success message after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        self.successMessage = nil
+                    }
+                }
                 await loadNetworks()
             } else {
                 await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to create network"
+                    self.errorMessage = result.stderr ?? result.stdout ?? "Failed to create network"
                 }
             }
         } catch {
+
             await MainActor.run {
                 self.errorMessage = "Failed to create network: \(error.localizedDescription)"
             }
@@ -1203,18 +1222,32 @@ class ContainerService: ObservableObject {
 
     func deleteNetwork(_ networkId: String) async {
         do {
-            let result = try execWithSudo(
+
+
+            let result = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["network", "rm", networkId])
 
-            if !result.failed {
+
+
+            if result.exitCode == 0 {
+                await MainActor.run {
+                    self.successMessage = "Network '\(networkId)' deleted successfully"
+                    self.errorMessage = nil
+
+                    // Clear success message after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        self.successMessage = nil
+                    }
+                }
                 await loadNetworks()
             } else {
                 await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to delete network"
+                    self.errorMessage = result.stderr ?? result.stdout ?? "Failed to delete network"
                 }
             }
         } catch {
+
             await MainActor.run {
                 self.errorMessage = "Failed to delete network: \(error.localizedDescription)"
             }
@@ -1222,15 +1255,18 @@ class ContainerService: ObservableObject {
     }
 
     func parseNetworksFromJSON(_ output: String) -> [ContainerNetwork] {
+
         guard let data = output.data(using: .utf8) else {
+
             return []
         }
 
         do {
             let networks = try JSONDecoder().decode([ContainerNetwork].self, from: data)
+
             return networks.sorted { $0.id < $1.id }
         } catch {
-            print("Failed to parse networks JSON: \(error)")
+
             return []
         }
     }
@@ -1935,9 +1971,9 @@ class ContainerService: ObservableObject {
             arguments.append(contentsOf: ["--dns-domain", config.dnsDomain])
         }
 
-        // Add publish specification
-        if config.enablePublish && !config.publishSpec.isEmpty {
-            arguments.append(contentsOf: ["-p", config.publishSpec])
+        // Add network
+        if !config.network.isEmpty {
+            arguments.append(contentsOf: ["--network", config.network])
         }
 
         // Add working directory

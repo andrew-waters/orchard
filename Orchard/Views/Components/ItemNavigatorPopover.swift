@@ -78,7 +78,7 @@ struct ItemNavigatorPopover: View {
             lastSelectedContainer = container.configuration.id
             showingItemNavigatorPopover = false
         }) {
-            HStack {
+            HStack(spacing: 8) {
                 Circle()
                     .fill(container.status.lowercased() == "running" ? .green : .gray)
                     .frame(width: 8, height: 8)
@@ -89,7 +89,7 @@ struct ItemNavigatorPopover: View {
                         .fontWeight(.medium)
                     Text(container.status.capitalized)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -123,10 +123,10 @@ struct ItemNavigatorPopover: View {
             lastSelectedImage = image.reference
             showingItemNavigatorPopover = false
         }) {
-            HStack {
+            HStack(spacing: 8) {
                 SwiftUI.Image(systemName: "cube.transparent")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(imageDisplayName(image.reference))
@@ -169,10 +169,10 @@ struct ItemNavigatorPopover: View {
             lastSelectedMount = mount.id
             showingItemNavigatorPopover = false
         }) {
-            HStack {
+            HStack(spacing: 8) {
                 SwiftUI.Image(systemName: "externaldrive")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(URL(fileURLWithPath: mount.mount.source).lastPathComponent)
@@ -212,10 +212,10 @@ struct ItemNavigatorPopover: View {
             lastSelectedDNSDomain = domain.domain
             showingItemNavigatorPopover = false
         }) {
-            HStack {
+            HStack(spacing: 8) {
                 SwiftUI.Image(systemName: "network")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 Text(domain.domain)
                     .font(.subheadline)
@@ -252,10 +252,10 @@ struct ItemNavigatorPopover: View {
             lastSelectedNetwork = network.id
             showingItemNavigatorPopover = false
         }) {
-            HStack {
+            HStack(spacing: 8) {
                 SwiftUI.Image(systemName: "wifi")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(network.id)
