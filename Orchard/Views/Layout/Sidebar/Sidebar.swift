@@ -7,15 +7,18 @@ struct SidebarView: View {
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedNetwork: String?
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
     @Binding var lastSelectedDNSDomain: String?
+    @Binding var lastSelectedNetwork: String?
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
+    @Binding var showAddNetworkSheet: Bool
     @Binding var isInIntentionalSettingsMode: Bool
     @FocusState var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
@@ -28,6 +31,7 @@ struct SidebarView: View {
                 selectedImage: $selectedImage,
                 selectedMount: $selectedMount,
                 selectedDNSDomain: $selectedDNSDomain,
+                selectedNetwork: $selectedNetwork,
                 isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
                 isWindowFocused: isWindowFocused,
                 containerService: containerService
@@ -68,6 +72,13 @@ struct SidebarView: View {
                 } else if !containerService.dnsDomains.isEmpty {
                     selectedDNSDomain = containerService.dnsDomains.first?.domain
                 }
+            case .networks:
+                if let lastSelected = lastSelectedNetwork,
+                   containerService.networks.contains(where: { $0.id == lastSelected }) {
+                    selectedNetwork = lastSelected
+                } else if !containerService.networks.isEmpty {
+                    selectedNetwork = containerService.networks.first?.id
+                }
             case .registries, .systemLogs:
                 // No selection state for these tabs
                 break
@@ -83,7 +94,7 @@ struct SidebarView: View {
     private var selectedContentView: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Check if we're in settings mode (no selections)
-            let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+            let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
             if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
                 // Show empty state when in settings mode
@@ -127,6 +138,13 @@ struct SidebarView: View {
                         selectedDNSDomain: $selectedDNSDomain,
                         lastSelectedDNSDomain: $lastSelectedDNSDomain,
                         showAddDNSDomainSheet: $showAddDNSDomainSheet,
+                        listFocusedTab: _listFocusedTab
+                    )
+                case .networks:
+                    NetworksListView(
+                        selectedNetwork: $selectedNetwork,
+                        lastSelectedNetwork: $lastSelectedNetwork,
+                        showAddNetworkSheet: $showAddNetworkSheet,
                         listFocusedTab: _listFocusedTab
                     )
                 case .registries:

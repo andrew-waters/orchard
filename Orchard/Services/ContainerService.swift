@@ -22,6 +22,8 @@ class ContainerService: ObservableObject {
     @Published var builderStatus: BuilderStatus = .stopped
     @Published var dnsDomains: [DNSDomain] = []
     @Published var isDNSLoading = false
+    @Published var networks: [ContainerNetwork] = []
+    @Published var isNetworksLoading = false
     @Published var kernelConfig: KernelConfig = KernelConfig()
     @Published var isKernelLoading = false
     @Published var successMessage: String?
@@ -1127,6 +1129,111 @@ class ContainerService: ObservableObject {
         }
     }
 
+    // MARK: - Network Management
+
+    func loadNetworks() async {
+        await loadNetworks(showLoading: false)
+    }
+
+    func loadNetworks(showLoading: Bool = true) async {
+        if showLoading {
+            await MainActor.run {
+                isNetworksLoading = true
+                errorMessage = nil
+            }
+        }
+
+        do {
+            // Get list of networks in JSON format
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["network", "ls", "--format=json"])
+
+            if let output = result.stdout {
+                let networks = parseNetworksFromJSON(output)
+                await MainActor.run {
+                    self.networks = networks
+                    self.isNetworksLoading = false
+                }
+            }
+        } catch {
+            await MainActor.run {
+                if showLoading {
+                    self.errorMessage = "Failed to load networks: \(error.localizedDescription)"
+                }
+                self.isNetworksLoading = false
+            }
+        }
+    }
+
+    func createNetwork(name: String, subnet: String? = nil, labels: [String] = []) async {
+        do {
+            var arguments = ["network", "create"]
+
+            // Add subnet if provided
+            if let subnet = subnet {
+                arguments.append(contentsOf: ["--subnet", subnet])
+            }
+
+            // Add labels if provided
+            for label in labels {
+                arguments.append(contentsOf: ["--label", label])
+            }
+
+            // Add network name
+            arguments.append(name)
+
+            let result = try execWithSudo(
+                program: safeContainerBinaryPath(),
+                arguments: arguments)
+
+            if !result.failed {
+                await loadNetworks()
+            } else {
+                await MainActor.run {
+                    self.errorMessage = result.stderr ?? "Failed to create network"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to create network: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func deleteNetwork(_ networkId: String) async {
+        do {
+            let result = try execWithSudo(
+                program: safeContainerBinaryPath(),
+                arguments: ["network", "rm", networkId])
+
+            if !result.failed {
+                await loadNetworks()
+            } else {
+                await MainActor.run {
+                    self.errorMessage = result.stderr ?? "Failed to delete network"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to delete network: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func parseNetworksFromJSON(_ output: String) -> [ContainerNetwork] {
+        guard let data = output.data(using: .utf8) else {
+            return []
+        }
+
+        do {
+            let networks = try JSONDecoder().decode([ContainerNetwork].self, from: data)
+            return networks.sorted { $0.id < $1.id }
+        } catch {
+            print("Failed to parse networks JSON: \(error)")
+            return []
+        }
+    }
 
 
     // MARK: - Kernel Management

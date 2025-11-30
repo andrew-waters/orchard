@@ -7,10 +7,12 @@ struct MainInterfaceView: View {
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedNetwork: String?
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
     @Binding var lastSelectedDNSDomain: String?
+    @Binding var lastSelectedNetwork: String?
     @Binding var lastSelectedContainerTab: String
     @Binding var lastSelectedImageTab: String
     @Binding var lastSelectedMountTab: String
@@ -19,6 +21,7 @@ struct MainInterfaceView: View {
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
+    @Binding var showAddNetworkSheet: Bool
     @Binding var isInIntentionalSettingsMode: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
@@ -33,7 +36,7 @@ struct MainInterfaceView: View {
         }
 
         // Check if we're in settings mode (no selections)
-        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
         if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
             return "Settings"
@@ -66,6 +69,11 @@ struct MainInterfaceView: View {
                 return selectedDNSDomain
             }
             return ""
+        case .networks:
+            if let selectedNetwork = selectedNetwork {
+                return selectedNetwork
+            }
+            return ""
         case .registries:
             return ""
         case .systemLogs:
@@ -93,15 +101,18 @@ struct MainInterfaceView: View {
                 selectedImage: $selectedImage,
                 selectedMount: $selectedMount,
                 selectedDNSDomain: $selectedDNSDomain,
+                selectedNetwork: $selectedNetwork,
                 lastSelectedContainer: $lastSelectedContainer,
                 lastSelectedImage: $lastSelectedImage,
                 lastSelectedMount: $lastSelectedMount,
                 lastSelectedDNSDomain: $lastSelectedDNSDomain,
+                lastSelectedNetwork: $lastSelectedNetwork,
                 searchText: $searchText,
                 showOnlyRunning: $showOnlyRunning,
                 showOnlyImagesInUse: $showOnlyImagesInUse,
                 showImageSearch: $showImageSearch,
                 showAddDNSDomainSheet: $showAddDNSDomainSheet,
+                showAddNetworkSheet: $showAddNetworkSheet,
                 isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
                 listFocusedTab: _listFocusedTab,
                 isWindowFocused: isWindowFocused
@@ -183,10 +194,12 @@ struct MainInterfaceView: View {
                             selectedImage: $selectedImage,
                             selectedMount: $selectedMount,
                             selectedDNSDomain: $selectedDNSDomain,
+                            selectedNetwork: $selectedNetwork,
                             lastSelectedContainer: $lastSelectedContainer,
                             lastSelectedImage: $lastSelectedImage,
                             lastSelectedMount: $lastSelectedMount,
                             lastSelectedDNSDomain: $lastSelectedDNSDomain,
+                            lastSelectedNetwork: $lastSelectedNetwork,
                             showingItemNavigatorPopover: $showingItemNavigatorPopover,
                             showOnlyRunning: showOnlyRunning,
                             showOnlyImagesInUse: showOnlyImagesInUse,
@@ -202,6 +215,7 @@ struct MainInterfaceView: View {
                     selectedImage: selectedImage,
                     selectedMount: selectedMount,
                     selectedDNSDomain: selectedDNSDomain,
+                    selectedNetwork: selectedNetwork,
                     isInIntentionalSettingsMode: isInIntentionalSettingsMode,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     lastSelectedImageTab: $lastSelectedImageTab,

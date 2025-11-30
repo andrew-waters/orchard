@@ -432,6 +432,42 @@ struct SystemProperty: Identifiable, Equatable {
     }
 }
 
+// MARK: - Container Network Models
+
+struct ContainerNetwork: Codable, Equatable, Identifiable {
+    let id: String
+    let state: String
+    let config: NetworkConfig
+    let status: NetworkStatus
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case state
+        case config
+        case status
+    }
+}
+
+struct NetworkConfig: Codable, Equatable {
+    let labels: [String: String]
+    let id: String
+
+    enum CodingKeys: String, CodingKey {
+        case labels
+        case id
+    }
+}
+
+struct NetworkStatus: Codable, Equatable {
+    let gateway: String?
+    let address: String?
+
+    enum CodingKeys: String, CodingKey {
+        case gateway
+        case address
+    }
+}
+
 // MARK: - Container Run Configuration Models
 
 struct ContainerRunConfig: Equatable {

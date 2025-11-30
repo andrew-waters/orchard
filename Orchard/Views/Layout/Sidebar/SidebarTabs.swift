@@ -6,6 +6,7 @@ struct SidebarTabs: View {
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedNetwork: String?
     @Binding var isInIntentionalSettingsMode: Bool
     let isWindowFocused: Bool
     let containerService: ContainerService
@@ -18,7 +19,7 @@ struct SidebarTabs: View {
                         selectedTab = tab
 
                         // If we're in settings mode and clicking a tab, select a default item to exit settings mode
-                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
                         if isSettingsMode {
                             isInIntentionalSettingsMode = false
                             switch tab {
@@ -38,12 +39,16 @@ struct SidebarTabs: View {
                                 if let firstDomain = containerService.dnsDomains.first {
                                     selectedDNSDomain = firstDomain.domain
                                 }
+                            case .networks:
+                                if let firstNetwork = containerService.networks.first {
+                                    selectedNetwork = firstNetwork.id
+                                }
                             case .registries, .systemLogs:
                                 break // These don't have selectable items
                             }
                         }
                     }) {
-                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
                         let isActiveTab = selectedTab == tab && !isSettingsMode && !isInIntentionalSettingsMode
 
                         SwiftUI.Image(systemName: tab.icon)

@@ -9,12 +9,14 @@ struct ContentView: View {
     @State private var selectedImage: String?
     @State private var selectedMount: String?
     @State private var selectedDNSDomain: String?
+    @State private var selectedNetwork: String?
 
     // Last selected items to restore state
     @State private var lastSelectedContainer: String?
     @State private var lastSelectedImage: String?
     @State private var lastSelectedMount: String?
     @State private var lastSelectedDNSDomain: String?
+    @State private var lastSelectedNetwork: String?
 
     // Last selected tabs for each section
     @State private var lastSelectedContainerTab: String = "overview"
@@ -26,6 +28,7 @@ struct ContentView: View {
     @State private var showOnlyImagesInUse: Bool = false
     @State private var showImageSearch: Bool = false
     @State private var showAddDNSDomainSheet: Bool = false
+    @State private var showAddNetworkSheet: Bool = false
 
     @State private var refreshTimer: Timer?
 
@@ -63,10 +66,12 @@ struct ContentView: View {
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
                     selectedDNSDomain: $selectedDNSDomain,
+                    selectedNetwork: $selectedNetwork,
                     lastSelectedContainer: $lastSelectedContainer,
                     lastSelectedImage: $lastSelectedImage,
                     lastSelectedMount: $lastSelectedMount,
                     lastSelectedDNSDomain: $lastSelectedDNSDomain,
+                    lastSelectedNetwork: $lastSelectedNetwork,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     lastSelectedImageTab: $lastSelectedImageTab,
                     lastSelectedMountTab: $lastSelectedMountTab,
@@ -75,6 +80,7 @@ struct ContentView: View {
                     showOnlyImagesInUse: $showOnlyImagesInUse,
                     showImageSearch: $showImageSearch,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
+                    showAddNetworkSheet: $showAddNetworkSheet,
                     isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
                     showingItemNavigatorPopover: $showingItemNavigatorPopover,
                     listFocusedTab: _listFocusedTab,
@@ -111,6 +117,12 @@ struct ContentView: View {
             // Auto-select first DNS domain when domains load, but not if we're intentionally in settings mode
             if selectedDNSDomain == nil && !newDomains.isEmpty && !isInIntentionalSettingsMode {
                 selectedDNSDomain = newDomains[0].domain
+            }
+        }
+        .onChange(of: containerService.networks) { oldNetworks, newNetworks in
+            // Auto-select first network when networks load, but not if we're intentionally in settings mode
+            if selectedNetwork == nil && !newNetworks.isEmpty && !isInIntentionalSettingsMode {
+                selectedNetwork = newNetworks[0].id
             }
         }
         .onReceive(
@@ -164,6 +176,30 @@ struct ContentView: View {
                 }
             }
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToNetwork"))
+        ) { notification in
+            if let networkId = notification.object as? String {
+                // Switch to networks view and select the specific network
+                selectedTab = TabSelection.networks
+
+                // Ensure networks are loaded before selecting
+                Task {
+                    await containerService.loadNetworks()
+                    await MainActor.run {
+                        // Verify the network exists in the loaded list
+                        if containerService.networks.contains(where: { $0.id == networkId }) {
+                            // Add delay to ensure list is rendered before selection
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                selectedNetwork = networkId
+                                lastSelectedNetwork = networkId
+                                listFocusedTab = .networks
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private func startRefreshTimer() {
@@ -175,6 +211,7 @@ struct ContentView: View {
                 await containerService.loadBuilders()
 
                 await containerService.loadDNSDomains(showLoading: false)
+                await containerService.loadNetworks(showLoading: false)
 
                 // Check for updates periodically
                 if containerService.shouldCheckForUpdates() {
