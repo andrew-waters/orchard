@@ -7,10 +7,12 @@ struct ItemNavigatorPopover: View {
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedNetwork: String?
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
     @Binding var lastSelectedDNSDomain: String?
+    @Binding var lastSelectedNetwork: String?
     @Binding var showingItemNavigatorPopover: Bool
     let showOnlyRunning: Bool
     let showOnlyImagesInUse: Bool
@@ -51,6 +53,8 @@ struct ItemNavigatorPopover: View {
                     mountPopoverItems
                 case .dns:
                     dnsPopoverItems
+                case .networks:
+                    networkPopoverItems
                 case .registries, .systemLogs:
                     EmptyView()
                 }
@@ -93,7 +97,7 @@ struct ItemNavigatorPopover: View {
                 if selectedContainer == container.configuration.id {
                     SwiftUI.Image(systemName: "checkmark")
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal)
@@ -139,7 +143,7 @@ struct ItemNavigatorPopover: View {
                 if selectedImage == image.reference {
                     SwiftUI.Image(systemName: "checkmark")
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal)
@@ -185,7 +189,7 @@ struct ItemNavigatorPopover: View {
                 if selectedMount == mount.id {
                     SwiftUI.Image(systemName: "checkmark")
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal)
@@ -222,12 +226,63 @@ struct ItemNavigatorPopover: View {
                 if selectedDNSDomain == domain.domain {
                     SwiftUI.Image(systemName: "checkmark")
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
             .background(selectedDNSDomain == domain.domain ? Color.accentColor.opacity(0.1) : Color.clear)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
+
+    private var networkPopoverItems: some View {
+        ForEach(containerService.networks) { network in
+            networkPopoverRow(network)
+            if network.id != containerService.networks.last?.id {
+                Divider().padding(.leading)
+            }
+        }
+    }
+
+    private func networkPopoverRow(_ network: ContainerNetwork) -> some View {
+        Button(action: {
+            selectedNetwork = network.id
+            lastSelectedNetwork = network.id
+            showingItemNavigatorPopover = false
+        }) {
+            HStack {
+                SwiftUI.Image(systemName: "wifi")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(network.id)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    if !network.config.labels.isEmpty {
+                        Text("\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No labels")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                if selectedNetwork == network.id {
+                    SwiftUI.Image(systemName: "checkmark")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(selectedNetwork == network.id ? Color.accentColor.opacity(0.1) : Color.clear)
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())

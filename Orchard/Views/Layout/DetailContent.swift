@@ -7,6 +7,7 @@ struct DetailContentView: View {
     let selectedImage: String?
     let selectedMount: String?
     let selectedDNSDomain: String?
+    let selectedNetwork: String?
     let isInIntentionalSettingsMode: Bool
     @Binding var lastSelectedContainerTab: String
     @Binding var lastSelectedImageTab: String
@@ -16,7 +17,7 @@ struct DetailContentView: View {
 
     var body: some View {
         // Check if we're in settings mode (no selections)
-        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil
+        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
         if isInIntentionalSettingsMode || (isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts)) {
             SettingsDetailView()
@@ -37,6 +38,18 @@ struct DetailContentView: View {
                     )
                 } else {
                     Text("Select a DNS domain")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            case .networks:
+                if let selectedNetwork = selectedNetwork {
+                    NetworkDetailView(
+                        networkId: selectedNetwork,
+                        selectedTab: $selectedTabBinding,
+                        selectedContainer: $selectedContainerBinding
+                    )
+                } else {
+                    Text("Select a network")
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }

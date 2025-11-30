@@ -37,6 +37,7 @@ struct SplashScreenView: View {
         await containerService.loadBuilders()
 
         await containerService.loadDNSDomains(showLoading: true)
+        await containerService.loadNetworks(showLoading: true)
 
         // Check for updates on startup
         if containerService.shouldCheckForUpdates() {

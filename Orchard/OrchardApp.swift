@@ -174,6 +174,7 @@ struct MenuBarView: View {
             await containerService.loadBuilders()
 
             await containerService.loadDNSDomains(showLoading: true)
+            await containerService.loadNetworks(showLoading: true)
 
             startRefreshTimer()
         }
@@ -193,6 +194,7 @@ struct MenuBarView: View {
                 await containerService.loadBuilders()
 
                 await containerService.loadDNSDomains(showLoading: false)
+                await containerService.loadNetworks(showLoading: false)
             }
         }
     }
