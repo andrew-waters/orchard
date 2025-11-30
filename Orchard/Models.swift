@@ -414,6 +414,7 @@ struct ContainerRunConfig: Equatable {
     var volumeMappings: [VolumeMapping] = []
     var workingDirectory: String = ""
     var commandOverride: String = ""
+    var dnsDomain: String = ""
 
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()

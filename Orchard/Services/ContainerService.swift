@@ -1823,6 +1823,11 @@ class ContainerService: ObservableObject {
             }
         }
 
+        // Add DNS domain
+        if !config.dnsDomain.isEmpty {
+            arguments.append(contentsOf: ["--dns-domain", config.dnsDomain])
+        }
+
         // Add working directory
         if !config.workingDirectory.isEmpty {
             arguments.append(contentsOf: ["-w", config.workingDirectory])
