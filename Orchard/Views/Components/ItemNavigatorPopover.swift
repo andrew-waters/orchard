@@ -67,13 +67,15 @@ struct ItemNavigatorPopover: View {
         ForEach(filteredContainers, id: \.configuration.id) { container in
             containerPopoverRow(container)
             if container.configuration.id != filteredContainers.last?.configuration.id {
-                Divider().padding(.leading)
+                Divider()
             }
         }
     }
 
     private func containerPopoverRow(_ container: Container) -> some View {
-        Button(action: {
+        @State var isHovered = false
+
+        return Button(action: {
             selectedContainer = container.configuration.id
             lastSelectedContainer = container.configuration.id
             showingItemNavigatorPopover = false
@@ -100,25 +102,41 @@ struct ItemNavigatorPopover: View {
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(selectedContainer == container.configuration.id ? Color.accentColor.opacity(0.1) : Color.clear)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Group {
+                    if selectedContainer == container.configuration.id {
+                        Color.accentColor.opacity(0.1)
+                    } else if isHovered {
+                        Color.primary.opacity(0.05)
+                    } else {
+                        Color.clear
+                    }
+                }
+            )
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 
     private var imagePopoverItems: some View {
         ForEach(filteredImages, id: \.reference) { image in
             imagePopoverRow(image)
             if image.reference != filteredImages.last?.reference {
-                Divider().padding(.leading)
+                Divider()
             }
         }
     }
 
     private func imagePopoverRow(_ image: ContainerImage) -> some View {
-        Button(action: {
+        @State var isHovered = false
+
+        return Button(action: {
             selectedImage = image.reference
             lastSelectedImage = image.reference
             showingItemNavigatorPopover = false
@@ -146,25 +164,41 @@ struct ItemNavigatorPopover: View {
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(selectedImage == image.reference ? Color.accentColor.opacity(0.1) : Color.clear)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Group {
+                    if selectedImage == image.reference {
+                        Color.accentColor.opacity(0.1)
+                    } else if isHovered {
+                        Color.primary.opacity(0.05)
+                    } else {
+                        Color.clear
+                    }
+                }
+            )
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 
     private var mountPopoverItems: some View {
         ForEach(filteredMounts, id: \.id) { mount in
             mountPopoverRow(mount)
             if mount.id != filteredMounts.last?.id {
-                Divider().padding(.leading)
+                Divider()
             }
         }
     }
 
     private func mountPopoverRow(_ mount: ContainerMount) -> some View {
-        Button(action: {
+        @State var isHovered = false
+
+        return Button(action: {
             selectedMount = mount.id
             lastSelectedMount = mount.id
             showingItemNavigatorPopover = false
@@ -192,12 +226,26 @@ struct ItemNavigatorPopover: View {
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(selectedMount == mount.id ? Color.accentColor.opacity(0.1) : Color.clear)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Group {
+                    if selectedMount == mount.id {
+                        Color.accentColor.opacity(0.1)
+                    } else if isHovered {
+                        Color.primary.opacity(0.05)
+                    } else {
+                        Color.clear
+                    }
+                }
+            )
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 
     private var dnsPopoverItems: some View {
@@ -207,7 +255,9 @@ struct ItemNavigatorPopover: View {
     }
 
     private func dnsPopoverRow(_ domain: DNSDomain) -> some View {
-        Button(action: {
+        @State var isHovered = false
+
+        return Button(action: {
             selectedDNSDomain = domain.domain
             lastSelectedDNSDomain = domain.domain
             showingItemNavigatorPopover = false
@@ -229,25 +279,41 @@ struct ItemNavigatorPopover: View {
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(selectedDNSDomain == domain.domain ? Color.accentColor.opacity(0.1) : Color.clear)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Group {
+                    if selectedDNSDomain == domain.domain {
+                        Color.accentColor.opacity(0.1)
+                    } else if isHovered {
+                        Color.primary.opacity(0.05)
+                    } else {
+                        Color.clear
+                    }
+                }
+            )
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 
     private var networkPopoverItems: some View {
         ForEach(containerService.networks) { network in
             networkPopoverRow(network)
             if network.id != containerService.networks.last?.id {
-                Divider().padding(.leading)
+                Divider()
             }
         }
     }
 
     private func networkPopoverRow(_ network: ContainerNetwork) -> some View {
-        Button(action: {
+        @State var isHovered = false
+
+        return Button(action: {
             selectedNetwork = network.id
             lastSelectedNetwork = network.id
             showingItemNavigatorPopover = false
@@ -280,12 +346,26 @@ struct ItemNavigatorPopover: View {
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(selectedNetwork == network.id ? Color.accentColor.opacity(0.1) : Color.clear)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Group {
+                    if selectedNetwork == network.id {
+                        Color.accentColor.opacity(0.1)
+                    } else if isHovered {
+                        Color.primary.opacity(0.05)
+                    } else {
+                        Color.clear
+                    }
+                }
+            )
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 
     private func imageDisplayName(_ reference: String) -> String {
