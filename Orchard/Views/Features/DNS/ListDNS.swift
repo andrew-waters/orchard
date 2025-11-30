@@ -36,12 +36,65 @@ struct DNSListView: View {
                 // DNS domain list
                 List(selection: $selectedDNSDomain) {
                     ForEach(containerService.dnsDomains) { domain in
+                        let containerCount = containerService.containers.filter { container in
+                            if let containerDomain = container.configuration.dns.domain {
+                                return containerDomain == domain.domain
+                            }
+                            return container.configuration.dns.searchDomains.contains(domain.domain)
+                        }.count
+
                         HStack {
                             SwiftUI.Image(systemName: "network")
                                 .foregroundColor(.gray)
                                 .frame(width: 16, height: 16)
 
-                            Text(domain.domain)
+                            VStack(alignment: .leading) {
+                                Text(domain.domain)
+                                if containerCount > 0 {
+                                    Text("\(containerCount) container\(containerCount == 1 ? "" : "s")")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    Text("No containers")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            if domain.isDefault {
+                                Text("DEFAULT")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(.blue)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(4)
+                            }
+                        }
+                        .padding(8)
+                        .contextMenu {
+                            if !domain.isDefault {
+                                Button("Make Default") {
+                                    let currentSelection = selectedDNSDomain
+                                    DispatchQueue.main.async {
+                                        Task {
+                                            await containerService.setDefaultDNSDomain(domain.domain)
+                                            // Restore selection after operation
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                selectedDNSDomain = currentSelection
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Divider()
+
+                            Button("Delete Domain") {
+                                confirmDNSDomainDeletion(domain: domain.domain)
+                            }
                         }
                         .tag(domain.domain)
                     }
@@ -85,6 +138,19 @@ struct DNSListView: View {
         .sheet(isPresented: $showAddDNSDomainSheet) {
             AddDomainView()
                 .environmentObject(containerService)
+            }
+        }
+
+        private func confirmDNSDomainDeletion(domain: String) {
+            let alert = NSAlert()
+            alert.messageText = "Delete DNS Domain"
+            alert.informativeText = "Are you sure you want to delete '\(domain)'? This requires administrator privileges."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Delete")
+            alert.addButton(withTitle: "Cancel")
+
+            if alert.runModal() == .alertFirstButtonReturn {
+                Task { await containerService.deleteDNSDomain(domain) }
+            }
         }
     }
-}

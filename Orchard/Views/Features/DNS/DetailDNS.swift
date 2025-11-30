@@ -117,10 +117,25 @@ struct DNSDetailView: View {
                     Text("Actions")
                         .font(.headline)
 
-                    Button("Delete Domain") {
-                        confirmDNSDomainDeletion(domain: dnsDomain.domain)
+                    HStack(spacing: 12) {
+                        if !dnsDomain.isDefault {
+                            Button("Make Default") {
+                                DispatchQueue.main.async {
+                                    Task {
+                                        await containerService.setDefaultDNSDomain(dnsDomain.domain)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        Button("Delete Domain") {
+                            confirmDNSDomainDeletion(domain: dnsDomain.domain)
+                        }
+                        .foregroundColor(.red)
+
+                        Spacer()
                     }
-                    .foregroundColor(.red)
                 }
 
                 Spacer()
