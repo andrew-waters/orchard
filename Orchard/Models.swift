@@ -415,6 +415,8 @@ struct ContainerRunConfig: Equatable {
     var workingDirectory: String = ""
     var commandOverride: String = ""
     var dnsDomain: String = ""
+    var enablePublish: Bool = false
+    var publishSpec: String = ""
 
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()

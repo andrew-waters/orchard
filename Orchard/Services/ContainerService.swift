@@ -1828,6 +1828,11 @@ class ContainerService: ObservableObject {
             arguments.append(contentsOf: ["--dns-domain", config.dnsDomain])
         }
 
+        // Add publish specification
+        if config.enablePublish && !config.publishSpec.isEmpty {
+            arguments.append(contentsOf: ["-p", config.publishSpec])
+        }
+
         // Add working directory
         if !config.workingDirectory.isEmpty {
             arguments.append(contentsOf: ["-w", config.workingDirectory])

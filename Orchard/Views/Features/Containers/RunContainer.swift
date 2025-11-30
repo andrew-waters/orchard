@@ -172,6 +172,21 @@ struct RunContainerView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
+                Toggle("Publish port", isOn: $config.enablePublish)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                if config.enablePublish {
+                    TextField("[host-ip:]host-port:container-port[/protocol]", text: $config.publishSpec)
+                        .textFieldStyle(.roundedBorder)
+
+                    Text("Example: 8080:80, 127.0.0.1:3000:3000/tcp")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 Toggle("Run in detached mode (background)", isOn: $config.detached)
                     .font(.subheadline)
 
