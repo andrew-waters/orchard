@@ -1,10 +1,3 @@
-//
-//  OrchardApp.swift
-//  Orchard
-//
-//  Created by Andrew Waters on 16/06/2025.
-//
-
 import SwiftUI
 
 @main
