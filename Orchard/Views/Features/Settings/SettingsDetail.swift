@@ -99,9 +99,22 @@ struct SettingsDetailView: View {
                             .frame(width: 220, alignment: .trailing)
 
                         VStack(alignment: .leading) {
-                            TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "dns.domain" })?.value ?? "Loading..."))
-                                .textFieldStyle(.plain)
-                                .fontWeight(.medium)
+                            let currentDomain = containerService.systemProperties.first(where: { $0.id == "dns.domain" })?.value ?? ""
+                            Picker("", selection: Binding(
+                                get: { currentDomain },
+                                set: { newValue in
+                                    Task {
+                                        await containerService.setSystemProperty("dns.domain", value: newValue)
+                                    }
+                                }
+                            )) {
+                                ForEach(containerService.dnsDomains, id: \.domain) { domain in
+                                    Text(domain.domain).tag(domain.domain)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 200, alignment: .leading)
+
                             Text("If defined, the local DNS domain to use for containers with unqualified names.")
                                 .foregroundColor(.secondary)
                         }

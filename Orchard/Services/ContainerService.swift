@@ -1379,6 +1379,28 @@ class ContainerService: ObservableObject {
         return properties
     }
 
+    func setSystemProperty(_ id: String, value: String) async {
+        var result: ExecResult
+        do {
+            result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["system", "property", "set", id, value])
+        } catch {
+            let error = error as! ExecError
+            result = error.execResult
+        }
+
+        if result.failed {
+            await MainActor.run {
+                self.errorMessage = result.stderr ?? "Failed to set system property"
+            }
+            return
+        }
+
+        // Reload system properties after successful change
+        await loadSystemProperties(showLoading: false)
+    }
+
     // MARK: - Image Pull Management
 
     func pullImage(_ imageName: String) async {
