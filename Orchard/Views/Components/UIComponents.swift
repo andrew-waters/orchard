@@ -669,18 +669,22 @@ struct CopyButton: View {
 
 // MARK: - Custom Header Component
 
-struct CustomHeaderView: View {
+struct CustomHeaderView<PopoverContent: View>: View {
     let title: String
     let subtitle: String?
     let showItemNavigator: Bool
     let onItemNavigatorTap: () -> Void
     let actionButtons: AnyView?
+    let popoverContent: (() -> PopoverContent)?
+    @Binding var showingPopover: Bool
 
     init(
         title: String,
         subtitle: String? = nil,
         showItemNavigator: Bool = false,
         onItemNavigatorTap: @escaping () -> Void = {},
+        showingPopover: Binding<Bool> = .constant(false),
+        @ViewBuilder popoverContent: @escaping () -> PopoverContent = { EmptyView() as! PopoverContent },
         @ViewBuilder actionButtons: () -> AnyView? = { nil }
     ) {
         self.title = title
@@ -688,6 +692,8 @@ struct CustomHeaderView: View {
         self.showItemNavigator = showItemNavigator
         self.onItemNavigatorTap = onItemNavigatorTap
         self.actionButtons = actionButtons()
+        self.popoverContent = popoverContent
+        self._showingPopover = showingPopover
     }
 
     var body: some View {
@@ -713,6 +719,11 @@ struct CustomHeaderView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
+                    .popover(isPresented: $showingPopover) {
+                        if let popoverContent = popoverContent {
+                            popoverContent()
+                        }
+                    }
                 } else {
                     Text(title)
                         .font(.title2)

@@ -130,6 +130,26 @@ struct MainInterfaceView: View {
                         showItemNavigator: true,
                         onItemNavigatorTap: {
                             showingItemNavigatorPopover = true
+                        },
+                        showingPopover: $showingItemNavigatorPopover,
+                        popoverContent: {
+                            ItemNavigatorPopover(
+                                selectedTab: selectedTab,
+                                selectedContainer: $selectedContainer,
+                                selectedImage: $selectedImage,
+                                selectedMount: $selectedMount,
+                                selectedDNSDomain: $selectedDNSDomain,
+                                selectedNetwork: $selectedNetwork,
+                                lastSelectedContainer: $lastSelectedContainer,
+                                lastSelectedImage: $lastSelectedImage,
+                                lastSelectedMount: $lastSelectedMount,
+                                lastSelectedDNSDomain: $lastSelectedDNSDomain,
+                                lastSelectedNetwork: $lastSelectedNetwork,
+                                showingItemNavigatorPopover: $showingItemNavigatorPopover,
+                                showOnlyRunning: showOnlyRunning,
+                                showOnlyImagesInUse: showOnlyImagesInUse,
+                                searchText: searchText
+                            )
                         }
                     ) {
                         AnyView(
@@ -185,25 +205,6 @@ struct MainInterfaceView: View {
                                     .help("Open in Finder")
                                 }
                             }
-                        )
-                    }
-                    .popover(isPresented: $showingItemNavigatorPopover) {
-                        ItemNavigatorPopover(
-                            selectedTab: selectedTab,
-                            selectedContainer: $selectedContainer,
-                            selectedImage: $selectedImage,
-                            selectedMount: $selectedMount,
-                            selectedDNSDomain: $selectedDNSDomain,
-                            selectedNetwork: $selectedNetwork,
-                            lastSelectedContainer: $lastSelectedContainer,
-                            lastSelectedImage: $lastSelectedImage,
-                            lastSelectedMount: $lastSelectedMount,
-                            lastSelectedDNSDomain: $lastSelectedDNSDomain,
-                            lastSelectedNetwork: $lastSelectedNetwork,
-                            showingItemNavigatorPopover: $showingItemNavigatorPopover,
-                            showOnlyRunning: showOnlyRunning,
-                            showOnlyImagesInUse: showOnlyImagesInUse,
-                            searchText: searchText
                         )
                     }
                 }
