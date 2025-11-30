@@ -25,7 +25,12 @@ struct ContainerConfiguration: Codable, Equatable {
     let rosetta: Bool
     let dns: DNS
     let resources: Resources
-    let labels: [String: String]?
+    let labels: [String: String]
+    let publishedPorts: [PublishedPort]
+    let publishedSockets: [String]?
+    let ssh: Bool?
+    let virtualization: Bool?
+    let sysctls: [String: String]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -39,6 +44,11 @@ struct ContainerConfiguration: Codable, Equatable {
         case dns
         case resources
         case labels
+        case publishedPorts
+        case publishedSockets
+        case ssh
+        case virtualization
+        case sysctls
     }
 }
 
@@ -79,6 +89,8 @@ struct initProcess: Codable, Equatable {
     let arguments: [String]
     let executable: String
     let user: User
+    let rlimits: [String]
+    let supplementalGroups: [Int]
 
     enum CodingKeys: String, CodingKey {
         case terminal
@@ -87,6 +99,8 @@ struct initProcess: Codable, Equatable {
         case arguments
         case executable
         case user
+        case rlimits
+        case supplementalGroups
     }
 }
 
@@ -181,10 +195,26 @@ struct Resources: Codable, Equatable {
 struct Platform: Codable, Equatable {
     let os: String
     let architecture: String
+    let variant: String?
 
     enum CodingKeys: String, CodingKey {
         case os
         case architecture
+        case variant
+    }
+}
+
+struct PublishedPort: Codable, Equatable {
+    let hostPort: Int
+    let containerPort: Int
+    let transportProtocol: String
+    let hostAddress: String?
+
+    enum CodingKeys: String, CodingKey {
+        case hostPort
+        case containerPort
+        case transportProtocol = "proto"
+        case hostAddress
     }
 }
 

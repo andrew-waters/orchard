@@ -4,19 +4,19 @@ import AppKit
 struct EditContainerView: View {
     @EnvironmentObject var containerService: ContainerService
     @Environment(\.dismiss) var dismiss
-    
+
     let container: Container
     @State private var config: ContainerRunConfig
     @State private var selectedTab: ConfigTab = .basic
     @State private var isUpdating = false
-    
+
     enum ConfigTab: String, CaseIterable {
         case basic = "Basic"
         case ports = "Ports"
         case volumes = "Volumes"
         case environment = "Environment"
         case advanced = "Advanced"
-        
+
         var icon: String {
             switch self {
             case .basic: return "gear"
@@ -27,10 +27,10 @@ struct EditContainerView: View {
             }
         }
     }
-    
+
     init(container: Container) {
         self.container = container
-        
+
         // Extract current configuration from container
         let envVars = container.configuration.initProcess.environment.compactMap { envStr -> ContainerRunConfig.EnvironmentVariable? in
             let components = envStr.split(separator: "=", maxSplits: 1)
@@ -40,7 +40,7 @@ struct EditContainerView: View {
                 value: String(components[1])
             )
         }
-        
+
         let volumes = container.configuration.mounts.compactMap { mount -> ContainerRunConfig.VolumeMapping? in
             guard mount.type.virtiofs != nil else { return nil }
             let isReadonly = mount.options.contains("ro")
@@ -50,7 +50,7 @@ struct EditContainerView: View {
                 readonly: isReadonly
             )
         }
-        
+
         _config = State(initialValue: ContainerRunConfig(
             name: container.configuration.id,
             image: container.configuration.image.reference,
@@ -63,56 +63,56 @@ struct EditContainerView: View {
             commandOverride: container.configuration.initProcess.arguments.joined(separator: " ")
         ))
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
             headerView
-            
+
             Divider()
-            
+
             // Warning banner
             warningBanner
-            
+
             Divider()
-            
+
             // Tab navigation
             tabPickerView
-            
+
             Divider()
-            
+
             // Content
             ScrollView {
                 contentView
                     .padding()
             }
-            
+
             Divider()
-            
+
             // Footer with action buttons
             footerView
         }
         .frame(width: 700, height: 650)
     }
-    
+
     private var headerView: some View {
         HStack {
             SwiftUI.Image(systemName: "pencil.circle.fill")
                 .font(.title)
                 .foregroundColor(.orange)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("Edit Container Configuration")
                     .font(.headline)
                     .fontWeight(.semibold)
-                
+
                 Text(container.configuration.id)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
+
             Button(action: { dismiss() }) {
                 SwiftUI.Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.secondary)
@@ -123,28 +123,28 @@ struct EditContainerView: View {
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
     }
-    
+
     private var warningBanner: some View {
         HStack(spacing: 12) {
             SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundColor(.orange)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("Container will be recreated")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                
+
                 Text("The existing container will be deleted and recreated with the new configuration.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
         }
         .padding()
         .background(Color.orange.opacity(0.1))
     }
-    
+
     private var tabPickerView: some View {
         HStack(spacing: 0) {
             ForEach(ConfigTab.allCases, id: \.self) { tab in
@@ -156,7 +156,7 @@ struct EditContainerView: View {
         .padding(.vertical, 8)
         .background(Color(NSColor.controlBackgroundColor))
     }
-    
+
     private func tabButton(for tab: ConfigTab) -> some View {
         Button(action: { selectedTab = tab }) {
             HStack(spacing: 6) {
@@ -173,7 +173,7 @@ struct EditContainerView: View {
         }
         .buttonStyle(.plain)
     }
-    
+
     @ViewBuilder
     private var contentView: some View {
         switch selectedTab {
@@ -189,45 +189,45 @@ struct EditContainerView: View {
             advancedConfigView
         }
     }
-    
+
     // MARK: - Config Views (reuse from RunContainerView)
-    
+
     private var basicConfigView: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Container Name")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                
+
                 TextField("Enter container name", text: $config.name)
                     .textFieldStyle(.roundedBorder)
                     .disabled(true) // Can't change name
-                
+
                 Text("Container name cannot be changed")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Run in detached mode (background)", isOn: $config.detached)
                     .font(.subheadline)
-                
+
                 Toggle("Remove container after it stops", isOn: $config.removeAfterStop)
                     .font(.subheadline)
             }
-            
+
             Spacer()
         }
     }
-    
+
     private var portsConfigView: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Port Mappings")
                     .font(.headline)
-                
+
                 Spacer()
-                
+
                 Button(action: addPortMapping) {
                     HStack(spacing: 4) {
                         SwiftUI.Image(systemName: "plus.circle.fill")
@@ -237,12 +237,12 @@ struct EditContainerView: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
-            
+
             Text("Note: Port mappings are not preserved from the original container. Please re-add them.")
                 .font(.caption)
                 .foregroundColor(.orange)
                 .padding(.vertical, 8)
-            
+
             if config.portMappings.isEmpty {
                 emptyStateView(
                     icon: "network",
@@ -257,19 +257,19 @@ struct EditContainerView: View {
                     )
                 }
             }
-            
+
             Spacer()
         }
     }
-    
+
     private var volumesConfigView: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Volume Mounts")
                     .font(.headline)
-                
+
                 Spacer()
-                
+
                 Button(action: addVolumeMapping) {
                     HStack(spacing: 4) {
                         SwiftUI.Image(systemName: "plus.circle.fill")
@@ -279,7 +279,7 @@ struct EditContainerView: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
-            
+
             if config.volumeMappings.isEmpty {
                 emptyStateView(
                     icon: "externaldrive",
@@ -294,19 +294,19 @@ struct EditContainerView: View {
                     )
                 }
             }
-            
+
             Spacer()
         }
     }
-    
+
     private var environmentConfigView: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Environment Variables")
                     .font(.headline)
-                
+
                 Spacer()
-                
+
                 Button(action: addEnvironmentVariable) {
                     HStack(spacing: 4) {
                         SwiftUI.Image(systemName: "plus.circle.fill")
@@ -316,7 +316,7 @@ struct EditContainerView: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
-            
+
             if config.environmentVariables.isEmpty {
                 emptyStateView(
                     icon: "rectangle.3.group",
@@ -331,43 +331,43 @@ struct EditContainerView: View {
                     )
                 }
             }
-            
+
             Spacer()
         }
     }
-    
+
     private var advancedConfigView: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Working Directory")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                
+
                 TextField("/path/in/container", text: $config.workingDirectory)
                     .textFieldStyle(.roundedBorder)
-                
+
                 Text("Override the default working directory inside the container")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("Command Override")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                
+
                 TextField("command arg1 arg2", text: $config.commandOverride)
                     .textFieldStyle(.roundedBorder)
-                
+
                 Text("Override the default command/entrypoint")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
         }
     }
-    
+
     private var footerView: some View {
         HStack {
             if isUpdating {
@@ -377,14 +377,14 @@ struct EditContainerView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
+
             Button("Cancel") {
                 dismiss()
             }
             .keyboardShortcut(.cancelAction)
-            
+
             Button("Save & Recreate") {
                 updateContainer()
             }
@@ -395,19 +395,19 @@ struct EditContainerView: View {
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
     }
-    
+
     // MARK: - Helper Views
-    
+
     private func emptyStateView(icon: String, title: String, message: String) -> some View {
         VStack(spacing: 12) {
             SwiftUI.Image(systemName: icon)
                 .font(.system(size: 40))
                 .foregroundColor(.secondary)
-            
+
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.medium)
-            
+
             Text(message)
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -416,71 +416,71 @@ struct EditContainerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
-    
+
     // MARK: - Actions
-    
+
     private func addPortMapping() {
         config.portMappings.append(ContainerRunConfig.PortMapping(
             hostPort: "",
             containerPort: ""
         ))
     }
-    
+
     private func deletePortMapping(_ mapping: ContainerRunConfig.PortMapping) {
         config.portMappings.removeAll { $0.id == mapping.id }
     }
-    
+
     private func addVolumeMapping() {
         config.volumeMappings.append(ContainerRunConfig.VolumeMapping(
             hostPath: "",
             containerPath: ""
         ))
     }
-    
+
     private func deleteVolumeMapping(_ mapping: ContainerRunConfig.VolumeMapping) {
         config.volumeMappings.removeAll { $0.id == mapping.id }
     }
-    
+
     private func addEnvironmentVariable() {
         config.environmentVariables.append(ContainerRunConfig.EnvironmentVariable(
             key: "",
             value: ""
         ))
     }
-    
+
     private func deleteEnvironmentVariable(_ envVar: ContainerRunConfig.EnvironmentVariable) {
         config.environmentVariables.removeAll { $0.id == envVar.id }
     }
-    
+
     private func updateContainer() {
         isUpdating = true
-        
+
         Task {
             await containerService.recreateContainer(oldContainerId: container.configuration.id, newConfig: config)
-            
+
             await MainActor.run {
                 isUpdating = false
                 dismiss()
             }
         }
     }
-    
+
     // MARK: - Binding Helpers
-    
+
     private func binding(for mapping: ContainerRunConfig.PortMapping) -> Binding<ContainerRunConfig.PortMapping> {
         guard let index = config.portMappings.firstIndex(where: { $0.id == mapping.id }) else {
             fatalError("Port mapping not found")
         }
         return $config.portMappings[index]
     }
-    
+
     private func binding(for mapping: ContainerRunConfig.VolumeMapping) -> Binding<ContainerRunConfig.VolumeMapping> {
         guard let index = config.volumeMappings.firstIndex(where: { $0.id == mapping.id }) else {
             fatalError("Volume mapping not found")
         }
         return $config.volumeMappings[index]
     }
-    
+
     private func binding(for envVar: ContainerRunConfig.EnvironmentVariable) -> Binding<ContainerRunConfig.EnvironmentVariable> {
         guard let index = config.environmentVariables.firstIndex(where: { $0.id == envVar.id }) else {
             fatalError("Environment variable not found")
@@ -502,10 +502,12 @@ struct EditContainerView: View {
                 workingDirectory: "/app",
                 arguments: ["nginx", "-g", "daemon off;"],
                 executable: "/usr/sbin/nginx",
-                user: User(id: nil, raw: nil)
+                user: User(id: nil, raw: nil),
+                rlimits: [],
+                supplementalGroups: []
             ),
             mounts: [],
-            platform: Platform(os: "linux", architecture: "arm64"),
+            platform: Platform(os: "linux", architecture: "arm64", variant: nil),
             image: Image(
                 descriptor: ImageDescriptor(mediaType: "application/vnd.oci.image.manifest.v1+json", digest: "sha256:abc123", size: 1000000),
                 reference: "docker.io/library/nginx:latest"
@@ -513,10 +515,14 @@ struct EditContainerView: View {
             rosetta: false,
             dns: DNS(nameservers: [], searchDomains: [], options: [], domain: "a.com"),
             resources: Resources(cpus: 2, memoryInBytes: 2147483648),
-            labels: nil
+            labels: [:],
+            publishedPorts: [],
+            publishedSockets: nil,
+            ssh: nil,
+            virtualization: nil,
+            sysctls: [:]
         ),
         networks: []
     ))
     .environmentObject(ContainerService())
 }
-

@@ -264,6 +264,32 @@ struct ContainerDetailView: View {
                                 }
                             )
                         }
+
+                        // Show published ports section
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Published Ports")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+
+                            if !container.configuration.publishedPorts.isEmpty {
+                                ForEach(container.configuration.publishedPorts, id: \.containerPort) { port in
+                                    let portSpec = port.hostAddress != nil ?
+                                        "\(port.hostAddress!):\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)" :
+                                        "\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)"
+
+                                    CopyableInfoRow(
+                                        label: "Port",
+                                        value: portSpec,
+                                        copyValue: portSpec
+                                    )
+                                }
+                            } else {
+                                Text("None configured")
+                                    .foregroundColor(.secondary)
+                                    .italic()
+                            }
+                        }
                     }
                     .padding()
                     .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
@@ -460,8 +486,8 @@ struct ContainerDetailView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
 
-            if let labels = container.configuration.labels, !labels.isEmpty {
-                LabelsTable(labels: labels)
+            if !container.configuration.labels.isEmpty {
+                LabelsTable(labels: container.configuration.labels)
             } else {
                 Text("No labels")
                     .foregroundColor(.secondary)
