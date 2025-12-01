@@ -27,6 +27,10 @@ struct ImagesListView: View {
 
 
         }
+        .sheet(isPresented: $showImageSearch) {
+            ImageSearchView()
+                .environmentObject(containerService)
+        }
     }
 
     private var filteredImages: [ContainerImage] {

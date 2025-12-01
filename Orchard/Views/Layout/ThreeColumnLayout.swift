@@ -108,7 +108,15 @@ struct ThreeColumnLayout: View {
                                 Spacer()
 
                                 // Add resource button for tabs that support it
-                                if selectedTab == .dns {
+                                if selectedTab == .images {
+                                    Button(action: { showImageSearch = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Add Image")
+                                } else if selectedTab == .dns {
                                     Button(action: { showAddDNSDomainSheet = true }) {
                                         SwiftUI.Image(systemName: "plus")
                                             .foregroundColor(.white)
