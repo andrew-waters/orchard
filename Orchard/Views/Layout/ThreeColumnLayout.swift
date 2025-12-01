@@ -61,13 +61,6 @@ struct ThreeColumnLayout: View {
                 VStack(spacing: 0) {
                     // Translucent header like Mail with search
                     VStack(spacing: 8) {
-                        HStack {
-                            Text(selectedTab.title)
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                            Spacer()
-                        }
-
                         // Search and filters
                         if selectedTab != .registries && selectedTab != .systemLogs && selectedTab != .settings {
                             HStack(spacing: 8) {

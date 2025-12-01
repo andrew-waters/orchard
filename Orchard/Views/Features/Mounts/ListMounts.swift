@@ -24,32 +24,7 @@ struct MountsListView: View {
                 lastSelectedMount = newValue
             }
 
-            Rectangle()
-                .fill(Color(NSColor.separatorColor))
-                .frame(height: 0.5)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
 
-            // Filter controls at bottom
-            VStack(spacing: 12) {
-                // Search field
-                HStack {
-                    SwiftUI.Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Filter mounts...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(NSColor.textBackgroundColor))
-                .cornerRadius(6)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
         }
     }
 
@@ -59,7 +34,10 @@ struct MountsListView: View {
         // Apply "in use" filter
         if showOnlyMountsInUse {
             filtered = filtered.filter { mount in
-                !mount.containerIds.isEmpty
+                // Only show mounts used by running containers
+                mount.containerIds.contains { containerID in
+                    containerService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
+                }
             }
         }
 
