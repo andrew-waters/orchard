@@ -10,7 +10,6 @@ struct NetworksListView: View {
     var body: some View {
         VStack(spacing: 0) {
             contentView
-            addNetworkButton
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showAddNetworkSheet) {
@@ -121,33 +120,7 @@ struct NetworksListView: View {
         }
     }
 
-    private var addNetworkButton: some View {
-        HStack {
-            Button(action: {
-                showAddNetworkSheet = true
-            }) {
-                HStack {
-                    SwiftUI.Image(systemName: "plus")
-                        .font(.system(size: 12))
-                    Text("Add Network")
-                        .font(.system(size: 12))
-                }
-                .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
 
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(NSColor.controlBackgroundColor))
-        .overlay(
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundStyle(Color(NSColor.separatorColor)),
-            alignment: .top
-        )
-    }
 
     private func networkIcon(for network: ContainerNetwork) -> String {
         return "wifi"

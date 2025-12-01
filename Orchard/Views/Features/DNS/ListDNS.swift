@@ -107,32 +107,7 @@ struct DNSListView: View {
                 }
             }
 
-            // Add domain button
-            HStack {
-                Button(action: {
-                    showAddDNSDomainSheet = true
-                }) {
-                    HStack {
-                        SwiftUI.Image(systemName: "plus")
-                            .font(.system(size: 12))
-                        Text("Add Domain")
-                            .font(.system(size: 12))
-                    }
-                    .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
 
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.controlBackgroundColor))
-            .overlay(
-                Rectangle()
-                    .frame(height: 0.5)
-                    .foregroundColor(Color(NSColor.separatorColor)),
-                alignment: .top
-            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showAddDNSDomainSheet) {

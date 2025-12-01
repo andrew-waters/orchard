@@ -104,6 +104,27 @@ struct ThreeColumnLayout: View {
                                     .buttonStyle(.plain)
                                     .help("Show only mounts in use")
                                 }
+
+                                Spacer()
+
+                                // Add resource button for tabs that support it
+                                if selectedTab == .dns {
+                                    Button(action: { showAddDNSDomainSheet = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Add Domain")
+                                } else if selectedTab == .networks {
+                                    Button(action: { showAddNetworkSheet = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Add Network")
+                                }
                             }
                         }
                     }
