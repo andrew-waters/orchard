@@ -230,17 +230,57 @@ struct TabColumnView: View {
     }
 
    private var sidebarList: some View {
-        List {
-            ForEach(TabSelection.allCases, id: \.self) { tab in
-                sidebarRow(for: tab)
-            }
-        }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-    }
+       List {
+           // Main sections
+           Section {
+               sidebarRow(for: .containers)
+               sidebarRow(for: .images)
+               sidebarRow(for: .mounts)
+           } header: {
+               HStack {
+                   Text("Containers")
+                       .font(.system(size: 12, weight: .regular))
+                       .foregroundColor(.secondary.opacity(0.5))
+                   Spacer()
+               }
+               .padding(.leading, 16)
+           }
+
+           // Networking section
+           Section {
+               sidebarRow(for: .dns)
+               sidebarRow(for: .networks)
+           } header: {
+               HStack {
+                   Text("Networking")
+                       .font(.system(size: 12, weight: .regular))
+                       .foregroundColor(.secondary.opacity(0.5))
+                   Spacer()
+               }
+               .padding(.leading, 16)
+           }
+
+           // System section
+           Section {
+               sidebarRow(for: .registries)
+               sidebarRow(for: .systemLogs)
+               sidebarRow(for: .settings)
+           } header: {
+               HStack {
+                   Text("System")
+                       .font(.system(size: 12, weight: .regular))
+                       .foregroundColor(.secondary.opacity(0.5))
+                   Spacer()
+               }
+               .padding(.leading, 16)
+           }
+       }
+       .listStyle(.sidebar)
+       .scrollContentBackground(.hidden)
+   }
 
     private func sidebarRow(for tab: TabSelection) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 10) {
             SwiftUI.Image(systemName: tab.icon)
                 .font(.system(size: 14, weight: .regular))
                 .frame(width: 20)
