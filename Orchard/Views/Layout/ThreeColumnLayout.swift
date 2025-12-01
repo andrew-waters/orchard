@@ -110,7 +110,6 @@ struct ThreeColumnLayout: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 20)
                     .padding(.bottom, 12)
-                    .background(.thinMaterial, in: Rectangle())
 
                     ListColumnView(
                         selectedTab: selectedTab,
@@ -213,7 +212,6 @@ struct TabColumnView: View {
             sidebarList
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
         .opacity(isWindowFocused ? 1.0 : 0.5)
         .onAppear {
             // Set initial focus when view appears

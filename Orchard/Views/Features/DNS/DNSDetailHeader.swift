@@ -28,7 +28,6 @@ struct DNSDetailHeader: View {
         .padding(.horizontal, 16)
         .padding(.top, 20)
         .padding(.bottom, 12)
-        .background(.regularMaterial, in: Rectangle())
     }
 
     private func confirmDNSDomainDeletion(domain: String) {
