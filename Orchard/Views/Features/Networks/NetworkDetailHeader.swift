@@ -3,6 +3,15 @@ import SwiftUI
 // MARK: - Network Detail Header
 struct NetworkDetailHeader: View {
     let network: ContainerNetwork
+    @EnvironmentObject var containerService: ContainerService
+
+    private var connectedContainers: [Container] {
+        containerService.containers.filter { container in
+            container.networks.contains { containerNetwork in
+                containerNetwork.network == network.id
+            }
+        }
+    }
 
     var body: some View {
         HStack {
@@ -15,11 +24,31 @@ struct NetworkDetailHeader: View {
 
             // Action buttons
             HStack(spacing: 8) {
-                // Add network-specific actions here if needed in the future
+                DetailViewButton(
+                    icon: "trash.fill",
+                    accessibilityText: "Delete this network",
+                    action: {
+                        confirmNetworkDeletion(networkId: network.id)
+                    },
+                    isDisabled: network.id == "default" || !connectedContainers.isEmpty
+                )
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(.regularMaterial, in: Rectangle())
+    }
+
+    private func confirmNetworkDeletion(networkId: String) {
+        let alert = NSAlert()
+        alert.messageText = "Delete Network"
+        alert.informativeText = "Are you sure you want to delete '\(networkId)'? This requires administrator privileges."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await containerService.deleteNetwork(networkId) }
+        }
     }
 }

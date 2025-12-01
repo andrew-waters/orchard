@@ -116,11 +116,6 @@ struct DNSDetailView: View {
                                     .buttonStyle(.bordered)
                                 }
 
-                                Button("Delete Domain") {
-                                    confirmDNSDomainDeletion(domain: dnsDomain.domain)
-                                }
-                                .foregroundColor(.red)
-
                                 Spacer()
                             }
                         }
@@ -137,16 +132,5 @@ struct DNSDetailView: View {
         }
     }
 
-    private func confirmDNSDomainDeletion(domain: String) {
-        let alert = NSAlert()
-        alert.messageText = "Delete DNS Domain"
-        alert.informativeText = "Are you sure you want to delete '\(domain)'? This requires administrator privileges."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
 
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.deleteDNSDomain(domain) }
-        }
-    }
 }

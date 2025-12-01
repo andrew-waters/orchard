@@ -199,31 +199,7 @@ struct NetworkDetailView: View {
                     }
                 }
 
-                // Actions
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Actions")
-                        .font(.headline)
 
-                    HStack(spacing: 12) {
-                        Button("Delete Network") {
-                            confirmNetworkDeletion(networkId: network.id)
-                        }
-                        .foregroundStyle(.red)
-                        .disabled(network.id == "default" || !connectedContainers.isEmpty)
-
-                        Spacer()
-                    }
-
-                    if network.id == "default" {
-                        Text("The default network cannot be deleted.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if !connectedContainers.isEmpty {
-                        Text("Network cannot be deleted while containers are connected.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
 
                         Spacer(minLength: 20)
                     }
@@ -261,16 +237,5 @@ struct NetworkDetailView: View {
         return .blue
     }
 
-    private func confirmNetworkDeletion(networkId: String) {
-        let alert = NSAlert()
-        alert.messageText = "Delete Network"
-        alert.informativeText = "Are you sure you want to delete '\(networkId)'? This requires administrator privileges."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
 
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.deleteNetwork(networkId) }
-        }
-    }
 }

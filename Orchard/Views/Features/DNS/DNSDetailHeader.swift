@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - DNS Detail Header
 struct DNSDetailHeader: View {
     let domain: String
+    @EnvironmentObject var containerService: ContainerService
 
     var body: some View {
         HStack {
@@ -15,11 +16,30 @@ struct DNSDetailHeader: View {
 
             // Action buttons
             HStack(spacing: 8) {
-                // Add DNS-specific actions here if needed in the future
+                DetailViewButton(
+                    icon: "trash.fill",
+                    accessibilityText: "Delete this DNS domain",
+                    action: {
+                        confirmDNSDomainDeletion(domain: domain)
+                    }
+                )
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(.regularMaterial, in: Rectangle())
+    }
+
+    private func confirmDNSDomainDeletion(domain: String) {
+        let alert = NSAlert()
+        alert.messageText = "Delete DNS Domain"
+        alert.informativeText = "Are you sure you want to delete '\(domain)'? This requires administrator privileges."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await containerService.deleteDNSDomain(domain) }
+        }
     }
 }
