@@ -58,6 +58,8 @@ struct DetailContentView: View {
                 RegistriesDetailView()
             case .systemLogs:
                 EmptyView()
+            case .settings:
+                SettingsDetailView()
             }
         }
     }

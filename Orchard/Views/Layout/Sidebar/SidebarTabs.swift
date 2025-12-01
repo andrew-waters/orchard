@@ -43,7 +43,7 @@ struct SidebarTabs: View {
                                 if let firstNetwork = containerService.networks.first {
                                     selectedNetwork = firstNetwork.id
                                 }
-                            case .registries, .systemLogs:
+                            case .registries, .systemLogs, .settings:
                                 break // These don't have selectable items
                             }
                         }

@@ -79,7 +79,7 @@ struct SidebarView: View {
                 } else if !containerService.networks.isEmpty {
                     selectedNetwork = containerService.networks.first?.id
                 }
-            case .registries, .systemLogs:
+            case .registries, .systemLogs, .settings:
                 // No selection state for these tabs
                 break
             }
@@ -151,6 +151,16 @@ struct SidebarView: View {
                     registriesView
                 case .systemLogs:
                     systemLogsView
+                case .settings:
+                    VStack {
+                        Text("Settings")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                        Text("Configure app preferences")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }

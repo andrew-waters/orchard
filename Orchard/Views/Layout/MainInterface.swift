@@ -78,6 +78,8 @@ struct MainInterfaceView: View {
             return ""
         case .systemLogs:
             return ""
+        case .settings:
+            return ""
         }
     }
 

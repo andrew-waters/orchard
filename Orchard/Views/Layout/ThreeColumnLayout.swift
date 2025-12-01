@@ -248,7 +248,7 @@ struct ThreeColumnLayout: View {
             return selectedDNSDomain ?? ""
         case .networks:
             return selectedNetwork ?? ""
-        case .registries, .systemLogs:
+        case .registries, .systemLogs, .settings:
             return ""
         }
     }
@@ -279,7 +279,6 @@ struct TabColumnView: View {
     var body: some View {
         VStack(spacing: 0) {
             sidebarList
-            settingsButton
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.controlBackgroundColor))
@@ -330,36 +329,18 @@ struct TabColumnView: View {
         }
     }
 
-    private var settingsButton: some View {
-        Button(action: {
+
+
+    private func selectTab(_ tab: TabSelection) {
+        selectedTab = tab
+
+        if tab == .settings {
             selectedContainer = nil
             selectedImage = nil
             selectedMount = nil
             selectedDNSDomain = nil
             isInIntentionalSettingsMode = true
-        }) {
-            HStack(spacing: 12) {
-                SwiftUI.Image(systemName: "gearshape")
-                    .font(.system(size: 14, weight: .medium))
-                    .frame(width: 20)
-                    .foregroundColor(.primary)
-
-                Text("Settings")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func selectTab(_ tab: TabSelection) {
-        selectedTab = tab
-
-        if isInIntentionalSettingsMode {
+        } else if isInIntentionalSettingsMode {
             isInIntentionalSettingsMode = false
         }
 
@@ -385,7 +366,7 @@ struct TabColumnView: View {
             if selectedNetwork == nil && !containerService.networks.isEmpty {
                 selectedNetwork = containerService.networks.first?.id
             }
-        case .registries, .systemLogs:
+        case .registries, .systemLogs, .settings:
             break
         }
     }
@@ -402,7 +383,7 @@ struct TabColumnView: View {
             return containerService.dnsDomains.count
         case .networks:
             return containerService.networks.count
-        case .registries, .systemLogs:
+        case .registries, .systemLogs, .settings:
             return 0
         }
     }
@@ -482,6 +463,11 @@ struct ListColumnView: View {
                 EmptyStateView(
                     title: "System Logs",
                     subtitle: "System logs will appear here"
+                )
+            case .settings:
+                EmptyStateView(
+                    title: "Settings",
+                    subtitle: "Settings configuration"
                 )
             }
         }
