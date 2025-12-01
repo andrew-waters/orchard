@@ -44,43 +44,22 @@ struct ImageDetailHeader: View {
             // Action buttons
             HStack(spacing: 8) {
                 // Run Container button
-                Button(action: {
-                    showRunContainer = true
-                }) {
-                    HStack(spacing: 6) {
-                        SwiftUI.Image(systemName: "play.circle.fill")
-                        Text("Run Container")
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isDeleting)
+                DetailViewButton.runContainer(
+                    action: {
+                        showRunContainer = true
+                    },
+                    isLoading: isDeleting
+                )
 
                 // Delete Image button - only show if no containers are using it
                 if containersUsingImage.isEmpty {
-                    Button(action: {
-                        showDeleteConfirmation = true
-                    }) {
-                        HStack(spacing: 6) {
-                            if isDeleting {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                            } else {
-                                SwiftUI.Image(systemName: "trash")
-                            }
-                            Text(isDeleting ? "Deleting..." : "Delete")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.bordered)
-                    .foregroundColor(.red)
-                    .disabled(isDeleting)
+                    DetailViewButton.delete(
+                        action: {
+                            showDeleteConfirmation = true
+                        },
+                        isDisabled: false,
+                        isLoading: isDeleting
+                    )
                 }
             }
         }
