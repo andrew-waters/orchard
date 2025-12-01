@@ -33,6 +33,7 @@ struct SidebarView: View {
                 selectedDNSDomain: $selectedDNSDomain,
                 selectedNetwork: $selectedNetwork,
                 isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                listFocusedTab: $listFocusedTab,
                 isWindowFocused: isWindowFocused,
                 containerService: containerService
             )

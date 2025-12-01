@@ -8,6 +8,7 @@ struct SidebarTabs: View {
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @Binding var isInIntentionalSettingsMode: Bool
+    @FocusState.Binding var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
     let containerService: ContainerService
 
@@ -18,33 +19,53 @@ struct SidebarTabs: View {
                     Button(action: {
                         selectedTab = tab
 
-                        // If we're in settings mode and clicking a tab, select a default item to exit settings mode
-                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
-                        if isSettingsMode {
+                        // Always select first item for tabs with second columns
+                        if isInIntentionalSettingsMode {
                             isInIntentionalSettingsMode = false
+                        }
+
+                        switch tab {
+                        case .containers:
+                            if let firstContainer = containerService.containers.first {
+                                selectedContainer = firstContainer.configuration.id
+                            }
+                        case .images:
+                            if let firstImage = containerService.images.first {
+                                selectedImage = firstImage.reference
+                            }
+                        case .mounts:
+                            if let firstMount = containerService.allMounts.first {
+                                selectedMount = firstMount.id
+                            }
+                        case .dns:
+                            if let firstDomain = containerService.dnsDomains.first {
+                                selectedDNSDomain = firstDomain.domain
+                            }
+                        case .networks:
+                            if let firstNetwork = containerService.networks.first {
+                                selectedNetwork = firstNetwork.id
+                            }
+                        case .registries, .systemLogs, .settings:
+                            // Clear all selections for tabs without second columns
+                            selectedContainer = nil
+                            selectedImage = nil
+                            selectedMount = nil
+                            selectedDNSDomain = nil
+                            selectedNetwork = nil
+                            if tab == .settings {
+                                isInIntentionalSettingsMode = true
+                            }
+                            break
+                        }
+
+                        // Set focus after state changes
+                        listFocusedTab = nil
+                        DispatchQueue.main.async {
                             switch tab {
-                            case .containers:
-                                if let firstContainer = containerService.containers.first {
-                                    selectedContainer = firstContainer.configuration.id
-                                }
-                            case .images:
-                                if let firstImage = containerService.images.first {
-                                    selectedImage = firstImage.reference
-                                }
-                            case .mounts:
-                                if let firstMount = containerService.allMounts.first {
-                                    selectedMount = firstMount.id
-                                }
-                            case .dns:
-                                if let firstDomain = containerService.dnsDomains.first {
-                                    selectedDNSDomain = firstDomain.domain
-                                }
-                            case .networks:
-                                if let firstNetwork = containerService.networks.first {
-                                    selectedNetwork = firstNetwork.id
-                                }
+                            case .containers, .images, .mounts, .dns, .networks:
+                                self.listFocusedTab = tab
                             case .registries, .systemLogs, .settings:
-                                break // These don't have selectable items
+                                self.listFocusedTab = nil
                             }
                         }
                     }) {

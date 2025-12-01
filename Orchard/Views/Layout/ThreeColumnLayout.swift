@@ -50,6 +50,7 @@ struct ThreeColumnLayout: View {
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                    listFocusedTab: $listFocusedTab,
                     isWindowFocused: isWindowFocused
                 )
                 .environmentObject(containerService)
@@ -233,6 +234,7 @@ struct ThreeColumnLayout: View {
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                    listFocusedTab: $listFocusedTab,
                     isWindowFocused: isWindowFocused
                 )
                 .environmentObject(containerService)
@@ -319,6 +321,7 @@ struct TabColumnView: View {
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @Binding var isInIntentionalSettingsMode: Bool
+    @FocusState.Binding var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
 
     var body: some View {
@@ -389,30 +392,47 @@ struct TabColumnView: View {
             isInIntentionalSettingsMode = false
         }
 
-        // Auto-select first item in the new tab
+        // Auto-select first item in tabs with second columns
         switch tab {
         case .containers:
-            if selectedContainer == nil && !containerService.containers.isEmpty {
+            if !containerService.containers.isEmpty {
                 selectedContainer = containerService.containers.first?.configuration.id
             }
         case .images:
-            if selectedImage == nil && !containerService.images.isEmpty {
+            if !containerService.images.isEmpty {
                 selectedImage = containerService.images.first?.reference
             }
         case .mounts:
-            if selectedMount == nil && !containerService.allMounts.isEmpty {
+            if !containerService.allMounts.isEmpty {
                 selectedMount = containerService.allMounts.first?.id
             }
         case .dns:
-            if selectedDNSDomain == nil && !containerService.dnsDomains.isEmpty {
+            if !containerService.dnsDomains.isEmpty {
                 selectedDNSDomain = containerService.dnsDomains.first?.domain
             }
         case .networks:
-            if selectedNetwork == nil && !containerService.networks.isEmpty {
+            if !containerService.networks.isEmpty {
                 selectedNetwork = containerService.networks.first?.id
             }
         case .registries, .systemLogs, .settings:
+            // Clear all selections for tabs without second columns
+            selectedContainer = nil
+            selectedImage = nil
+            selectedMount = nil
+            selectedDNSDomain = nil
+            selectedNetwork = nil
             break
+        }
+
+        // Set focus after state changes
+        listFocusedTab = nil
+        DispatchQueue.main.async {
+            switch tab {
+            case .containers, .images, .mounts, .dns, .networks:
+                self.listFocusedTab = tab
+            case .registries, .systemLogs, .settings:
+                self.listFocusedTab = nil
+            }
         }
     }
 
