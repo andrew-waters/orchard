@@ -34,7 +34,6 @@ struct ContainerDetailHeader: View {
                                 await containerService.stopContainer(container.configuration.id)
                             }
                         },
-                        style: .playButton
                     )
                 } else {
                     DetailViewButton(
@@ -45,7 +44,6 @@ struct ContainerDetailHeader: View {
                                 await containerService.startContainer(container.configuration.id)
                             }
                         },
-                        style: .playButton
                     )
                 }
 
@@ -58,7 +56,6 @@ struct ContainerDetailHeader: View {
                                 await containerService.startContainer(container.configuration.id)
                             }
                         },
-                        style: .playButton
                     )
 
                     // Terminal button (keep original menu functionality for now)
@@ -80,7 +77,7 @@ struct ContainerDetailHeader: View {
                                 await containerService.removeContainer(container.configuration.id)
                             }
                         },
-                        style: .playButton
+//                        style: .playButton
                     )
                 }
             }

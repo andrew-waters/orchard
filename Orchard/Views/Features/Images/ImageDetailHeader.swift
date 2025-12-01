@@ -46,12 +46,11 @@ struct ImageDetailHeader: View {
             HStack(spacing: 8) {
                 // Run Container button
                 DetailViewButton(
-                    icon: "plus.app",
+                    icon: "plus",
                     accessibilityText: "Create a container using this image",
                     action: {
                         showRunContainer = true
                     },
-                    style: .playButton
                 )
 
                 // Delete Image button - only show if no containers are using it
@@ -62,7 +61,6 @@ struct ImageDetailHeader: View {
                         action: {
                             showDeleteConfirmation = true
                         },
-                        style: .iconDestructive
                     )
                 }
             }
