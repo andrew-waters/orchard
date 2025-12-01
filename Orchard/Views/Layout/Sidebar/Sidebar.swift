@@ -42,7 +42,6 @@ struct SidebarView: View {
             selectedContentView
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
         .onChange(of: selectedTab) { _, newTab in
             // Restore previous selection or select first element when changing tabs
             // But only if there's no current selection (to avoid overriding navigation selections)

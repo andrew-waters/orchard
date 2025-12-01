@@ -48,8 +48,6 @@ struct ContainersListView: View {
             .onChange(of: selectedContainer) { _, newValue in
                 lastSelectedContainer = newValue
             }
-
-
         }
     }
 
