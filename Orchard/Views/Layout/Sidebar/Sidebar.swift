@@ -243,7 +243,10 @@ struct SidebarView: View {
 
         if showOnlyMountsInUse {
             filtered = filtered.filter { mount in
-                !mount.containerIds.isEmpty
+                // Only show mounts used by running containers
+                mount.containerIds.contains { containerID in
+                    containerService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
+                }
             }
         }
 

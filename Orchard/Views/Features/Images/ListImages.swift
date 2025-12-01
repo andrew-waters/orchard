@@ -25,60 +25,7 @@ struct ImagesListView: View {
                 lastSelectedImage = newValue
             }
 
-            Rectangle()
-                .fill(Color(NSColor.separatorColor))
-                .frame(height: 0.5)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
 
-            // Filter controls at bottom
-            VStack(alignment: .leading, spacing: 12) {
-                // Search & Download button
-                Button(action: {
-                    showImageSearch = true
-                }) {
-                    HStack {
-                        SwiftUI.Image(systemName: "arrow.down.circle.fill")
-                            .font(.body)
-                        Text("Search & Download Images")
-                            .fontWeight(.medium)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .sheet(isPresented: $showImageSearch) {
-                    ImageSearchView()
-                        .environmentObject(containerService)
-                        .frame(minWidth: 700, minHeight: 500)
-                }
-
-                Toggle("Only show images in use", isOn: $showOnlyImagesInUse)
-                    .toggleStyle(CheckboxToggleStyle())
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                // Search field
-                HStack {
-                    SwiftUI.Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Filter images...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(NSColor.textBackgroundColor))
-                .cornerRadius(6)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
         }
     }
 

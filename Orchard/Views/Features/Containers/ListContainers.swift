@@ -49,33 +49,7 @@ struct ContainersListView: View {
                 lastSelectedContainer = newValue
             }
 
-            Rectangle()
-                .fill(Color(NSColor.separatorColor))
-                .frame(height: 0.5)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
 
-            VStack(alignment: .leading) {
-                Toggle("Only show running containers", isOn: $showOnlyRunning)
-                    .toggleStyle(CheckboxToggleStyle())
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.bottom, 8)
-
-                HStack {
-                    SwiftUI.Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Filter containers...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(NSColor.textBackgroundColor))
-                .cornerRadius(6)
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
         }
     }
 
