@@ -34,6 +34,7 @@ struct ImageSearchView: View {
                 activePullsSection
             }
         }
+        .frame(width: 920, height: 600)
         .onAppear {
             isSearchFieldFocused = true
         }
@@ -195,14 +196,15 @@ struct ImageSearchView: View {
 
     private var searchResultsList: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(containerService.searchResults) { result in
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(280), spacing: 16), count: 3), spacing: 16) {
+                ForEach(containerService.searchResults.prefix(12)) { result in
                     SearchResultRow(result: result)
                         .environmentObject(containerService)
                 }
             }
-            .padding()
+            .padding(20)
         }
+        .frame(width: 900, height: 400)
     }
 
     private var activePullsSection: some View {
@@ -254,94 +256,103 @@ struct SearchResultRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            // Icon
-            SwiftUI.Image(systemName: result.isOfficial ? "checkmark.seal.fill" : "cube.transparent")
-                .font(.title2)
-                .foregroundColor(result.isOfficial ? .blue : .secondary)
-                .frame(width: 40)
+        VStack(alignment: .leading, spacing: 8) {
+            // Header with icon and name
+            HStack(spacing: 8) {
+                SwiftUI.Image(systemName: result.isOfficial ? "checkmark.seal.fill" : "cube.transparent")
+                    .font(.title3)
+                    .foregroundColor(result.isOfficial ? .blue : .secondary)
 
-            // Content
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(result.displayName)
-                            .font(.headline)
-                            .fontWeight(.semibold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(result.displayName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
-                        if let description = result.description, !description.isEmpty {
-                            Text(description)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .lineLimit(2)
+                    // Metadata
+                    HStack(spacing: 6) {
+                        if result.isOfficial {
+                            Text("Official")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.blue)
+                                .cornerRadius(2)
                         }
-                    }
 
-                    Spacer()
-                }
+                        if let stars = result.starCount, stars > 0 {
+                            HStack(spacing: 2) {
+                                SwiftUI.Image(systemName: "star.fill")
+                                    .font(.system(size: 8))
+                                Text("\(stars)")
+                                    .font(.system(size: 9))
+                            }
+                            .foregroundColor(.orange)
+                        }
 
-                // Metadata
-                HStack(spacing: 12) {
-                    if result.isOfficial {
-                        Label("Official", systemImage: "checkmark.seal")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                    }
-
-                    if let stars = result.starCount, stars > 0 {
-                        Label("\(stars)", systemImage: "star.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        Spacer()
                     }
                 }
             }
 
-            // Pull/Run buttons
+            // Description
+            if let description = result.description, !description.isEmpty {
+                Text(description)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 4)
+
+            // Pull/Run button
             if isPulling {
                 ProgressView()
-                    .scaleEffect(0.8)
-                    .frame(width: 80)
+                    .scaleEffect(0.7)
+                    .frame(height: 24)
             } else if isAlreadyPulled {
-                HStack(spacing: 8) {
-                    Button(action: {
-                        showRunContainer = true
-                    }) {
-                        HStack(spacing: 4) {
-                            SwiftUI.Image(systemName: "play.circle.fill")
-                            Text("Run")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    }
-                    .buttonStyle(.borderedProminent)
+                Button(action: {
+                    showRunContainer = true
+                }) {
+                    Text("Run")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 24)
+                        .background(Color.green)
+                        .cornerRadius(4)
                 }
+                .buttonStyle(.plain)
             } else {
                 Button(action: {
                     Task {
                         await containerService.pullImage(result.name)
                     }
                 }) {
-                    HStack(spacing: 4) {
-                        SwiftUI.Image(systemName: "arrow.down.circle")
-                        Text("Pull")
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    Text("Pull")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 24)
+                        .background(Color.blue)
+                        .cornerRadius(4)
                 }
-                .buttonStyle(.borderedProminent)
-                .frame(width: 80)
+                .buttonStyle(.plain)
             }
         }
-        .padding()
-        .background(isHovered ? Color(NSColor.controlBackgroundColor) : Color.clear)
-        .cornerRadius(8)
+        .padding(10)
+        .frame(width: 280, height: 140)
+        .background(Color(NSColor.controlBackgroundColor).opacity(isHovered ? 0.8 : 0.3))
+        .cornerRadius(6)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
         )
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovered = hovering
+        .onHover { hovered in
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isHovered = hovered
             }
         }
         .sheet(isPresented: $showRunContainer) {
