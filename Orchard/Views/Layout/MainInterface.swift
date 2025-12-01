@@ -94,159 +94,33 @@ struct MainInterfaceView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(
-                selectedTab: $selectedTab,
-                selectedContainer: $selectedContainer,
-                selectedImage: $selectedImage,
-                selectedMount: $selectedMount,
-                selectedDNSDomain: $selectedDNSDomain,
-                selectedNetwork: $selectedNetwork,
-                lastSelectedContainer: $lastSelectedContainer,
-                lastSelectedImage: $lastSelectedImage,
-                lastSelectedMount: $lastSelectedMount,
-                lastSelectedDNSDomain: $lastSelectedDNSDomain,
-                lastSelectedNetwork: $lastSelectedNetwork,
-                searchText: $searchText,
-                showOnlyRunning: $showOnlyRunning,
-                showOnlyImagesInUse: $showOnlyImagesInUse,
-                showImageSearch: $showImageSearch,
-                showAddDNSDomainSheet: $showAddDNSDomainSheet,
-                showAddNetworkSheet: $showAddNetworkSheet,
-                isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
-                listFocusedTab: _listFocusedTab,
-                isWindowFocused: isWindowFocused
-            )
-            .navigationSplitViewColumnWidth(
-                min: 400, ideal: 500, max: 600)
-            .opacity(isWindowFocused ? 1.0 : 0.75)
-        } detail: {
-            VStack(spacing: 0) {
-                // Custom header
-                if !currentResourceTitle.isEmpty {
-                    CustomHeaderView(
-                        title: currentResourceTitle,
-                        subtitle: isInIntentionalSettingsMode ? nil : selectedTab.title,
-                        showItemNavigator: true,
-                        onItemNavigatorTap: {
-                            showingItemNavigatorPopover = true
-                        },
-                        showingPopover: $showingItemNavigatorPopover,
-                        popoverContent: {
-                            ItemNavigatorPopover(
-                                selectedTab: selectedTab,
-                                selectedContainer: $selectedContainer,
-                                selectedImage: $selectedImage,
-                                selectedMount: $selectedMount,
-                                selectedDNSDomain: $selectedDNSDomain,
-                                selectedNetwork: $selectedNetwork,
-                                lastSelectedContainer: $lastSelectedContainer,
-                                lastSelectedImage: $lastSelectedImage,
-                                lastSelectedMount: $lastSelectedMount,
-                                lastSelectedDNSDomain: $lastSelectedDNSDomain,
-                                lastSelectedNetwork: $lastSelectedNetwork,
-                                showingItemNavigatorPopover: $showingItemNavigatorPopover,
-                                showOnlyRunning: showOnlyRunning,
-                                showOnlyImagesInUse: showOnlyImagesInUse,
-                                searchText: searchText
-                            )
-                        }
-                    ) {
-                        AnyView(
-                            HStack(spacing: 8) {
-                                if let container = currentContainer {
-                                    ContainerControlButton(
-                                        container: container,
-                                        isLoading: containerService.loadingContainers.contains(
-                                            container.configuration.id),
-                                        onStart: {
-                                            Task { @MainActor in
-                                                await containerService.startContainer(container.configuration.id)
-                                            }
-                                        },
-                                        onStop: {
-                                            Task { @MainActor in
-                                                await containerService.stopContainer(container.configuration.id)
-                                            }
-                                        }
-                                    )
-
-                                    if container.status.lowercased() == "running" {
-                                        ContainerTerminalButton(
-                                            container: container,
-                                            onOpenTerminal: {
-                                                containerService.openTerminal(for: container.configuration.id)
-                                            },
-                                            onOpenTerminalBash: {
-                                                containerService.openTerminalWithBash(for: container.configuration.id)
-                                            }
-                                        )
-                                    } else {
-                                        ContainerRemoveButton(
-                                            container: container,
-                                            isLoading: containerService.loadingContainers.contains(
-                                                container.configuration.id),
-                                            onRemove: {
-                                                Task { @MainActor in
-                                                    await containerService.removeContainer(container.configuration.id)
-                                                }
-                                            }
-                                        )
-                                    }
-
-                                } else if let mount = currentMount {
-                                    Button(action: {
-                                        NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
-                                    }) {
-                                        SwiftUI.Image(systemName: "folder")
-                                            .font(.system(size: 14, weight: .medium))
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .help("Open in Finder")
-                                }
-                            }
-                        )
-                    }
-                }
-
-                // Main content
-                DetailContentView(
-                    selectedTab: selectedTab,
-                    selectedContainer: selectedContainer,
-                    selectedImage: selectedImage,
-                    selectedMount: selectedMount,
-                    selectedDNSDomain: selectedDNSDomain,
-                    selectedNetwork: selectedNetwork,
-                    isInIntentionalSettingsMode: isInIntentionalSettingsMode,
-                    lastSelectedContainerTab: $lastSelectedContainerTab,
-                    lastSelectedImageTab: $lastSelectedImageTab,
-                    lastSelectedMountTab: $lastSelectedMountTab,
-                    selectedTabBinding: $selectedTab,
-                    selectedContainerBinding: $selectedContainer,
-                    selectedNetworkBinding: $selectedNetwork
-                )
-            }
-        }
-        .navigationTitle(windowTitle)
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    // Always force settings mode without changing the tab
-                    selectedContainer = nil
-                    selectedImage = nil
-                    selectedMount = nil
-                    selectedDNSDomain = nil
-                    isInIntentionalSettingsMode = true
-                } label: {
-                    SwiftUI.Image(systemName: "gearshape")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-                .help("Settings")
-            }
-        }
+        ThreeColumnLayout(
+            selectedTab: $selectedTab,
+            selectedContainer: $selectedContainer,
+            selectedImage: $selectedImage,
+            selectedMount: $selectedMount,
+            selectedDNSDomain: $selectedDNSDomain,
+            selectedNetwork: $selectedNetwork,
+            lastSelectedContainer: $lastSelectedContainer,
+            lastSelectedImage: $lastSelectedImage,
+            lastSelectedMount: $lastSelectedMount,
+            lastSelectedDNSDomain: $lastSelectedDNSDomain,
+            lastSelectedNetwork: $lastSelectedNetwork,
+            lastSelectedContainerTab: $lastSelectedContainerTab,
+            lastSelectedImageTab: $lastSelectedImageTab,
+            lastSelectedMountTab: $lastSelectedMountTab,
+            searchText: $searchText,
+            showOnlyRunning: $showOnlyRunning,
+            showOnlyImagesInUse: $showOnlyImagesInUse,
+            showImageSearch: $showImageSearch,
+            showAddDNSDomainSheet: $showAddDNSDomainSheet,
+            showAddNetworkSheet: $showAddNetworkSheet,
+            isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+            showingItemNavigatorPopover: $showingItemNavigatorPopover,
+            listFocusedTab: _listFocusedTab,
+            isWindowFocused: isWindowFocused,
+            windowTitle: windowTitle
+        )
+        .environmentObject(containerService)
     }
 }

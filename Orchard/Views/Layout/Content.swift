@@ -39,13 +39,7 @@ struct ContentView: View {
     @State private var isInitialLoadComplete = false
     @Environment(\.openWindow) private var openWindow
 
-    // Computed property for window title
-    private var windowTitle: String {
-        if let version = containerService.parsedContainerVersion {
-            return "Container \(version)"
-        }
-        return "Container"
-    }
+
 
     @ViewBuilder
     var body: some View {
@@ -85,8 +79,9 @@ struct ContentView: View {
                     showingItemNavigatorPopover: $showingItemNavigatorPopover,
                     listFocusedTab: _listFocusedTab,
                     isWindowFocused: isWindowFocused,
-                    windowTitle: windowTitle
+                    windowTitle: "Orchard"
                 )
+                .navigationTitle("")
                 .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
                     isWindowFocused = true
                 }

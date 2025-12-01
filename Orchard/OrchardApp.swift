@@ -9,8 +9,8 @@ struct OrchardApp: App {
         WindowGroup(id: "main") {
             ContentView()
                 .environmentObject(containerService)
-
         }
+        .defaultSize(width: 1200, height: 800)
         .commands {
             CommandGroup(replacing: .help) {
                 Button("Check for Updates...") {
