@@ -290,7 +290,7 @@ struct TabColumnView: View {
     }
 
    private var sidebarList: some View {
-        List(selection: $selectedTab) {
+        List {
             ForEach(TabSelection.allCases, id: \.self) { tab in
                 sidebarRow(for: tab)
             }
@@ -318,9 +318,12 @@ struct TabColumnView: View {
                     .foregroundColor(selectedTab == tab ? .white.opacity(0.8) : .secondary)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 2)
-        .cornerRadius(8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(
+            selectedTab == tab ? Color.secondary.opacity(0.1) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 8)
+        )
         .contentShape(Rectangle())
         .onTapGesture {
             selectTab(tab)
