@@ -68,7 +68,6 @@ struct ImageDetailHeader: View {
         .padding(.horizontal, 16)
         .padding(.top, 20)
         .padding(.bottom, 12)
-        .background(.regularMaterial, in: Rectangle())
         .sheet(isPresented: $showRunContainer) {
             RunContainerView(imageName: image.reference)
                 .environmentObject(containerService)
