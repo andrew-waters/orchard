@@ -108,8 +108,9 @@ struct ThreeColumnLayout: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(.regularMaterial, in: Rectangle())
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
+                    .background(.thinMaterial, in: Rectangle())
 
                     ListColumnView(
                         selectedTab: selectedTab,
@@ -133,6 +134,7 @@ struct ThreeColumnLayout: View {
                         listFocusedTab: _listFocusedTab
                     )
                 }
+                .ignoresSafeArea(.container, edges: .top)
                 .environmentObject(containerService)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 500)
             } detail: {
@@ -150,6 +152,7 @@ struct ThreeColumnLayout: View {
                     selectedContainerBinding: $selectedContainer,
                     selectedNetworkBinding: $selectedNetwork
                 )
+                .ignoresSafeArea(.container, edges: .top)
             }
         } else {
             NavigationSplitView {
@@ -182,6 +185,7 @@ struct ThreeColumnLayout: View {
                     selectedContainerBinding: $selectedContainer,
                     selectedNetworkBinding: $selectedNetwork
                 )
+                .ignoresSafeArea(.container, edges: .top)
             }
         }
 

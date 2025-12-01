@@ -79,6 +79,7 @@ struct ContentView: View {
                     windowTitle: "Orchard"
                 )
                 .navigationTitle("")
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
                 .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
                     isWindowFocused = true
                 }

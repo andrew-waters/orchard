@@ -35,7 +35,8 @@ struct NetworkDetailHeader: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.top, 20)
+        .padding(.bottom, 12)
         .background(.regularMaterial, in: Rectangle())
     }
 
