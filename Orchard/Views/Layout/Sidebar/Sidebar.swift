@@ -166,6 +166,17 @@ struct SidebarView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            // Set initial focus when view appears
+            switch selectedTab {
+            case .containers, .images, .mounts, .dns, .networks:
+                DispatchQueue.main.async {
+                    listFocusedTab = selectedTab
+                }
+            case .registries, .systemLogs, .settings:
+                break
+            }
+        }
     }
 
     private var registriesView: some View {

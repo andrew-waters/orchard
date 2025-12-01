@@ -331,6 +331,17 @@ struct TabColumnView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.controlBackgroundColor))
         .opacity(isWindowFocused ? 1.0 : 0.5)
+        .onAppear {
+            // Set initial focus when view appears
+            switch selectedTab {
+            case .containers, .images, .mounts, .dns, .networks:
+                DispatchQueue.main.async {
+                    listFocusedTab = selectedTab
+                }
+            case .registries, .systemLogs, .settings:
+                break
+            }
+        }
         .onChange(of: selectedTab) { _, newTab in
             selectTab(newTab)
         }
