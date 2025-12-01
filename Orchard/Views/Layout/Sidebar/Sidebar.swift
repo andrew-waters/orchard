@@ -45,41 +45,52 @@ struct SidebarView: View {
         .background(Color(NSColor.controlBackgroundColor))
         .onChange(of: selectedTab) { _, newTab in
             // Restore previous selection or select first element when changing tabs
+            // But only if there's no current selection (to avoid overriding navigation selections)
             switch newTab {
             case .containers:
-                if let lastSelected = lastSelectedContainer,
-                   filteredContainers.contains(where: { $0.configuration.id == lastSelected }) {
-                    selectedContainer = lastSelected
-                } else if !filteredContainers.isEmpty {
-                    selectedContainer = filteredContainers.first?.configuration.id
+                if selectedContainer == nil {
+                    if let lastSelected = lastSelectedContainer,
+                       filteredContainers.contains(where: { $0.configuration.id == lastSelected }) {
+                        selectedContainer = lastSelected
+                    } else if !filteredContainers.isEmpty {
+                        selectedContainer = filteredContainers.first?.configuration.id
+                    }
                 }
             case .images:
-                if let lastSelected = lastSelectedImage,
-                   filteredImages.contains(where: { $0.reference == lastSelected }) {
-                    selectedImage = lastSelected
-                } else if !filteredImages.isEmpty {
-                    selectedImage = filteredImages.first?.reference
+                if selectedImage == nil {
+                    if let lastSelected = lastSelectedImage,
+                       filteredImages.contains(where: { $0.reference == lastSelected }) {
+                        selectedImage = lastSelected
+                    } else if !filteredImages.isEmpty {
+                        selectedImage = filteredImages.first?.reference
+                    }
                 }
             case .mounts:
-                if let lastSelected = lastSelectedMount,
-                   filteredMounts.contains(where: { $0.id == lastSelected }) {
-                    selectedMount = lastSelected
-                } else if !filteredMounts.isEmpty {
-                    selectedMount = filteredMounts.first?.id
+                if selectedMount == nil {
+                    if let lastSelected = lastSelectedMount,
+                       filteredMounts.contains(where: { $0.id == lastSelected }) {
+                        selectedMount = lastSelected
+                    } else if !filteredMounts.isEmpty {
+                        selectedMount = filteredMounts.first?.id
+                    }
                 }
             case .dns:
-                if let lastSelected = lastSelectedDNSDomain,
-                   containerService.dnsDomains.contains(where: { $0.domain == lastSelected }) {
-                    selectedDNSDomain = lastSelected
-                } else if !containerService.dnsDomains.isEmpty {
-                    selectedDNSDomain = containerService.dnsDomains.first?.domain
+                if selectedDNSDomain == nil {
+                    if let lastSelected = lastSelectedDNSDomain,
+                       containerService.dnsDomains.contains(where: { $0.domain == lastSelected }) {
+                        selectedDNSDomain = lastSelected
+                    } else if !containerService.dnsDomains.isEmpty {
+                        selectedDNSDomain = containerService.dnsDomains.first?.domain
+                    }
                 }
             case .networks:
-                if let lastSelected = lastSelectedNetwork,
-                   containerService.networks.contains(where: { $0.id == lastSelected }) {
-                    selectedNetwork = lastSelected
-                } else if !containerService.networks.isEmpty {
-                    selectedNetwork = containerService.networks.first?.id
+                if selectedNetwork == nil {
+                    if let lastSelected = lastSelectedNetwork,
+                       containerService.networks.contains(where: { $0.id == lastSelected }) {
+                        selectedNetwork = lastSelected
+                    } else if !containerService.networks.isEmpty {
+                        selectedNetwork = containerService.networks.first?.id
+                    }
                 }
             case .registries, .systemLogs, .settings:
                 // No selection state for these tabs

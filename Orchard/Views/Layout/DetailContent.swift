@@ -11,7 +11,6 @@ struct DetailContentView: View {
     let isInIntentionalSettingsMode: Bool
     @Binding var lastSelectedContainerTab: String
     @Binding var lastSelectedImageTab: String
-    @Binding var lastSelectedMountTab: String
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
     @Binding var selectedNetworkBinding: String?
@@ -103,11 +102,7 @@ struct DetailContentView: View {
         ForEach(containerService.allMounts, id: \.id) { mount in
             if selectedMount == mount.id {
                 MountDetailView(
-                    mount: mount,
-                    initialSelectedTab: lastSelectedMountTab,
-                    onTabChanged: { newTab in
-                        lastSelectedMountTab = newTab
-                    }
+                    mount: mount
                 )
                 .environmentObject(containerService)
             }

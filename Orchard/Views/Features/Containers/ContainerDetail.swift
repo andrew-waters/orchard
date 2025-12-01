@@ -1151,24 +1151,7 @@ struct ContainerImageUsageRow: View {
 
 struct MountDetailView: View {
     let mount: ContainerMount
-    let initialSelectedTab: String
-    let onTabChanged: (String) -> Void
     @EnvironmentObject var containerService: ContainerService
-    @State private var selectedTab: MountTab = .overview
-
-    enum MountTab: String, CaseIterable {
-        case overview = "Overview"
-        case inUseBy = "In Use By"
-
-        var systemImage: String {
-            switch self {
-            case .overview:
-                return "info.circle"
-            case .inUseBy:
-                return "cube.box"
-            }
-        }
-    }
 
     private var containersUsingMount: [Container] {
         containerService.containers.filter { container in
@@ -1177,81 +1160,14 @@ struct MountDetailView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            tabPickerSection
-            tabContentSection
-        }
-        .onAppear {
-            selectedTab = mountTabFromString(initialSelectedTab)
-        }
-    }
-
-    // Helper function to convert string to enum
-    private func mountTabFromString(_ tabString: String) -> MountTab {
-        return MountTab.allCases.first { $0.rawValue == tabString } ?? .overview
-    }
-
-    private var tabPickerSection: some View {
-        VStack(spacing: 0) {
-            HStack {
-                ForEach(MountTab.allCases, id: \.self) { tab in
-                    tabButton(for: tab)
-                }
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-
-            Divider()
-        }
-    }
-
-    private func tabButton(for tab: MountTab) -> some View {
-        Button(action: {
-            selectedTab = tab
-            onTabChanged(tab.rawValue)
-        }) {
-            HStack {
-                SwiftUI.Image(systemName: tab.systemImage)
-                Text(tab.rawValue)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                selectedTab == tab ? Color.accentColor.opacity(0.2) : Color.clear
-            )
-            .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var tabContentSection: some View {
         ScrollView {
-            Group {
-                switch selectedTab {
-                case .overview:
-                    mountOverviewTab
-                case .inUseBy:
-                    mountInUseByTab
-                }
+            VStack(alignment: .leading, spacing: 20) {
+                mountOverviewSection()
+                mountTechnicalSection()
+                containersUsingMountSection()
+                Spacer(minLength: 20)
             }
             .padding()
-        }
-    }
-
-    private var mountOverviewTab: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            mountOverviewSection()
-            mountTechnicalSection()
-            Spacer(minLength: 20)
-        }
-    }
-
-    private var mountInUseByTab: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            containersUsingMountSection()
-            Spacer(minLength: 20)
         }
     }
 
@@ -1311,6 +1227,10 @@ struct MountDetailView: View {
 
     private func containersUsingMountSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Used By Containers")
+                .font(.headline)
+                .foregroundColor(.primary)
+
             if containersUsingMount.isEmpty {
                 Text("No containers are currently using this mount")
                     .foregroundColor(.secondary)

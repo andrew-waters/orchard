@@ -219,7 +219,6 @@ struct ThreeColumnLayout: View {
                         isInIntentionalSettingsMode: isInIntentionalSettingsMode,
                         lastSelectedContainerTab: $lastSelectedContainerTab,
                         lastSelectedImageTab: $lastSelectedImageTab,
-                        lastSelectedMountTab: $lastSelectedMountTab,
                         selectedTabBinding: $selectedTab,
                         selectedContainerBinding: $selectedContainer,
                         selectedNetworkBinding: $selectedNetwork
@@ -254,7 +253,6 @@ struct ThreeColumnLayout: View {
                     isInIntentionalSettingsMode: isInIntentionalSettingsMode,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     lastSelectedImageTab: $lastSelectedImageTab,
-                    lastSelectedMountTab: $lastSelectedMountTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedNetworkBinding: $selectedNetwork
@@ -407,26 +405,26 @@ struct TabColumnView: View {
             isInIntentionalSettingsMode = false
         }
 
-        // Auto-select first item in tabs with second columns
+        // Auto-select first item in tabs with second columns (only if no selection exists)
         switch tab {
         case .containers:
-            if !containerService.containers.isEmpty {
+            if selectedContainer == nil && !containerService.containers.isEmpty {
                 selectedContainer = containerService.containers.first?.configuration.id
             }
         case .images:
-            if !containerService.images.isEmpty {
+            if selectedImage == nil && !containerService.images.isEmpty {
                 selectedImage = containerService.images.first?.reference
             }
         case .mounts:
-            if !containerService.allMounts.isEmpty {
+            if selectedMount == nil && !containerService.allMounts.isEmpty {
                 selectedMount = containerService.allMounts.first?.id
             }
         case .dns:
-            if !containerService.dnsDomains.isEmpty {
+            if selectedDNSDomain == nil && !containerService.dnsDomains.isEmpty {
                 selectedDNSDomain = containerService.dnsDomains.first?.domain
             }
         case .networks:
-            if !containerService.networks.isEmpty {
+            if selectedNetwork == nil && !containerService.networks.isEmpty {
                 selectedNetwork = containerService.networks.first?.id
             }
         case .registries, .systemLogs, .settings:
@@ -589,7 +587,6 @@ struct DetailColumnView: View {
                 isInIntentionalSettingsMode: isInIntentionalSettingsMode,
                 lastSelectedContainerTab: $lastSelectedContainerTab,
                 lastSelectedImageTab: $lastSelectedImageTab,
-                lastSelectedMountTab: $lastSelectedMountTab,
                 selectedTabBinding: $selectedTabBinding,
                 selectedContainerBinding: $selectedContainerBinding,
                 selectedNetworkBinding: $selectedNetworkBinding

@@ -26,23 +26,23 @@ struct SidebarTabs: View {
 
                         switch tab {
                         case .containers:
-                            if let firstContainer = containerService.containers.first {
+                            if selectedContainer == nil, let firstContainer = containerService.containers.first {
                                 selectedContainer = firstContainer.configuration.id
                             }
                         case .images:
-                            if let firstImage = containerService.images.first {
+                            if selectedImage == nil, let firstImage = containerService.images.first {
                                 selectedImage = firstImage.reference
                             }
                         case .mounts:
-                            if let firstMount = containerService.allMounts.first {
+                            if selectedMount == nil, let firstMount = containerService.allMounts.first {
                                 selectedMount = firstMount.id
                             }
                         case .dns:
-                            if let firstDomain = containerService.dnsDomains.first {
+                            if selectedDNSDomain == nil, let firstDomain = containerService.dnsDomains.first {
                                 selectedDNSDomain = firstDomain.domain
                             }
                         case .networks:
-                            if let firstNetwork = containerService.networks.first {
+                            if selectedNetwork == nil, let firstNetwork = containerService.networks.first {
                                 selectedNetwork = firstNetwork.id
                             }
                         case .registries, .systemLogs, .settings:
