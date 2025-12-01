@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var searchText: String = ""
     @State private var showOnlyRunning: Bool = false
     @State private var showOnlyImagesInUse: Bool = false
+    @State private var showOnlyMountsInUse: Bool = false
     @State private var showImageSearch: Bool = false
     @State private var showAddDNSDomainSheet: Bool = false
     @State private var showAddNetworkSheet: Bool = false
@@ -67,6 +68,7 @@ struct ContentView: View {
                     searchText: $searchText,
                     showOnlyRunning: $showOnlyRunning,
                     showOnlyImagesInUse: $showOnlyImagesInUse,
+                    showOnlyMountsInUse: $showOnlyMountsInUse,
                     showImageSearch: $showImageSearch,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     showAddNetworkSheet: $showAddNetworkSheet,

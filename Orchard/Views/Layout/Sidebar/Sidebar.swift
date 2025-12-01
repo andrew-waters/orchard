@@ -16,6 +16,7 @@ struct SidebarView: View {
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
     @Binding var showOnlyImagesInUse: Bool
+    @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
@@ -132,6 +133,7 @@ struct SidebarView: View {
                         selectedMount: $selectedMount,
                         lastSelectedMount: $lastSelectedMount,
                         searchText: $searchText,
+                        showOnlyMountsInUse: $showOnlyMountsInUse,
                         listFocusedTab: _listFocusedTab
                     )
                 case .dns:
@@ -238,6 +240,12 @@ struct SidebarView: View {
 
     private var filteredMounts: [ContainerMount] {
         var filtered = containerService.allMounts
+
+        if showOnlyMountsInUse {
+            filtered = filtered.filter { mount in
+                !mount.containerIds.isEmpty
+            }
+        }
 
         if !searchText.isEmpty {
             filtered = filtered.filter { mount in

@@ -20,6 +20,7 @@ struct ThreeColumnLayout: View {
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
     @Binding var showOnlyImagesInUse: Bool
+    @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
@@ -87,20 +88,28 @@ struct ThreeColumnLayout: View {
                                 // Tab-specific filters
                                 if selectedTab == .containers {
                                     Button(action: { showOnlyRunning.toggle() }) {
-                                        SwiftUI.Image(systemName: showOnlyRunning ? "play.circle.fill" : "play.circle")
-                                            .foregroundColor(showOnlyRunning ? .green : .secondary)
+                                        SwiftUI.Image(systemName: showOnlyRunning ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                            .foregroundColor(showOnlyRunning ? .accentColor : .secondary)
                                             .font(.system(size: 14))
                                     }
                                     .buttonStyle(.plain)
                                     .help("Show only running containers")
                                 } else if selectedTab == .images {
                                     Button(action: { showOnlyImagesInUse.toggle() }) {
-                                        SwiftUI.Image(systemName: showOnlyImagesInUse ? "cube.fill" : "cube")
-                                            .foregroundColor(showOnlyImagesInUse ? .blue : .secondary)
+                                        SwiftUI.Image(systemName: showOnlyImagesInUse ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                            .foregroundColor(showOnlyImagesInUse ? .accentColor : .secondary)
                                             .font(.system(size: 14))
                                     }
                                     .buttonStyle(.plain)
                                     .help("Show only images in use")
+                                } else if selectedTab == .mounts {
+                                    Button(action: { showOnlyMountsInUse.toggle() }) {
+                                        SwiftUI.Image(systemName: showOnlyMountsInUse ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                            .foregroundColor(showOnlyMountsInUse ? .accentColor : .secondary)
+                                            .font(.system(size: 14))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Show only mounts in use")
                                 }
                             }
                         }
@@ -124,6 +133,7 @@ struct ThreeColumnLayout: View {
                         searchText: $searchText,
                         showOnlyRunning: $showOnlyRunning,
                         showOnlyImagesInUse: $showOnlyImagesInUse,
+                        showOnlyMountsInUse: $showOnlyMountsInUse,
                         showImageSearch: $showImageSearch,
                         showAddDNSDomainSheet: $showAddDNSDomainSheet,
                         showAddNetworkSheet: $showAddNetworkSheet,
@@ -483,6 +493,7 @@ struct ListColumnView: View {
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
     @Binding var showOnlyImagesInUse: Bool
+    @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
@@ -515,6 +526,7 @@ struct ListColumnView: View {
                     selectedMount: $selectedMount,
                     lastSelectedMount: .constant(lastSelectedMount),
                     searchText: $searchText,
+                    showOnlyMountsInUse: $showOnlyMountsInUse,
                     listFocusedTab: _listFocusedTab
                 )
             case .dns:

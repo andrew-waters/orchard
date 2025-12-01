@@ -19,6 +19,7 @@ struct MainInterfaceView: View {
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
     @Binding var showOnlyImagesInUse: Bool
+    @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
@@ -115,6 +116,7 @@ struct MainInterfaceView: View {
             searchText: $searchText,
             showOnlyRunning: $showOnlyRunning,
             showOnlyImagesInUse: $showOnlyImagesInUse,
+            showOnlyMountsInUse: $showOnlyMountsInUse,
             showImageSearch: $showImageSearch,
             showAddDNSDomainSheet: $showAddDNSDomainSheet,
             showAddNetworkSheet: $showAddNetworkSheet,

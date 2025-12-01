@@ -5,6 +5,7 @@ struct MountsListView: View {
     @Binding var selectedMount: String?
     @Binding var lastSelectedMount: String?
     @Binding var searchText: String
+    @Binding var showOnlyMountsInUse: Bool
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -54,6 +55,13 @@ struct MountsListView: View {
 
     private var filteredMounts: [ContainerMount] {
         var filtered = containerService.allMounts
+
+        // Apply "in use" filter
+        if showOnlyMountsInUse {
+            filtered = filtered.filter { mount in
+                !mount.containerIds.isEmpty
+            }
+        }
 
         // Apply search filter
         if !searchText.isEmpty {
