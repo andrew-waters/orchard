@@ -145,11 +145,7 @@ struct ThreeColumnLayout: View {
                                 Text(currentResourceTitle)
                                     .font(.title2)
                                     .fontWeight(.semibold)
-                                if !isInIntentionalSettingsMode {
-                                    Text(selectedTab.title)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
+
                             }
                             Spacer()
 
