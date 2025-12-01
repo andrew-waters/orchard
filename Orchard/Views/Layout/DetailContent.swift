@@ -20,7 +20,7 @@ struct DetailContentView: View {
         // Check if we're in settings mode (no selections)
         let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
-        if isInIntentionalSettingsMode || (isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts)) {
+        if isInIntentionalSettingsMode {
             SettingsDetailView()
         } else {
             switch selectedTab {

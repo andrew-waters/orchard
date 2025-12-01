@@ -97,8 +97,8 @@ struct SidebarView: View {
             // Check if we're in settings mode (no selections)
             let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
-            if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
-                // Show empty state when in settings mode
+            if isSettingsMode && isInIntentionalSettingsMode {
+                // Show empty state when intentionally in settings mode
                 VStack {
                     Text("Settings")
                         .font(.title2)

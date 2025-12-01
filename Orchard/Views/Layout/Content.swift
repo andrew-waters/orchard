@@ -36,7 +36,7 @@ struct ContentView: View {
 
     @State private var showingItemNavigatorPopover = false
     @State private var isInIntentionalSettingsMode = false
-    @State private var isInitialLoadComplete = false
+
     @Environment(\.openWindow) private var openWindow
 
 
@@ -44,12 +44,7 @@ struct ContentView: View {
     @ViewBuilder
     var body: some View {
         Group {
-            if !isInitialLoadComplete {
-                SplashScreenView(isInitialLoadComplete: $isInitialLoadComplete)
-                    .task {
-                        startRefreshTimer()
-                    }
-            } else if containerService.systemStatus == .stopped {
+            if containerService.systemStatus == .stopped {
                 NotRunningView()
             } else if containerService.systemStatus == .unsupportedVersion {
                 VersionIncompatibilityView()
@@ -119,6 +114,10 @@ struct ContentView: View {
             if selectedNetwork == nil && !newNetworks.isEmpty && !isInIntentionalSettingsMode {
                 selectedNetwork = newNetworks[0].id
             }
+        }
+        .task {
+            await performInitialLoad()
+            startRefreshTimer()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToContainer"))
@@ -194,6 +193,21 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func performInitialLoad() async {
+        await containerService.checkSystemStatus()
+        await containerService.loadContainers(showLoading: true)
+        await containerService.loadImages()
+        await containerService.loadBuilders()
+
+        await containerService.loadDNSDomains(showLoading: true)
+        await containerService.loadNetworks(showLoading: true)
+
+        // Check for updates on startup
+        if containerService.shouldCheckForUpdates() {
+            await containerService.checkForUpdates()
         }
     }
 

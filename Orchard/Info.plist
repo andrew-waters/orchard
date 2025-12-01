@@ -24,8 +24,7 @@
 	<string>12.0</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
-	<key>NSMainStoryboardFile</key>
-	<string>Main</string>
+
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

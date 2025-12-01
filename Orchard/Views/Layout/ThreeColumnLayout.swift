@@ -269,7 +269,8 @@ struct ThreeColumnLayout: View {
 
         let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
-        if isSettingsMode && (selectedTab == .containers || selectedTab == .images || selectedTab == .mounts) {
+        // Only show settings title if we're intentionally in settings mode, not during initial loading
+        if isSettingsMode && isInIntentionalSettingsMode {
             return "Settings"
         }
 
