@@ -314,7 +314,7 @@ struct TabColumnView: View {
 
             if getTabCount(for: tab) > 0 {
                 Text("\(getTabCount(for: tab))")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundColor(selectedTab == tab ? .white.opacity(0.8) : .secondary)
             }
         }
