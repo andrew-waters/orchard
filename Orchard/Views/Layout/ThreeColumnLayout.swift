@@ -278,65 +278,79 @@ struct TabColumnView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tab selection list
-            List(selection: $selectedTab) {
-                ForEach(TabSelection.allCases, id: \.self) { tab in
-                    HStack(spacing: 8) {
-                        SwiftUI.Image(systemName: tab.icon)
-                            .font(.system(size: 13, weight: .medium))
-                            .frame(width: 16)
-                            .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
-
-                        Text(tab.title)
-                            .font(.system(size: 13, weight: .medium))
-
-                        Spacer()
-
-                        if getTabCount(for: tab) > 0 {
-                            Text("\(getTabCount(for: tab))")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Color.secondary.opacity(0.15))
-                                .clipShape(Capsule())
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectTab(tab)
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-
-            // Settings button
-            Divider()
-            Button(action: {
-                selectedContainer = nil
-                selectedImage = nil
-                selectedMount = nil
-                selectedDNSDomain = nil
-                isInIntentionalSettingsMode = true
-            }) {
-                HStack(spacing: 8) {
-                    SwiftUI.Image(systemName: "gearshape")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("Settings")
-                        .font(.system(size: 13, weight: .medium))
-                    Spacer()
-                }
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-            }
-            .buttonStyle(.plain)
+            sidebarList
+            settingsButton
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .opacity(isWindowFocused ? 1.0 : 0.75)
+        .background(Color(NSColor.controlBackgroundColor))
+        .opacity(isWindowFocused ? 1.0 : 0.5)
         .onChange(of: selectedTab) { _, newTab in
             selectTab(newTab)
         }
+    }
+
+   private var sidebarList: some View {
+        List(selection: $selectedTab) {
+            ForEach(TabSelection.allCases, id: \.self) { tab in
+                sidebarRow(for: tab)
+            }
+        }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+    }
+
+    private func sidebarRow(for tab: TabSelection) -> some View {
+        HStack(spacing: 6) {
+            SwiftUI.Image(systemName: tab.icon)
+                .font(.system(size: 14, weight: .regular))
+                .frame(width: 20)
+                .foregroundColor(selectedTab == tab ? .accentColor : .primary)
+
+            Text(tab.title)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(selectedTab == tab ? .accentColor : .primary)
+
+            Spacer()
+
+            if getTabCount(for: tab) > 0 {
+                Text("\(getTabCount(for: tab))")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(selectedTab == tab ? .white.opacity(0.8) : .secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .cornerRadius(8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectTab(tab)
+        }
+    }
+
+    private var settingsButton: some View {
+        Button(action: {
+            selectedContainer = nil
+            selectedImage = nil
+            selectedMount = nil
+            selectedDNSDomain = nil
+            isInIntentionalSettingsMode = true
+        }) {
+            HStack(spacing: 12) {
+                SwiftUI.Image(systemName: "gearshape")
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: 20)
+                    .foregroundColor(.primary)
+
+                Text("Settings")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
     }
 
     private func selectTab(_ tab: TabSelection) {
