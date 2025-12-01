@@ -10,7 +10,6 @@ struct DetailContentView: View {
     let selectedNetwork: String?
     let isInIntentionalSettingsMode: Bool
     @Binding var lastSelectedContainerTab: String
-    @Binding var lastSelectedImageTab: String
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
     @Binding var selectedNetworkBinding: String?
@@ -86,11 +85,7 @@ struct DetailContentView: View {
         ForEach(containerService.images, id: \.reference) { image in
             if selectedImage == image.reference {
                 ContainerImageDetailView(
-                    image: image,
-                    initialSelectedTab: lastSelectedImageTab,
-                    onTabChanged: { newTab in
-                        lastSelectedImageTab = newTab
-                    }
+                    image: image
                 )
                 .environmentObject(containerService)
             }

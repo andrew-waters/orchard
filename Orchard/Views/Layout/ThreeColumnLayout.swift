@@ -214,7 +214,6 @@ struct ThreeColumnLayout: View {
                         selectedNetwork: selectedNetwork,
                         isInIntentionalSettingsMode: isInIntentionalSettingsMode,
                         lastSelectedContainerTab: $lastSelectedContainerTab,
-                        lastSelectedImageTab: $lastSelectedImageTab,
                         selectedTabBinding: $selectedTab,
                         selectedContainerBinding: $selectedContainer,
                         selectedNetworkBinding: $selectedNetwork
@@ -248,7 +247,6 @@ struct ThreeColumnLayout: View {
                     selectedNetwork: selectedNetwork,
                     isInIntentionalSettingsMode: isInIntentionalSettingsMode,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
-                    lastSelectedImageTab: $lastSelectedImageTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedNetworkBinding: $selectedNetwork
@@ -582,7 +580,6 @@ struct DetailColumnView: View {
                 selectedNetwork: selectedNetwork,
                 isInIntentionalSettingsMode: isInIntentionalSettingsMode,
                 lastSelectedContainerTab: $lastSelectedContainerTab,
-                lastSelectedImageTab: $lastSelectedImageTab,
                 selectedTabBinding: $selectedTabBinding,
                 selectedContainerBinding: $selectedContainerBinding,
                 selectedNetworkBinding: $selectedNetworkBinding

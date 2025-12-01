@@ -681,27 +681,10 @@ struct LabelsTable: View {
 
 struct ContainerImageDetailView: View {
     let image: ContainerImage
-    let initialSelectedTab: String
-    let onTabChanged: (String) -> Void
     @EnvironmentObject var containerService: ContainerService
-    @State private var selectedTab: ImageTab = .overview
     @State private var showRunContainer = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
-
-    enum ImageTab: String, CaseIterable {
-        case overview = "Overview"
-        case inUseBy = "In Use By"
-
-        var systemImage: String {
-            switch self {
-            case .overview:
-                return "info.circle"
-            case .inUseBy:
-                return "cube.box"
-            }
-        }
-    }
 
     private var imageName: String {
         let components = image.reference.split(separator: "/")
@@ -732,29 +715,8 @@ struct ContainerImageDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            tabPickerSection
-            tabContentSection
-        }
-        .onAppear {
-            selectedTab = imageTabFromString(initialSelectedTab)
-        }
-        .sheet(isPresented: $showRunContainer) {
-            RunContainerView(imageName: image.reference)
-                .environmentObject(containerService)
-        }
-    }
-
-    // Helper function to convert string to enum
-    private func imageTabFromString(_ tabString: String) -> ImageTab {
-        return ImageTab.allCases.first { $0.rawValue == tabString } ?? .overview
-    }
-
-    private var tabPickerSection: some View {
-        VStack(spacing: 0) {
+            // Action buttons header
             HStack {
-                ForEach(ImageTab.allCases, id: \.self) { tab in
-                    tabButton(for: tab)
-                }
                 Spacer()
 
                 // Run Container button
@@ -809,73 +771,41 @@ struct ContainerImageDetailView: View {
             .padding(.vertical, 8)
 
             Divider()
-        }
-    }
 
-    private func tabButton(for tab: ImageTab) -> some View {
-        Button(action: {
-            selectedTab = tab
-            onTabChanged(tab.rawValue)
-        }) {
-            HStack {
-                SwiftUI.Image(systemName: tab.systemImage)
-                Text(tab.rawValue)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                selectedTab == tab ? Color.accentColor.opacity(0.2) : Color.clear
-            )
-            .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
+            // Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(alignment: .top, spacing: 20) {
+                        // Overview section
+                        imageOverviewSection()
 
-    private var tabContentSection: some View {
-        ScrollView {
-            Group {
-                switch selectedTab {
-                case .overview:
-                    imageOverviewTab
-                case .inUseBy:
-                    imageInUseByTab
+                        Divider()
+
+                        // Technical details section
+                        imageTechnicalSection()
+
+                        Divider()
+
+                    }
+
+                    if let annotations = image.descriptor.annotations, !annotations.isEmpty {
+                        Divider()
+
+                        // Annotations section
+                        imageAnnotationsSection(annotations: annotations)
+                    }
+
+                    // Used by containers section
+                    containersUsingImageSection()
+
+                    Spacer(minLength: 20)
                 }
+                .padding()
             }
-            .padding()
         }
-    }
-
-    private var imageOverviewTab: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top, spacing: 20) {
-                // Overview section
-                imageOverviewSection()
-
-                Divider()
-
-                // Technical details section
-                imageTechnicalSection()
-
-                Divider()
-
-            }
-
-            if let annotations = image.descriptor.annotations, !annotations.isEmpty {
-                Divider()
-
-                // Annotations section
-                imageAnnotationsSection(annotations: annotations)
-            }
-
-            Spacer(minLength: 20)
-        }
-    }
-
-    private var imageInUseByTab: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            containersUsingImageSection()
-            Spacer(minLength: 20)
+        .sheet(isPresented: $showRunContainer) {
+            RunContainerView(imageName: image.reference)
+                .environmentObject(containerService)
         }
     }
 
@@ -923,6 +853,10 @@ struct ContainerImageDetailView: View {
 
     private func containersUsingImageSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Used By Containers")
+                .font(.headline)
+                .foregroundColor(.primary)
+
             if containersUsingImage.isEmpty {
                 Text("No containers are currently using this image")
                     .foregroundColor(.secondary)
