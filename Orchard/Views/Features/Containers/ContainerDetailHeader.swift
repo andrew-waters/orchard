@@ -26,45 +26,61 @@ struct ContainerDetailHeader: View {
             HStack(spacing: 8) {
                 // Start/Stop button
                 if isRunning {
-                    DetailViewButton.stop(
+                    DetailViewButton(
+                        icon: "stop.circle",
+                        accessibilityText: "Stop this container",
                         action: {
                             Task { @MainActor in
                                 await containerService.stopContainer(container.configuration.id)
                             }
                         },
-                        isLoading: isLoading
+                        style: .playButton
                     )
                 } else {
-                    DetailViewButton.start(
+                    DetailViewButton(
+                        icon: "arrowtriangle.right.circle",
+                        accessibilityText: "Start this container",
                         action: {
                             Task { @MainActor in
                                 await containerService.startContainer(container.configuration.id)
                             }
                         },
-                        isLoading: isLoading
+                        style: .playButton
                     )
                 }
 
                 if isRunning {
-                    // Terminal button (keep original menu functionality for now)
-                    ContainerTerminalButton(
-                        container: container,
-                        onOpenTerminal: {
-                            containerService.openTerminal(for: container.configuration.id)
+                    DetailViewButton(
+                        icon: "terminal",
+                        accessibilityText: "Exec into container",
+                        action: {
+                            Task { @MainActor in
+                                await containerService.startContainer(container.configuration.id)
+                            }
                         },
-                        onOpenTerminalBash: {
-                            containerService.openTerminalWithBash(for: container.configuration.id)
-                        }
+                        style: .playButton
                     )
+
+                    // Terminal button (keep original menu functionality for now)
+//                    ContainerTerminalButton(
+//                        container: container,
+//                        onOpenTerminal: {
+//                            containerService.openTerminal(for: container.configuration.id)
+//                        },
+//                        onOpenTerminalBash: {
+//                            containerService.openTerminalWithBash(for: container.configuration.id)
+//                        }
+//                    )
                 } else {
-                    DetailViewButton.remove(
+                    DetailViewButton(
+                        icon: "trash.fill",
+                        accessibilityText: "Delete this container",
                         action: {
                             Task { @MainActor in
                                 await containerService.removeContainer(container.configuration.id)
                             }
                         },
-                        isDisabled: isRunning,
-                        isLoading: isLoading
+                        style: .playButton
                     )
                 }
             }

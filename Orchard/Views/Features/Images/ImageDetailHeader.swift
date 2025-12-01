@@ -7,6 +7,7 @@ struct ImageDetailHeader: View {
     @State private var showRunContainer = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
+    @State private var isRunning = false
 
     private var imageName: String {
         let components = image.reference.split(separator: "/")
@@ -44,21 +45,24 @@ struct ImageDetailHeader: View {
             // Action buttons
             HStack(spacing: 8) {
                 // Run Container button
-                DetailViewButton.runContainer(
+                DetailViewButton(
+                    icon: "plus.app",
+                    accessibilityText: "Create a container using this image",
                     action: {
                         showRunContainer = true
                     },
-                    isLoading: isDeleting
+                    style: .playButton
                 )
 
                 // Delete Image button - only show if no containers are using it
                 if containersUsingImage.isEmpty {
-                    DetailViewButton.delete(
+                    DetailViewButton(
+                        icon: "trash.fill",
+                        accessibilityText: "Delete Image",
                         action: {
                             showDeleteConfirmation = true
                         },
-                        isDisabled: false,
-                        isLoading: isDeleting
+                        style: .iconDestructive
                     )
                 }
             }
