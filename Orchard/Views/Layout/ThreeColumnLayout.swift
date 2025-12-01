@@ -29,170 +29,216 @@ struct ThreeColumnLayout: View {
     let isWindowFocused: Bool
     let windowTitle: String
 
+    private var needsMiddleColumn: Bool {
+        switch selectedTab {
+        case .containers, .images, .mounts, .dns, .networks:
+            return true
+        case .registries, .systemLogs, .settings:
+            return false
+        }
+    }
+
     var body: some View {
-        NavigationSplitView {
-            // First Column - Sidebar with navigation tabs
-            TabColumnView(
-                selectedTab: $selectedTab,
-                selectedContainer: $selectedContainer,
-                selectedImage: $selectedImage,
-                selectedMount: $selectedMount,
-                selectedDNSDomain: $selectedDNSDomain,
-                selectedNetwork: $selectedNetwork,
-                isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
-                isWindowFocused: isWindowFocused
-            )
-            .environmentObject(containerService)
-        } content: {
-            // Second Column - List view for selected tab
-            VStack(spacing: 0) {
-                // Translucent header like Mail with search
-                VStack(spacing: 8) {
-                    HStack {
-                        Text(selectedTab.title)
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Spacer()
-                    }
-
-                    // Search and filters
-                    if selectedTab != .registries && selectedTab != .systemLogs {
-                        HStack(spacing: 8) {
-                            HStack(spacing: 6) {
-                                SwiftUI.Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.secondary)
-                                    .font(.system(size: 11))
-
-                                TextField("Search \(selectedTab.title.lowercased())", text: $searchText)
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 12))
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-
-                            // Tab-specific filters
-                            if selectedTab == .containers {
-                                Button(action: { showOnlyRunning.toggle() }) {
-                                    SwiftUI.Image(systemName: showOnlyRunning ? "play.circle.fill" : "play.circle")
-                                        .foregroundColor(showOnlyRunning ? .green : .secondary)
-                                        .font(.system(size: 14))
-                                }
-                                .buttonStyle(.plain)
-                                .help("Show only running containers")
-                            } else if selectedTab == .images {
-                                Button(action: { showOnlyImagesInUse.toggle() }) {
-                                    SwiftUI.Image(systemName: showOnlyImagesInUse ? "cube.fill" : "cube")
-                                        .foregroundColor(showOnlyImagesInUse ? .blue : .secondary)
-                                        .font(.system(size: 14))
-                                }
-                                .buttonStyle(.plain)
-                                .help("Show only images in use")
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.regularMaterial, in: Rectangle())
-
-                ListColumnView(
-                    selectedTab: selectedTab,
+        if needsMiddleColumn {
+            NavigationSplitView {
+                // First Column - Sidebar with navigation tabs
+                TabColumnView(
+                    selectedTab: $selectedTab,
                     selectedContainer: $selectedContainer,
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
-                    lastSelectedContainer: lastSelectedContainer,
-                    lastSelectedImage: lastSelectedImage,
-                    lastSelectedMount: lastSelectedMount,
-                    lastSelectedDNSDomain: lastSelectedDNSDomain,
-                    lastSelectedNetwork: lastSelectedNetwork,
-                    searchText: $searchText,
-                    showOnlyRunning: $showOnlyRunning,
-                    showOnlyImagesInUse: $showOnlyImagesInUse,
-                    showImageSearch: $showImageSearch,
-                    showAddDNSDomainSheet: $showAddDNSDomainSheet,
-                    showAddNetworkSheet: $showAddNetworkSheet,
-                    listFocusedTab: _listFocusedTab
+                    isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                    isWindowFocused: isWindowFocused
                 )
-            }
-            .environmentObject(containerService)
-        } detail: {
-            // Third Column - Detail view for selected item
-            VStack(spacing: 0) {
-                // Translucent header like Mail
-                if !currentResourceTitle.isEmpty {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(currentResourceTitle)
+                .environmentObject(containerService)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
+            } content: {
+                // Second Column - List view for selected tab
+                VStack(spacing: 0) {
+                    // Translucent header like Mail with search
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text(selectedTab.title)
                                 .font(.title2)
                                 .fontWeight(.semibold)
-                            if !isInIntentionalSettingsMode {
-                                Text(selectedTab.title)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                            Spacer()
                         }
-                        Spacer()
 
-                        // Action buttons for containers
-                        HStack(spacing: 8) {
-                            if let container = currentContainer {
-                                ContainerControlButton(
-                                    container: container,
-                                    isLoading: containerService.loadingContainers.contains(container.configuration.id),
-                                    onStart: {
-                                        Task { @MainActor in
-                                            await containerService.startContainer(container.configuration.id)
-                                        }
-                                    },
-                                    onStop: {
-                                        Task { @MainActor in
-                                            await containerService.stopContainer(container.configuration.id)
-                                        }
+                        // Search and filters
+                        if selectedTab != .registries && selectedTab != .systemLogs && selectedTab != .settings {
+                            HStack(spacing: 8) {
+                                HStack(spacing: 6) {
+                                    SwiftUI.Image(systemName: "magnifyingglass")
+                                        .foregroundColor(.secondary)
+                                        .font(.system(size: 11))
+
+                                    TextField("Search \(selectedTab.title.lowercased())", text: $searchText)
+                                        .textFieldStyle(.plain)
+                                        .font(.system(size: 12))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.black.opacity(0.05))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                                // Tab-specific filters
+                                if selectedTab == .containers {
+                                    Button(action: { showOnlyRunning.toggle() }) {
+                                        SwiftUI.Image(systemName: showOnlyRunning ? "play.circle.fill" : "play.circle")
+                                            .foregroundColor(showOnlyRunning ? .green : .secondary)
+                                            .font(.system(size: 14))
                                     }
-                                )
-
-                                if container.status.lowercased() == "running" {
-                                    ContainerTerminalButton(
-                                        container: container,
-                                        onOpenTerminal: {
-                                            containerService.openTerminal(for: container.configuration.id)
-                                        },
-                                        onOpenTerminalBash: {
-                                            containerService.openTerminalWithBash(for: container.configuration.id)
-                                        }
-                                    )
-                                } else {
-                                    ContainerRemoveButton(
-                                        container: container,
-                                        isLoading: containerService.loadingContainers.contains(container.configuration.id),
-                                        onRemove: {
-                                            Task { @MainActor in
-                                                await containerService.removeContainer(container.configuration.id)
-                                            }
-                                        }
-                                    )
+                                    .buttonStyle(.plain)
+                                    .help("Show only running containers")
+                                } else if selectedTab == .images {
+                                    Button(action: { showOnlyImagesInUse.toggle() }) {
+                                        SwiftUI.Image(systemName: showOnlyImagesInUse ? "cube.fill" : "cube")
+                                            .foregroundColor(showOnlyImagesInUse ? .blue : .secondary)
+                                            .font(.system(size: 14))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Show only images in use")
                                 }
-                            } else if let mount = currentMount {
-                                Button(action: {
-                                    NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
-                                }) {
-                                    SwiftUI.Image(systemName: "folder")
-                                        .font(.system(size: 14, weight: .medium))
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Open in Finder")
                             }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(.regularMaterial, in: Rectangle())
-                }
 
+                    ListColumnView(
+                        selectedTab: selectedTab,
+                        selectedContainer: $selectedContainer,
+                        selectedImage: $selectedImage,
+                        selectedMount: $selectedMount,
+                        selectedDNSDomain: $selectedDNSDomain,
+                        selectedNetwork: $selectedNetwork,
+                        lastSelectedContainer: lastSelectedContainer,
+                        lastSelectedImage: lastSelectedImage,
+                        lastSelectedMount: lastSelectedMount,
+                        lastSelectedDNSDomain: lastSelectedDNSDomain,
+                        lastSelectedNetwork: lastSelectedNetwork,
+                        searchText: $searchText,
+                        showOnlyRunning: $showOnlyRunning,
+                        showOnlyImagesInUse: $showOnlyImagesInUse,
+                        showImageSearch: $showImageSearch,
+                        showAddDNSDomainSheet: $showAddDNSDomainSheet,
+                        showAddNetworkSheet: $showAddNetworkSheet,
+                        listFocusedTab: _listFocusedTab
+                    )
+                }
+                .environmentObject(containerService)
+                .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 500)
+            } detail: {
+                // Third Column - Detail view for selected item
+                VStack(spacing: 0) {
+                    // Translucent header like Mail
+                    if !currentResourceTitle.isEmpty {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(currentResourceTitle)
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                if !isInIntentionalSettingsMode {
+                                    Text(selectedTab.title)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+
+                            // Action buttons for containers
+                            HStack(spacing: 8) {
+                                if let container = currentContainer {
+                                    ContainerControlButton(
+                                        container: container,
+                                        isLoading: containerService.loadingContainers.contains(container.configuration.id),
+                                        onStart: {
+                                            Task { @MainActor in
+                                                await containerService.startContainer(container.configuration.id)
+                                            }
+                                        },
+                                        onStop: {
+                                            Task { @MainActor in
+                                                await containerService.stopContainer(container.configuration.id)
+                                            }
+                                        }
+                                    )
+
+                                    if container.status.lowercased() == "running" {
+                                        ContainerTerminalButton(
+                                            container: container,
+                                            onOpenTerminal: {
+                                                containerService.openTerminal(for: container.configuration.id)
+                                            },
+                                            onOpenTerminalBash: {
+                                                containerService.openTerminalWithBash(for: container.configuration.id)
+                                            }
+                                        )
+                                    } else {
+                                        ContainerRemoveButton(
+                                            container: container,
+                                            isLoading: containerService.loadingContainers.contains(container.configuration.id),
+                                            onRemove: {
+                                                Task { @MainActor in
+                                                    await containerService.removeContainer(container.configuration.id)
+                                                }
+                                            }
+                                        )
+                                    }
+                                } else if let mount = currentMount {
+                                    Button(action: {
+                                        NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
+                                    }) {
+                                        SwiftUI.Image(systemName: "folder")
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .help("Open in Finder")
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(.regularMaterial, in: Rectangle())
+                    }
+
+                    DetailContentView(
+                        selectedTab: selectedTab,
+                        selectedContainer: selectedContainer,
+                        selectedImage: selectedImage,
+                        selectedMount: selectedMount,
+                        selectedDNSDomain: selectedDNSDomain,
+                        selectedNetwork: selectedNetwork,
+                        isInIntentionalSettingsMode: isInIntentionalSettingsMode,
+                        lastSelectedContainerTab: $lastSelectedContainerTab,
+                        lastSelectedImageTab: $lastSelectedImageTab,
+                        lastSelectedMountTab: $lastSelectedMountTab,
+                        selectedTabBinding: $selectedTab,
+                        selectedContainerBinding: $selectedContainer,
+                        selectedNetworkBinding: $selectedNetwork
+                    )
+                }
+            }
+        } else {
+            NavigationSplitView {
+                // First Column - Sidebar with navigation tabs
+                TabColumnView(
+                    selectedTab: $selectedTab,
+                    selectedContainer: $selectedContainer,
+                    selectedImage: $selectedImage,
+                    selectedMount: $selectedMount,
+                    selectedDNSDomain: $selectedDNSDomain,
+                    selectedNetwork: $selectedNetwork,
+                    isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                    isWindowFocused: isWindowFocused
+                )
+                .environmentObject(containerService)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
+            } detail: {
+                // Two-column layout - Detail view only
                 DetailContentView(
                     selectedTab: selectedTab,
                     selectedContainer: selectedContainer,
@@ -209,7 +255,6 @@ struct ThreeColumnLayout: View {
                     selectedNetworkBinding: $selectedNetwork
                 )
             }
-            .environmentObject(containerService)
         }
 
     }
