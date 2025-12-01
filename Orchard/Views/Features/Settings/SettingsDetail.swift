@@ -4,7 +4,10 @@ struct SettingsDetailView: View {
     @EnvironmentObject var containerService: ContainerService
 
     var body: some View {
-        ScrollView {
+        VStack(spacing: 0) {
+            SettingsDetailHeader()
+
+            ScrollView {
             VStack(spacing: 30) {
                 // Background Refresh Setting
                 HStack(alignment: .top) {
@@ -209,9 +212,10 @@ struct SettingsDetailView: View {
                     }
                 }
 
-                Spacer()
+                    Spacer(minLength: 20)
+                }
+                .padding(40)
             }
-            .padding(40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {

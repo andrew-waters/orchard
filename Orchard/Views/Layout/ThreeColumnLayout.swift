@@ -137,88 +137,19 @@ struct ThreeColumnLayout: View {
                 .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 500)
             } detail: {
                 // Third Column - Detail view for selected item
-                VStack(spacing: 0) {
-                    // Translucent header like Mail
-                    if !currentResourceTitle.isEmpty {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(currentResourceTitle)
-                                    .font(.title2)
-                                    .fontWeight(.semibold)
-
-                            }
-                            Spacer()
-
-                            // Action buttons for containers
-                            HStack(spacing: 8) {
-                                if let container = currentContainer {
-                                    ContainerControlButton(
-                                        container: container,
-                                        isLoading: containerService.loadingContainers.contains(container.configuration.id),
-                                        onStart: {
-                                            Task { @MainActor in
-                                                await containerService.startContainer(container.configuration.id)
-                                            }
-                                        },
-                                        onStop: {
-                                            Task { @MainActor in
-                                                await containerService.stopContainer(container.configuration.id)
-                                            }
-                                        }
-                                    )
-
-                                    if container.status.lowercased() == "running" {
-                                        ContainerTerminalButton(
-                                            container: container,
-                                            onOpenTerminal: {
-                                                containerService.openTerminal(for: container.configuration.id)
-                                            },
-                                            onOpenTerminalBash: {
-                                                containerService.openTerminalWithBash(for: container.configuration.id)
-                                            }
-                                        )
-                                    } else {
-                                        ContainerRemoveButton(
-                                            container: container,
-                                            isLoading: containerService.loadingContainers.contains(container.configuration.id),
-                                            onRemove: {
-                                                Task { @MainActor in
-                                                    await containerService.removeContainer(container.configuration.id)
-                                                }
-                                            }
-                                        )
-                                    }
-                                } else if let mount = currentMount {
-                                    Button(action: {
-                                        NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
-                                    }) {
-                                        SwiftUI.Image(systemName: "folder")
-                                            .font(.system(size: 14, weight: .medium))
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .help("Open in Finder")
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(.regularMaterial, in: Rectangle())
-                    }
-
-                    DetailContentView(
-                        selectedTab: selectedTab,
-                        selectedContainer: selectedContainer,
-                        selectedImage: selectedImage,
-                        selectedMount: selectedMount,
-                        selectedDNSDomain: selectedDNSDomain,
-                        selectedNetwork: selectedNetwork,
-                        isInIntentionalSettingsMode: isInIntentionalSettingsMode,
-                        lastSelectedContainerTab: $lastSelectedContainerTab,
-                        selectedTabBinding: $selectedTab,
-                        selectedContainerBinding: $selectedContainer,
-                        selectedNetworkBinding: $selectedNetwork
-                    )
-                }
+                DetailContentView(
+                    selectedTab: selectedTab,
+                    selectedContainer: selectedContainer,
+                    selectedImage: selectedImage,
+                    selectedMount: selectedMount,
+                    selectedDNSDomain: selectedDNSDomain,
+                    selectedNetwork: selectedNetwork,
+                    isInIntentionalSettingsMode: isInIntentionalSettingsMode,
+                    lastSelectedContainerTab: $lastSelectedContainerTab,
+                    selectedTabBinding: $selectedTab,
+                    selectedContainerBinding: $selectedContainer,
+                    selectedNetworkBinding: $selectedNetwork
+                )
             }
         } else {
             NavigationSplitView {
@@ -257,54 +188,7 @@ struct ThreeColumnLayout: View {
     }
 
     // Computed properties for detail column
-    private var currentResourceTitle: String {
-        if isInIntentionalSettingsMode {
-            return "Settings"
-        }
 
-        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
-
-        // Only show settings title if we're intentionally in settings mode, not during initial loading
-        if isSettingsMode && isInIntentionalSettingsMode {
-            return "Settings"
-        }
-
-        switch selectedTab {
-        case .containers:
-            return selectedContainer ?? ""
-        case .images:
-            if let selectedImage = selectedImage {
-                let components = selectedImage.split(separator: "/")
-                if let lastComponent = components.last {
-                    return String(lastComponent.split(separator: ":").first ?? lastComponent)
-                }
-                return selectedImage
-            }
-            return ""
-        case .mounts:
-            if let selectedMount = selectedMount,
-               let mount = containerService.allMounts.first(where: { $0.id == selectedMount }) {
-                return URL(fileURLWithPath: mount.mount.source).lastPathComponent
-            }
-            return ""
-        case .dns:
-            return selectedDNSDomain ?? ""
-        case .networks:
-            return selectedNetwork ?? ""
-        case .registries, .systemLogs, .settings:
-            return ""
-        }
-    }
-
-    private var currentContainer: Container? {
-        guard selectedTab == .containers, let selectedContainer = selectedContainer else { return nil }
-        return containerService.containers.first { $0.configuration.id == selectedContainer }
-    }
-
-    private var currentMount: ContainerMount? {
-        guard selectedTab == .mounts, let selectedMount = selectedMount else { return nil }
-        return containerService.allMounts.first { $0.id == selectedMount }
-    }
 }
 
 // MARK: - Tab Column View (First Column)

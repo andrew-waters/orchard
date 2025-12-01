@@ -35,6 +35,8 @@ struct ContainerDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            ContainerDetailHeader(container: container)
+                .environmentObject(containerService)
             tabPickerSection
             tabContentSection
         }
@@ -142,8 +144,6 @@ struct ContainerDetailView: View {
             .padding()
         }
     }
-
-
 
     private var containerEnvironmentTab: some View {
         ScrollView {
@@ -682,9 +682,6 @@ struct LabelsTable: View {
 struct ContainerImageDetailView: View {
     let image: ContainerImage
     @EnvironmentObject var containerService: ContainerService
-    @State private var showRunContainer = false
-    @State private var showDeleteConfirmation = false
-    @State private var isDeleting = false
 
     private var imageName: String {
         let components = image.reference.split(separator: "/")
@@ -713,64 +710,12 @@ struct ContainerImageDetailView: View {
         }
     }
 
+
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Action buttons header
-            HStack {
-                Spacer()
-
-                // Run Container button
-                Button(action: {
-                    showRunContainer = true
-                }) {
-                    HStack(spacing: 6) {
-                        SwiftUI.Image(systemName: "play.circle.fill")
-                        Text("Run Container")
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isDeleting)
-
-                // Delete Image button - only show if no containers are using it
-                if containersUsingImage.isEmpty {
-                    Button(action: {
-                        showDeleteConfirmation = true
-                    }) {
-                        HStack(spacing: 6) {
-                            if isDeleting {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                            } else {
-                                SwiftUI.Image(systemName: "trash")
-                            }
-                            Text(isDeleting ? "Deleting..." : "Delete")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.bordered)
-                    .foregroundColor(.red)
-                    .disabled(isDeleting)
-                    .alert("Delete Image?", isPresented: $showDeleteConfirmation) {
-                        Button("Cancel", role: .cancel) { }
-                        Button("Delete", role: .destructive) {
-                            deleteImage()
-                        }
-                    } message: {
-                        Text("Are you sure you want to delete '\(imageName)'? This action cannot be undone.")
-                    }
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-
-            Divider()
+            ImageDetailHeader(image: image)
+                .environmentObject(containerService)
 
             // Content
             ScrollView {
@@ -802,10 +747,6 @@ struct ContainerImageDetailView: View {
                 }
                 .padding()
             }
-        }
-        .sheet(isPresented: $showRunContainer) {
-            RunContainerView(imageName: image.reference)
-                .environmentObject(containerService)
         }
     }
 
@@ -917,18 +858,6 @@ struct ContainerImageDetailView: View {
             return displayFormatter.string(from: date)
         }
         return dateString
-    }
-
-    private func deleteImage() {
-        isDeleting = true
-
-        Task {
-            await containerService.deleteImage(image.reference)
-
-            await MainActor.run {
-                isDeleting = false
-            }
-        }
     }
 }
 
@@ -1094,14 +1023,18 @@ struct MountDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                mountOverviewSection()
-                mountTechnicalSection()
-                containersUsingMountSection()
-                Spacer(minLength: 20)
+        VStack(spacing: 0) {
+            MountDetailHeader(mount: mount)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    mountOverviewSection()
+                    mountTechnicalSection()
+                    containersUsingMountSection()
+                    Spacer(minLength: 20)
+                }
+                .padding()
             }
-            .padding()
         }
     }
 

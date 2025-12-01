@@ -14,7 +14,11 @@ struct NetworkDetailView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(spacing: 0) {
+                NetworkDetailHeader(network: network)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
                 // Network header
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 12) {
@@ -221,10 +225,11 @@ struct NetworkDetailView: View {
                     }
                 }
 
-                Spacer()
+                        Spacer(minLength: 20)
+                    }
+                    .padding()
+                }
             }
-            .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             Text("Network not found")
                 .foregroundStyle(.secondary)

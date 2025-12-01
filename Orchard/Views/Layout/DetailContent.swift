@@ -15,50 +15,43 @@ struct DetailContentView: View {
     @Binding var selectedNetworkBinding: String?
 
     var body: some View {
-        // Check if we're in settings mode (no selections)
-        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
-
-        if isInIntentionalSettingsMode {
-            SettingsDetailView()
-        } else {
-            switch selectedTab {
-            case .containers:
-                containerDetailView
-            case .images:
-                imageDetailView
-            case .mounts:
-                mountDetailView
-            case .dns:
-                if let selectedDNSDomain = selectedDNSDomain {
-                    DNSDetailView(
-                        domain: selectedDNSDomain,
-                        selectedTab: $selectedTabBinding,
-                        selectedContainer: $selectedContainerBinding
-                    )
-                } else {
-                    Text("Select a DNS domain")
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            case .networks:
-                if let selectedNetwork = selectedNetwork {
-                    NetworkDetailView(
-                        networkId: selectedNetwork,
-                        selectedTab: $selectedTabBinding,
-                        selectedContainer: $selectedContainerBinding
-                    )
-                } else {
-                    Text("Select a network")
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            case .registries:
-                RegistriesDetailView()
-            case .systemLogs:
-                EmptyView()
-            case .settings:
-                SettingsDetailView()
+        switch selectedTab {
+        case .containers:
+            containerDetailView
+        case .images:
+            imageDetailView
+        case .mounts:
+            mountDetailView
+        case .dns:
+            if let selectedDNSDomain = selectedDNSDomain {
+                DNSDetailView(
+                    domain: selectedDNSDomain,
+                    selectedTab: $selectedTabBinding,
+                    selectedContainer: $selectedContainerBinding
+                )
+            } else {
+                Text("Select a DNS domain")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        case .networks:
+            if let selectedNetwork = selectedNetwork {
+                NetworkDetailView(
+                    networkId: selectedNetwork,
+                    selectedTab: $selectedTabBinding,
+                    selectedContainer: $selectedContainerBinding
+                )
+            } else {
+                Text("Select a network")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        case .registries:
+            RegistriesDetailView()
+        case .systemLogs:
+            EmptyView()
+        case .settings:
+            SettingsDetailView()
         }
     }
 
