@@ -341,7 +341,7 @@ struct BuilderConfiguration: Codable, Equatable {
     let initProcess: initProcess
     let labels: [String: String]
     let mounts: [Mount]
-    let networks: [String]
+    let networks: [BuilderNetwork]
     let platform: Platform
     let resources: Resources
     let rosetta: Bool
@@ -362,6 +362,26 @@ struct BuilderConfiguration: Codable, Equatable {
         case runtimeHandler
         case sysctls
         case dns
+    }
+}
+
+struct BuilderNetwork: Codable, Equatable {
+    // Builder networks may have different structure than container networks
+    // Making fields optional to handle variations in the JSON
+    let gateway: String?
+    let hostname: String?
+    let network: String?
+    let address: String?
+    let name: String?
+    let id: String?
+
+    enum CodingKeys: String, CodingKey {
+        case gateway
+        case hostname
+        case network
+        case address
+        case name
+        case id
     }
 }
 

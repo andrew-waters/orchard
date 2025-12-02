@@ -43,25 +43,26 @@ struct ImageDetailHeader: View {
             Spacer()
 
             // Action buttons
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
                 // Run Container button
-                DetailViewButton(
-                    icon: "plus",
-                    accessibilityText: "Create a container using this image",
-                    action: {
-                        showRunContainer = true
-                    },
-                )
+                Button("Run Container") {
+                    showRunContainer = true
+                }
+                .buttonStyle(BorderedButtonStyle())
 
                 // Delete Image button - only show if no containers are using it
                 if containersUsingImage.isEmpty {
-                    DetailViewButton(
-                        icon: "trash.fill",
-                        accessibilityText: "Delete Image",
-                        action: {
-                            showDeleteConfirmation = true
-                        },
-                    )
+                    Button("Delete", role: .destructive) {
+                        showDeleteConfirmation = true
+                    }
+                    .buttonStyle(BorderedProminentButtonStyle())
+                    .tint(.red)
+                } else {
+                    Button("Delete", role: .destructive) {
+                        showDeleteConfirmation = true
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .disabled(true)
                 }
             }
         }
