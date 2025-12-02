@@ -42,7 +42,7 @@ struct NetworkDetailHeader: View {
     private func confirmNetworkDeletion(networkId: String) {
         let alert = NSAlert()
         alert.messageText = "Delete Network"
-        alert.informativeText = "Are you sure you want to delete '\(networkId)'? This requires administrator privileges."
+        alert.informativeText = "Are you sure you want to delete '\(networkId)'?"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
