@@ -27,7 +27,7 @@ struct ListItemRow: View {
     var body: some View {
         HStack(spacing: 12) {
             // Icon
-            Image(systemName: icon)
+            SwiftUI.Image(systemName: icon)
                 .font(.system(size: 16, weight: .regular))
                 .foregroundColor(isSelected ? .white : iconColor)
                 .frame(width: 20, height: 20)
@@ -68,7 +68,13 @@ struct ListItemRow: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? Color.accentColor : Color.clear)
+                .fill(Color.accentColor)
+                .opacity(0)
+        )
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.accentColor)
+                .padding(.horizontal, 8)
         )
         .contentShape(Rectangle())
     }
