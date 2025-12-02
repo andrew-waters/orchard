@@ -78,138 +78,135 @@ struct SettingsDetailView: View {
                     }
                 }
 
-                // System Properties Section
-                VStack(spacing: 15) {
-                    // Build Rosetta
-                    HStack(alignment: .top) {
-                        Text("Build Rosetta")
-                            .frame(width: 220, alignment: .trailing)
+                // Build Rosetta
+                HStack(alignment: .top) {
+                    Text("Build Rosetta")
+                        .frame(width: 220, alignment: .trailing)
 
-                        VStack(alignment: .leading) {
-                            TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "build.rosetta" })?.displayValue ?? "Loading..."))
-                                .textFieldStyle(.plain)
-                                .fontWeight(.medium)
-                            Text("Build amd64 images on arm64 using Rosetta, instead of QEMU.")
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
+                    VStack(alignment: .leading) {
+                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "build.rosetta" })?.displayValue ?? "Loading..."))
+                            .textFieldStyle(.plain)
+                            .fontWeight(.medium)
+                        Text("Build amd64 images on arm64 using Rosetta, instead of QEMU.")
+                            .foregroundColor(.secondary)
                     }
 
-                    // DNS Domain
-                    HStack(alignment: .top) {
-                        Text("DNS Domain")
-                            .frame(width: 220, alignment: .trailing)
+                    Spacer()
+                }
 
-                        VStack(alignment: .leading) {
-                            let currentDomain = containerService.systemProperties.first(where: { $0.id == "dns.domain" })?.value ?? ""
-                            Picker("", selection: Binding(
-                                get: { currentDomain },
-                                set: { newValue in
-                                    DispatchQueue.main.async {
-                                        Task {
-                                            await containerService.setSystemProperty("dns.domain", value: newValue)
-                                        }
+                // DNS Domain
+                HStack(alignment: .top) {
+                    Text("DNS Domain")
+                        .frame(width: 220, alignment: .trailing)
+
+                    VStack(alignment: .leading) {
+                        let currentDomain = containerService.systemProperties.first(where: { $0.id == "dns.domain" })?.value ?? ""
+                        Picker("", selection: Binding(
+                            get: { currentDomain },
+                            set: { newValue in
+                                DispatchQueue.main.async {
+                                    Task {
+                                        await containerService.setSystemProperty("dns.domain", value: newValue)
                                     }
                                 }
-                            )) {
-                                ForEach(containerService.dnsDomains, id: \.domain) { domain in
-                                    Text(domain.domain).tag(domain.domain)
-                                }
                             }
-                            .pickerStyle(.menu)
-                            .frame(width: 200, alignment: .leading)
-
-                            Text("If defined, the local DNS domain to use for containers with unqualified names.")
-                                .foregroundColor(.secondary)
+                        )) {
+                            ForEach(containerService.dnsDomains, id: \.domain) { domain in
+                                Text(domain.domain).tag(domain.domain)
+                            }
                         }
+                        .pickerStyle(.menu)
+                        .frame(width: 200, alignment: .leading)
 
-                        Spacer()
+                        Text("If defined, the local DNS domain to use for containers with unqualified names.")
+                            .foregroundColor(.secondary)
                     }
 
-                    // Image Builder
-                    HStack(alignment: .top) {
-                        Text("Image Builder")
-                            .frame(width: 220, alignment: .trailing)
+                    Spacer()
+                }
 
-                        VStack(alignment: .leading) {
-                            TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "image.builder" })?.value ?? "Loading..."))
-                                .textFieldStyle(.plain)
-                                .fontWeight(.medium)
-                                .font(.system(.body, design: .monospaced))
-                            Text("The image reference for the utility container that `container build` uses.")
-                                .foregroundColor(.secondary)
-                        }
+                // Image Builder
+                HStack(alignment: .top) {
+                    Text("Image Builder")
+                        .frame(width: 220, alignment: .trailing)
 
-                        Spacer()
+                    VStack(alignment: .leading) {
+                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "image.builder" })?.value ?? "Loading..."))
+                            .textFieldStyle(.plain)
+                            .fontWeight(.medium)
+                            .font(.system(.body, design: .monospaced))
+                        Text("The image reference for the utility container that `container build` uses.")
+                            .foregroundColor(.secondary)
                     }
 
-                    // Image Init
-                    HStack(alignment: .top) {
-                        Text("Image Init")
-                            .frame(width: 220, alignment: .trailing)
+                    Spacer()
+                }
 
-                        VStack(alignment: .leading) {
-                            TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "image.init" })?.value ?? "Loading..."))
-                                .textFieldStyle(.plain)
-                                .fontWeight(.medium)
-                                .font(.system(.body, design: .monospaced))
-                            Text("The image reference for the default initial filesystem image.")
-                                .foregroundColor(.secondary)
-                        }
+                // Image Init
+                HStack(alignment: .top) {
+                    Text("Image Init")
+                        .frame(width: 220, alignment: .trailing)
 
-                        Spacer()
+                    VStack(alignment: .leading) {
+                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "image.init" })?.value ?? "Loading..."))
+                            .textFieldStyle(.plain)
+                            .fontWeight(.medium)
+                            .font(.system(.body, design: .monospaced))
+                        Text("The image reference for the default initial filesystem image.")
+                            .foregroundColor(.secondary)
                     }
 
-                    // Kernel Binary Path
-                    HStack(alignment: .top) {
-                        Text("Kernel Binary Path")
-                            .frame(width: 220, alignment: .trailing)
+                    Spacer()
+                }
 
-                        VStack(alignment: .leading) {
-                            TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "kernel.binaryPath" })?.value ?? "Loading..."))
-                                .textFieldStyle(.plain)
-                                .fontWeight(.medium)
-                                .font(.system(.body, design: .monospaced))
-                            Text("If the kernel URL is for an archive, the archive member pathname for the kernel file.")
-                                .foregroundColor(.secondary)
-                        }
+                // Kernel Binary Path
+                HStack(alignment: .top) {
+                    Text("Kernel Binary Path")
+                        .frame(width: 220, alignment: .trailing)
 
-                        Spacer()
+                    VStack(alignment: .leading) {
+                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "kernel.binaryPath" })?.value ?? "Loading..."))
+                            .textFieldStyle(.plain)
+                            .fontWeight(.medium)
+                            .font(.system(.body, design: .monospaced))
+                        Text("If the kernel URL is for an archive, the archive member pathname for the kernel file.")
+                            .foregroundColor(.secondary)
                     }
 
-                    // Kernel URL
-                    HStack(alignment: .top) {
-                        Text("Kernel URL")
-                            .frame(width: 220, alignment: .trailing)
+                    Spacer()
+                }
 
-                        VStack(alignment: .leading) {
-                            TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "kernel.url" })?.value ?? "Loading..."))
-                                .textFieldStyle(.plain)
-                                .fontWeight(.medium)
-                                .font(.system(.body, design: .monospaced))
-                            Text("The URL for the kernel file to install, or the URL for an archive containing the kernel file.")
-                                .foregroundColor(.secondary)
-                        }
+                // Kernel URL
+                HStack(alignment: .top) {
+                    Text("Kernel URL")
+                        .frame(width: 220, alignment: .trailing)
 
-                        Spacer()
+                    VStack(alignment: .leading) {
+                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "kernel.url" })?.value ?? "Loading..."))
+                            .textFieldStyle(.plain)
+                            .fontWeight(.medium)
+                            .font(.system(.body, design: .monospaced))
+                        Text("The URL for the kernel file to install, or the URL for an archive containing the kernel file.")
+                            .foregroundColor(.secondary)
                     }
 
-                    // Registry Domain
-                    HStack(alignment: .top) {
-                        Text("Registry Domain")
-                            .frame(width: 220, alignment: .trailing)
+                    Spacer()
+                }
 
-                        VStack(alignment: .leading) {
-                            TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "registry.domain" })?.value ?? "Loading..."))
-                                .textFieldStyle(.plain)
-                                .fontWeight(.medium)
-                            Text("The default registry to use for image references that do not specify a registry.")
-                                .foregroundColor(.secondary)
-                        }
+                // Registry Domain
+                HStack(alignment: .top) {
+                    Text("Registry Domain")
+                        .frame(width: 220, alignment: .trailing)
 
-                        Spacer()
+                    VStack(alignment: .leading) {
+                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "registry.domain" })?.value ?? "Loading..."))
+                            .textFieldStyle(.plain)
+                            .fontWeight(.medium)
+                        Text("The default registry to use for image references that do not specify a registry.")
+                            .foregroundColor(.secondary)
                     }
+
+                    Spacer()
                 }
 
                     Spacer(minLength: 20)
