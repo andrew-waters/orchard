@@ -44,7 +44,7 @@ struct ImagesListView: View {
             primaryText: imageName,
             secondaryLeftText: imageTag,
             secondaryRightText: sizeText,
-            isSelected: false
+            isSelected: selectedImage == image.reference
         )
         .contextMenu {
             Button("Copy Image Reference") {
