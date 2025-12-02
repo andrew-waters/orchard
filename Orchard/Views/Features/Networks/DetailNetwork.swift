@@ -16,191 +16,157 @@ struct NetworkDetailView: View {
 
             VStack(spacing: 0) {
                 NetworkDetailHeader(network: network)
-
+                
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                // Network header
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) {
-                        SwiftUI.Image(systemName: networkIcon(for: network))
-                            .foregroundStyle(networkColor(for: network))
-                            .font(.system(size: 24))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(network.id)
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-
-                            HStack {
+                        
+                        // Network details
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(spacing: 0) {
+                                networkDetailRow(label: "Network ID", value: network.id)
+                                
                                 if !network.config.labels.isEmpty {
-                                    Text("\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(.blue)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.blue.opacity(0.1))
-                                        .cornerRadius(4)
+                                    Divider().padding(.leading, 120)
+                                    networkDetailRow(label: "Labels", value: "\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
+                                }
+                                
+                                if let address = network.status.address {
+                                    Divider().padding(.leading, 120)
+                                    networkDetailRow(label: "Address Range", value: address)
+                                }
+                                
+                                if let gateway = network.status.gateway {
+                                    Divider().padding(.leading, 120)
+                                    networkDetailRow(label: "Gateway", value: gateway)
                                 }
                             }
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(8)
                         }
-
-                        Spacer()
-                    }
-                }
-
-                // Network details
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Network Details")
-                        .font(.headline)
-
-                    VStack(spacing: 0) {
-                        networkDetailRow(label: "Network ID", value: network.id)
-
+                        
+                        // Labels section
                         if !network.config.labels.isEmpty {
-                            Divider().padding(.leading, 100)
-                            networkDetailRow(label: "Labels", value: "\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
-                        }
-
-                        if let address = network.status.address {
-                            Divider().padding(.leading, 100)
-                            networkDetailRow(label: "Address Range", value: address)
-                        }
-
-                        if let gateway = network.status.gateway {
-                            Divider().padding(.leading, 100)
-                            networkDetailRow(label: "Gateway", value: gateway)
-                        }
-                    }
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-                }
-
-                // Labels section
-                if !network.config.labels.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Labels")
-                            .font(.headline)
-
-                        VStack(spacing: 0) {
-                            ForEach(Array(network.config.labels.sorted(by: { $0.key < $1.key })), id: \.key) { label in
-                                networkDetailRow(label: label.key, value: label.value)
-                                if label.key != network.config.labels.sorted(by: { $0.key < $1.key }).last?.key {
-                                    Divider().padding(.leading, 100)
-                                }
-                            }
-                        }
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                }
-
-                // Connected containers
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Connected Containers")
-                        .font(.headline)
-
-
-
-                    if connectedContainers.isEmpty {
-                        HStack {
-                            SwiftUI.Image(systemName: "cube.transparent")
-                                .foregroundStyle(.secondary)
-                            Text("No containers are connected to this network")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                    } else {
-                        VStack(spacing: 0) {
-                            // Header
-                            HStack {
-                                Text("Container")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                                Text("Status")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .frame(width: 100, alignment: .leading)
-
-                                Text("IP Address")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .frame(width: 130, alignment: .leading)
-
-                                Text("Hostname")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .frame(width: 120, alignment: .leading)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(NSColor.separatorColor).opacity(0.5))
-
-                            Divider()
-
-                            // Container rows
-                            ForEach(connectedContainers, id: \.configuration.id) { container in
-                                let containerNetwork = container.networks.first { $0.network == network.id }
-
-                                HStack {
-                                    // Container name (clickable)
-                                    Button(action: {
-                                        selectedTab = .containers
-                                        selectedContainer = container.configuration.id
-                                    }) {
-                                        HStack {
-                                            SwiftUI.Image(systemName: "cube")
-                                                .foregroundStyle(container.status.lowercased() == "running" ? .green : .gray)
-                                            Text(container.configuration.id)
-                                                .foregroundStyle(.primary)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Labels")
+                                    .font(.headline)
+                                
+                                VStack(spacing: 0) {
+                                    ForEach(Array(network.config.labels.sorted(by: { $0.key < $1.key })), id: \.key) { label in
+                                        networkDetailRow(label: label.key, value: label.value)
+                                        if label.key != network.config.labels.sorted(by: { $0.key < $1.key }).last?.key {
+                                            Divider().padding(.leading, 100)
                                         }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     }
-                                    .buttonStyle(.plain)
-
-                                    // Status
-                                    HStack {
-                                        Circle()
-                                            .fill(container.status.lowercased() == "running" ? .green : .gray)
-                                            .frame(width: 8, height: 8)
-                                        Text(container.status)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .frame(width: 100, alignment: .leading)
-
-                                    // IP Address
-                                    Text(containerNetwork?.address ?? "N/A")
-                                        .font(.system(.body, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 130, alignment: .leading)
-
-                                    // Hostname
-                                    Text(containerNetwork?.hostname ?? "N/A")
-                                        .font(.system(.body, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 120, alignment: .leading)
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.clear)
-
-                                if container.configuration.id != connectedContainers.last?.configuration.id {
-                                    Divider()
-                                        .padding(.leading, 12)
-                                }
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(8)
                             }
                         }
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                }
-
-
-
+                        
+                        // Connected containers
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Connected Containers")
+                                .font(.headline)
+                            
+                            
+                            
+                            if connectedContainers.isEmpty {
+                                HStack {
+                                    SwiftUI.Image(systemName: "cube.transparent")
+                                        .foregroundStyle(.secondary)
+                                    Text("No containers are connected to this network")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(8)
+                            } else {
+                                VStack(spacing: 0) {
+                                    // Header
+                                    HStack {
+                                        Text("Container")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        
+                                        Text("Status")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .frame(width: 100, alignment: .leading)
+                                        
+                                        Text("IP Address")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .frame(width: 130, alignment: .leading)
+                                        
+                                        Text("Hostname")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .frame(width: 120, alignment: .leading)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Color(NSColor.separatorColor).opacity(0.5))
+                                    
+                                    Divider()
+                                    
+                                    // Container rows
+                                    ForEach(connectedContainers, id: \.configuration.id) { container in
+                                        let containerNetwork = container.networks.first { $0.network == network.id }
+                                        
+                                        HStack {
+                                            // Container name (clickable)
+                                            Button(action: {
+                                                selectedTab = .containers
+                                                selectedContainer = container.configuration.id
+                                            }) {
+                                                HStack {
+                                                    SwiftUI.Image(systemName: "cube")
+                                                        .foregroundStyle(container.status.lowercased() == "running" ? .green : .gray)
+                                                    Text(container.configuration.id)
+                                                        .foregroundStyle(.primary)
+                                                }
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            }
+                                            .buttonStyle(.plain)
+                                            
+                                            // Status
+                                            HStack {
+                                                Circle()
+                                                    .fill(container.status.lowercased() == "running" ? .green : .gray)
+                                                    .frame(width: 8, height: 8)
+                                                Text(container.status)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .frame(width: 100, alignment: .leading)
+                                            
+                                            // IP Address
+                                            Text(containerNetwork?.address ?? "N/A")
+                                                .font(.system(.body, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                                .frame(width: 130, alignment: .leading)
+                                            
+                                            // Hostname
+                                            Text(containerNetwork?.hostname ?? "N/A")
+                                                .font(.system(.body, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                                .frame(width: 120, alignment: .leading)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color.clear)
+                                        
+                                        if container.configuration.id != connectedContainers.last?.configuration.id {
+                                            Divider()
+                                                .padding(.leading, 12)
+                                        }
+                                    }
+                                }
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(8)
+                            }
+                        }
                         Spacer(minLength: 20)
                     }
                     .padding()

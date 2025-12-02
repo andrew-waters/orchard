@@ -15,7 +15,7 @@ struct ContainersListView: View {
                 ForEach(filteredContainers, id: \.configuration.id) { container in
                     ListItemRow(
                         icon: "cube",
-                        iconColor: container.status.lowercased() == "running" ? .green : .gray,
+                        iconColor: container.status.lowercased() == "running" ? .green : .secondary,
                         primaryText: container.configuration.id,
                         secondaryLeftText: networkAddress(for: container) ?? "-",
                         secondaryRightText: hostname(for: container),

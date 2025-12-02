@@ -40,7 +40,7 @@ struct ImagesListView: View {
 
         return ListItemRow(
             icon: "cube.transparent",
-            iconColor: .blue,
+            iconColor: isImageInUseByRunningContainer(image) ? .green : .secondary,
             primaryText: imageName,
             secondaryLeftText: imageTag,
             secondaryRightText: sizeText,
@@ -101,5 +101,12 @@ struct ImagesListView: View {
         }
 
         return filtered
+    }
+
+    private func isImageInUseByRunningContainer(_ image: ContainerImage) -> Bool {
+        return containerService.containers.contains { container in
+            container.configuration.image.reference == image.reference &&
+            container.status.lowercased() == "running"
+        }
     }
 }

@@ -15,7 +15,7 @@ struct MountsListView: View {
                 ForEach(filteredMounts, id: \.id) { mount in
                     ListItemRow(
                         icon: "externaldrive",
-                        iconColor: .orange,
+                        iconColor: isMountUsedByRunningContainer(mount) ? .green : .secondary,
                         primaryText: mount.mount.destination,
                         secondaryLeftText: mount.mount.source,
                         isSelected: selectedMount == mount.id
@@ -68,5 +68,11 @@ struct MountsListView: View {
         }
 
         return filtered
+    }
+
+    private func isMountUsedByRunningContainer(_ mount: ContainerMount) -> Bool {
+        return mount.containerIds.contains { containerID in
+            containerService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
+        }
     }
 }

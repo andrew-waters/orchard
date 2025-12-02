@@ -31,9 +31,10 @@ struct ListItemRow: View {
                 .font(.system(size: 16, weight: .regular))
                 .foregroundColor(iconColor)
                 .frame(width: 20, height: 20)
+                .opacity(isSelected ? 1.0 : 0.7)
 
             // Text content
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
                 // Primary text
                 Text(primaryText)
                     .font(.system(size: 14, weight: .medium))
@@ -45,7 +46,7 @@ struct ListItemRow: View {
                     HStack {
                         if let secondaryLeft = secondaryLeftText {
                             Text(secondaryLeft)
-                                .font(.system(size: 12, weight: .regular))
+                                .font(.system(size: 10, weight: .regular))
                                 .fontDesign(.monospaced)
                                 .foregroundColor(isSelected ? .primary : .secondary)
                                 .lineLimit(1)
@@ -55,7 +56,7 @@ struct ListItemRow: View {
 
                         if let secondaryRight = secondaryRightText {
                             Text(secondaryRight)
-                                .font(.system(size: 12, weight: .regular))
+                                .font(.system(size: 10, weight: .regular))
                                 .fontDesign(.monospaced)
                                 .foregroundColor(isSelected ? .primary : .secondary)
                                 .lineLimit(1)
@@ -66,8 +67,8 @@ struct ListItemRow: View {
 
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
     }
 }

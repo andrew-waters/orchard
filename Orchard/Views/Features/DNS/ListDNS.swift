@@ -103,7 +103,7 @@ struct DNSListView: View {
 
             ListItemRow(
                 icon: "network",
-                iconColor: .blue,
+                iconColor: domain.isDefault ? .green : .secondary,
                 primaryText: domain.domain,
                 secondaryLeftText: containerCountText,
                 secondaryRightText: rightText,

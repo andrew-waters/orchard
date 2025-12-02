@@ -21,7 +21,7 @@ enum TabSelection: String, CaseIterable {
         case .dns:
             return "network"
         case .networks:
-            return "wifi"
+            return "arrow.down.left.arrow.up.right"
         case .registries:
             return "server.rack"
         case .systemLogs:

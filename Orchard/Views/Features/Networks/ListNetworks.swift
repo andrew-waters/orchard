@@ -86,18 +86,28 @@ struct NetworksListView: View {
         let network: ContainerNetwork
         let connectedContainerCount: Int
         let selectedNetwork: String?
+        @EnvironmentObject var containerService: ContainerService
 
         var body: some View {
             let containerText = "\(connectedContainerCount) container\(connectedContainerCount == 1 ? "" : "s")"
 
             ListItemRow(
-                icon: "wifi",
-                iconColor: .green,
+                icon: "arrow.down.left.arrow.up.right",
+                iconColor: hasRunningContainers ? .green : .secondary,
                 primaryText: network.id,
                 secondaryLeftText: network.status.address ?? "No address",
                 secondaryRightText: containerText,
                 isSelected: selectedNetwork == network.id
             )
+        }
+
+        private var hasRunningContainers: Bool {
+            return containerService.containers.contains { container in
+                container.status.lowercased() == "running" &&
+                container.networks.contains { containerNetwork in
+                    containerNetwork.network == network.id
+                }
+            }
         }
     }
 
