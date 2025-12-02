@@ -15,14 +15,24 @@ struct DNSDetailHeader: View {
             Spacer()
 
             // Action buttons
-            HStack(spacing: 8) {
-                DetailViewButton(
-                    icon: "trash.fill",
-                    accessibilityText: "Delete this DNS domain",
-                    action: {
-                        confirmDNSDomainDeletion(domain: domain)
+            HStack(spacing: 12) {
+                let dnsDomain = containerService.dnsDomains.first(where: { $0.domain == domain })
+
+                Button("Make Default") {
+                    DispatchQueue.main.async {
+                        Task {
+                            await containerService.setDefaultDNSDomain(domain)
+                        }
                     }
-                )
+                }
+                .buttonStyle(.bordered)
+                .disabled(dnsDomain?.isDefault == true)
+
+                Button("Delete", role: .destructive) {
+                    confirmDNSDomainDeletion(domain: domain)
+                }
+                .buttonStyle(BorderedProminentButtonStyle())
+                .tint(.red)
             }
         }
         .padding(.horizontal, 16)

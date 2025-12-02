@@ -23,15 +23,21 @@ struct NetworkDetailHeader: View {
             Spacer()
 
             // Action buttons
-            HStack(spacing: 8) {
-                DetailViewButton(
-                    icon: "trash.fill",
-                    accessibilityText: "Delete this network",
-                    action: {
+            HStack(spacing: 12) {
+                let isDisabled = network.id == "default" || !connectedContainers.isEmpty
+
+                if isDisabled {
+                    Button("Delete", role: .destructive) {
                         confirmNetworkDeletion(networkId: network.id)
-                    },
-                    isDisabled: network.id == "default" || !connectedContainers.isEmpty
-                )
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .disabled(true)
+                } else {
+                    Button("Delete", role: .destructive) {
+                        confirmNetworkDeletion(networkId: network.id)
+                    }
+                    .buttonStyle(BorderedProminentButtonStyle())
+                }
             }
         }
         .padding(.horizontal, 16)

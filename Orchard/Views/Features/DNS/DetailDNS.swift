@@ -35,25 +35,7 @@ struct DNSDetailView: View {
                             )
                         }
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Actions")
-                                .font(.headline)
 
-                            HStack(spacing: 12) {
-                                if !dnsDomain.isDefault {
-                                    Button("Make Default") {
-                                        DispatchQueue.main.async {
-                                            Task {
-                                                await containerService.setDefaultDNSDomain(dnsDomain.domain)
-                                            }
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-
-                                Spacer()
-                            }
-                        }
 
                         Spacer(minLength: 20)
                     }

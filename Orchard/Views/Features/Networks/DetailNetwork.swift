@@ -40,7 +40,7 @@ struct NetworkDetailView: View {
 
                         // Connected containers
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Connected Containers")
+                            Text("Containers using this network")
                                 .font(.headline)
 
 
