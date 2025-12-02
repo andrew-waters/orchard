@@ -49,7 +49,14 @@ struct DetailContentView: View {
         case .registries:
             RegistriesDetailView()
         case .systemLogs:
-            EmptyView()
+            VStack {
+                Text("System Logs")
+                    .font(.title)
+                    .foregroundColor(.secondary)
+                Text("Coming Soon")
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .settings:
             SettingsDetailView()
         }

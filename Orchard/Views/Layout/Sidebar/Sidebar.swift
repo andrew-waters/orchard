@@ -204,7 +204,7 @@ struct SidebarView: View {
             Text("System Logs")
                 .font(.title)
                 .foregroundColor(.secondary)
-            Text("System logs will go here")
+            Text("Coming Soon")
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

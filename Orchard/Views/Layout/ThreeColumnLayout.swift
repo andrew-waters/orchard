@@ -491,7 +491,7 @@ struct ListColumnView: View {
             case .systemLogs:
                 EmptyStateView(
                     title: "System Logs",
-                    subtitle: "System logs will appear here"
+                    subtitle: "Coming Soon"
                 )
             case .settings:
                 EmptyStateView(
