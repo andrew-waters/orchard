@@ -58,8 +58,19 @@ struct NetworksListView: View {
 
     private var networksListView: some View {
         List(selection: $selectedNetwork) {
-            ForEach(containerService.networks) { network in
-                networkRowView(network: network)
+            ForEach(Array(containerService.networks), id: \.id) { network in
+                NetworkRowView(
+                    network: network,
+                    connectedContainerCount: connectedContainerCount(for: network)
+                )
+                .environmentObject(containerService)
+                .contextMenu {
+                    Button("Delete Network", role: .destructive) {
+                        confirmNetworkDeletion(networkId: network.id)
+                    }
+                    .disabled(network.id == "default")
+                }
+                .tag(network.id)
             }
         }
         .listStyle(PlainListStyle())
@@ -70,64 +81,30 @@ struct NetworksListView: View {
         }
     }
 
-    @ViewBuilder
-    private func networkRowView(network: ContainerNetwork) -> some View {
-        HStack(spacing: 8) {
-            SwiftUI.Image(systemName: networkIcon(for: network))
-                .foregroundStyle(networkColor(for: network))
-                .frame(width: 16, height: 16)
+    private struct NetworkRowView: View {
+        let network: ContainerNetwork
+        let connectedContainerCount: Int
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(network.id)
-                    .font(.system(size: 13, weight: .medium))
+        var body: some View {
+            let containerText = "\(connectedContainerCount) container\(connectedContainerCount == 1 ? "" : "s")"
 
-                networkInfoRow(network: network)
-
-                if let address = network.status.address {
-                    Text(address)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-        }
-        .padding(8)
-        .contextMenu {
-            Button("Delete Network") {
-                confirmNetworkDeletion(networkId: network.id)
-            }
-            .disabled(network.id == "default")
-        }
-        .tag(network.id)
-    }
-
-    @ViewBuilder
-    private func networkInfoRow(network: ContainerNetwork) -> some View {
-        HStack(spacing: 8) {
-            // Labels count
-            if !network.config.labels.isEmpty {
-                Text("\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.blue)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(3)
-            }
-
-            Spacer()
+            ListItemRow(
+                icon: "wifi",
+                iconColor: .green,
+                primaryText: network.id,
+                secondaryLeftText: network.status.address ?? "No address",
+                secondaryRightText: containerText,
+                isSelected: false
+            )
         }
     }
 
-
-
-    private func networkIcon(for network: ContainerNetwork) -> String {
-        return "wifi"
-    }
-
-    private func networkColor(for network: ContainerNetwork) -> Color {
-        return .blue
+    private func connectedContainerCount(for network: ContainerNetwork) -> Int {
+        return containerService.containers.filter { container in
+            container.networks.contains { containerNetwork in
+                containerNetwork.network == network.id
+            }
+        }.count
     }
 
     private func confirmNetworkDeletion(networkId: String) {

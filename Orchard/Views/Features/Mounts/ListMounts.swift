@@ -13,8 +13,25 @@ struct MountsListView: View {
             // Mounts list
             List(selection: $selectedMount) {
                 ForEach(filteredMounts, id: \.id) { mount in
-                    MountRow(mount: mount)
-                        .tag(mount.id)
+                    ListItemRow(
+                        icon: "externaldrive",
+                        iconColor: .orange,
+                        primaryText: "\(mount.mount.source) → \(mount.mount.destination)",
+                        secondaryLeftText: mount.mountType,
+                        isSelected: false
+                    )
+                    .contextMenu {
+                        Button("Copy Source Path") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(mount.mount.source, forType: .string)
+                        }
+
+                        Button("Copy Destination Path") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(mount.mount.destination, forType: .string)
+                        }
+                    }
+                    .tag(mount.id)
                 }
             }
             .listStyle(PlainListStyle())

@@ -13,32 +13,37 @@ struct ContainersListView: View {
             // Container list
             List(selection: $selectedContainer) {
                 ForEach(filteredContainers, id: \.configuration.id) { container in
-                    ContainerRow(
-                        container: container,
-                        isLoading: containerService.loadingContainers.contains(
-                            container.configuration.id),
-                        stopContainer: { id in
-                            Task { @MainActor in
-                                await containerService.stopContainer(id)
-                            }
-                        },
-                        startContainer: { id in
-                            Task { @MainActor in
-                                await containerService.startContainer(id)
-                            }
-                        },
-                        removeContainer: { id in
-                            Task { @MainActor in
-                                await containerService.removeContainer(id)
-                            }
-                        },
-                        openTerminal: { id in
-                            containerService.openTerminal(for: id)
-                        },
-                        openTerminalBash: { id in
-                            containerService.openTerminalWithBash(for: id)
-                        }
+                    ListItemRow(
+                        icon: "cube",
+                        iconColor: container.status.lowercased() == "running" ? .green : .gray,
+                        primaryText: container.configuration.id,
+                        secondaryLeftText: networkAddress(for: container),
+                        secondaryRightText: container.status,
+                        isSelected: false
                     )
+                    .contextMenu {
+                        if container.status.lowercased() == "running" {
+                            Button("Stop Container") {
+                                Task {
+                                    await containerService.stopContainer(container.configuration.id)
+                                }
+                            }
+                        } else {
+                            Button("Start Container") {
+                                Task {
+                                    await containerService.startContainer(container.configuration.id)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        Button("Remove Container", role: .destructive) {
+                            Task {
+                                await containerService.removeContainer(container.configuration.id)
+                            }
+                        }
+                    }
                     .tag(container.configuration.id)
                 }
             }
@@ -49,6 +54,13 @@ struct ContainersListView: View {
                 lastSelectedContainer = newValue
             }
         }
+    }
+
+    private func networkAddress(for container: Container) -> String? {
+        if let firstNetwork = container.networks.first {
+            return firstNetwork.address
+        }
+        return nil
     }
 
     private var filteredContainers: [Container] {
