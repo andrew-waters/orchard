@@ -61,7 +61,8 @@ struct DNSListView: View {
             ForEach(containerService.dnsDomains) { domain in
                 DNSRowView(
                     domain: domain,
-                    containerCountText: containerCount(for: domain)
+                    containerCountText: containerCount(for: domain),
+                    selectedDNSDomain: selectedDNSDomain
                 )
                 .environmentObject(containerService)
                 .contextMenu {
@@ -95,6 +96,7 @@ struct DNSListView: View {
     private struct DNSRowView: View {
         let domain: DNSDomain
         let containerCountText: String
+        let selectedDNSDomain: String?
 
         var body: some View {
             let rightText = domain.isDefault ? "DEFAULT" : nil
@@ -105,7 +107,7 @@ struct DNSListView: View {
                 primaryText: domain.domain,
                 secondaryLeftText: containerCountText,
                 secondaryRightText: rightText,
-                isSelected: false
+                isSelected: selectedDNSDomain == domain.domain
             )
         }
     }

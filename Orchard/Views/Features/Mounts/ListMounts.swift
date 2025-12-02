@@ -16,9 +16,9 @@ struct MountsListView: View {
                     ListItemRow(
                         icon: "externaldrive",
                         iconColor: .orange,
-                        primaryText: "\(mount.mount.source) → \(mount.mount.destination)",
-                        secondaryLeftText: mount.mountType,
-                        isSelected: false
+                        primaryText: mount.mount.destination,
+                        secondaryLeftText: mount.mount.source,
+                        isSelected: selectedMount == mount.id
                     )
                     .contextMenu {
                         Button("Copy Source Path") {

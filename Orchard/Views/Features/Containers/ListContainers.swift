@@ -17,9 +17,9 @@ struct ContainersListView: View {
                         icon: "cube",
                         iconColor: container.status.lowercased() == "running" ? .green : .gray,
                         primaryText: container.configuration.id,
-                        secondaryLeftText: networkAddress(for: container),
-                        secondaryRightText: container.status,
-                        isSelected: false
+                        secondaryLeftText: networkAddress(for: container) ?? "-",
+                        secondaryRightText: hostname(for: container),
+                        isSelected: selectedContainer == container.configuration.id
                     )
                     .contextMenu {
                         if container.status.lowercased() == "running" {
@@ -63,6 +63,12 @@ struct ContainersListView: View {
         return nil
     }
 
+    private func hostname(for container: Container) -> String? {
+        guard !container.networks.isEmpty else { return nil }
+        let hostname = container.networks.first?.hostname ?? ""
+        return hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname
+    }
+
     private var filteredContainers: [Container] {
         var filtered = containerService.containers
 
@@ -76,6 +82,7 @@ struct ContainersListView: View {
             filtered = filtered.filter { container in
                 container.configuration.id.localizedCaseInsensitiveContains(searchText)
                     || container.status.localizedCaseInsensitiveContains(searchText)
+                    || (hostname(for: container)?.localizedCaseInsensitiveContains(searchText) ?? false)
             }
         }
 

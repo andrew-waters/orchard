@@ -61,7 +61,8 @@ struct NetworksListView: View {
             ForEach(Array(containerService.networks), id: \.id) { network in
                 NetworkRowView(
                     network: network,
-                    connectedContainerCount: connectedContainerCount(for: network)
+                    connectedContainerCount: connectedContainerCount(for: network),
+                    selectedNetwork: selectedNetwork
                 )
                 .environmentObject(containerService)
                 .contextMenu {
@@ -84,6 +85,7 @@ struct NetworksListView: View {
     private struct NetworkRowView: View {
         let network: ContainerNetwork
         let connectedContainerCount: Int
+        let selectedNetwork: String?
 
         var body: some View {
             let containerText = "\(connectedContainerCount) container\(connectedContainerCount == 1 ? "" : "s")"
@@ -94,7 +96,7 @@ struct NetworksListView: View {
                 primaryText: network.id,
                 secondaryLeftText: network.status.address ?? "No address",
                 secondaryRightText: containerText,
-                isSelected: false
+                isSelected: selectedNetwork == network.id
             )
         }
     }

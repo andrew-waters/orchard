@@ -29,7 +29,7 @@ struct ListItemRow: View {
             // Icon
             SwiftUI.Image(systemName: icon)
                 .font(.system(size: 16, weight: .regular))
-                .foregroundColor(isSelected ? .white : iconColor)
+                .foregroundColor(iconColor)
                 .frame(width: 20, height: 20)
 
             // Text content
@@ -37,7 +37,7 @@ struct ListItemRow: View {
                 // Primary text
                 Text(primaryText)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? .white : .primary)
+                    .foregroundColor(.primary)
                     .lineLimit(1)
 
                 // Secondary text row
@@ -47,7 +47,7 @@ struct ListItemRow: View {
                             Text(secondaryLeft)
                                 .font(.system(size: 12, weight: .regular))
                                 .fontDesign(.monospaced)
-                                .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                                .foregroundColor(isSelected ? .primary : .secondary)
                                 .lineLimit(1)
                         }
 
@@ -57,7 +57,7 @@ struct ListItemRow: View {
                             Text(secondaryRight)
                                 .font(.system(size: 12, weight: .regular))
                                 .fontDesign(.monospaced)
-                                .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                                .foregroundColor(isSelected ? .primary : .secondary)
                                 .lineLimit(1)
                         }
                     }
