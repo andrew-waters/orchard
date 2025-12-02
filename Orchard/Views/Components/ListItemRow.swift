@@ -46,6 +46,7 @@ struct ListItemRow: View {
                         if let secondaryLeft = secondaryLeftText {
                             Text(secondaryLeft)
                                 .font(.system(size: 12, weight: .regular))
+                                .fontDesign(.monospaced)
                                 .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
                                 .lineLimit(1)
                         }
@@ -55,6 +56,7 @@ struct ListItemRow: View {
                         if let secondaryRight = secondaryRightText {
                             Text(secondaryRight)
                                 .font(.system(size: 12, weight: .regular))
+                                .fontDesign(.monospaced)
                                 .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
                                 .lineLimit(1)
                         }
@@ -66,16 +68,6 @@ struct ListItemRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.accentColor)
-                .opacity(0)
-        )
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.accentColor)
-                .padding(.horizontal, 8)
-        )
         .contentShape(Rectangle())
     }
 }
