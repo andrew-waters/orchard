@@ -682,6 +682,8 @@ struct LabelsTable: View {
 struct ContainerImageDetailView: View {
     let image: ContainerImage
     @EnvironmentObject var containerService: ContainerService
+    @Binding var selectedTab: TabSelection
+    @Binding var selectedContainer: String?
 
     private var imageName: String {
         let components = image.reference.split(separator: "/")
@@ -798,18 +800,12 @@ struct ContainerImageDetailView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
 
-            if containersUsingImage.isEmpty {
-                Text("No containers are currently using this image")
-                    .foregroundColor(.secondary)
-                    .font(.subheadline)
-                    .italic()
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(containersUsingImage, id: \.configuration.id) { container in
-                        ContainerImageUsageRow(container: container)
-                    }
-                }
-            }
+            ContainerTable(
+                containers: containersUsingImage,
+                selectedTab: $selectedTab,
+                selectedContainer: $selectedContainer,
+                emptyStateMessage: "No containers are currently using this image"
+            )
         }
     }
 
@@ -1015,6 +1011,8 @@ struct ContainerImageUsageRow: View {
 struct MountDetailView: View {
     let mount: ContainerMount
     @EnvironmentObject var containerService: ContainerService
+    @Binding var selectedTab: TabSelection
+    @Binding var selectedContainer: String?
 
     private var containersUsingMount: [Container] {
         containerService.containers.filter { container in
@@ -1098,17 +1096,12 @@ struct MountDetailView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
 
-            if containersUsingMount.isEmpty {
-                Text("No containers are currently using this mount")
-                    .foregroundColor(.secondary)
-                    .italic()
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(containersUsingMount, id: \.configuration.id) { container in
-                        MountContainerUsageRow(container: container)
-                    }
-                }
-            }
+            ContainerTable(
+                containers: containersUsingMount,
+                selectedTab: $selectedTab,
+                selectedContainer: $selectedContainer,
+                emptyStateMessage: "No containers are currently using this mount"
+            )
         }
     }
 }
