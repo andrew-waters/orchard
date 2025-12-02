@@ -46,6 +46,14 @@ struct ContainerTable: View {
                 // Container rows
                 ForEach(containers, id: \.configuration.id) { container in
                     let containerNetwork = container.networks.first
+                    let displayAddress = {
+                        guard let address = containerNetwork?.address else { return "N/A" }
+                        return address.replacingOccurrences(of: "/24", with: "")
+                    }()
+                    let displayHostname = {
+                        guard let hostname = containerNetwork?.hostname else { return "N/A" }
+                        return hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname
+                    }()
 
                     HStack(spacing: 0) {
                         // Container name (clickable)
@@ -72,13 +80,13 @@ struct ContainerTable: View {
                                 }
                             }
                         }) {
-                            Text(containerNetwork?.address ?? "N/A")
+                            Text(displayAddress)
                                 .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(containerNetwork?.address != nil && containerNetwork?.address != "N/A" ? .blue : .secondary)
+                                .foregroundStyle(displayAddress != "N/A" ? .blue : .secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.plain)
-                        .disabled(containerNetwork?.address == nil || containerNetwork?.address == "N/A")
+                        .disabled(displayAddress == "N/A")
 
                         // Hostname (clickable)
                         Button(action: {
@@ -89,13 +97,13 @@ struct ContainerTable: View {
                                 }
                             }
                         }) {
-                            Text(containerNetwork?.hostname ?? "N/A")
+                            Text(displayHostname)
                                 .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(containerNetwork?.hostname != nil && containerNetwork?.hostname != "N/A" ? .blue : .secondary)
+                                .foregroundStyle(displayHostname != "N/A" ? .blue : .secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.plain)
-                        .disabled(containerNetwork?.hostname == nil || containerNetwork?.hostname == "N/A")
+                        .disabled(displayHostname == "N/A")
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)

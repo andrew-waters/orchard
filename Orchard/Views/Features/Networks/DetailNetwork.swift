@@ -25,42 +25,17 @@ struct NetworkDetailView: View {
                             VStack(spacing: 0) {
                                 networkDetailRow(label: "Network ID", value: network.id)
 
-                                if !network.config.labels.isEmpty {
-                                    Divider().padding(.leading, 120)
-                                    networkDetailRow(label: "Labels", value: "\(network.config.labels.count) label\(network.config.labels.count == 1 ? "" : "s")")
-                                }
+                                Divider().padding(.leading, 120)
+                                networkDetailRow(label: "Address Range", value: network.status.address ?? "N/A")
 
-                                if let address = network.status.address {
-                                    Divider().padding(.leading, 120)
-                                    networkDetailRow(label: "Address Range", value: address)
-                                }
+                                Divider().padding(.leading, 120)
+                                networkDetailRow(label: "Gateway", value: network.status.gateway ?? "N/A")
 
-                                if let gateway = network.status.gateway {
-                                    Divider().padding(.leading, 120)
-                                    networkDetailRow(label: "Gateway", value: gateway)
-                                }
+                                Divider().padding(.leading, 120)
+                                networkLabelsRow(labels: network.config.labels)
                             }
                             .background(Color(NSColor.controlBackgroundColor))
                             .cornerRadius(8)
-                        }
-
-                        // Labels section
-                        if !network.config.labels.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Labels")
-                                    .font(.headline)
-
-                                VStack(spacing: 0) {
-                                    ForEach(Array(network.config.labels.sorted(by: { $0.key < $1.key })), id: \.key) { label in
-                                        networkDetailRow(label: label.key, value: label.value)
-                                        if label.key != network.config.labels.sorted(by: { $0.key < $1.key }).last?.key {
-                                            Divider().padding(.leading, 100)
-                                        }
-                                    }
-                                }
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(8)
-                            }
                         }
 
                         // Connected containers
@@ -113,5 +88,38 @@ struct NetworkDetailView: View {
         return .blue
     }
 
+    @ViewBuilder
+    private func networkLabelsRow(labels: [String: String]) -> some View {
+        HStack(alignment: .top) {
+            Text("Labels")
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 100, alignment: .leading)
+                .foregroundStyle(.secondary)
+
+            if labels.isEmpty {
+                Text("None")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(labels.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                        Text("\(key): \(value)")
+                            .font(.system(size: 11, weight: .medium))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(0.15))
+                            .foregroundStyle(.primary)
+                            .cornerRadius(6)
+                    }
+
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
 
 }
