@@ -85,7 +85,9 @@ struct DetailContentView: View {
         ForEach(containerService.images, id: \.reference) { image in
             if selectedImage == image.reference {
                 ContainerImageDetailView(
-                    image: image
+                    image: image,
+                    selectedTab: $selectedTabBinding,
+                    selectedContainer: $selectedContainerBinding
                 )
                 .environmentObject(containerService)
             }
@@ -97,7 +99,9 @@ struct DetailContentView: View {
         ForEach(containerService.allMounts, id: \.id) { mount in
             if selectedMount == mount.id {
                 MountDetailView(
-                    mount: mount
+                    mount: mount,
+                    selectedTab: $selectedTabBinding,
+                    selectedContainer: $selectedContainerBinding
                 )
                 .environmentObject(containerService)
             }
