@@ -4,7 +4,7 @@ struct StatsView: View {
     @EnvironmentObject var containerService: ContainerService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
-    @State private var refreshTimer: Timer?
+
 
     private var emptyMessage: String {
         if containerService.isStatsLoading {
@@ -17,28 +17,13 @@ struct StatsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with refresh controls
+            // Header
             HStack {
-                Text("Container Statistics")
+                Text("Stats")
                     .font(.title2)
                     .fontWeight(.semibold)
 
                 Spacer()
-
-                // Refresh controls
-                HStack(spacing: 12) {
-                    if containerService.isStatsLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    }
-
-                    Button("Refresh") {
-                        Task {
-                            await containerService.loadContainerStats()
-                        }
-                    }
-                    .disabled(containerService.isStatsLoading)
-                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 20)
@@ -89,34 +74,18 @@ struct StatsView: View {
                         containerStats: containerService.containerStats,
                         selectedTab: $selectedTab,
                         selectedContainer: $selectedContainer,
-                        emptyStateMessage: emptyMessage
+                        emptyStateMessage: emptyMessage,
+                        showContainerColumn: true
                     )
                 }
                 .padding(16)
             }
         }
         .onAppear {
-            startAutoRefresh()
             Task {
                 await containerService.loadContainerStats()
             }
         }
-        .onDisappear {
-            stopAutoRefresh()
-        }
-    }
-
-    private func startAutoRefresh() {
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
-            Task {
-                await containerService.loadContainerStats(showLoading: false)
-            }
-        }
-    }
-
-    private func stopAutoRefresh() {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
     }
 }
 

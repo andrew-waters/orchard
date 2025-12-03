@@ -515,7 +515,8 @@ struct ContainerDetailView: View {
                         containerStats: containerStats,
                         selectedTab: $selectedTabBinding,
                         selectedContainer: .constant(container.configuration.id),
-                        emptyStateMessage: "Loading statistics..."
+                        emptyStateMessage: "Loading statistics...",
+                        showContainerColumn: false
                     )
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
