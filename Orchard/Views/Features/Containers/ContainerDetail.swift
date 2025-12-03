@@ -120,6 +120,11 @@ struct ContainerDetailView: View {
     private var containerOverviewTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // Container Statistics (at the top)
+                containerStatsSection(container: container)
+
+                Divider()
+
                 // Overview and Image side by side
                 HStack(alignment: .top, spacing: 20) {
                     containerOverviewSection(container: container)
@@ -141,8 +146,7 @@ struct ContainerDetailView: View {
 
                 Divider()
 
-                // Container Statistics
-                containerStatsSection(container: container)
+
 
                 Spacer(minLength: 20)
             }
@@ -508,36 +512,93 @@ struct ContainerDetailView: View {
                 .foregroundColor(.primary)
 
             if container.status.lowercased() == "running" {
-                let containerStats = containerService.containerStats.filter { $0.id == container.configuration.id }
+                let containerStats = containerService.containerStats.first { $0.id == container.configuration.id }
 
-                if !containerStats.isEmpty {
-                    StatsTableView(
-                        containerStats: containerStats,
-                        selectedTab: $selectedTabBinding,
-                        selectedContainer: .constant(container.configuration.id),
-                        emptyStateMessage: "Loading statistics...",
-                        showContainerColumn: false
-                    )
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            if containerService.isStatsLoading {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Loading statistics...")
-                            } else {
-                                Text("Statistics not available")
-                            }
+                if let stats = containerStats {
+                    // Native stats display with cards
+                    HStack(spacing: 16) {
+                        // Memory Usage
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Memory")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                            Text(stats.formattedMemoryUsage)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .fontDesign(.monospaced)
+                            Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
 
-                        Button("Refresh Stats") {
-                            Task {
-                                await containerService.loadContainerStats()
-                            }
+                        // Network I/O
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Network I/O")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                            Text("↓ \(stats.formattedNetworkRx)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .fontDesign(.monospaced)
+                            Text("↑ \(stats.formattedNetworkTx)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fontDesign(.monospaced)
                         }
-                        .disabled(containerService.isStatsLoading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+
+                        // Block I/O
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Block I/O")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                            Text("R \(stats.formattedBlockRead)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .fontDesign(.monospaced)
+                            Text("W \(stats.formattedBlockWrite)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fontDesign(.monospaced)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+
+                        // Processes
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Processes")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                            Text("\(stats.numProcesses)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .fontDesign(.monospaced)
+                            Text("PIDs")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
                     }
+                } else {
+                    Text("Statistics not available")
+                        .foregroundColor(.secondary)
+                        .italic()
                 }
             } else {
                 Text("Statistics are only available for running containers")
@@ -545,11 +606,7 @@ struct ContainerDetailView: View {
                     .italic()
             }
 
-            if let errorMessage = containerService.errorMessage, !errorMessage.isEmpty, errorMessage.contains("stats") {
-                Text("Error: \(errorMessage)")
-                    .foregroundColor(.red)
-                    .font(.caption)
-            }
+
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
