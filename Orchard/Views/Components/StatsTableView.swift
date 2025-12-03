@@ -5,6 +5,7 @@ struct StatsTableView: View {
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     let emptyStateMessage: String
+    let showContainerColumn: Bool
 
     var body: some View {
         if containerStats.isEmpty {
@@ -22,35 +23,37 @@ struct StatsTableView: View {
             VStack(spacing: 0) {
                 // Header
                 HStack(spacing: 0) {
-                    Text("Container")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if showContainerColumn {
+                        Text("Container")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     Text("CPU")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .frame(width: 80, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 100 : .infinity, alignment: .trailing)
 
                     Text("Memory")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .frame(width: 120, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
 
                     Text("Network I/O")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .frame(width: 120, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
 
                     Text("Block I/O")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .frame(width: 120, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
 
                     Text("PIDs")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .frame(width: 50, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 80 : .infinity, alignment: .trailing)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -61,26 +64,28 @@ struct StatsTableView: View {
                 // Stats rows
                 ForEach(containerStats, id: \.id) { stats in
                     HStack(spacing: 0) {
-                        // Container name (clickable)
-                        Button(action: {
-                            selectedTab = .containers
-                            selectedContainer = stats.id
-                        }) {
-                            HStack {
-                                SwiftUI.Image(systemName: "cube")
-                                    .foregroundStyle(.green) // Assume running if we have stats
-                                Text(stats.id)
-                                    .foregroundStyle(.blue)
+                        // Container name (clickable) - only show if showContainerColumn is true
+                        if showContainerColumn {
+                            Button(action: {
+                                selectedTab = .containers
+                                selectedContainer = stats.id
+                            }) {
+                                HStack {
+                                    SwiftUI.Image(systemName: "cube")
+                                        .foregroundStyle(.green) // Assume running if we have stats
+                                    Text(stats.id)
+                                        .foregroundStyle(.blue)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
 
                         // CPU Usage (placeholder - would need more calculation)
                         Text("--")
                             .font(.system(.body, design: .monospaced))
                             .foregroundStyle(.secondary)
-                            .frame(width: 80, alignment: .trailing)
+                            .frame(maxWidth: showContainerColumn ? 100 : .infinity, alignment: .trailing)
 
                         // Memory Usage
                         VStack(alignment: .trailing, spacing: 2) {
@@ -90,7 +95,7 @@ struct StatsTableView: View {
                                 .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
-                        .frame(width: 120, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
 
                         // Network I/O (RX / TX)
                         VStack(alignment: .trailing, spacing: 2) {
@@ -100,7 +105,7 @@ struct StatsTableView: View {
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
-                        .frame(width: 120, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
 
                         // Block I/O (Read / Write)
                         VStack(alignment: .trailing, spacing: 2) {
@@ -110,12 +115,12 @@ struct StatsTableView: View {
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
-                        .frame(width: 120, alignment: .trailing)
+                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
 
                         // Number of processes
                         Text("\(stats.numProcesses)")
                             .font(.system(.body, design: .monospaced))
-                            .frame(width: 50, alignment: .trailing)
+                            .frame(maxWidth: showContainerColumn ? 80 : .infinity, alignment: .trailing)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
