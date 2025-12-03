@@ -4,7 +4,7 @@ import SwiftUI
 import AppKit
 
 class ContainerService: ObservableObject {
-    let supportedContainerVersion = "0.6.0"
+    let supportedContainerVersion = "0.7.0"
 
     @Published var containers: [Container] = []
     @Published var images: [ContainerImage] = []
