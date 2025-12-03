@@ -511,99 +511,132 @@ struct ContainerDetailView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
 
-            if container.status.lowercased() == "running" {
-                let containerStats = containerService.containerStats.first { $0.id == container.configuration.id }
+            let containerStats = containerService.containerStats.first { $0.id == container.configuration.id }
+            let isRunning = container.status.lowercased() == "running"
+            let isLoading = containerService.isStatsLoading
 
-                if let stats = containerStats {
-                    // Native stats display with cards
-                    HStack(spacing: 16) {
-                        // Memory Usage
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Memory")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                            Text(stats.formattedMemoryUsage)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .fontDesign(.monospaced)
-                            Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-
-                        // Network I/O
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Network I/O")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                            Text("↓ \(stats.formattedNetworkRx)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .fontDesign(.monospaced)
-                            Text("↑ \(stats.formattedNetworkTx)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fontDesign(.monospaced)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-
-                        // Block I/O
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Block I/O")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                            Text("R \(stats.formattedBlockRead)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .fontDesign(.monospaced)
-                            Text("W \(stats.formattedBlockWrite)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fontDesign(.monospaced)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-
-                        // Processes
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Processes")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                            Text("\(stats.numProcesses)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .fontDesign(.monospaced)
-                            Text("PIDs")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                } else {
-                    Text("Statistics not available")
+            // Always show stats boxes
+            HStack(spacing: 16) {
+                // Memory Usage
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Memory")
+                        .font(.caption)
+                        .fontWeight(.medium)
                         .foregroundColor(.secondary)
-                        .italic()
+                    if let stats = containerStats, isRunning {
+                        Text(stats.formattedMemoryUsage)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                        Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text(isRunning ? "--" : "Not running")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                            .foregroundColor(.secondary)
+                        Text("--")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
-            } else {
-                Text("Statistics are only available for running containers")
-                    .foregroundColor(.secondary)
-                    .italic()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                // Network I/O
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Network I/O")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                    if let stats = containerStats, isRunning {
+                        Text("↓ \(stats.formattedNetworkRx)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                        Text("↑ \(stats.formattedNetworkTx)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fontDesign(.monospaced)
+                    } else {
+                        Text(isRunning ? "↓ --" : "Not running")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                            .foregroundColor(.secondary)
+                        Text(isRunning ? "↑ --" : "")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fontDesign(.monospaced)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                // Block I/O
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Block I/O")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                    if let stats = containerStats, isRunning {
+                        Text("R \(stats.formattedBlockRead)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                        Text("W \(stats.formattedBlockWrite)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fontDesign(.monospaced)
+                    } else {
+                        Text(isRunning ? "R --" : "Not running")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                            .foregroundColor(.secondary)
+                        Text(isRunning ? "W --" : "")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fontDesign(.monospaced)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                // Processes
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Processes")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                    if let stats = containerStats, isRunning {
+                        Text("\(stats.numProcesses)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                    } else {
+                        Text(isRunning ? "--" : "Not running")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .fontDesign(.monospaced)
+                            .foregroundColor(.secondary)
+                    }
+                    Text("PIDs")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
             }
 
 

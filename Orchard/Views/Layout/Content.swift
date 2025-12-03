@@ -201,6 +201,10 @@ struct ContentView: View {
 
     private func performInitialLoad() async {
         await containerService.checkSystemStatus()
+
+        // Load stats first for immediate display
+        await containerService.loadContainerStats(showLoading: true)
+
         await containerService.loadContainers(showLoading: true)
         await containerService.loadImages()
         await containerService.loadBuilders()
