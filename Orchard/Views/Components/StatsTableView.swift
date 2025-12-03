@@ -28,32 +28,59 @@ struct StatsTableView: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text("CPU")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .frame(width: 100, alignment: .trailing)
+
+                        Text("Memory")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .frame(width: 140, alignment: .trailing)
+
+                        Text("Network I/O")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .frame(width: 140, alignment: .trailing)
+
+                        Text("Block I/O")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .frame(width: 140, alignment: .trailing)
+
+                        Text("PIDs")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .frame(width: 80, alignment: .trailing)
+                    } else {
+                        HStack {
+                            Text("CPU")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                            Text("Memory")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                            Text("Network I/O")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                            Text("Block I/O")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                            Text("PIDs")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
                     }
-
-                    Text("CPU")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: showContainerColumn ? 100 : .infinity, alignment: .trailing)
-
-                    Text("Memory")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
-
-                    Text("Network I/O")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
-
-                    Text("Block I/O")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
-
-                    Text("PIDs")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: showContainerColumn ? 80 : .infinity, alignment: .trailing)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -64,8 +91,8 @@ struct StatsTableView: View {
                 // Stats rows
                 ForEach(containerStats, id: \.id) { stats in
                     HStack(spacing: 0) {
-                        // Container name (clickable) - only show if showContainerColumn is true
                         if showContainerColumn {
+                            // Container name (clickable)
                             Button(action: {
                                 selectedTab = .containers
                                 selectedContainer = stats.id
@@ -79,48 +106,91 @@ struct StatsTableView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .buttonStyle(.plain)
-                        }
 
-                        // CPU Usage (placeholder - would need more calculation)
-                        Text("--")
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: showContainerColumn ? 100 : .infinity, alignment: .trailing)
-
-                        // Memory Usage
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(stats.formattedMemoryUsage)")
-                                .font(.system(.caption, design: .monospaced))
-                            Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
-                                .font(.system(.caption2, design: .monospaced))
+                            // CPU Usage (placeholder - would need more calculation)
+                            Text("--")
+                                .font(.system(.body, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
+                                .frame(width: 100, alignment: .trailing)
 
-                        // Network I/O (RX / TX)
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("↓ \(stats.formattedNetworkRx)")
-                                .font(.system(.caption, design: .monospaced))
-                            Text("↑ \(stats.formattedNetworkTx)")
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
+                            // Memory Usage
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(stats.formattedMemoryUsage)")
+                                    .font(.system(.caption, design: .monospaced))
+                                Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: 140, alignment: .trailing)
 
-                        // Block I/O (Read / Write)
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("R \(stats.formattedBlockRead)")
-                                .font(.system(.caption, design: .monospaced))
-                            Text("W \(stats.formattedBlockWrite)")
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: showContainerColumn ? 140 : .infinity, alignment: .trailing)
+                            // Network I/O (RX / TX)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("↓ \(stats.formattedNetworkRx)")
+                                    .font(.system(.caption, design: .monospaced))
+                                Text("↑ \(stats.formattedNetworkTx)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: 140, alignment: .trailing)
 
-                        // Number of processes
-                        Text("\(stats.numProcesses)")
-                            .font(.system(.body, design: .monospaced))
-                            .frame(maxWidth: showContainerColumn ? 80 : .infinity, alignment: .trailing)
+                            // Block I/O (Read / Write)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("R \(stats.formattedBlockRead)")
+                                    .font(.system(.caption, design: .monospaced))
+                                Text("W \(stats.formattedBlockWrite)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: 140, alignment: .trailing)
+
+                            // Number of processes
+                            Text("\(stats.numProcesses)")
+                                .font(.system(.body, design: .monospaced))
+                                .frame(width: 80, alignment: .trailing)
+                        } else {
+                            HStack {
+                                // CPU Usage (placeholder - would need more calculation)
+                                Text("--")
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+
+                                // Memory Usage
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(stats.formattedMemoryUsage)")
+                                        .font(.system(.caption, design: .monospaced))
+                                    Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                                // Network I/O (RX / TX)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("↓ \(stats.formattedNetworkRx)")
+                                        .font(.system(.caption, design: .monospaced))
+                                    Text("↑ \(stats.formattedNetworkTx)")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                                // Block I/O (Read / Write)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("R \(stats.formattedBlockRead)")
+                                        .font(.system(.caption, design: .monospaced))
+                                    Text("W \(stats.formattedBlockWrite)")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                                // Number of processes
+                                Text("\(stats.numProcesses)")
+                                    .font(.system(.body, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
