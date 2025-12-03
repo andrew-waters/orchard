@@ -48,12 +48,32 @@ struct StatsView: View {
 
             // Error message if any
             if let errorMessage = containerService.errorMessage, !errorMessage.isEmpty {
-                HStack {
-                    SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("Stats Unavailable")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+
                     Text(errorMessage)
                         .foregroundColor(.secondary)
-                    Spacer()
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if errorMessage.contains("container stats") || errorMessage.contains("Plugin") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Possible solutions:")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text("• Update your container runtime to the latest version")
+                            Text("• Check if container stats plugin is available")
+                            Text("• Ensure containers are running before checking stats")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
                 }
                 .padding()
                 .background(Color(NSColor.controlBackgroundColor))
@@ -65,54 +85,12 @@ struct StatsView: View {
             // Stats table
             ScrollView {
                 VStack(spacing: 16) {
-                    // Temporary simple stats display until StatsTable compilation is fixed
-                    VStack(alignment: .leading, spacing: 8) {
-                        if containerService.containerStats.isEmpty {
-                            HStack {
-                                SwiftUI.Image(systemName: "chart.bar")
-                                    .foregroundStyle(.secondary)
-                                Text(emptyMessage)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            ForEach(containerService.containerStats, id: \.id) { stats in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(stats.id)
-                                        .font(.headline)
-                                    Text("Memory: \(stats.formattedMemoryUsage) (\(String(format: "%.1f", stats.memoryUsagePercent))%)")
-                                    Text("Network: ↓\(stats.formattedNetworkRx) ↑\(stats.formattedNetworkTx)")
-                                    Text("Processes: \(stats.numProcesses)")
-                                }
-                                .padding()
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(8)
-                            }
-                        }
-                    }
-
-                    // Additional info section
-                    if !containerService.containerStats.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Statistics Info")
-                                    .font(.headline)
-                                Spacer()
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("• Memory usage shows current consumption and percentage of limit")
-                                Text("• Network I/O shows total bytes received (↓) and transmitted (↑)")
-                                Text("• Block I/O shows total bytes read (R) and written (W)")
-                                Text("• PIDs shows the number of processes running in the container")
-                                Text("• Statistics are updated when you refresh or navigate to this tab")
-                            }
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
+                    StatsTableView(
+                        containerStats: containerService.containerStats,
+                        selectedTab: $selectedTab,
+                        selectedContainer: $selectedContainer,
+                        emptyStateMessage: emptyMessage
+                    )
                 }
                 .padding(16)
             }

@@ -17,7 +17,6 @@ struct ContainerDetailView: View {
         case overview = "Overview"
         case environment = "Environment"
         case mounts = "Mounts"
-        case stats = "Stats"
         case logs = "Logs"
 
         var systemImage: String {
@@ -28,8 +27,6 @@ struct ContainerDetailView: View {
                 return "gearshape"
             case .mounts:
                 return "externaldrive"
-            case .stats:
-                return "chart.bar"
             case .logs:
                 return "doc.text"
             }
@@ -113,8 +110,6 @@ struct ContainerDetailView: View {
                 containerEnvironmentTab
             case .mounts:
                 containerMountsTab
-            case .stats:
-                containerStatsTab
             case .logs:
                 LogsView(containerId: container.configuration.id)
                     .environmentObject(containerService)
@@ -144,9 +139,19 @@ struct ContainerDetailView: View {
                     containerProcessSection(container: container)
                 }
 
+                Divider()
+
+                // Container Statistics
+                containerStatsSection(container: container)
+
                 Spacer(minLength: 20)
             }
             .padding()
+        }
+        .onAppear {
+            Task {
+                await containerService.loadContainerStats()
+            }
         }
     }
 
@@ -496,21 +501,6 @@ struct ContainerDetailView: View {
         }
     }
 
-    private var containerStatsTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                containerStatsSection(container: container)
-                Spacer(minLength: 20)
-            }
-            .padding()
-        }
-        .onAppear {
-            Task {
-                await containerService.loadContainerStats()
-            }
-        }
-    }
-
     private func containerStatsSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Statistics")
@@ -518,19 +508,16 @@ struct ContainerDetailView: View {
                 .foregroundColor(.primary)
 
             if container.status.lowercased() == "running" {
-                if let stats = containerService.containerStats.first(where: { $0.id == container.configuration.id }) {
-                    // Container has stats - show them
-                    VStack(alignment: .leading, spacing: 8) {
-                        InfoRow(label: "Memory Usage", value: "\(stats.formattedMemoryUsage) (\(String(format: "%.1f", stats.memoryUsagePercent))%)")
-                        InfoRow(label: "Memory Limit", value: stats.formattedMemoryLimit)
-                        InfoRow(label: "Network RX", value: stats.formattedNetworkRx)
-                        InfoRow(label: "Network TX", value: stats.formattedNetworkTx)
-                        InfoRow(label: "Block Read", value: stats.formattedBlockRead)
-                        InfoRow(label: "Block Write", value: stats.formattedBlockWrite)
-                        InfoRow(label: "Processes", value: "\(stats.numProcesses)")
-                    }
+                let containerStats = containerService.containerStats.filter { $0.id == container.configuration.id }
+
+                if !containerStats.isEmpty {
+                    StatsTableView(
+                        containerStats: containerStats,
+                        selectedTab: $selectedTabBinding,
+                        selectedContainer: .constant(container.configuration.id),
+                        emptyStateMessage: "Loading statistics..."
+                    )
                 } else {
-                    // Container is running but no stats available
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             if containerService.isStatsLoading {
@@ -552,20 +539,12 @@ struct ContainerDetailView: View {
                     }
                 }
             } else {
-                // Container is not running - show placeholders
-                VStack(alignment: .leading, spacing: 8) {
-                    InfoRow(label: "Memory Usage", value: "Not available (container not running)")
-                    InfoRow(label: "Memory Limit", value: "Not available (container not running)")
-                    InfoRow(label: "Network RX", value: "Not available (container not running)")
-                    InfoRow(label: "Network TX", value: "Not available (container not running)")
-                    InfoRow(label: "Block Read", value: "Not available (container not running)")
-                    InfoRow(label: "Block Write", value: "Not available (container not running)")
-                    InfoRow(label: "Processes", value: "Not available (container not running)")
-                }
-                .foregroundColor(.secondary)
+                Text("Statistics are only available for running containers")
+                    .foregroundColor(.secondary)
+                    .italic()
             }
 
-            if let errorMessage = containerService.errorMessage, !errorMessage.isEmpty {
+            if let errorMessage = containerService.errorMessage, !errorMessage.isEmpty, errorMessage.contains("stats") {
                 Text("Error: \(errorMessage)")
                     .foregroundColor(.red)
                     .font(.caption)
