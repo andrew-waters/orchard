@@ -554,15 +554,25 @@ class ContainerService: ObservableObject {
         do {
             let result = try exec(
                 program: safeContainerBinaryPath(),
-                arguments: ["container", "stats", "--format=json"]
+                arguments: ["stats", "--format=json"]
             )
 
             if result.failed {
                 await MainActor.run {
                     self.containerStats = []
                     self.isStatsLoading = false
+
                     if let stderr = result.stderr, !stderr.isEmpty {
-                        self.errorMessage = "Failed to load container stats: \(stderr)"
+                        // Check for specific command not found errors
+                        if stderr.contains("not found") ||
+                           stderr.contains("unknown command") ||
+                           stderr.contains("stats") {
+                            self.errorMessage = "Container stats feature is not available. The 'stats' command may not be supported in this version of the container runtime."
+                        } else {
+                            self.errorMessage = "Failed to load container stats: \(stderr)"
+                        }
+                    } else {
+                        self.errorMessage = "Container stats command failed with no error message."
                     }
                 }
                 return
@@ -572,11 +582,22 @@ class ContainerService: ObservableObject {
                 await MainActor.run {
                     self.containerStats = []
                     self.isStatsLoading = false
+                    // Don't set error message for empty results - this is normal when no containers are running
                 }
                 return
             }
 
             let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Handle empty JSON array
+            if trimmed == "[]" || trimmed.isEmpty {
+                await MainActor.run {
+                    self.containerStats = []
+                    self.isStatsLoading = false
+                }
+                return
+            }
+
             let decoder = JSONDecoder()
             let stats = try decoder.decode([ContainerStats].self, from: trimmed.data(using: .utf8)!)
 
