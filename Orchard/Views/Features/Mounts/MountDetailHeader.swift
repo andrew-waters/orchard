@@ -18,14 +18,13 @@ struct MountDetailHeader: View {
             Spacer()
 
             // Action buttons
-            HStack(spacing: 8) {
-                DetailViewButton(
-                    icon: "folder",
-                    accessibilityText: "Open in finder",
-                    action: {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
-                    },
-                )
+            HStack(spacing: 12) {
+                Button(action: {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: mount.mount.source))
+                }) {
+                    Label("Open in Finder", systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
             }
         }
         .padding(.horizontal, 16)
