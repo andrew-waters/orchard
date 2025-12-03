@@ -42,6 +42,13 @@ class ContainerService: ObservableObject {
     @Published var systemProperties: [SystemProperty] = []
     @Published var isSystemPropertiesLoading = false
 
+    // Container operation locks to prevent multiple simultaneous operations
+    private var containerOperationLocks: Set<String> = []
+    private let lockQueue = DispatchQueue(label: "containerOperationLocks", attributes: .concurrent)
+
+    // Container configuration snapshots for recovery
+    private var containerSnapshots: [String: Container] = [:]
+
     private let defaultBinaryPath = "/usr/local/bin/container"
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
     private let refreshIntervalKey = "OrchardRefreshInterval"
@@ -374,6 +381,11 @@ class ContainerService: ObservableObject {
                     }
                 }
                 self.isLoading = false
+
+                // Capture configuration snapshots for recovery
+                for container in newContainers {
+                    self.containerSnapshots[container.configuration.id] = container
+                }
             }
 
             for container in newContainers {
@@ -905,36 +917,133 @@ class ContainerService: ObservableObject {
     }
 
     func startContainer(_ id: String) async {
+        // Check if container operation is already in progress
+        let shouldProceed = await lockQueue.sync(flags: .barrier) {
+            if containerOperationLocks.contains(id) {
+                return false
+            }
+            containerOperationLocks.insert(id)
+            return true
+        }
+
+        guard shouldProceed else {
+            print("DEBUG: Container \(id) operation already in progress, ignoring duplicate call")
+            return
+        }
+
+        await startContainerWithRetry(id, maxRetries: 3, retryDelay: 1.0)
+
+        // Remove lock when done
+        await lockQueue.sync(flags: .barrier) {
+            containerOperationLocks.remove(id)
+        }
+    }
+
+    private func startContainerWithRetry(_ id: String, maxRetries: Int, retryDelay: TimeInterval) async {
         await MainActor.run {
             loadingContainers.insert(id)
             errorMessage = nil
         }
 
-        var result: ExecResult
-        do {
-            result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["start", id])
-        } catch {
-            let error = error as! ExecError
-            result = error.execResult
-        }
+        for attempt in 1...maxRetries {
+            var result: ExecResult
+            do {
+                result = try exec(
+                    program: safeContainerBinaryPath(),
+                    arguments: ["start", id])
+            } catch {
+                let error = error as! ExecError
+                result = error.execResult
+            }
 
-        await MainActor.run {
             if !result.failed {
-                print("Container \(id) start command sent successfully")
-                // Immediately refresh builder status in case this container is the builder
+                await MainActor.run {
+                    print("Container \(id) start command sent successfully (attempt \(attempt))")
+                    // Immediately refresh builder status in case this container is the builder
+                    // Keep loading state and refresh containers to check status
+                }
+
+                // Execute refresh tasks outside MainActor.run
                 Task {
                     await loadBuilders()
                 }
-                // Keep loading state and refresh containers to check status
                 Task {
                     await refreshUntilContainerStarted(id)
                 }
+                return
             } else {
-                self.errorMessage = "Failed to start container: \(result.stderr ?? "Unknown error")"
-                loadingContainers.remove(id)
+                let errorMsg = result.stderr ?? "Unknown error"
+                print("Container \(id) failed to start (attempt \(attempt)): \(errorMsg)")
+
+                // Check if container was auto-removed (not found)
+                let containerNotFound = errorMsg.contains("not found")
+
+                // Check if this is a state transition error that we can retry
+                let isTransitionError = errorMsg.contains("shuttingDown") ||
+                                      errorMsg.contains("invalidState") ||
+                                      errorMsg.contains("expected to be in created state")
+
+                if containerNotFound {
+                    // Container was auto-removed by runtime, attempt recovery
+                    print("Container \(id) was auto-removed by runtime, attempting automatic recovery...")
+
+                    if await recoverContainer(id) {
+                        print("Container \(id) successfully recovered, retrying start...")
+                        // Container recovered, retry the start operation
+                        continue
+                    } else {
+                        await MainActor.run {
+                            print("Container \(id) recovery failed")
+                            self.errorMessage = "Container was automatically removed and could not be recovered. Original configuration may be lost."
+                            loadingContainers.remove(id)
+                        }
+
+                        // Refresh container list to update state
+                        Task {
+                            await loadContainers()
+                        }
+                        return
+                    }
+                } else if isTransitionError {
+                    if attempt == maxRetries {
+                        await MainActor.run {
+                            self.errorMessage = "Container failed to start after \(maxRetries) attempts. The container may be corrupted."
+                            loadingContainers.remove(id)
+                        }
+
+                        // Refresh container list to update state
+                        Task {
+                            await loadContainers()
+                        }
+                        return
+                    } else {
+                        await MainActor.run {
+                            self.errorMessage = "Container is in transition state, retrying..."
+                        }
+                    }
+                } else {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to start container: \(errorMsg)"
+                        loadingContainers.remove(id)
+                    }
+
+                    // Refresh container list to update state
+                    Task {
+                        await loadContainers()
+                    }
+                    return
+                }
             }
+
+            // Wait before retrying if needed
+            if attempt < maxRetries {
+                try? await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
+            }
+        }
+
+        // If we get here, all retries failed
+        await MainActor.run {
+            loadingContainers.remove(id)
         }
     }
 
@@ -2057,6 +2166,73 @@ class ContainerService: ObservableObject {
             await MainActor.run {
                 self.errorMessage = "Failed to recreate container: \(error.localizedDescription)"
             }
+        }
+    }
+
+    // MARK: - Container Recovery
+
+    private func recoverContainer(_ id: String) async -> Bool {
+        guard let snapshot = await MainActor.run(body: { containerSnapshots[id] }) else {
+            print("No snapshot available for container \(id)")
+            return false
+        }
+
+        print("Attempting to recover container \(id) from snapshot...")
+
+        // Extract configuration from snapshot
+        let config = snapshot.configuration
+        let imageName = config.image.reference
+
+        // Build recovery arguments based on original configuration
+        var args = ["run", "--detach", "--name", id]
+
+        // Add port mappings if any
+        for publishedPort in config.publishedPorts {
+            args.append("--publish")
+            args.append("\(publishedPort.hostPort):\(publishedPort.containerPort)")
+        }
+
+        // Add volume mounts
+        for mount in config.mounts {
+            args.append("--volume")
+            args.append("\(mount.source):\(mount.destination)")
+        }
+
+        // Add environment variables if any (would need to be extracted from config if available)
+        // This is a simplified recovery - more sophisticated recovery would need additional config data
+
+        // Add hostname if specified
+        if let hostname = config.hostname {
+            args.append("--hostname")
+            args.append(hostname)
+        }
+
+        // Add the image name
+        args.append(imageName)
+
+        // Execute recovery command
+        var result: ExecResult
+        do {
+            print("Recovery command: \(safeContainerBinaryPath()) \(args.joined(separator: " "))")
+            result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: args)
+        } catch {
+            let error = error as! ExecError
+            result = error.execResult
+        }
+
+        if result.failed {
+            print("Container recovery failed: \(result.stderr ?? "Unknown error")")
+            await MainActor.run {
+                self.errorMessage = "Failed to recover container: \(result.stderr ?? "Unknown error")"
+            }
+            return false
+        } else {
+            print("Container \(id) recovered successfully")
+            // Refresh containers to get the new state
+            await loadContainers()
+            return true
         }
     }
 
