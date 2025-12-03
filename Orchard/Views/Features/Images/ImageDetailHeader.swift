@@ -45,7 +45,7 @@ struct ImageDetailHeader: View {
             // Action buttons
             HStack(spacing: 12) {
                 // Run Container button
-                Button("Run Container") {
+                Button("Launch image") {
                     showRunContainer = true
                 }
                 .buttonStyle(BorderedButtonStyle())

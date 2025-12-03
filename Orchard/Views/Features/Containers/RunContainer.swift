@@ -9,6 +9,7 @@ struct RunContainerView: View {
     @State private var config: ContainerRunConfig
     @State private var selectedTab: ConfigTab = .basic
     @State private var isRunning = false
+    @State private var nameValidationError: String?
 
     enum ConfigTab: String, CaseIterable {
         case basic = "Basic"
@@ -69,6 +70,9 @@ struct RunContainerView: View {
         .frame(width: 700, height: 600)
         .task {
             await containerService.loadNetworks()
+        }
+        .onAppear {
+            validateContainerName()
         }
     }
 
@@ -157,6 +161,16 @@ struct RunContainerView: View {
 
                 TextField("Enter container name", text: $config.name)
                     .textFieldStyle(.roundedBorder)
+                    .onChange(of: config.name) { _ in
+                        validateContainerName()
+                    }
+
+                if let nameValidationError = nameValidationError {
+                    Text(nameValidationError)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.top, 2)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -376,7 +390,7 @@ struct RunContainerView: View {
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-            .disabled(config.name.isEmpty || isRunning)
+            .disabled(config.name.isEmpty || isRunning || nameValidationError != nil)
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
@@ -438,7 +452,44 @@ struct RunContainerView: View {
         config.environmentVariables.removeAll { $0.id == envVar.id }
     }
 
+    private func validateContainerName() {
+        guard !config.name.isEmpty else {
+            nameValidationError = nil
+            return
+        }
+
+        // Check Docker naming rules
+        let namePattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+        let regex = try! NSRegularExpression(pattern: namePattern)
+        let range = NSRange(location: 0, length: config.name.utf16.count)
+
+        if regex.firstMatch(in: config.name, options: [], range: range) == nil {
+            nameValidationError = "Container name can only contain letters, numbers, underscores, periods and dashes. Must start with a letter or number."
+            return
+        }
+
+        if config.name.count > 63 {
+            nameValidationError = "Container name must be 63 characters or less"
+            return
+        }
+
+        // Check for existing container with same name
+        let existingContainer = containerService.containers.first { container in
+            container.configuration.id == config.name
+        }
+
+        if existingContainer != nil {
+            nameValidationError = "A container with this name already exists"
+        } else {
+            nameValidationError = nil
+        }
+    }
+
     private func runContainer() {
+        // Validate name before running
+        validateContainerName()
+        guard nameValidationError == nil else { return }
+
         isRunning = true
 
         Task {
