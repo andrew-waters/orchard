@@ -70,6 +70,16 @@ struct RunContainerView: View {
         .frame(width: 700, height: 600)
         .task {
             await containerService.loadNetworks()
+            await containerService.loadDNSDomains()
+
+            // Set default DNS domain if one exists and config doesn't have one set
+            await MainActor.run {
+                if config.dnsDomain.isEmpty {
+                    if let defaultDomain = containerService.dnsDomains.first(where: { $0.isDefault }) {
+                        config.dnsDomain = defaultDomain.domain
+                    }
+                }
+            }
         }
         .onAppear {
             validateContainerName()
@@ -186,6 +196,13 @@ struct RunContainerView: View {
                 }
                 .pickerStyle(.menu)
                 .frame(width: 200, alignment: .leading)
+
+                if !config.dnsDomain.isEmpty {
+                    Text("Selected: \(config.dnsDomain)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 2)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
