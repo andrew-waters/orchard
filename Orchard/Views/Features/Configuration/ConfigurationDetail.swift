@@ -1,11 +1,11 @@
 import SwiftUI
 
-struct SettingsDetailView: View {
+struct ConfigurationDetailView: View {
     @EnvironmentObject var containerService: ContainerService
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsDetailHeader()
+            ConfigurationDetailHeader()
 
             ScrollView {
             VStack(spacing: 30) {

@@ -24,7 +24,7 @@ struct ThreeColumnLayout: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
-    @Binding var isInIntentionalSettingsMode: Bool
+    @Binding var isInIntentionalConfigurationMode: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
@@ -34,7 +34,7 @@ struct ThreeColumnLayout: View {
         switch selectedTab {
         case .containers, .images, .mounts, .dns, .networks:
             return true
-        case .registries, .systemLogs, .stats, .settings:
+        case .registries, .systemLogs, .stats, .configuration:
             return false
         }
     }
@@ -50,7 +50,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: $selectedMount,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
-                    isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                    isInIntentionalConfigurationMode: $isInIntentionalConfigurationMode,
                     listFocusedTab: $listFocusedTab,
                     isWindowFocused: isWindowFocused
                 )
@@ -62,7 +62,7 @@ struct ThreeColumnLayout: View {
                     // Translucent header like Mail with search
                     VStack(spacing: 8) {
                         // Search and filters
-                        if selectedTab != .registries && selectedTab != .systemLogs && selectedTab != .settings {
+                        if selectedTab != .registries && selectedTab != .systemLogs && selectedTab != .configuration {
                             HStack(spacing: 8) {
                                 HStack(spacing: 6) {
                                     SwiftUI.Image(systemName: "magnifyingglass")
@@ -174,7 +174,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: selectedMount,
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
-                    isInIntentionalSettingsMode: isInIntentionalSettingsMode,
+                    isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
@@ -192,7 +192,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: $selectedMount,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
-                    isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                    isInIntentionalConfigurationMode: $isInIntentionalConfigurationMode,
                     listFocusedTab: $listFocusedTab,
                     isWindowFocused: isWindowFocused
                 )
@@ -207,7 +207,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: selectedMount,
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
-                    isInIntentionalSettingsMode: isInIntentionalSettingsMode,
+                    isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
@@ -232,7 +232,7 @@ struct TabColumnView: View {
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
-    @Binding var isInIntentionalSettingsMode: Bool
+    @Binding var isInIntentionalConfigurationMode: Bool
     @FocusState.Binding var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
 
@@ -249,7 +249,7 @@ struct TabColumnView: View {
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .stats, .settings:
+            case .registries, .systemLogs, .stats, .configuration:
                 break
             }
         }
@@ -292,7 +292,7 @@ struct TabColumnView: View {
            // System section
            Section {
                sidebarRow(for: .stats)
-               sidebarRow(for: .settings)
+               sidebarRow(for: .configuration)
                sidebarRow(for: .systemLogs)
                sidebarRow(for: .registries)
            } header: {
@@ -345,14 +345,14 @@ struct TabColumnView: View {
     private func selectTab(_ tab: TabSelection) {
         selectedTab = tab
 
-        if tab == .settings {
+        if tab == .configuration {
             selectedContainer = nil
             selectedImage = nil
             selectedMount = nil
             selectedDNSDomain = nil
-            isInIntentionalSettingsMode = true
-        } else if isInIntentionalSettingsMode {
-            isInIntentionalSettingsMode = false
+            isInIntentionalConfigurationMode = true
+        } else if isInIntentionalConfigurationMode {
+            isInIntentionalConfigurationMode = false
         }
 
         // Auto-select first item in tabs with second columns (only if no selection exists)
@@ -377,7 +377,7 @@ struct TabColumnView: View {
             if selectedNetwork == nil && !containerService.networks.isEmpty {
                 selectedNetwork = containerService.networks.first?.id
             }
-        case .registries, .systemLogs, .stats, .settings:
+        case .registries, .systemLogs, .stats, .configuration:
             // Clear all selections for tabs without second columns
             selectedContainer = nil
             selectedImage = nil
@@ -393,7 +393,7 @@ struct TabColumnView: View {
             switch tab {
             case .containers, .images, .mounts, .dns, .networks:
                 self.listFocusedTab = tab
-            case .registries, .systemLogs, .stats, .settings:
+            case .registries, .systemLogs, .stats, .configuration:
                 self.listFocusedTab = nil
             }
         }
@@ -411,7 +411,7 @@ struct TabColumnView: View {
             return containerService.dnsDomains.count
         case .networks:
             return containerService.networks.count
-        case .registries, .systemLogs, .stats, .settings:
+        case .registries, .systemLogs, .stats, .configuration:
             return 0
         }
     }
@@ -499,10 +499,10 @@ struct ListColumnView: View {
                     title: "Container Stats",
                     subtitle: "Real-time container statistics"
                 )
-            case .settings:
+            case .configuration:
                 EmptyStateView(
-                    title: "Settings",
-                    subtitle: "Settings configuration"
+                    title: "Configuration",
+                    subtitle: "Configuration settings"
                 )
             }
         }
@@ -520,7 +520,7 @@ struct DetailColumnView: View {
     let selectedMount: String?
     let selectedDNSDomain: String?
     let selectedNetwork: String?
-    let isInIntentionalSettingsMode: Bool
+    let isInIntentionalConfigurationMode: Bool
     @Binding var lastSelectedContainerTab: String
     @Binding var lastSelectedImageTab: String
     @Binding var lastSelectedMountTab: String
@@ -539,7 +539,7 @@ struct DetailColumnView: View {
                 selectedMount: selectedMount,
                 selectedDNSDomain: selectedDNSDomain,
                 selectedNetwork: selectedNetwork,
-                isInIntentionalSettingsMode: isInIntentionalSettingsMode,
+                isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
                 lastSelectedContainerTab: $lastSelectedContainerTab,
                 selectedTabBinding: $selectedTabBinding,
                 selectedContainerBinding: $selectedContainerBinding,

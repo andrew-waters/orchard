@@ -7,7 +7,7 @@ struct SidebarTabs: View {
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
-    @Binding var isInIntentionalSettingsMode: Bool
+    @Binding var isInIntentionalConfigurationMode: Bool
     @FocusState.Binding var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
     let containerService: ContainerService
@@ -20,8 +20,8 @@ struct SidebarTabs: View {
                         selectedTab = tab
 
                         // Always select first item for tabs with second columns
-                        if isInIntentionalSettingsMode {
-                            isInIntentionalSettingsMode = false
+                        if isInIntentionalConfigurationMode {
+                            isInIntentionalConfigurationMode = false
                         }
 
                         switch tab {
@@ -45,15 +45,15 @@ struct SidebarTabs: View {
                             if selectedNetwork == nil, let firstNetwork = containerService.networks.first {
                                 selectedNetwork = firstNetwork.id
                             }
-                        case .registries, .systemLogs, .stats, .settings:
+                        case .registries, .systemLogs, .stats, .configuration:
                             // Clear all selections for tabs without second columns
                             selectedContainer = nil
                             selectedImage = nil
                             selectedMount = nil
                             selectedDNSDomain = nil
                             selectedNetwork = nil
-                            if tab == .settings {
-                                isInIntentionalSettingsMode = true
+                            if tab == .configuration {
+                                isInIntentionalConfigurationMode = true
                             }
                             break
                         }
@@ -64,13 +64,13 @@ struct SidebarTabs: View {
                             switch tab {
                             case .containers, .images, .mounts, .dns, .networks:
                                 self.listFocusedTab = tab
-                            case .registries, .systemLogs, .stats, .settings:
+                            case .registries, .systemLogs, .stats, .configuration:
                                 self.listFocusedTab = nil
                             }
                         }
                     }) {
-                        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
-                        let isActiveTab = selectedTab == tab && !isSettingsMode && !isInIntentionalSettingsMode
+                        let isConfigurationMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
+                        let isActiveTab = selectedTab == tab && !isConfigurationMode && !isInIntentionalConfigurationMode
 
                         SwiftUI.Image(systemName: tab.icon)
                             .font(.system(size: 14))

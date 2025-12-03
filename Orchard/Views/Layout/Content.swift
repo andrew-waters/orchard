@@ -36,7 +36,7 @@ struct ContentView: View {
     @FocusState private var listFocusedTab: TabSelection?
 
     @State private var showingItemNavigatorPopover = false
-    @State private var isInIntentionalSettingsMode = false
+    @State private var isInIntentionalConfigurationMode = false
 
     @Environment(\.openWindow) private var openWindow
 
@@ -72,7 +72,7 @@ struct ContentView: View {
                     showImageSearch: $showImageSearch,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     showAddNetworkSheet: $showAddNetworkSheet,
-                    isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                    isInIntentionalConfigurationMode: $isInIntentionalConfigurationMode,
                     showingItemNavigatorPopover: $showingItemNavigatorPopover,
                     listFocusedTab: _listFocusedTab,
                     isWindowFocused: isWindowFocused,
@@ -98,23 +98,23 @@ struct ContentView: View {
             // Default tab is already set to containers
         }
         .onChange(of: containerService.containers) { oldContainers, newContainers in
-            // Auto-select first container when containers load, but not if we're intentionally in settings mode
-            if selectedContainer == nil && !newContainers.isEmpty && !isInIntentionalSettingsMode {
+            // Auto-select first container when containers load, but not if we're intentionally in configuration mode
+            if selectedContainer == nil && !newContainers.isEmpty && !isInIntentionalConfigurationMode {
                 selectedContainer = newContainers[0].configuration.id
             }
-            if selectedMount == nil && !containerService.allMounts.isEmpty && !isInIntentionalSettingsMode {
+            if selectedMount == nil && !containerService.allMounts.isEmpty && !isInIntentionalConfigurationMode {
                 selectedMount = containerService.allMounts[0].id
             }
         }
         .onChange(of: containerService.dnsDomains) { oldDomains, newDomains in
-            // Auto-select first DNS domain when domains load, but not if we're intentionally in settings mode
-            if selectedDNSDomain == nil && !newDomains.isEmpty && !isInIntentionalSettingsMode {
+            // Auto-select first DNS domain when domains load, but not if we're intentionally in configuration mode
+            if selectedDNSDomain == nil && !newDomains.isEmpty && !isInIntentionalConfigurationMode {
                 selectedDNSDomain = newDomains[0].domain
             }
         }
         .onChange(of: containerService.networks) { oldNetworks, newNetworks in
-            // Auto-select first network when networks load, but not if we're intentionally in settings mode
-            if selectedNetwork == nil && !newNetworks.isEmpty && !isInIntentionalSettingsMode {
+            // Auto-select first network when networks load, but not if we're intentionally in configuration mode
+            if selectedNetwork == nil && !newNetworks.isEmpty && !isInIntentionalConfigurationMode {
                 selectedNetwork = newNetworks[0].id
             }
         }

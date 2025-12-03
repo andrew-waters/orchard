@@ -20,7 +20,7 @@ struct SidebarView: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
-    @Binding var isInIntentionalSettingsMode: Bool
+    @Binding var isInIntentionalConfigurationMode: Bool
     @FocusState var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
 
@@ -33,7 +33,7 @@ struct SidebarView: View {
                 selectedMount: $selectedMount,
                 selectedDNSDomain: $selectedDNSDomain,
                 selectedNetwork: $selectedNetwork,
-                isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+                isInIntentionalConfigurationMode: $isInIntentionalConfigurationMode,
                 listFocusedTab: $listFocusedTab,
                 isWindowFocused: isWindowFocused,
                 containerService: containerService
@@ -91,7 +91,7 @@ struct SidebarView: View {
                         selectedNetwork = containerService.networks.first?.id
                     }
                 }
-            case .registries, .systemLogs, .stats, .settings:
+            case .registries, .systemLogs, .stats, .configuration:
                 // No selection state for these tabs
                 break
             }
@@ -105,13 +105,13 @@ struct SidebarView: View {
 
     private var selectedContentView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Check if we're in settings mode (no selections)
-            let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
+            // Check if we're in configuration mode (no selections)
+            let isConfigurationMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
-            if isSettingsMode && isInIntentionalSettingsMode {
-                // Show empty state when intentionally in settings mode
+            if isConfigurationMode && isInIntentionalConfigurationMode {
+                // Show empty state when intentionally in configuration mode
                 VStack {
-                    Text("Settings")
+                    Text("Configuration")
                         .font(.title2)
                         .foregroundColor(.secondary)
                     Text("Configure app preferences")
@@ -166,9 +166,9 @@ struct SidebarView: View {
                     systemLogsView
                 case .stats:
                     statsView
-                case .settings:
+                case .configuration:
                     VStack {
-                        Text("Settings")
+                        Text("Configuration")
                             .font(.title2)
                             .fontWeight(.medium)
                         Text("Configure app preferences")
@@ -187,7 +187,7 @@ struct SidebarView: View {
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .stats, .settings:
+            case .registries, .systemLogs, .stats, .configuration:
                 break
             }
         }

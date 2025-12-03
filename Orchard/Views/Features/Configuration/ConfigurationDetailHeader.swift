@@ -1,11 +1,11 @@
 import SwiftUI
 
-// MARK: - Settings Detail Header
-struct SettingsDetailHeader: View {
+// MARK: - Configuration Detail Header
+struct ConfigurationDetailHeader: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Settings")
+                Text("Configuration")
                     .font(.title2)
                     .fontWeight(.semibold)
             }
@@ -13,7 +13,7 @@ struct SettingsDetailHeader: View {
 
             // Action buttons
             HStack(spacing: 8) {
-                // Add settings-specific actions here if needed in the future
+                // Add configuration-specific actions here if needed in the future
             }
         }
         .padding(.horizontal, 16)

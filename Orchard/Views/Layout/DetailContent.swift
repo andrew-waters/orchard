@@ -8,7 +8,7 @@ struct DetailContentView: View {
     let selectedMount: String?
     let selectedDNSDomain: String?
     let selectedNetwork: String?
-    let isInIntentionalSettingsMode: Bool
+    let isInIntentionalConfigurationMode: Bool
     @Binding var lastSelectedContainerTab: String
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
@@ -62,8 +62,8 @@ struct DetailContentView: View {
                 selectedTab: $selectedTabBinding,
                 selectedContainer: $selectedContainerBinding
             )
-        case .settings:
-            SettingsDetailView()
+        case .configuration:
+            ConfigurationDetailView()
         }
     }
 

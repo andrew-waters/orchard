@@ -9,7 +9,7 @@ enum TabSelection: String, CaseIterable {
     case registries = "registries"
     case systemLogs = "systemLogs"
     case stats = "stats"
-    case settings = "settings"
+    case configuration = "configuration"
 
     var icon: String {
         switch self {
@@ -29,7 +29,7 @@ enum TabSelection: String, CaseIterable {
             return "doc.text.below.ecg"
         case .stats:
             return "water.waves"
-        case .settings:
+        case .configuration:
             return "gearshape"
         }
     }
@@ -52,8 +52,8 @@ enum TabSelection: String, CaseIterable {
             return "System Logs"
         case .stats:
             return "Stats"
-        case .settings:
-            return "Settings"
+        case .configuration:
+            return "Configuration"
         }
     }
 }

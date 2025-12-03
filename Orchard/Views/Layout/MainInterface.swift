@@ -23,7 +23,7 @@ struct MainInterfaceView: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
-    @Binding var isInIntentionalSettingsMode: Bool
+    @Binding var isInIntentionalConfigurationMode: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
@@ -31,17 +31,17 @@ struct MainInterfaceView: View {
 
     // Computed properties
     private var currentResourceTitle: String {
-        // Check if we're in intentional settings mode first
-        if isInIntentionalSettingsMode {
-            return "Settings"
+        // Check if we're in intentional configuration mode first
+        if isInIntentionalConfigurationMode {
+            return "Configuration"
         }
 
-        // Check if we're in settings mode (no selections)
-        let isSettingsMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
+        // Check if we're in configuration mode (no selections)
+        let isConfigurationMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
-        // Only show settings title if we're intentionally in settings mode, not during initial loading
-        if isSettingsMode && isInIntentionalSettingsMode {
-            return "Settings"
+        // Only show configuration title if we're intentionally in configuration mode, not during initial loading
+        if isConfigurationMode && isInIntentionalConfigurationMode {
+            return "Configuration"
         }
 
         switch selectedTab {
@@ -82,7 +82,7 @@ struct MainInterfaceView: View {
             return ""
         case .stats:
             return ""
-        case .settings:
+        case .configuration:
             return ""
         }
     }
@@ -122,7 +122,7 @@ struct MainInterfaceView: View {
             showImageSearch: $showImageSearch,
             showAddDNSDomainSheet: $showAddDNSDomainSheet,
             showAddNetworkSheet: $showAddNetworkSheet,
-            isInIntentionalSettingsMode: $isInIntentionalSettingsMode,
+            isInIntentionalConfigurationMode: $isInIntentionalConfigurationMode,
             showingItemNavigatorPopover: $showingItemNavigatorPopover,
             listFocusedTab: _listFocusedTab,
             isWindowFocused: isWindowFocused,
