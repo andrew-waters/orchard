@@ -91,7 +91,7 @@ struct SidebarView: View {
                         selectedNetwork = containerService.networks.first?.id
                     }
                 }
-            case .registries, .systemLogs, .settings:
+            case .registries, .systemLogs, .stats, .settings:
                 // No selection state for these tabs
                 break
             }
@@ -164,6 +164,8 @@ struct SidebarView: View {
                     registriesView
                 case .systemLogs:
                     systemLogsView
+                case .stats:
+                    statsView
                 case .settings:
                     VStack {
                         Text("Settings")
@@ -185,7 +187,7 @@ struct SidebarView: View {
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .settings:
+            case .registries, .systemLogs, .stats, .settings:
                 break
             }
         }
@@ -205,6 +207,18 @@ struct SidebarView: View {
                 .font(.title)
                 .foregroundColor(.secondary)
             Text("Coming Soon")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var statsView: some View {
+        VStack {
+            Text("Container Stats")
+                .font(.title2)
+                .fontWeight(.medium)
+            Text("Real-time container statistics")
+                .font(.caption)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

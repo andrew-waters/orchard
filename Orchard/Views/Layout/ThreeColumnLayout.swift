@@ -34,7 +34,7 @@ struct ThreeColumnLayout: View {
         switch selectedTab {
         case .containers, .images, .mounts, .dns, .networks:
             return true
-        case .registries, .systemLogs, .settings:
+        case .registries, .systemLogs, .stats, .settings:
             return false
         }
     }
@@ -249,7 +249,7 @@ struct TabColumnView: View {
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .settings:
+            case .registries, .systemLogs, .stats, .settings:
                 break
             }
         }
@@ -291,9 +291,10 @@ struct TabColumnView: View {
 
            // System section
            Section {
-               sidebarRow(for: .registries)
-               sidebarRow(for: .systemLogs)
+               sidebarRow(for: .stats)
                sidebarRow(for: .settings)
+               sidebarRow(for: .systemLogs)
+               sidebarRow(for: .registries)
            } header: {
                HStack {
                    Text("System")
@@ -376,7 +377,7 @@ struct TabColumnView: View {
             if selectedNetwork == nil && !containerService.networks.isEmpty {
                 selectedNetwork = containerService.networks.first?.id
             }
-        case .registries, .systemLogs, .settings:
+        case .registries, .systemLogs, .stats, .settings:
             // Clear all selections for tabs without second columns
             selectedContainer = nil
             selectedImage = nil
@@ -392,7 +393,7 @@ struct TabColumnView: View {
             switch tab {
             case .containers, .images, .mounts, .dns, .networks:
                 self.listFocusedTab = tab
-            case .registries, .systemLogs, .settings:
+            case .registries, .systemLogs, .stats, .settings:
                 self.listFocusedTab = nil
             }
         }
@@ -410,7 +411,7 @@ struct TabColumnView: View {
             return containerService.dnsDomains.count
         case .networks:
             return containerService.networks.count
-        case .registries, .systemLogs, .settings:
+        case .registries, .systemLogs, .stats, .settings:
             return 0
         }
     }
@@ -492,6 +493,11 @@ struct ListColumnView: View {
                 EmptyStateView(
                     title: "System Logs",
                     subtitle: "Coming Soon"
+                )
+            case .stats:
+                EmptyStateView(
+                    title: "Container Stats",
+                    subtitle: "Real-time container statistics"
                 )
             case .settings:
                 EmptyStateView(

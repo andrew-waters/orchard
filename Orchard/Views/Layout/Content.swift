@@ -225,6 +225,11 @@ struct ContentView: View {
                 await containerService.loadDNSDomains(showLoading: false)
                 await containerService.loadNetworks(showLoading: false)
 
+                // Load stats if currently on stats tab
+                if selectedTab == .stats {
+                    await containerService.loadContainerStats(showLoading: false)
+                }
+
                 // Check for updates periodically
                 if containerService.shouldCheckForUpdates() {
                     await containerService.checkForUpdates()

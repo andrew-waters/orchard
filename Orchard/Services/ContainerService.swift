@@ -28,6 +28,8 @@ class ContainerService: ObservableObject {
     @Published var isKernelLoading = false
     @Published var successMessage: String?
     @Published var customBinaryPath: String?
+    @Published var containerStats: [ContainerStats] = []
+    @Published var isStatsLoading: Bool = false
     @Published var refreshInterval: RefreshInterval = .fiveSeconds
     @Published var updateAvailable: Bool = false
     @Published var latestVersion: String?
@@ -531,6 +533,63 @@ class ContainerService: ObservableObject {
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
+            }
+        }
+    }
+
+    // MARK: - Container Stats Management
+
+    func loadContainerStats() async {
+        await loadContainerStats(showLoading: true)
+    }
+
+    func loadContainerStats(showLoading: Bool = true) async {
+        if showLoading {
+            await MainActor.run {
+                isStatsLoading = true
+                errorMessage = nil
+            }
+        }
+
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["container", "stats", "--format=json"]
+            )
+
+            if result.failed {
+                await MainActor.run {
+                    self.containerStats = []
+                    self.isStatsLoading = false
+                    if let stderr = result.stderr, !stderr.isEmpty {
+                        self.errorMessage = "Failed to load container stats: \(stderr)"
+                    }
+                }
+                return
+            }
+
+            guard let stdout = result.stdout, !stdout.isEmpty else {
+                await MainActor.run {
+                    self.containerStats = []
+                    self.isStatsLoading = false
+                }
+                return
+            }
+
+            let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            let decoder = JSONDecoder()
+            let stats = try decoder.decode([ContainerStats].self, from: trimmed.data(using: .utf8)!)
+
+            await MainActor.run {
+                self.containerStats = stats
+                self.isStatsLoading = false
+            }
+
+        } catch {
+            await MainActor.run {
+                self.containerStats = []
+                self.isStatsLoading = false
+                self.errorMessage = "Failed to parse container stats: \(error.localizedDescription)"
             }
         }
     }

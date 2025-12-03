@@ -523,3 +523,65 @@ struct ContainerRunConfig: Equatable {
         var readonly: Bool = false
     }
 }
+
+// MARK: - Container Stats Models
+
+struct ContainerStats: Codable, Equatable, Identifiable {
+    let id: String
+    let cpuUsageUsec: Int
+    let memoryUsageBytes: Int
+    let memoryLimitBytes: Int
+    let blockReadBytes: Int
+    let blockWriteBytes: Int
+    let networkRxBytes: Int
+    let networkTxBytes: Int
+    let numProcesses: Int
+
+    // Computed properties for display
+    var cpuUsagePercent: Double {
+        // This would need to be calculated based on system CPU time
+        // For now, return 0 as a placeholder
+        return 0.0
+    }
+
+    var memoryUsagePercent: Double {
+        guard memoryLimitBytes > 0 else { return 0.0 }
+        return Double(memoryUsageBytes) / Double(memoryLimitBytes) * 100.0
+    }
+
+    var formattedMemoryUsage: String {
+        ByteCountFormatter.string(fromByteCount: Int64(memoryUsageBytes), countStyle: .memory)
+    }
+
+    var formattedMemoryLimit: String {
+        ByteCountFormatter.string(fromByteCount: Int64(memoryLimitBytes), countStyle: .memory)
+    }
+
+    var formattedNetworkRx: String {
+        ByteCountFormatter.string(fromByteCount: Int64(networkRxBytes), countStyle: .binary)
+    }
+
+    var formattedNetworkTx: String {
+        ByteCountFormatter.string(fromByteCount: Int64(networkTxBytes), countStyle: .binary)
+    }
+
+    var formattedBlockRead: String {
+        ByteCountFormatter.string(fromByteCount: Int64(blockReadBytes), countStyle: .binary)
+    }
+
+    var formattedBlockWrite: String {
+        ByteCountFormatter.string(fromByteCount: Int64(blockWriteBytes), countStyle: .binary)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case cpuUsageUsec
+        case memoryUsageBytes
+        case memoryLimitBytes
+        case blockReadBytes
+        case blockWriteBytes
+        case networkRxBytes
+        case networkTxBytes
+        case numProcesses
+    }
+}
