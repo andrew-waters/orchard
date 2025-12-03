@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct StatsTable: View {
+struct StatsTableView: View {
     let containerStats: [ContainerStats]
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
