@@ -204,6 +204,7 @@ struct ContentView: View {
 
         // Load stats first for immediate display
         await containerService.loadContainerStats(showLoading: true)
+        await containerService.loadSystemDiskUsage(showLoading: true)
 
         await containerService.loadContainers(showLoading: true)
         await containerService.loadImages()
@@ -232,6 +233,7 @@ struct ContentView: View {
                 // Load stats if currently on stats tab
                 if selectedTab == .stats {
                     await containerService.loadContainerStats(showLoading: false)
+                    await containerService.loadSystemDiskUsage(showLoading: false)
                 }
 
                 // Check for updates periodically

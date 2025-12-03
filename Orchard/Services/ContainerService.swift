@@ -30,6 +30,8 @@ class ContainerService: ObservableObject {
     @Published var customBinaryPath: String?
     @Published var containerStats: [ContainerStats] = []
     @Published var isStatsLoading: Bool = false
+    @Published var systemDiskUsage: SystemDiskUsage? = nil
+    @Published var isSystemDiskUsageLoading: Bool = false
     @Published var refreshInterval: RefreshInterval = .fiveSeconds
     @Published var updateAvailable: Bool = false
     @Published var latestVersion: String?
@@ -611,6 +613,66 @@ class ContainerService: ObservableObject {
                 self.containerStats = []
                 self.isStatsLoading = false
                 self.errorMessage = "Failed to parse container stats: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    // MARK: - System Disk Usage Management
+
+    func loadSystemDiskUsage() async {
+        await loadSystemDiskUsage(showLoading: true)
+    }
+
+    func loadSystemDiskUsage(showLoading: Bool = true) async {
+        if showLoading {
+            await MainActor.run {
+                isSystemDiskUsageLoading = true
+            }
+        }
+
+        do {
+            let result = try exec(
+                program: safeContainerBinaryPath(),
+                arguments: ["system", "df", "--format=json"]
+            )
+
+            if result.exitCode != 0 {
+                await MainActor.run {
+                    self.systemDiskUsage = nil
+                    self.isSystemDiskUsageLoading = false
+
+                    if let stderr = result.stderr, !stderr.isEmpty {
+                        self.errorMessage = "Failed to load system disk usage: \(stderr)"
+                    } else {
+                        self.errorMessage = "System disk usage command failed with no error message."
+                    }
+                }
+                return
+            }
+
+            guard let output = result.stdout, !output.isEmpty else {
+                await MainActor.run {
+                    self.systemDiskUsage = nil
+                    self.isSystemDiskUsageLoading = false
+                }
+                return
+            }
+
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let decoder = JSONDecoder()
+            let diskUsage = try decoder.decode(SystemDiskUsage.self, from: trimmed.data(using: .utf8)!)
+
+            await MainActor.run {
+                self.systemDiskUsage = diskUsage
+                self.isSystemDiskUsageLoading = false
+            }
+
+        } catch {
+            await MainActor.run {
+                self.systemDiskUsage = nil
+                self.isSystemDiskUsageLoading = false
+                self.errorMessage = "Failed to parse system disk usage: \(error.localizedDescription)"
             }
         }
     }

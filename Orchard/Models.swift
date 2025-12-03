@@ -585,3 +585,47 @@ struct ContainerStats: Codable, Equatable, Identifiable {
         case numProcesses
     }
 }
+
+// MARK: - System Disk Usage Models
+
+struct SystemDiskUsage: Codable, Equatable {
+    let containers: DiskUsageSection
+    let images: DiskUsageSection
+    let volumes: DiskUsageSection
+
+    var totalSize: Int64 {
+        containers.sizeInBytes + images.sizeInBytes + volumes.sizeInBytes
+    }
+
+    var totalReclaimable: Int64 {
+        containers.reclaimable + images.reclaimable + volumes.reclaimable
+    }
+
+    var formattedTotalSize: String {
+        ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .binary)
+    }
+
+    var formattedTotalReclaimable: String {
+        ByteCountFormatter.string(fromByteCount: totalReclaimable, countStyle: .binary)
+    }
+}
+
+struct DiskUsageSection: Codable, Equatable {
+    let active: Int
+    let reclaimable: Int64
+    let sizeInBytes: Int64
+    let total: Int
+
+    var formattedSize: String {
+        ByteCountFormatter.string(fromByteCount: sizeInBytes, countStyle: .binary)
+    }
+
+    var formattedReclaimable: String {
+        ByteCountFormatter.string(fromByteCount: reclaimable, countStyle: .binary)
+    }
+
+    var reclaimablePercent: Double {
+        guard sizeInBytes > 0 else { return 0.0 }
+        return Double(reclaimable) / Double(sizeInBytes) * 100.0
+    }
+}
