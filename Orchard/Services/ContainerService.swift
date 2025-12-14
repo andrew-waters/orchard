@@ -3,6 +3,7 @@ import SwiftExec
 import SwiftUI
 import AppKit
 
+@MainActor
 class ContainerService: ObservableObject {
     let supportedContainerVersion = "0.7.0"
 
@@ -14,6 +15,7 @@ class ContainerService: ObservableObject {
     @Published var isBuildersLoading: Bool = false
     @Published var errorMessage: String?
     @Published var systemStatus: SystemStatus = .unknown
+    @Published var systemStatusVersionOverride: Bool = false
     @Published var isSystemLoading = false
     @Published var loadingContainers: Set<String> = []
     @Published var containerVersion: String?
@@ -206,6 +208,19 @@ class ContainerService: ObservableObject {
 
         return false
     }
+    
+    private static func compareVersions(_ lhs: String, _ rhs: String) -> Int {
+        let lhsParts = lhs.split(separator: ".").compactMap { Int($0) }
+        let rhsParts = rhs.split(separator: ".").compactMap { Int($0) }
+        let maxCount = max(lhsParts.count, rhsParts.count)
+        for i in 0..<maxCount {
+            let l = i < lhsParts.count ? lhsParts[i] : 0
+            let r = i < rhsParts.count ? rhsParts[i] : 0
+            if l < r { return -1 }
+            if l > r { return 1 }
+        }
+        return 0
+    }
 
     func shouldCheckForUpdates() -> Bool {
         guard let lastCheck = UserDefaults.standard.object(forKey: lastUpdateCheckKey) as? Date else {
@@ -276,7 +291,7 @@ class ContainerService: ObservableObject {
             for mount in container.configuration.mounts {
                 let mountId = "\(mount.source)->\(mount.destination)"
 
-                if var existingMount = mountDict[mountId] {
+                if let existingMount = mountDict[mountId] {
                     // Add this container to the existing mount
                     var updatedContainerIds = existingMount.containerIds
                     if !updatedContainerIds.contains(container.configuration.id) {
@@ -297,6 +312,7 @@ class ContainerService: ObservableObject {
         case unknown
         case stopped
         case running
+        case newerVersion
         case unsupportedVersion
 
         var color: Color {
@@ -305,6 +321,8 @@ class ContainerService: ObservableObject {
                 return .gray
             case .running:
                 return .green
+            case .newerVersion:
+                return .yellow
             case .unsupportedVersion:
                 return .red
             }
@@ -318,6 +336,8 @@ class ContainerService: ObservableObject {
                 return "stopped"
             case .running:
                 return "running"
+            case .newerVersion:
+                return "version not yet supported"
             case .unsupportedVersion:
                 return "unsupported version"
             }
@@ -736,18 +756,19 @@ class ContainerService: ObservableObject {
     }
 
     func checkSystemStatus() async {
-        // First check if container CLI is available and get version
-        await checkContainerVersion()
-
-        // If version is unsupported, don't check if system is running
-        if await MainActor.run(body: { self.systemStatus }) == .unsupportedVersion {
-            return
+        if !self.systemStatusVersionOverride {
+            // First check if container CLI is available and get version
+            await checkContainerVersion()
+            
+            let status = await MainActor.run(body: { self.systemStatus })
+            if status == .unsupportedVersion || status == .newerVersion {
+                return
+            }
         }
 
         // Check if system is running
-        var result: ExecResult
         do {
-            result = try exec(
+            _ = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["ls"])
 
@@ -760,6 +781,11 @@ class ContainerService: ObservableObject {
                 self.systemStatus = .stopped
             }
         }
+    }
+    
+    func checkSystemStatusIgnoreVersion() async {
+        self.systemStatusVersionOverride = true
+        await checkSystemStatus()
     }
 
     func checkContainerVersion() async {
@@ -802,12 +828,26 @@ class ContainerService: ObservableObject {
                 self.containerVersion = output
                 self.parsedContainerVersion = extractedVersion
 
-                if let version = extractedVersion, version == self.supportedContainerVersion {
-                    // Only update to running if we're not already stopped
+                guard let extractedVersion = extractedVersion else {
+                    // Could not parse version; treat as unsupported
+                    self.systemStatus = .unsupportedVersion
+                    return
+                }
+
+                let comparison = Self.compareVersions(extractedVersion, self.supportedContainerVersion)
+                switch comparison {
+                case 0:
+                    // Equal: supported
                     if self.systemStatus != .stopped {
                         self.systemStatus = .running
                     }
-                } else {
+                case -1:
+                    // Extracted is less than supported
+                    self.systemStatus = .unsupportedVersion
+                case 1:
+                    // Extracted is greater than supported
+                    self.systemStatus = .newerVersion
+                default:
                     self.systemStatus = .unsupportedVersion
                 }
             }
@@ -826,9 +866,8 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
         do {
-            result = try exec(
+            _ = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "start"])
 
@@ -842,7 +881,6 @@ class ContainerService: ObservableObject {
 
         } catch {
             let error = error as! ExecError
-            result = error.execResult
 
             await MainActor.run {
                 self.errorMessage = "Failed to start system: \(error.localizedDescription)"
@@ -858,9 +896,8 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
         do {
-            result = try exec(
+            _ = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "stop"])
 
@@ -874,7 +911,6 @@ class ContainerService: ObservableObject {
 
         } catch {
             let error = error as! ExecError
-            result = error.execResult
 
             await MainActor.run {
                 self.errorMessage = "Failed to stop system: \(error.localizedDescription)"
@@ -890,9 +926,8 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
         do {
-            result = try exec(
+            _ = try exec(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "restart"])
 
@@ -906,7 +941,6 @@ class ContainerService: ObservableObject {
 
         } catch {
             let error = error as! ExecError
-            result = error.execResult
 
             await MainActor.run {
                 self.errorMessage = "Failed to restart system: \(error.localizedDescription)"
@@ -918,12 +952,18 @@ class ContainerService: ObservableObject {
 
     func startContainer(_ id: String) async {
         // Check if container operation is already in progress
-        let shouldProceed = await lockQueue.sync(flags: .barrier) {
+        let shouldProceed = lockQueue.sync(flags: .barrier) {
             if containerOperationLocks.contains(id) {
                 return false
             }
             containerOperationLocks.insert(id)
             return true
+        }
+        
+        defer {
+            let _ = lockQueue.sync(flags: .barrier) {
+                containerOperationLocks.remove(id)
+            }
         }
 
         guard shouldProceed else {
@@ -932,11 +972,6 @@ class ContainerService: ObservableObject {
         }
 
         await startContainerWithRetry(id, maxRetries: 3, retryDelay: 1.0)
-
-        // Remove lock when done
-        await lockQueue.sync(flags: .barrier) {
-            containerOperationLocks.remove(id)
-        }
     }
 
     private func startContainerWithRetry(_ id: String, maxRetries: Int, retryDelay: TimeInterval) async {
@@ -1042,7 +1077,7 @@ class ContainerService: ObservableObject {
         }
 
         // If we get here, all retries failed
-        await MainActor.run {
+        let _ = await MainActor.run {
             loadingContainers.remove(id)
         }
     }
@@ -1314,7 +1349,6 @@ class ContainerService: ObservableObject {
         // Load system properties first to get the default domain
         await loadSystemProperties(showLoading: false)
 
-        var result: ExecResult
         do {
             // Get list of domains in JSON format
             let listResult = try exec(
@@ -1872,31 +1906,33 @@ class ContainerService: ObservableObject {
             }
         }
 
-        // Execute command in background without blocking UI
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            Task {
+        // Execute command in background without capturing self in a concurrently-executing closure
+        let binaryPath = self.safeContainerBinaryPath()
+        let selectedDomain = domain
+        let weakSelf = self
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            Task { @MainActor in
+                // Switch to a nonisolated copy to avoid capturing main-actor state in concurrent context
+                let service = weakSelf
                 do {
                     let result = try exec(
-                        program: self?.safeContainerBinaryPath() ?? "/usr/local/bin/container",
-                        arguments: ["system", "property", "set", "dns.domain", domain])
+                        program: binaryPath,
+                        arguments: ["system", "property", "set", "dns.domain", selectedDomain])
 
                     if result.failed {
                         // Revert on failure
-                        await self?.loadSystemProperties(showLoading: false)
-                        await self?.loadDNSDomains(showLoading: false)
+                        await service.loadSystemProperties(showLoading: false)
+                        await service.loadDNSDomains(showLoading: false)
 
-                        await MainActor.run {
-                            self?.errorMessage = result.stderr ?? "Failed to set default DNS domain"
-                        }
+                        service.errorMessage = result.stderr ?? "Failed to set default DNS domain"
                     }
                 } catch {
                     // Revert on error
-                    await self?.loadSystemProperties(showLoading: false)
-                    await self?.loadDNSDomains(showLoading: false)
+                    await service.loadSystemProperties(showLoading: false)
+                    await service.loadDNSDomains(showLoading: false)
 
-                    await MainActor.run {
-                        self?.errorMessage = "Failed to set default DNS domain: \(error.localizedDescription)"
-                    }
+                    service.errorMessage = "Failed to set default DNS domain: \(error.localizedDescription)"
                 }
             }
         }
@@ -2357,3 +2393,4 @@ class ContainerService: ObservableObject {
 typealias Containers = [Container]
 typealias Images = [ContainerImage]
 typealias Builders = [Builder]
+

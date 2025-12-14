@@ -513,7 +513,6 @@ struct ContainerDetailView: View {
 
             let containerStats = containerService.containerStats.first { $0.id == container.configuration.id }
             let isRunning = container.status.lowercased() == "running"
-            let isLoading = containerService.isStatsLoading
 
             // Always show stats boxes
             HStack(spacing: 16) {

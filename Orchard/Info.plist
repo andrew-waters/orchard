@@ -26,5 +26,7 @@
 	<string></string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>This app needs permission to control the container service.</string>
 </dict>
 </plist>

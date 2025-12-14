@@ -171,7 +171,7 @@ struct RunContainerView: View {
 
                 TextField("Enter container name", text: $config.name)
                     .textFieldStyle(.roundedBorder)
-                    .onChange(of: config.name) { _ in
+                    .onChange(of: config.name) {
                         validateContainerName()
                     }
 
@@ -649,3 +649,4 @@ struct EnvironmentVariableRow: View {
     RunContainerView(imageName: "docker.io/library/nginx:latest")
         .environmentObject(ContainerService())
 }
+

@@ -47,6 +47,8 @@ struct ContentView: View {
         Group {
             if containerService.systemStatus == .stopped {
                 NotRunningView()
+            } else if containerService.systemStatus == .newerVersion {
+                NewerVersionView()
             } else if containerService.systemStatus == .unsupportedVersion {
                 VersionIncompatibilityView()
             } else {
