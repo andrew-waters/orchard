@@ -14,6 +14,18 @@ All notable changes to Orchard will be documented in this file.
 - 
 
 
+## [1.7.1] - 2025-12-18
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+
 ## [1.7.0] - 2025-12-03
 
 ### Added
