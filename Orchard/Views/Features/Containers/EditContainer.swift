@@ -502,7 +502,7 @@ struct EditContainerView: View {
                 workingDirectory: "/app",
                 arguments: ["nginx", "-g", "daemon off;"],
                 executable: "/usr/sbin/nginx",
-                user: User(id: nil, raw: nil),
+                user: User(id: UserID(gid: 0, uid: 0), raw: UserRaw(userString: "root")),
                 rlimits: [],
                 supplementalGroups: []
             ),

@@ -133,16 +133,31 @@ struct UserID: Codable, Equatable {
 }
 
 struct Network: Codable, Equatable {
-    let gateway: String
-    let hostname: String
-    let network: String
-    let address: String
+    var gateway: String
+    var hostname: String
+    var network: String
+    var address: String
 
     enum CodingKeys: String, CodingKey {
         case gateway
         case hostname
         case network
         case address
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        gateway = try container.decodeIfPresent(String.self, forKey: .gateway) ?? ""
+        hostname = try container.decodeIfPresent(String.self, forKey: .hostname) ?? ""
+        network = try container.decodeIfPresent(String.self, forKey: .network) ?? ""
+        address = try container.decodeIfPresent(String.self, forKey: .address) ?? ""
+    }
+    
+    init(gateway: String = "", hostname: String = "", network: String = "", address: String = "") {
+        self.gateway = gateway
+        self.hostname = hostname
+        self.network = network
+        self.address = address
     }
 }
 
