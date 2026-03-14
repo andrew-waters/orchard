@@ -383,7 +383,7 @@ class ContainerService: ObservableObject {
         do {
             result = try exec(
                 program: safeContainerBinaryPath(),
-                arguments: ["ls", "--format", "json"])
+                arguments: ["ls", "-a", "--format", "json"])
         } catch {
             let error = error as! ExecError
             result = error.execResult
