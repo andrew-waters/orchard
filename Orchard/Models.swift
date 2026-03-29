@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 // MARK: - Sort Options
 
@@ -516,6 +517,37 @@ struct SystemProperty: Identifiable, Equatable {
 
     var isUndefined: Bool {
         return value == "*undefined*"
+    }
+}
+
+// MARK: - Terminal App Models
+
+enum TerminalApp: String, CaseIterable {
+    case terminal = "com.apple.Terminal"
+    case iterm2 = "com.googlecode.iterm2"
+    case ghostty = "com.mitchellh.ghostty"
+
+    var displayName: String {
+        switch self {
+        case .terminal:
+            return "Terminal"
+        case .iterm2:
+            return "iTerm2"
+        case .ghostty:
+            return "Ghostty"
+        }
+    }
+
+    var bundleIdentifier: String {
+        return rawValue
+    }
+
+    var isInstalled: Bool {
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) != nil
+    }
+
+    static var installedTerminals: [TerminalApp] {
+        return allCases.filter { $0.isInstalled }
     }
 }
 
