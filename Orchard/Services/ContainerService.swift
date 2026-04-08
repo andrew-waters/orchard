@@ -1,5 +1,4 @@
 import Foundation
-import SwiftExec
 import SwiftUI
 import AppKit
 import ContainerAPIClient
@@ -7,9 +6,44 @@ import ContainerResource
 import ContainerizationOCI
 import ContainerizationExtras
 
+// MARK: - Process execution (replaces SwiftExec)
+
+struct ProcessResult {
+    let exitCode: Int32
+    let stdout: String?
+    let stderr: String?
+    var failed: Bool { exitCode != 0 }
+}
+
+func runProcess(program: String, arguments: [String]) throws -> ProcessResult {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: program)
+    process.arguments = arguments
+
+    let stdoutPipe = Pipe()
+    let stderrPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = stderrPipe
+
+    try process.run()
+    process.waitUntilExit()
+
+    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
+    var stdoutStr = String(data: stdoutData, encoding: .utf8)
+    var stderrStr = String(data: stderrData, encoding: .utf8)
+
+    // Strip trailing newline
+    if let s = stdoutStr, s.hasSuffix("\n") { stdoutStr = String(s.dropLast()) }
+    if let s = stderrStr, s.hasSuffix("\n") { stderrStr = String(s.dropLast()) }
+
+    return ProcessResult(exitCode: process.terminationStatus, stdout: stdoutStr, stderr: stderrStr)
+}
+
 @MainActor
 class ContainerService: ObservableObject {
-    let supportedContainerVersion = "0.11.0"
+    // Version is now obtained from ClientHealthCheck.ping()
 
     @Published var containers: [Container] = []
     @Published var images: [ContainerImage] = []
@@ -211,19 +245,6 @@ class ContainerService: ObservableObject {
         }
 
         return false
-    }
-
-    private static func compareVersions(_ lhs: String, _ rhs: String) -> Int {
-        let lhsParts = lhs.split(separator: ".").compactMap { Int($0) }
-        let rhsParts = rhs.split(separator: ".").compactMap { Int($0) }
-        let maxCount = max(lhsParts.count, rhsParts.count)
-        for i in 0..<maxCount {
-            let l = i < lhsParts.count ? lhsParts[i] : 0
-            let r = i < rhsParts.count ? rhsParts[i] : 0
-            if l < r { return -1 }
-            if l > r { return 1 }
-        }
-        return 0
     }
 
     func shouldCheckForUpdates() -> Bool {
@@ -449,21 +470,14 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
+        var result: ProcessResult
         do {
-            result = try exec(
+            result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "status", "--format", "json"]
             )
         } catch {
-            let execError = error as? ExecError
-            result = execError?.execResult ?? ExecResult(
-                failed: true,
-                message: error.localizedDescription,
-                exitCode: nil,
-                stdout: nil,
-                stderr: nil
-            )
+            result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
         }
 
         if result.failed {
@@ -473,9 +487,9 @@ class ContainerService: ObservableObject {
                 self.isBuildersLoading = false
             }
             if let stderr = result.stderr, !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                print("Builder status command failed (exit \(result.exitCode ?? -1)). Stderr:\n\(stderr)")
-            } else if let message = result.message {
-                print("Builder status command failed: \(message)")
+                print("Builder status command failed (exit \(result.exitCode)). Stderr:\n\(stderr)")
+            } else if let stderr2 = result.stderr {
+                print("Builder status command failed: \(stderr2)")
             } else {
                 print("Builder status command failed with unknown error.")
             }
@@ -681,7 +695,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            _ = try exec(
+            _ = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "start"])
 
@@ -694,8 +708,6 @@ class ContainerService: ObservableObject {
             await loadContainers()
 
         } catch {
-            let error = error as! ExecError
-
             await MainActor.run {
                 self.errorMessage = "Failed to start system: \(error.localizedDescription)"
                 self.isSystemLoading = false
@@ -711,7 +723,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            _ = try exec(
+            _ = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "stop"])
 
@@ -724,8 +736,6 @@ class ContainerService: ObservableObject {
             print("Container system stopped successfully")
 
         } catch {
-            let error = error as! ExecError
-
             await MainActor.run {
                 self.errorMessage = "Failed to stop system: \(error.localizedDescription)"
                 self.isSystemLoading = false
@@ -741,7 +751,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            _ = try exec(
+            _ = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "restart"])
 
@@ -754,8 +764,6 @@ class ContainerService: ObservableObject {
             await loadContainers()
 
         } catch {
-            let error = error as! ExecError
-
             await MainActor.run {
                 self.errorMessage = "Failed to restart system: \(error.localizedDescription)"
                 self.isSystemLoading = false
@@ -961,9 +969,9 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
+        var result: ProcessResult
         do {
-            result = try exec(
+            result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "start"])
 
@@ -983,9 +991,6 @@ class ContainerService: ObservableObject {
             }
 
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
-
             await MainActor.run {
                 self.isBuilderLoading = false
                 self.errorMessage = "Failed to start builder: \(error.localizedDescription)"
@@ -1000,9 +1005,9 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
+        var result: ProcessResult
         do {
-            result = try exec(
+            result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "stop"])
 
@@ -1022,9 +1027,6 @@ class ContainerService: ObservableObject {
             }
 
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
-
             await MainActor.run {
                 self.isBuilderLoading = false
                 self.errorMessage = "Failed to stop builder: \(error.localizedDescription)"
@@ -1039,9 +1041,9 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
+        var result: ProcessResult
         do {
-            result = try exec(
+            result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "delete"])
 
@@ -1059,9 +1061,6 @@ class ContainerService: ObservableObject {
             }
 
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
-
             await MainActor.run {
                 self.isBuilderLoading = false
                 self.errorMessage = "Failed to delete builder: \(error.localizedDescription)"
@@ -1130,7 +1129,7 @@ class ContainerService: ObservableObject {
 
         do {
             // Get list of domains in JSON format
-            let listResult = try exec(
+            let listResult = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "dns", "ls", "--format=json"])
 
@@ -1282,24 +1281,6 @@ class ContainerService: ObservableObject {
         }
     }
 
-    func parseNetworksFromJSON(_ output: String) -> [ContainerNetwork] {
-
-        guard let data = output.data(using: .utf8) else {
-
-            return []
-        }
-
-        do {
-            let networks = try JSONDecoder().decode([ContainerNetwork].self, from: data)
-
-            return networks.sorted { $0.id < $1.id }
-        } catch {
-
-            return []
-        }
-    }
-
-
     // MARK: - Kernel Management
 
     func loadKernelConfig() async {
@@ -1362,7 +1343,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let result = try exec(
+            let result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "kernel", "set", "--recommended"])
 
@@ -1414,7 +1395,7 @@ class ContainerService: ObservableObject {
                 arguments.append(contentsOf: ["--tar", tar])
             }
 
-            let result = try exec(
+            let result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: arguments)
 
@@ -1476,14 +1457,13 @@ class ContainerService: ObservableObject {
             }
         }
 
-        var result: ExecResult
+        var result: ProcessResult
         do {
-            result = try exec(
+            result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "property", "list", "--format=json"])
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
+            result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
         }
 
         if result.failed {
@@ -1586,15 +1566,14 @@ class ContainerService: ObservableObject {
             }
         }
 
-        var result: ExecResult
+        var result: ProcessResult
         do {
             // Execute command with focus preservation
-            result = try exec(
+            result = try runProcess(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "property", "set", id, value])
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
+            result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
         }
 
         // Restore focus if it was lost
@@ -1659,7 +1638,7 @@ class ContainerService: ObservableObject {
                 // Switch to a nonisolated copy to avoid capturing main-actor state in concurrent context
                 let service = weakSelf
                 do {
-                    let result = try exec(
+                    let result = try runProcess(
                         program: binaryPath,
                         arguments: ["system", "property", "set", "dns.domain", selectedDomain])
 
@@ -2156,24 +2135,16 @@ class ContainerService: ObservableObject {
 
     // MARK: - Sudo Helper
 
-    private func execWithSudo(program: String, arguments: [String]) throws -> ExecResult {
-        // Create the command string
+    private func execWithSudo(program: String, arguments: [String]) throws -> ProcessResult {
         let fullCommand = "\(program) \(arguments.joined(separator: " "))"
 
-        // Use osascript to prompt for password and execute with sudo
         let script = """
         do shell script "\(fullCommand)" with administrator privileges
         """
 
-        let result = try exec(
+        return try runProcess(
             program: "/usr/bin/osascript",
             arguments: ["-e", script])
-
-        return result
     }
 }
 
-// MARK: - Type aliases for JSON decoding
-typealias Containers = [Container]
-typealias Images = [ContainerImage]
-typealias Builders = [Builder]
