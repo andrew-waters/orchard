@@ -373,8 +373,6 @@ struct TabColumnView: View {
            Section {
                sidebarRow(for: .stats)
                sidebarRow(for: .configuration)
-               sidebarRow(for: .systemLogs)
-               sidebarRow(for: .registries)
            } header: {
                HStack {
                    Text("System")
