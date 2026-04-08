@@ -39,11 +39,15 @@ jobs:
           sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = ${{ steps.version.outputs.version }}/g" Orchard.xcodeproj/project.pbxproj
 
       - name: Install Developer ID certificate
-        if: env.CERTIFICATE_P12 != ''
         env:
           CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
           CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
         run: |
+          if [[ -z "$CERTIFICATE_P12" ]]; then
+            echo "No certificate configured, skipping"
+            exit 0
+          fi
+
           # Create temporary keychain
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
