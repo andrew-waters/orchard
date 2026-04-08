@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
@@ -34,12 +34,34 @@ jobs:
 
       - name: Update version in Info.plist and project file
         run: |
-          # Update Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" Orchard/Info.plist || true
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Orchard/Info.plist || true
-
-          # Update MARKETING_VERSION in project file
           sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = ${{ steps.version.outputs.version }}/g" Orchard.xcodeproj/project.pbxproj
+
+      - name: Install Developer ID certificate
+        if: env.CERTIFICATE_P12 != ''
+        env:
+          CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "$CERTIFICATE_P12" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Allow codesign to access the keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
 
       - name: Build app
         run: |
@@ -51,8 +73,26 @@ jobs:
                      archive
 
       - name: Export app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          cat > export_options.plist << EOF
+          if [[ -n "$APPLE_TEAM_ID" ]]; then
+            cat > export_options.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>developer-id</string>
+              <key>teamID</key>
+              <string>$APPLE_TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>automatic</string>
+          </dict>
+          </plist>
+          EOF
+          else
+            cat > export_options.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -64,6 +104,7 @@ jobs:
           </dict>
           </plist>
           EOF
+          fi
 
           xcodebuild -exportArchive \
                      -archivePath build/Orchard.xcarchive \
@@ -72,20 +113,16 @@ jobs:
 
       - name: Create DMG
         run: |
-          # Create a temporary directory for DMG contents
           mkdir -p dmg_contents
           cp -R build/export/Orchard.app dmg_contents/
-
-          # Create Applications symlink
           ln -s /Applications dmg_contents/Applications
 
-          # Create DMG
           hdiutil create -volname "Orchard ${{ steps.version.outputs.version }}" \
                          -srcfolder dmg_contents \
                          -ov -format UDZO \
                          "Orchard-${{ steps.version.outputs.version }}.dmg"
 
-      - name: Notarize app (if certificates available)
+      - name: Notarize and staple
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -93,17 +130,17 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [[ -n "$APPLE_ID" && -n "$APPLE_PASSWORD" && -n "$APPLE_TEAM_ID" ]]; then
-            echo "Notarizing app..."
+            echo "Submitting for notarization..."
             xcrun notarytool submit "Orchard-${{ steps.version.outputs.version }}.dmg" \
                                     --apple-id "$APPLE_ID" \
                                     --password "$APPLE_PASSWORD" \
                                     --team-id "$APPLE_TEAM_ID" \
                                     --wait
 
-            echo "Stapling notarization..."
+            echo "Stapling notarization ticket..."
             xcrun stapler staple "Orchard-${{ steps.version.outputs.version }}.dmg"
           else
-            echo "Skipping notarization - no certificates configured"
+            echo "Skipping notarization - secrets not configured"
           fi
 
       - name: Calculate checksums
@@ -140,8 +177,8 @@ jobs:
             - **SHA256**: See the `.sha256` file for verification
 
             ### System Requirements
-            - macOS 12.0 or later
-            - Apple Silicon or Intel Mac
+            - macOS 26 (Tahoe)
+            - [Apple Container](https://github.com/apple/container) installed
           draft: false
           prerelease: false
         env:
