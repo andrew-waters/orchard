@@ -1,5 +1,5 @@
 {
-  "originHash" : "fadfd949415cf9f92f7fcb7136b889c8ec3d122ef851f6da500e9a5ef1cfe2ee",
+  "originHash" : "ad7f5a0ed52c80f3928b804d088264e21c7a58502a00bd1dd045e1a6090e75cd",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -125,15 +125,6 @@
       "state" : {
         "revision" : "dc4030184203ffafbb2ec614352487235d747fe0",
         "version" : "1.4.1"
-      }
-    },
-    {
-      "identity" : "swift-exec",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/samuelmeuli/swift-exec",
-      "state" : {
-        "branch" : "master",
-        "revision" : "ca84cfe4d769722d15cac1d87cfa508b08115504"
       }
     },
     {
