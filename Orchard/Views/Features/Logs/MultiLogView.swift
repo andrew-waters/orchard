@@ -7,7 +7,94 @@ struct MergedLogLine: Identifiable {
     let color: Color
 }
 
+// MARK: - Multi-pane log viewer window
+
 struct MultiLogView: View {
+    @EnvironmentObject var containerService: ContainerService
+    @State private var paneIds: [UUID] = [UUID()]
+    @State private var splitVertical: Bool = true
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Toolbar
+            HStack {
+                Text("Log Viewer")
+                    .font(.headline)
+
+                Spacer()
+
+                if paneIds.count > 1 {
+                    Button(action: { splitVertical.toggle() }) {
+                        SwiftUI.Image(systemName: splitVertical ? "rectangle.split.2x1" : "rectangle.split.1x2")
+                            .font(.system(size: 14))
+                    }
+                    .buttonStyle(.borderless)
+                    .help(splitVertical ? "Switch to horizontal split" : "Switch to vertical split")
+                }
+
+                Button(action: addPane) {
+                    Label("Split", systemImage: "rectangle.split.1x2")
+                }
+                .buttonStyle(.borderless)
+                .help("Add a log pane")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            // Panes
+            if paneIds.count == 1 {
+                LogPaneView(paneId: paneIds[0], canClose: false, onClose: {})
+                    .environmentObject(containerService)
+            } else if splitVertical {
+                VSplitView {
+                    ForEach(paneIds, id: \.self) { paneId in
+                        LogPaneView(paneId: paneId, canClose: true) {
+                            removePane(paneId)
+                        }
+                        .environmentObject(containerService)
+                        .frame(minHeight: 200)
+                    }
+                }
+            } else {
+                HSplitView {
+                    ForEach(paneIds, id: \.self) { paneId in
+                        LogPaneView(paneId: paneId, canClose: true) {
+                            removePane(paneId)
+                        }
+                        .environmentObject(containerService)
+                        .frame(minWidth: 300)
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 700, minHeight: 400)
+    }
+
+    private func addPane() {
+        withAnimation {
+            paneIds.append(UUID())
+        }
+    }
+
+    private func removePane(_ id: UUID) {
+        withAnimation {
+            paneIds.removeAll { $0 == id }
+            if paneIds.isEmpty {
+                paneIds = [UUID()]
+            }
+        }
+    }
+}
+
+// MARK: - Individual log pane
+
+struct LogPaneView: View {
+    let paneId: UUID
+    let canClose: Bool
+    let onClose: () -> Void
+
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedContainerIds: Set<String> = []
     @State private var mergedLines: [MergedLogLine] = []
@@ -87,6 +174,16 @@ struct MultiLogView: View {
                     }
                     .buttonStyle(.plain)
                     .help(isPaused ? "Resume log refresh" : "Pause log refresh")
+
+                    if canClose {
+                        Button(action: onClose) {
+                            SwiftUI.Image(systemName: "xmark")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 10))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Close this pane")
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -122,73 +219,71 @@ struct MultiLogView: View {
 
             // Merged log stream
             ScrollViewReader { proxy in
-            ScrollView {
-                if isLoading && mergedLines.isEmpty {
-                    HStack {
-                        Spacer()
-                        ProgressView("Loading logs...")
-                            .foregroundColor(Color(white: 0.85))
-                            .padding()
-                        Spacer()
-                    }
-                } else if mergedLines.isEmpty {
-                    HStack {
-                        Spacer()
-                        Text(selectedContainerIds.isEmpty ? "Select containers above to view logs" : "No logs available")
-                            .foregroundColor(Color(white: 0.5))
-                            .padding()
-                        Spacer()
-                    }
-                } else {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(displayLines) { line in
-                            HStack(alignment: .top, spacing: 6) {
-                                Circle()
-                                    .fill(line.color)
-                                    .frame(width: 6, height: 6)
-                                    .padding(.top, 4)
+                ScrollView {
+                    if isLoading && mergedLines.isEmpty {
+                        HStack {
+                            Spacer()
+                            ProgressView("Loading logs...")
+                                .foregroundColor(Color(white: 0.85))
+                                .padding()
+                            Spacer()
+                        }
+                    } else if mergedLines.isEmpty {
+                        HStack {
+                            Spacer()
+                            Text(selectedContainerIds.isEmpty ? "Select containers above" : "No logs available")
+                                .foregroundColor(Color(white: 0.5))
+                                .padding()
+                            Spacer()
+                        }
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(displayLines) { line in
+                                HStack(alignment: .top, spacing: 6) {
+                                    Circle()
+                                        .fill(line.color)
+                                        .frame(width: 6, height: 6)
+                                        .padding(.top, 4)
 
-                                Text(line.containerId)
-                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                    .foregroundColor(line.color)
-                                    .frame(width: 120, alignment: .leading)
-                                    .lineLimit(1)
+                                    Text(line.containerId)
+                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                        .foregroundColor(line.color)
+                                        .frame(width: 120, alignment: .leading)
+                                        .lineLimit(1)
 
-                                if filterText.isEmpty {
-                                    Text(line.text)
-                                        .font(.system(size: 12, design: .monospaced))
-                                        .foregroundColor(Color(white: 0.85))
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                } else {
-                                    Text(highlightMatches(in: line.text))
-                                        .font(.system(size: 12, design: .monospaced))
-                                        .foregroundColor(Color(white: 0.85))
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    if filterText.isEmpty {
+                                        Text(line.text)
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .foregroundColor(Color(white: 0.85))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    } else {
+                                        Text(highlightMatches(in: line.text))
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .foregroundColor(Color(white: 0.85))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
                                 }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 1)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 1)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .background(Color.black.opacity(0.85))
+                .onChange(of: mergedLines.count) {
+                    if !hasScrolledToBottom && !mergedLines.isEmpty {
+                        hasScrolledToBottom = true
+                        if let lastId = displayLines.last?.id {
+                            proxy.scrollTo(lastId, anchor: .bottom)
                         }
                     }
-                    .padding(.vertical, 4)
                 }
-            }
-            .background(Color.black.opacity(0.85))
-            .onChange(of: mergedLines.count) {
-                if !hasScrolledToBottom && !mergedLines.isEmpty {
-                    hasScrolledToBottom = true
-                    if let lastId = displayLines.last?.id {
-                        proxy.scrollTo(lastId, anchor: .bottom)
-                    }
-                }
-            }
             }
         }
-        .frame(minWidth: 700, minHeight: 400)
         .onAppear {
-            // Default to all running containers
             selectedContainerIds = Set(
                 containerService.containers
                     .filter { $0.status.lowercased() == "running" }
@@ -277,7 +372,6 @@ struct MultiLogView: View {
             }
         }
 
-        // Trim to max lines
         if allLines.count > Self.maxLines {
             allLines = Array(allLines.suffix(Self.maxLines))
         }
