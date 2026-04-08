@@ -32,6 +32,11 @@ struct ContainersListView: View {
                                     await containerService.stopContainer(container.configuration.id)
                                 }
                             }
+                            Button("Force Stop", role: .destructive) {
+                                Task {
+                                    await containerService.forceStopContainer(container.configuration.id)
+                                }
+                            }
                         } else {
                             Button("Start Container") {
                                 Task {

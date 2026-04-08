@@ -591,6 +591,34 @@ class ContainerService: ObservableObject {
         return old == new
     }
 
+    func forceStopContainer(_ id: String) async {
+        await MainActor.run {
+            loadingContainers.insert(id)
+            errorMessage = nil
+        }
+
+        do {
+            let client = ContainerClient()
+            try await client.kill(id: id, signal: 9)
+
+            await MainActor.run {
+                print("Container \(id) force stop (SIGKILL) sent")
+                Task {
+                    await loadBuilders()
+                }
+                Task {
+                    await refreshUntilContainerStopped(id)
+                }
+            }
+        } catch {
+            await MainActor.run {
+                loadingContainers.remove(id)
+                self.errorMessage = "Failed to force stop container: \(error.localizedDescription)"
+            }
+            print("Error force stopping container: \(error)")
+        }
+    }
+
     func stopContainer(_ id: String) async {
         await MainActor.run {
             loadingContainers.insert(id)
