@@ -2,10 +2,14 @@ import Foundation
 import SwiftExec
 import SwiftUI
 import AppKit
+import ContainerAPIClient
+import ContainerResource
+import ContainerizationOCI
+import ContainerizationExtras
 
 @MainActor
 class ContainerService: ObservableObject {
-    let supportedContainerVersion = "0.7.1"
+    let supportedContainerVersion = "0.11.0"
 
     @Published var containers: [Container] = []
     @Published var images: [ContainerImage] = []
@@ -379,20 +383,10 @@ class ContainerService: ObservableObject {
             }
         }
 
-        var result: ExecResult
         do {
-            result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["ls", "-a", "--format", "json"])
-        } catch {
-            let error = error as! ExecError
-            result = error.execResult
-        }
-
-        do {
-            let data = result.stdout?.data(using: .utf8)
-            let newContainers = try JSONDecoder().decode(
-                Containers.self, from: data!)
+            let client = ContainerClient()
+            let snapshots = try await client.list()
+            let newContainers = snapshots.map { mapContainer($0) }
 
             await MainActor.run {
                 if !areContainersEqual(self.containers, newContainers) {
@@ -426,20 +420,9 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
         do {
-            result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["image", "list", "--format", "json"])
-        } catch {
-            let error = error as! ExecError
-            result = error.execResult
-        }
-
-        do {
-            let data = result.stdout?.data(using: .utf8)
-            let newImages = try JSONDecoder().decode(
-                [ContainerImage].self, from: data!)
+            let clientImages = try await ClientImage.list()
+            let newImages = clientImages.map { mapClientImage($0) }
 
             await MainActor.run {
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -585,67 +568,19 @@ class ContainerService: ObservableObject {
             }
         }
 
-        do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["stats", "--format=json"]
-            )
+        let client = ContainerClient()
+        let runningContainers = containers.filter { $0.status == "running" }
 
-            if result.failed {
-                await MainActor.run {
-                    self.containerStats = []
-                    self.isStatsLoading = false
-
-                    if let stderr = result.stderr, !stderr.isEmpty {
-                        // Check for specific command not found errors
-                        if stderr.contains("not found") ||
-                           stderr.contains("unknown command") ||
-                           stderr.contains("stats") {
-                            self.errorMessage = "Container stats feature is not available. The 'stats' command may not be supported in this version of the container runtime."
-                        } else {
-                            self.errorMessage = "Failed to load container stats: \(stderr)"
-                        }
-                    } else {
-                        self.errorMessage = "Container stats command failed with no error message."
-                    }
-                }
-                return
+        var allStats: [Orchard.ContainerStats] = []
+        for container in runningContainers {
+            if let stats = try? await client.stats(id: container.configuration.id) {
+                allStats.append(mapContainerStats(stats))
             }
+        }
 
-            guard let stdout = result.stdout, !stdout.isEmpty else {
-                await MainActor.run {
-                    self.containerStats = []
-                    self.isStatsLoading = false
-                    // Don't set error message for empty results - this is normal when no containers are running
-                }
-                return
-            }
-
-            let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Handle empty JSON array
-            if trimmed == "[]" || trimmed.isEmpty {
-                await MainActor.run {
-                    self.containerStats = []
-                    self.isStatsLoading = false
-                }
-                return
-            }
-
-            let decoder = JSONDecoder()
-            let stats = try decoder.decode([ContainerStats].self, from: trimmed.data(using: .utf8)!)
-
-            await MainActor.run {
-                self.containerStats = stats
-                self.isStatsLoading = false
-            }
-
-        } catch {
-            await MainActor.run {
-                self.containerStats = []
-                self.isStatsLoading = false
-                self.errorMessage = "Failed to parse container stats: \(error.localizedDescription)"
-            }
+        await MainActor.run {
+            self.containerStats = allStats
+            self.isStatsLoading = false
         }
     }
 
@@ -663,48 +598,18 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["system", "df", "--format=json"]
-            )
-
-            if result.exitCode != 0 {
-                await MainActor.run {
-                    self.systemDiskUsage = nil
-                    self.isSystemDiskUsageLoading = false
-
-                    if let stderr = result.stderr, !stderr.isEmpty {
-                        self.errorMessage = "Failed to load system disk usage: \(stderr)"
-                    } else {
-                        self.errorMessage = "System disk usage command failed with no error message."
-                    }
-                }
-                return
-            }
-
-            guard let output = result.stdout, !output.isEmpty else {
-                await MainActor.run {
-                    self.systemDiskUsage = nil
-                    self.isSystemDiskUsageLoading = false
-                }
-                return
-            }
-
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            let decoder = JSONDecoder()
-            let diskUsage = try decoder.decode(SystemDiskUsage.self, from: trimmed.data(using: .utf8)!)
+            let stats = try await ClientDiskUsage.get()
+            let diskUsage = mapDiskUsageStats(stats)
 
             await MainActor.run {
                 self.systemDiskUsage = diskUsage
                 self.isSystemDiskUsageLoading = false
             }
-
         } catch {
             await MainActor.run {
                 self.systemDiskUsage = nil
                 self.isSystemDiskUsageLoading = false
-                self.errorMessage = "Failed to parse system disk usage: \(error.localizedDescription)"
+                self.errorMessage = "Failed to load system disk usage: \(error.localizedDescription)"
             }
         }
     }
@@ -719,34 +624,20 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
         do {
-            result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["stop", id])
+            let client = ContainerClient()
+            try await client.stop(id: id)
 
             await MainActor.run {
-                if !result.failed {
-                    print("Container \(id) stop command sent successfully")
-                    // Immediately refresh builder status in case this container was the builder
-                    Task {
-                        await loadBuilders()
-                    }
-                    // Keep loading state and refresh containers to check status
-                    Task {
-                        await refreshUntilContainerStopped(id)
-                    }
-                } else {
-                    self.errorMessage =
-                        "Failed to stop container: \(result.stderr ?? "Unknown error")"
-                    loadingContainers.remove(id)
+                print("Container \(id) stop command sent successfully")
+                Task {
+                    await loadBuilders()
+                }
+                Task {
+                    await refreshUntilContainerStopped(id)
                 }
             }
-
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
-
             await MainActor.run {
                 loadingContainers.remove(id)
                 self.errorMessage = "Failed to stop container: \(error.localizedDescription)"
@@ -756,28 +647,18 @@ class ContainerService: ObservableObject {
     }
 
     func checkSystemStatus() async {
-        if !self.systemStatusVersionOverride {
-            // First check if container CLI is available and get version
-            await checkContainerVersion()
-
-            let status = await MainActor.run(body: { self.systemStatus })
-            if status == .unsupportedVersion || status == .newerVersion {
-                return
-            }
-        }
-
-        // Check if system is running
         do {
-            _ = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["ls"])
+            let health = try await ClientHealthCheck.ping()
 
             await MainActor.run {
-                // Only set to running if version is supported
+                self.containerVersion = health.apiServerVersion
+                self.parsedContainerVersion = health.apiServerVersion
                 self.systemStatus = .running
             }
         } catch {
             await MainActor.run {
+                self.containerVersion = nil
+                self.parsedContainerVersion = nil
                 self.systemStatus = .stopped
             }
         }
@@ -789,75 +670,8 @@ class ContainerService: ObservableObject {
     }
 
     func checkContainerVersion() async {
-        do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["--version"])
-
-            let output = result.stdout
-
-            // Parse version from output like "container CLI version 0.6.0 (build: release, commit: a23bcf0)"
-            var extractedVersion: String?
-            if let output = output {
-                // Try regex pattern first
-                let pattern = #"version\s+(\d+\.\d+\.\d+)"#
-                if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-                    let range = NSRange(location: 0, length: output.utf16.count)
-                    if let match = regex.firstMatch(in: output, options: [], range: range),
-                       let versionRange = Range(match.range(at: 1), in: output) {
-                        extractedVersion = String(output[versionRange])
-                    }
-                }
-
-                // Fallback if regex failed
-                if extractedVersion == nil {
-                    let components = output.components(separatedBy: " ")
-                    if let versionIndex = components.firstIndex(of: "version"),
-                       versionIndex + 1 < components.count {
-                        let versionCandidate = components[versionIndex + 1]
-                        // Simple check for version-like format
-                        let versionPattern = #"^\d+\.\d+\.\d+"#
-                        if versionCandidate.range(of: versionPattern, options: .regularExpression) != nil {
-                            extractedVersion = versionCandidate
-                        }
-                    }
-                }
-            }
-
-            await MainActor.run {
-                self.containerVersion = output
-                self.parsedContainerVersion = extractedVersion
-
-                guard let extractedVersion = extractedVersion else {
-                    // Could not parse version; treat as unsupported
-                    self.systemStatus = .unsupportedVersion
-                    return
-                }
-
-                let comparison = Self.compareVersions(extractedVersion, self.supportedContainerVersion)
-                switch comparison {
-                case 0:
-                    // Equal: supported
-                    if self.systemStatus != .stopped {
-                        self.systemStatus = .running
-                    }
-                case -1:
-                    // Extracted is less than supported
-                    self.systemStatus = .unsupportedVersion
-                case 1:
-                    // Extracted is greater than supported
-                    self.systemStatus = .newerVersion
-                default:
-                    self.systemStatus = .unsupportedVersion
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.containerVersion = nil
-                self.parsedContainerVersion = nil
-                self.systemStatus = .stopped
-            }
-        }
+        // Version is now obtained via ClientHealthCheck.ping() in checkSystemStatus()
+        await checkSystemStatus()
     }
 
     func startSystem() async {
@@ -980,25 +794,18 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        for attempt in 1...maxRetries {
-            var result: ExecResult
-            do {
-                result = try exec(
-                    program: safeContainerBinaryPath(),
-                    arguments: ["start", id])
-            } catch {
-                let error = error as! ExecError
-                result = error.execResult
-            }
+        let client = ContainerClient()
 
-            if !result.failed {
+        for attempt in 1...maxRetries {
+            do {
+                let stdio: [FileHandle?] = [nil, nil, nil]
+                let process = try await client.bootstrap(id: id, stdio: stdio)
+                try await process.start()
+
                 await MainActor.run {
                     print("Container \(id) start command sent successfully (attempt \(attempt))")
-                    // Immediately refresh builder status in case this container is the builder
-                    // Keep loading state and refresh containers to check status
                 }
 
-                // Execute refresh tasks outside MainActor.run
                 Task {
                     await loadBuilders()
                 }
@@ -1006,25 +813,20 @@ class ContainerService: ObservableObject {
                     await refreshUntilContainerStarted(id)
                 }
                 return
-            } else {
-                let errorMsg = result.stderr ?? "Unknown error"
+            } catch {
+                let errorMsg = error.localizedDescription
                 print("Container \(id) failed to start (attempt \(attempt)): \(errorMsg)")
 
-                // Check if container was auto-removed (not found)
                 let containerNotFound = errorMsg.contains("not found")
-
-                // Check if this is a state transition error that we can retry
                 let isTransitionError = errorMsg.contains("shuttingDown") ||
                                       errorMsg.contains("invalidState") ||
                                       errorMsg.contains("expected to be in created state")
 
                 if containerNotFound {
-                    // Container was auto-removed by runtime, attempt recovery
                     print("Container \(id) was auto-removed by runtime, attempting automatic recovery...")
 
                     if await recoverContainer(id) {
                         print("Container \(id) successfully recovered, retrying start...")
-                        // Container recovered, retry the start operation
                         continue
                     } else {
                         await MainActor.run {
@@ -1033,7 +835,6 @@ class ContainerService: ObservableObject {
                             loadingContainers.remove(id)
                         }
 
-                        // Refresh container list to update state
                         Task {
                             await loadContainers()
                         }
@@ -1046,7 +847,6 @@ class ContainerService: ObservableObject {
                             loadingContainers.remove(id)
                         }
 
-                        // Refresh container list to update state
                         Task {
                             await loadContainers()
                         }
@@ -1062,7 +862,6 @@ class ContainerService: ObservableObject {
                         loadingContainers.remove(id)
                     }
 
-                    // Refresh container list to update state
                     Task {
                         await loadContainers()
                     }
@@ -1277,33 +1076,19 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        var result: ExecResult
         do {
-            result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["rm", id])
+            let client = ContainerClient()
+            try await client.delete(id: id)
 
             await MainActor.run {
-                if !result.failed {
-                    print("Container \(id) remove command sent successfully")
-                    // Immediately refresh builder status in case this container was the builder
-                    Task {
-                        await loadBuilders()
-                    }
-                    // Remove from local array immediately
-                    self.containers.removeAll { $0.configuration.id == id }
-                    loadingContainers.remove(id)
-                } else {
-                    self.errorMessage =
-                        "Failed to remove container: \(result.stderr ?? "Unknown error")"
-                    loadingContainers.remove(id)
+                print("Container \(id) remove command sent successfully")
+                Task {
+                    await loadBuilders()
                 }
+                self.containers.removeAll { $0.configuration.id == id }
+                loadingContainers.remove(id)
             }
-
         } catch {
-            let error = error as! ExecError
-            result = error.execResult
-
             await MainActor.run {
                 loadingContainers.remove(id)
                 self.errorMessage = "Failed to remove container: \(error.localizedDescription)"
@@ -1313,23 +1098,17 @@ class ContainerService: ObservableObject {
     }
 
     func fetchContainerLogs(containerId: String) async throws -> String {
-        var result: ExecResult
-        do {
-            result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["logs", containerId])
-        } catch {
-            let error = error as! ExecError
-            result = error.execResult
-        }
+        let client = ContainerClient()
+        let fileHandles = try await client.logs(id: containerId)
 
-        if let stdout = result.stdout {
-            return stdout
-        } else if let stderr = result.stderr {
-            throw NSError(domain: "ContainerService", code: 1, userInfo: [NSLocalizedDescriptionKey: stderr])
-        } else {
-            return ""
+        var output = ""
+        for handle in fileHandles {
+            let data = handle.readDataToEndOfFile()
+            if let text = String(data: data, encoding: .utf8) {
+                output += text
+            }
         }
+        return output
     }
 
     // MARK: - DNS Management
@@ -1429,24 +1208,14 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            // Get list of networks in JSON format
+            let networkStates = try await ClientNetwork.list()
+            let networks = networkStates.map { mapNetworkState($0) }
 
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["network", "ls", "--format=json"])
-
-
-
-            if let output = result.stdout {
-                let networks = parseNetworksFromJSON(output)
-
-                await MainActor.run {
-                    self.networks = networks
-                    self.isNetworksLoading = false
-                }
+            await MainActor.run {
+                self.networks = networks
+                self.isNetworksLoading = false
             }
         } catch {
-
             await MainActor.run {
                 if showLoading {
                     self.errorMessage = "Failed to load networks: \(error.localizedDescription)"
@@ -1458,47 +1227,35 @@ class ContainerService: ObservableObject {
 
     func createNetwork(name: String, subnet: String? = nil, labels: [String] = []) async {
         do {
-            var arguments = ["network", "create"]
-
-            // Add subnet if provided
-            if let subnet = subnet {
-                arguments.append(contentsOf: ["--subnet", subnet])
-            }
-
-            // Add labels if provided
+            var labelDict: [String: String] = [:]
             for label in labels {
-                arguments.append(contentsOf: ["--label", label])
-            }
-
-            // Add network name
-            arguments.append(name)
-
-
-
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: arguments)
-
-
-
-            if result.exitCode == 0 {
-                await MainActor.run {
-                    self.successMessage = "Network '\(name)' created successfully"
-                    self.errorMessage = nil
-
-                    // Clear success message after 3 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        self.successMessage = nil
-                    }
-                }
-                await loadNetworks()
-            } else {
-                await MainActor.run {
-                    self.errorMessage = result.stderr ?? result.stdout ?? "Failed to create network"
+                let parts = label.split(separator: "=", maxSplits: 1)
+                if parts.count == 2 {
+                    labelDict[String(parts[0])] = String(parts[1])
+                } else {
+                    labelDict[label] = ""
                 }
             }
+
+            let config = try NetworkConfiguration(
+                id: name,
+                mode: .nat,
+                labels: labelDict,
+                pluginInfo: NetworkPluginInfo(plugin: "apple")
+            )
+
+            _ = try await ClientNetwork.create(configuration: config)
+
+            await MainActor.run {
+                self.successMessage = "Network '\(name)' created successfully"
+                self.errorMessage = nil
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    self.successMessage = nil
+                }
+            }
+            await loadNetworks()
         } catch {
-
             await MainActor.run {
                 self.errorMessage = "Failed to create network: \(error.localizedDescription)"
             }
@@ -1507,32 +1264,18 @@ class ContainerService: ObservableObject {
 
     func deleteNetwork(_ networkId: String) async {
         do {
+            try await ClientNetwork.delete(id: networkId)
 
+            await MainActor.run {
+                self.successMessage = "Network '\(networkId)' deleted successfully"
+                self.errorMessage = nil
 
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["network", "rm", networkId])
-
-
-
-            if result.exitCode == 0 {
-                await MainActor.run {
-                    self.successMessage = "Network '\(networkId)' deleted successfully"
-                    self.errorMessage = nil
-
-                    // Clear success message after 3 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        self.successMessage = nil
-                    }
-                }
-                await loadNetworks()
-            } else {
-                await MainActor.run {
-                    self.errorMessage = result.stderr ?? result.stdout ?? "Failed to delete network"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    self.successMessage = nil
                 }
             }
+            await loadNetworks()
         } catch {
-
             await MainActor.run {
                 self.errorMessage = "Failed to delete network: \(error.localizedDescription)"
             }
@@ -1953,38 +1696,23 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["image", "pull", cleanImageName])
+            _ = try await ClientImage.pull(reference: cleanImageName)
 
             await MainActor.run {
-                if !result.failed {
-                    pullProgress[cleanImageName] = ImagePullProgress(
-                        imageName: cleanImageName,
-                        status: .completed,
-                        progress: 1.0,
-                        message: "Pull completed successfully"
-                    )
-                    self.successMessage = "Successfully pulled image: \(cleanImageName)"
+                pullProgress[cleanImageName] = ImagePullProgress(
+                    imageName: cleanImageName,
+                    status: .completed,
+                    progress: 1.0,
+                    message: "Pull completed successfully"
+                )
+                self.successMessage = "Successfully pulled image: \(cleanImageName)"
 
-                    // Refresh images list
-                    Task {
-                        await loadImages()
-                    }
+                Task {
+                    await loadImages()
+                }
 
-                    // Remove from progress after a delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        self.pullProgress.removeValue(forKey: cleanImageName)
-                    }
-                } else {
-                    let errorMsg = result.stderr ?? "Unknown error"
-                    pullProgress[cleanImageName] = ImagePullProgress(
-                        imageName: cleanImageName,
-                        status: .failed(errorMsg),
-                        progress: 0.0,
-                        message: "Pull failed: \(errorMsg)"
-                    )
-                    self.errorMessage = "Failed to pull image: \(errorMsg)"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    self.pullProgress.removeValue(forKey: cleanImageName)
                 }
             }
         } catch {
@@ -2140,24 +1868,14 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["image", "delete", imageReference])
+            try await ClientImage.delete(reference: imageReference)
 
             await MainActor.run {
-                if !result.failed {
-                    self.successMessage = "Successfully deleted image: \(imageReference)"
+                self.successMessage = "Successfully deleted image: \(imageReference)"
+                self.images.removeAll { $0.reference == imageReference }
 
-                    // Remove from local array immediately
-                    self.images.removeAll { $0.reference == imageReference }
-
-                    // Refresh images list
-                    Task {
-                        await loadImages()
-                    }
-                } else {
-                    let errorMsg = result.stderr ?? "Unknown error"
-                    self.errorMessage = "Failed to delete image: \(errorMsg)"
+                Task {
+                    await loadImages()
                 }
             }
         } catch {
@@ -2175,21 +1893,10 @@ class ContainerService: ObservableObject {
             successMessage = nil
         }
 
-        // First, delete the old container
         do {
-            let deleteResult = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: ["delete", oldContainerId])
+            let client = ContainerClient()
+            try await client.delete(id: oldContainerId, force: true)
 
-            if deleteResult.failed {
-                await MainActor.run {
-                    let errorMsg = deleteResult.stderr ?? "Unknown error"
-                    self.errorMessage = "Failed to delete old container: \(errorMsg)"
-                }
-                return
-            }
-
-            // Now create the new container with updated config
             await runContainer(config: newConfig)
 
             await MainActor.run {
@@ -2197,7 +1904,6 @@ class ContainerService: ObservableObject {
                     self.successMessage = "Container '\(newConfig.name)' has been recreated with new configuration"
                 }
             }
-
         } catch {
             await MainActor.run {
                 self.errorMessage = "Failed to recreate container: \(error.localizedDescription)"
@@ -2215,61 +1921,150 @@ class ContainerService: ObservableObject {
 
         print("Attempting to recover container \(id) from snapshot...")
 
-        // Extract configuration from snapshot
         let config = snapshot.configuration
-        let imageName = config.image.reference
 
-        // Build recovery arguments based on original configuration
-        var args = ["run", "--detach", "--name", id]
-
-        // Add port mappings if any
-        for publishedPort in config.publishedPorts {
-            args.append("--publish")
-            args.append("\(publishedPort.hostPort):\(publishedPort.containerPort)")
-        }
-
-        // Add volume mounts
-        for mount in config.mounts {
-            args.append("--volume")
-            args.append("\(mount.source):\(mount.destination)")
-        }
-
-        // Add environment variables if any (would need to be extracted from config if available)
-        // This is a simplified recovery - more sophisticated recovery would need additional config data
-
-        // Add hostname if specified
-        if let hostname = config.hostname {
-            args.append("--hostname")
-            args.append(hostname)
-        }
-
-        // Add the image name
-        args.append(imageName)
-
-        // Execute recovery command
-        var result: ExecResult
-        do {
-            print("Recovery command: \(safeContainerBinaryPath()) \(args.joined(separator: " "))")
-            result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: args)
-        } catch {
-            let error = error as! ExecError
-            result = error.execResult
-        }
-
-        if result.failed {
-            print("Container recovery failed: \(result.stderr ?? "Unknown error")")
-            await MainActor.run {
-                self.errorMessage = "Failed to recover container: \(result.stderr ?? "Unknown error")"
+        // Build a ContainerRunConfig from the snapshot for recovery
+        var envVars: [ContainerRunConfig.EnvironmentVariable] = []
+        for env in config.initProcess.environment {
+            let parts = env.split(separator: "=", maxSplits: 1)
+            if parts.count == 2 {
+                envVars.append(.init(key: String(parts[0]), value: String(parts[1])))
             }
+        }
+
+        var portMappings: [ContainerRunConfig.PortMapping] = []
+        for port in config.publishedPorts {
+            portMappings.append(.init(
+                hostPort: "\(port.hostPort)",
+                containerPort: "\(port.containerPort)",
+                transportProtocol: port.transportProtocol
+            ))
+        }
+
+        var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
+        for mount in config.mounts {
+            volumeMappings.append(.init(
+                hostPath: mount.source,
+                containerPath: mount.destination
+            ))
+        }
+
+        let runConfig = ContainerRunConfig(
+            name: id,
+            image: config.image.reference,
+            detached: true,
+            environmentVariables: envVars,
+            portMappings: portMappings,
+            volumeMappings: volumeMappings,
+            dnsDomain: config.dns.domain ?? ""
+        )
+
+        await runContainer(config: runConfig)
+
+        let hasError = await MainActor.run(body: { self.errorMessage != nil })
+        if hasError {
+            print("Container recovery failed")
             return false
         } else {
             print("Container \(id) recovered successfully")
-            // Refresh containers to get the new state
-            await loadContainers()
             return true
         }
+    }
+
+    /// Build an API ContainerConfiguration and create+start a container.
+    private func createAndStartContainer(
+        id: String,
+        imageRef: String,
+        environment: [String],
+        workingDirectory: String,
+        commandOverride: [String],
+        mounts: [Filesystem],
+        publishedPorts: [PublishPort],
+        dns: ContainerResource.ContainerConfiguration.DNSConfiguration?,
+        networkName: String,
+        autoRemove: Bool
+    ) async throws {
+        // Fetch or pull the image
+        let image = try await ClientImage.fetch(reference: imageRef)
+        let platform = ContainerizationOCI.Platform.current
+
+        // Unpack image snapshot
+        try await image.getCreateSnapshot(platform: platform)
+
+        // Get the default kernel
+        let kernel = try await ClientKernel.getDefaultKernel(for: .current)
+
+        // Get the OCI image config for entrypoint/cmd/env/user
+        let imageConfig = try await image.config(for: platform).config
+
+        // Build the process arguments: entrypoint + cmd, with user overrides
+        let imageEnv = imageConfig?.env ?? []
+        let mergedEnv = imageEnv + environment
+
+        var processArgs: [String] = []
+        if let entrypoint = imageConfig?.entrypoint, !entrypoint.isEmpty {
+            processArgs = entrypoint
+        }
+        if !commandOverride.isEmpty {
+            if processArgs.isEmpty {
+                processArgs = commandOverride
+            } else {
+                processArgs.append(contentsOf: commandOverride)
+            }
+        } else if let cmd = imageConfig?.cmd, !cmd.isEmpty, processArgs.isEmpty || (imageConfig?.entrypoint != nil) {
+            processArgs.append(contentsOf: cmd)
+        }
+
+        guard !processArgs.isEmpty else {
+            throw NSError(domain: "ContainerService", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "No entrypoint or command specified for the container"])
+        }
+
+        let user: ProcessConfiguration.User = {
+            if let u = imageConfig?.user, !u.isEmpty {
+                return .raw(userString: u)
+            }
+            return .id(uid: 0, gid: 0)
+        }()
+
+        let wd = workingDirectory.isEmpty ? (imageConfig?.workingDir ?? "/") : workingDirectory
+
+        let process = ProcessConfiguration(
+            executable: processArgs.first!,
+            arguments: Array(processArgs.dropFirst()),
+            environment: mergedEnv,
+            workingDirectory: wd,
+            terminal: false,
+            user: user
+        )
+
+        var containerConfig = ContainerResource.ContainerConfiguration(
+            id: id,
+            image: image.description,
+            process: process
+        )
+        containerConfig.mounts = mounts
+        containerConfig.publishedPorts = publishedPorts
+        containerConfig.dns = dns
+
+        // Set up network
+        let builtinNetworkId = try await ClientNetwork.builtin?.id
+        let networkId = networkName.isEmpty ? (builtinNetworkId ?? ClientNetwork.defaultNetworkName) : networkName
+        containerConfig.networks = [
+            AttachmentConfiguration(
+                network: networkId,
+                options: AttachmentOptions(hostname: id, macAddress: nil, mtu: 1280)
+            )
+        ]
+
+        let client = ContainerClient()
+        let options = ContainerCreateOptions(autoRemove: autoRemove)
+        try await client.create(configuration: containerConfig, options: options, kernel: kernel)
+
+        // Bootstrap and start in detached mode
+        let stdio: [FileHandle?] = [nil, nil, nil]
+        let proc = try await client.bootstrap(id: id, stdio: stdio)
+        try await proc.start()
     }
 
     func runContainer(config: ContainerRunConfig) async {
@@ -2278,89 +2073,78 @@ class ContainerService: ObservableObject {
             successMessage = nil
         }
 
-        var arguments = ["run"]
-
-        // Add detached flag
-        if config.detached {
-            arguments.append("-d")
-        }
-
-        // Add remove after stop flag
-        if config.removeAfterStop {
-            arguments.append("--rm")
-        }
-
-        // Add container name
-        if !config.name.isEmpty {
-            arguments.append(contentsOf: ["--name", config.name])
-        }
-
-        // Add environment variables
-        for envVar in config.environmentVariables {
-            if !envVar.key.isEmpty {
-                arguments.append(contentsOf: ["-e", "\(envVar.key)=\(envVar.value)"])
-            }
-        }
-
-        // Add port mappings
-        for portMapping in config.portMappings {
-            if !portMapping.hostPort.isEmpty && !portMapping.containerPort.isEmpty {
-                let mapping = "\(portMapping.hostPort):\(portMapping.containerPort)/\(portMapping.transportProtocol)"
-                arguments.append(contentsOf: ["-p", mapping])
-            }
-        }
-
-        // Add volume mappings
-        for volumeMapping in config.volumeMappings {
-            if !volumeMapping.hostPath.isEmpty && !volumeMapping.containerPath.isEmpty {
-                let mapping = volumeMapping.readonly
-                    ? "\(volumeMapping.hostPath):\(volumeMapping.containerPath):ro"
-                    : "\(volumeMapping.hostPath):\(volumeMapping.containerPath)"
-                arguments.append(contentsOf: ["-v", mapping])
-            }
-        }
-
-        // Add DNS domain
-        if !config.dnsDomain.isEmpty {
-            arguments.append(contentsOf: ["--dns-domain", config.dnsDomain])
-        }
-
-        // Add network
-        if !config.network.isEmpty {
-            arguments.append(contentsOf: ["--network", config.network])
-        }
-
-        // Add working directory
-        if !config.workingDirectory.isEmpty {
-            arguments.append(contentsOf: ["-w", config.workingDirectory])
-        }
-
-        // Add image name
-        arguments.append(config.image)
-
-        // Add command override if specified
-        if !config.commandOverride.isEmpty {
-            let commandArgs = config.commandOverride.split(separator: " ").map(String.init)
-            arguments.append(contentsOf: commandArgs)
-        }
-
         do {
-            let result = try exec(
-                program: safeContainerBinaryPath(),
-                arguments: arguments)
+            let id = config.name.isEmpty ? UUID().uuidString.lowercased().prefix(12).description : config.name
+
+            // Build environment strings
+            var envStrings: [String] = []
+            for envVar in config.environmentVariables {
+                if !envVar.key.isEmpty {
+                    envStrings.append("\(envVar.key)=\(envVar.value)")
+                }
+            }
+
+            // Build mounts
+            var mounts: [Filesystem] = []
+            for vol in config.volumeMappings {
+                if !vol.hostPath.isEmpty && !vol.containerPath.isEmpty {
+                    var options: [String] = []
+                    if vol.readonly { options.append("ro") }
+                    mounts.append(.virtiofs(source: vol.hostPath, destination: vol.containerPath, options: options))
+                }
+            }
+
+            // Build published ports
+            var ports: [PublishPort] = []
+            for pm in config.portMappings {
+                if let hp = UInt16(pm.hostPort), let cp = UInt16(pm.containerPort) {
+                    let proto = PublishProtocol(pm.transportProtocol) ?? .tcp
+                    ports.append(PublishPort(
+                        hostAddress: try IPAddress("0.0.0.0"),
+                        hostPort: hp,
+                        containerPort: cp,
+                        proto: proto,
+                        count: 1
+                    ))
+                }
+            }
+
+            // Build DNS
+            let dns: ContainerResource.ContainerConfiguration.DNSConfiguration? = {
+                if config.dnsDomain.isEmpty { return nil }
+                return .init(
+                    nameservers: ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers,
+                    domain: config.dnsDomain,
+                    searchDomains: [],
+                    options: []
+                )
+            }()
+
+            // Build command override
+            var commandArgs: [String] = []
+            if !config.commandOverride.isEmpty {
+                commandArgs = config.commandOverride.split(separator: " ").map(String.init)
+            }
+
+            try await createAndStartContainer(
+                id: id,
+                imageRef: config.image,
+                environment: envStrings,
+                workingDirectory: config.workingDirectory,
+                commandOverride: commandArgs,
+                mounts: mounts,
+                publishedPorts: ports,
+                dns: dns,
+                networkName: config.network,
+                autoRemove: config.removeAfterStop
+            )
 
             await MainActor.run {
-                if !result.failed {
-                    let containerName = config.name.isEmpty ? "Container" : config.name
-                    self.successMessage = "Successfully started container: \(containerName)"
+                let containerName = config.name.isEmpty ? "Container" : config.name
+                self.successMessage = "Successfully started container: \(containerName)"
 
-                    // Refresh containers list
-                    Task {
-                        await loadContainers()
-                    }
-                } else {
-                    let errorMsg = result.stderr ?? "Unknown error"
-                    self.errorMessage = "Failed to run container: \(errorMsg)"
+                Task {
+                    await loadContainers()
                 }
             }
         } catch {

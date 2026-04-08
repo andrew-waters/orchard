@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
 		C25FE7372E00CF9B00A8CD32 /* SwiftExec in Frameworks */ = {isa = PBXBuildFile; productRef = C25FE7362E00CF9B00A8CD32 /* SwiftExec */; };
 /* End PBXBuildFile section */
 
@@ -56,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */,
 				C25FE7372E00CF9B00A8CD32 /* SwiftExec in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -118,6 +120,7 @@
 			name = Orchard;
 			packageProductDependencies = (
 				C25FE7362E00CF9B00A8CD32 /* SwiftExec */,
+				C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */,
 			);
 			productName = Orchard;
 			productReference = C25FE6E72E00C69400A8CD32 /* Orchard.app */;
@@ -203,6 +206,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				C25FE7352E00CF9B00A8CD32 /* XCRemoteSwiftPackageReference "swift-exec" */,
+				C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C25FE6E82E00C69400A8CD32 /* Products */;
@@ -600,6 +604,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/container.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.11.0;
+			};
+		};
 		C25FE7352E00CF9B00A8CD32 /* XCRemoteSwiftPackageReference "swift-exec" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/samuelmeuli/swift-exec";
@@ -611,6 +623,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerAPIClient;
+		};
 		C25FE7362E00CF9B00A8CD32 /* SwiftExec */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C25FE7352E00CF9B00A8CD32 /* XCRemoteSwiftPackageReference "swift-exec" */;

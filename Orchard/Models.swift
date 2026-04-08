@@ -139,10 +139,10 @@ struct Network: Codable, Equatable {
     var address: String
 
     enum CodingKeys: String, CodingKey {
-        case gateway
+        case gateway = "ipv4Gateway"
         case hostname
         case network
-        case address
+        case address = "ipv4Address"
     }
 
     init(from decoder: Decoder) throws {
