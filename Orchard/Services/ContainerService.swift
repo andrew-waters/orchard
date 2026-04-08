@@ -1108,6 +1108,37 @@ class ContainerService: ObservableObject {
         }.value
     }
 
+    // MARK: - Image Inspection
+
+    func inspectImage(reference: String) async throws -> ImageInspection {
+        let image = try await ClientImage.get(reference: reference)
+        let detail = try await image.details()
+
+        var variants: [ImageInspection.Variant] = []
+        for v in detail.variants {
+            let config = v.config.config
+            variants.append(ImageInspection.Variant(
+                platform: "\(v.platform.os)/\(v.platform.architecture)",
+                size: v.size,
+                entrypoint: config?.entrypoint,
+                cmd: config?.cmd,
+                env: config?.env,
+                workingDir: config?.workingDir,
+                user: config?.user,
+                exposedPorts: nil,
+                volumes: nil
+            ))
+        }
+
+        return ImageInspection(
+            name: detail.name,
+            digest: "\(detail.index.digest)",
+            mediaType: detail.index.mediaType,
+            size: detail.index.size,
+            variants: variants
+        )
+    }
+
     // MARK: - DNS Management
 
     func loadDNSDomains() async {
