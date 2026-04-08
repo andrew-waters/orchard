@@ -1055,18 +1055,29 @@ class ContainerService: ObservableObject {
         }
     }
 
-    func fetchContainerLogs(containerId: String) async throws -> String {
+    func fetchContainerLogs(containerId: String, tailLines: Int = 5000) async throws -> [String] {
         let client = ContainerClient()
         let fileHandles = try await client.logs(id: containerId)
 
-        var output = ""
-        for handle in fileHandles {
-            let data = handle.readDataToEndOfFile()
-            if let text = String(data: data, encoding: .utf8) {
-                output += text
-            }
+        // The API returns [containerLog, bootlog] — only read the first (container log)
+        guard let containerLog = fileHandles.first else {
+            return []
         }
-        return output
+
+        // Read on a background thread to avoid blocking the main actor
+        return try await Task.detached {
+            let data = containerLog.readDataToEndOfFile()
+
+            guard let fullText = String(data: data, encoding: .utf8) else {
+                return [String]()
+            }
+
+            let lines = fullText.components(separatedBy: "\n")
+            if lines.count > tailLines {
+                return Array(lines.suffix(tailLines))
+            }
+            return lines
+        }.value
     }
 
     // MARK: - DNS Management
