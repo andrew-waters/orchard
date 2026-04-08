@@ -7,6 +7,8 @@ struct ImagesListView: View {
     @Binding var searchText: String
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showImageSearch: Bool
+    @AppStorage("imageSortBy") private var sortBy: ImageSortOption = .name
+    @AppStorage("imageSortAscending") private var sortAscending: Bool = true
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -98,6 +100,20 @@ struct ImagesListView: View {
             filtered = filtered.filter { image in
                 image.reference.localizedCaseInsensitiveContains(searchText)
             }
+        }
+
+        // Apply sort
+        let ascending = sortAscending
+        switch sortBy {
+        case .name:
+            filtered.sort {
+                let result = imageName(from: $0.reference).localizedCaseInsensitiveCompare(imageName(from: $1.reference))
+                return ascending ? result == .orderedAscending : result == .orderedDescending
+            }
+        case .tag:
+            filtered.sort { ascending ? imageTag(from: $0.reference) < imageTag(from: $1.reference) : imageTag(from: $0.reference) > imageTag(from: $1.reference) }
+        case .size:
+            filtered.sort { ascending ? $0.descriptor.size < $1.descriptor.size : $0.descriptor.size > $1.descriptor.size }
         }
 
         return filtered

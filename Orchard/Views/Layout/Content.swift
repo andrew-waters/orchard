@@ -91,9 +91,6 @@ struct ContentView: View {
                 .onDisappear {
                     stopRefreshTimer()
                 }
-                .onChange(of: containerService.refreshInterval) { oldInterval, newInterval in
-                    restartRefreshTimer()
-                }
             }
         }
         .onAppear {
@@ -222,23 +219,15 @@ struct ContentView: View {
     }
 
     private func startRefreshTimer() {
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: containerService.refreshInterval.timeInterval, repeats: true) { _ in
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
                 await containerService.checkSystemStatus()
                 await containerService.loadContainers(showLoading: false)
                 await containerService.loadImages()
                 await containerService.loadBuilders()
-
                 await containerService.loadDNSDomains(showLoading: false)
                 await containerService.loadNetworks(showLoading: false)
 
-                // Load stats if currently on stats tab
-                if selectedTab == .stats {
-                    await containerService.loadContainerStats(showLoading: false)
-                    await containerService.loadSystemDiskUsage(showLoading: false)
-                }
-
-                // Check for updates periodically
                 if containerService.shouldCheckForUpdates() {
                     await containerService.checkForUpdates()
                 }
@@ -251,8 +240,4 @@ struct ContentView: View {
         refreshTimer = nil
     }
 
-    private func restartRefreshTimer() {
-        stopRefreshTimer()
-        startRefreshTimer()
-    }
 }

@@ -10,6 +10,7 @@ struct ContainerDetailView: View {
     @EnvironmentObject var containerService: ContainerService
     @State private var selectedTab: ContainerTab = .overview
     @State private var showEditConfiguration = false
+    @State private var statsTimer: Timer?
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedNetwork: String?
 
@@ -156,6 +157,15 @@ struct ContainerDetailView: View {
             Task {
                 await containerService.loadContainerStats()
             }
+            statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                Task { @MainActor in
+                    await containerService.loadContainerStats(showLoading: false)
+                }
+            }
+        }
+        .onDisappear {
+            statsTimer?.invalidate()
+            statsTimer = nil
         }
     }
 

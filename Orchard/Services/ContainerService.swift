@@ -72,7 +72,6 @@ class ContainerService: ObservableObject {
     @Published var isStatsLoading: Bool = false
     @Published var systemDiskUsage: SystemDiskUsage? = nil
     @Published var isSystemDiskUsageLoading: Bool = false
-    @Published var refreshInterval: RefreshInterval = .fiveSeconds
     @Published var updateAvailable: Bool = false
     @Published var latestVersion: String?
     @Published var isCheckingForUpdates: Bool = false
@@ -91,37 +90,12 @@ class ContainerService: ObservableObject {
 
     private let defaultBinaryPath = "/usr/local/bin/container"
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
-    private let refreshIntervalKey = "OrchardRefreshInterval"
     private let lastUpdateCheckKey = "OrchardLastUpdateCheck"
 
     // App version info
     let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.7"
     let githubRepo = "container-compose/orchard" // Replace with actual repo
     private let updateCheckInterval: TimeInterval = 1 * 60 * 60 // 1 hour
-
-    enum RefreshInterval: String, CaseIterable {
-        case oneSecond = "1"
-        case fiveSeconds = "5"
-        case fifteenSeconds = "15"
-        case thirtySeconds = "30"
-
-        var displayName: String {
-            switch self {
-            case .oneSecond:
-                return "1 second"
-            case .fiveSeconds:
-                return "5 seconds"
-            case .fifteenSeconds:
-                return "15 seconds"
-            case .thirtySeconds:
-                return "30 seconds"
-            }
-        }
-
-        var timeInterval: TimeInterval {
-            return TimeInterval(rawValue) ?? 5.0
-        }
-    }
 
     var containerBinaryPath: String {
         let path = customBinaryPath ?? defaultBinaryPath
@@ -137,21 +111,12 @@ class ContainerService: ObservableObject {
 
     init() {
         loadCustomBinaryPath()
-        loadRefreshInterval()
     }
 
     private func loadCustomBinaryPath() {
         let userDefaults = UserDefaults.standard
         if let savedPath = userDefaults.string(forKey: customBinaryPathKey), !savedPath.isEmpty {
             customBinaryPath = savedPath
-        }
-    }
-
-    private func loadRefreshInterval() {
-        let userDefaults = UserDefaults.standard
-        if let savedInterval = userDefaults.string(forKey: refreshIntervalKey),
-           let interval = RefreshInterval(rawValue: savedInterval) {
-            refreshInterval = interval
         }
     }
 
@@ -186,12 +151,6 @@ class ContainerService: ObservableObject {
         } else {
             return false
         }
-    }
-
-    func setRefreshInterval(_ interval: RefreshInterval) {
-        refreshInterval = interval
-        let userDefaults = UserDefaults.standard
-        userDefaults.set(interval.rawValue, forKey: refreshIntervalKey)
     }
 
     // MARK: - Update Management

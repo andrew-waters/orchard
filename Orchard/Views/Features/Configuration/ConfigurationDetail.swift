@@ -9,32 +9,6 @@ struct ConfigurationDetailView: View {
 
             ScrollView {
             VStack(spacing: 30) {
-                // Background Refresh Setting
-                HStack(alignment: .top) {
-                    Text("Refresh Interval")
-                        .frame(width: 220, alignment: .trailing)
-                        .padding(.top, 4)
-
-                    VStack(alignment: .leading) {
-                        Picker("", selection: Binding(
-                            get: { containerService.refreshInterval },
-                            set: { containerService.setRefreshInterval($0) }
-                        )) {
-                            ForEach(ContainerService.RefreshInterval.allCases, id: \.self) { interval in
-                                Text(interval.displayName).tag(interval)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 200, alignment: .leading)
-
-                        Text("The frequency that the app will check for updates from containers. Lower intervals increase responsiveness but add system load.")
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 10)
-                    }
-
-                    Spacer()
-                }
-
                 // Software Updates Section
                 VStack(spacing: 15) {
                     HStack(alignment: .top) {

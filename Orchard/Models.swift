@@ -1,5 +1,35 @@
 import Foundation
 
+// MARK: - Sort Options
+
+enum ContainerSortOption: String, CaseIterable {
+    case name = "name"
+    case status = "status"
+    case image = "image"
+
+    var label: String {
+        switch self {
+        case .name: return "Name"
+        case .status: return "Status"
+        case .image: return "Image"
+        }
+    }
+}
+
+enum ImageSortOption: String, CaseIterable {
+    case name = "name"
+    case tag = "tag"
+    case size = "size"
+
+    var label: String {
+        switch self {
+        case .name: return "Name"
+        case .tag: return "Tag"
+        case .size: return "Size"
+        }
+    }
+}
+
 // MARK: - Container Models
 
 struct Container: Codable, Equatable {

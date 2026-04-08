@@ -4,7 +4,7 @@ struct StatsView: View {
     @EnvironmentObject var containerService: ContainerService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
-
+    @State private var statsTimer: Timer?
 
     private var emptyMessage: String {
         if containerService.isStatsLoading {
@@ -94,7 +94,25 @@ struct StatsView: View {
                 await containerService.loadContainerStats()
                 await containerService.loadSystemDiskUsage()
             }
+            startStatsTimer()
         }
+        .onDisappear {
+            stopStatsTimer()
+        }
+    }
+
+    private func startStatsTimer() {
+        statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor in
+                await containerService.loadContainerStats(showLoading: false)
+                await containerService.loadSystemDiskUsage(showLoading: false)
+            }
+        }
+    }
+
+    private func stopStatsTimer() {
+        statsTimer?.invalidate()
+        statsTimer = nil
     }
 }
 

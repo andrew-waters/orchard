@@ -6,6 +6,9 @@ struct ContainersListView: View {
     @Binding var lastSelectedContainer: String?
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
+    @AppStorage("containerSortBy") private var sortBy: ContainerSortOption = .name
+    @AppStorage("containerSortAscending") private var sortAscending: Bool = true
+    @AppStorage("containerRunningFirst") private var runningFirst: Bool = true
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -84,6 +87,27 @@ struct ContainersListView: View {
                     || container.status.localizedCaseInsensitiveContains(searchText)
                     || (hostname(for: container)?.localizedCaseInsensitiveContains(searchText) ?? false)
             }
+        }
+
+        // Apply sort
+        let ascending = sortAscending
+        switch sortBy {
+        case .name:
+            filtered.sort {
+                let result = $0.configuration.id.localizedCaseInsensitiveCompare($1.configuration.id)
+                return ascending ? result == .orderedAscending : result == .orderedDescending
+            }
+        case .status:
+            filtered.sort { ascending ? $0.status < $1.status : $0.status > $1.status }
+        case .image:
+            filtered.sort { ascending ? $0.configuration.image.reference < $1.configuration.image.reference : $0.configuration.image.reference > $1.configuration.image.reference }
+        }
+
+        // Float running containers to the top (stable partition)
+        if runningFirst {
+            let running = filtered.filter { $0.status.lowercased() == "running" }
+            let notRunning = filtered.filter { $0.status.lowercased() != "running" }
+            filtered = running + notRunning
         }
 
         return filtered

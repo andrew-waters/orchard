@@ -3,6 +3,11 @@ import AppKit
 
 struct ThreeColumnLayout: View {
     @EnvironmentObject var containerService: ContainerService
+    @AppStorage("containerSortBy") private var containerSortBy: ContainerSortOption = .name
+    @AppStorage("containerSortAscending") private var containerSortAscending: Bool = true
+    @AppStorage("containerRunningFirst") private var containerRunningFirst: Bool = true
+    @AppStorage("imageSortBy") private var imageSortBy: ImageSortOption = .name
+    @AppStorage("imageSortAscending") private var imageSortAscending: Bool = true
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
@@ -103,6 +108,81 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Show only mounts in use")
+                                }
+
+                                // Sort menu
+                                if selectedTab == .containers {
+                                    Menu {
+                                        ForEach(ContainerSortOption.allCases, id: \.self) { option in
+                                            Button(action: {
+                                                if containerSortBy == option {
+                                                    containerSortAscending.toggle()
+                                                } else {
+                                                    containerSortBy = option
+                                                    containerSortAscending = true
+                                                }
+                                            }) {
+                                                HStack {
+                                                    Text(option.label)
+                                                    if containerSortBy == option {
+                                                        SwiftUI.Image(systemName: containerSortAscending ? "chevron.up" : "chevron.down")
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Divider()
+
+                                        Button(action: { containerSortAscending.toggle() }) {
+                                            Text(containerSortAscending ? "Ascending" : "Descending")
+                                        }
+
+                                        Divider()
+
+                                        Toggle("Running containers first", isOn: $containerRunningFirst)
+                                    } label: {
+                                        SwiftUI.Image(systemName: "arrow.up.arrow.down.circle")
+                                            .foregroundColor(.secondary)
+                                            .font(.system(size: 14))
+                                    }
+                                    .menuStyle(.borderlessButton)
+                                    .menuIndicator(.hidden)
+                                    .frame(width: 20)
+                                    .help("Sort containers")
+                                } else if selectedTab == .images {
+                                    Menu {
+                                        ForEach(ImageSortOption.allCases, id: \.self) { option in
+                                            Button(action: {
+                                                if imageSortBy == option {
+                                                    imageSortAscending.toggle()
+                                                } else {
+                                                    imageSortBy = option
+                                                    imageSortAscending = true
+                                                }
+                                            }) {
+                                                HStack {
+                                                    Text(option.label)
+                                                    if imageSortBy == option {
+                                                        SwiftUI.Image(systemName: imageSortAscending ? "chevron.up" : "chevron.down")
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Divider()
+
+                                        Button(action: { imageSortAscending.toggle() }) {
+                                            Text(imageSortAscending ? "Ascending" : "Descending")
+                                        }
+                                    } label: {
+                                        SwiftUI.Image(systemName: "arrow.up.arrow.down.circle")
+                                            .foregroundColor(.secondary)
+                                            .font(.system(size: 14))
+                                    }
+                                    .menuStyle(.borderlessButton)
+                                    .menuIndicator(.hidden)
+                                    .frame(width: 20)
+                                    .help("Sort images")
                                 }
 
                                 Spacer()
