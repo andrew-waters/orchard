@@ -1,11 +1,81 @@
 import SwiftUI
 
+enum StatsSortColumn: String {
+    case container, cpu, memory, network, block, pids
+}
+
 struct StatsTableView: View {
     let containerStats: [ContainerStats]
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     let emptyStateMessage: String
     let showContainerColumn: Bool
+
+    @AppStorage("statsSortColumn") private var sortColumn: StatsSortColumn = .container
+    @AppStorage("statsSortAscending") private var sortAscending: Bool = true
+
+    private var sortedStats: [ContainerStats] {
+        let ascending = sortAscending
+        return containerStats.sorted { a, b in
+            let result: Bool
+            switch sortColumn {
+            case .container:
+                result = a.id.localizedCaseInsensitiveCompare(b.id) == .orderedAscending
+            case .cpu:
+                result = a.cpuUsageUsec < b.cpuUsageUsec
+            case .memory:
+                result = a.memoryUsageBytes < b.memoryUsageBytes
+            case .network:
+                result = (a.networkRxBytes + a.networkTxBytes) < (b.networkRxBytes + b.networkTxBytes)
+            case .block:
+                result = (a.blockReadBytes + a.blockWriteBytes) < (b.blockReadBytes + b.blockWriteBytes)
+            case .pids:
+                result = a.numProcesses < b.numProcesses
+            }
+            return ascending ? result : !result
+        }
+    }
+
+    private func toggleSort(_ column: StatsSortColumn) {
+        if sortColumn == column {
+            sortAscending.toggle()
+        } else {
+            sortColumn = column
+            sortAscending = true
+        }
+    }
+
+    @ViewBuilder
+    private func columnHeader(_ title: String, column: StatsSortColumn, width: CGFloat? = nil, alignment: Alignment = .trailing) -> some View {
+        let button = Button(action: { toggleSort(column) }) {
+            HStack(spacing: 2) {
+                if alignment == .leading {
+                    Text(title)
+                    if sortColumn == column {
+                        SwiftUI.Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8))
+                    }
+                    Spacer()
+                } else {
+                    Spacer()
+                    Text(title)
+                    if sortColumn == column {
+                        SwiftUI.Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8))
+                    }
+                }
+            }
+            .font(.subheadline)
+            .fontWeight(.medium)
+        }
+        .buttonStyle(.plain)
+
+        if let width = width {
+            button.frame(width: width, alignment: alignment)
+        } else {
+            button.frame(maxWidth: .infinity, alignment: alignment)
+        }
+    }
 
     var body: some View {
         if containerStats.isEmpty {
@@ -24,61 +94,19 @@ struct StatsTableView: View {
                 // Header
                 HStack(spacing: 0) {
                     if showContainerColumn {
-                        Text("Container")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Text("CPU")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .frame(width: 100, alignment: .trailing)
-
-                        Text("Memory")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .frame(width: 140, alignment: .trailing)
-
-                        Text("Network I/O")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .frame(width: 140, alignment: .trailing)
-
-                        Text("Block I/O")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .frame(width: 140, alignment: .trailing)
-
-                        Text("PIDs")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .frame(width: 80, alignment: .trailing)
+                        columnHeader("Container", column: .container, alignment: .leading)
+                        columnHeader("CPU", column: .cpu, width: 100)
+                        columnHeader("Memory", column: .memory, width: 140)
+                        columnHeader("Network I/O", column: .network, width: 140)
+                        columnHeader("Block I/O", column: .block, width: 140)
+                        columnHeader("PIDs", column: .pids, width: 80)
                     } else {
                         HStack {
-                            Text("CPU")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                            Text("Memory")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                            Text("Network I/O")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                            Text("Block I/O")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                            Text("PIDs")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
+                            columnHeader("CPU", column: .cpu)
+                            columnHeader("Memory", column: .memory)
+                            columnHeader("Network I/O", column: .network)
+                            columnHeader("Block I/O", column: .block)
+                            columnHeader("PIDs", column: .pids)
                         }
                     }
                 }
@@ -89,7 +117,7 @@ struct StatsTableView: View {
                 Divider()
 
                 // Stats rows
-                ForEach(containerStats, id: \.id) { stats in
+                ForEach(sortedStats, id: \.id) { stats in
                     HStack(spacing: 0) {
                         if showContainerColumn {
                             // Container name (clickable)
@@ -99,7 +127,7 @@ struct StatsTableView: View {
                             }) {
                                 HStack {
                                     SwiftUI.Image(systemName: "cube")
-                                        .foregroundStyle(.green) // Assume running if we have stats
+                                        .foregroundStyle(.green)
                                     Text(stats.id)
                                         .foregroundStyle(.blue)
                                 }
@@ -107,13 +135,11 @@ struct StatsTableView: View {
                             }
                             .buttonStyle(.plain)
 
-                            // CPU Usage (placeholder - would need more calculation)
                             Text("--")
                                 .font(.system(.body, design: .monospaced))
                                 .foregroundStyle(.secondary)
                                 .frame(width: 100, alignment: .trailing)
 
-                            // Memory Usage
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("\(stats.formattedMemoryUsage)")
                                     .font(.system(.caption, design: .monospaced))
@@ -123,17 +149,15 @@ struct StatsTableView: View {
                             }
                             .frame(width: 140, alignment: .trailing)
 
-                            // Network I/O (RX / TX)
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text("↓ \(stats.formattedNetworkRx)")
+                                Text("\u{2193} \(stats.formattedNetworkRx)")
                                     .font(.system(.caption, design: .monospaced))
-                                Text("↑ \(stats.formattedNetworkTx)")
+                                Text("\u{2191} \(stats.formattedNetworkTx)")
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
                             .frame(width: 140, alignment: .trailing)
 
-                            // Block I/O (Read / Write)
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("R \(stats.formattedBlockRead)")
                                     .font(.system(.caption, design: .monospaced))
@@ -143,19 +167,16 @@ struct StatsTableView: View {
                             }
                             .frame(width: 140, alignment: .trailing)
 
-                            // Number of processes
                             Text("\(stats.numProcesses)")
                                 .font(.system(.body, design: .monospaced))
                                 .frame(width: 80, alignment: .trailing)
                         } else {
                             HStack {
-                                // CPU Usage (placeholder - would need more calculation)
                                 Text("--")
                                     .font(.system(.body, design: .monospaced))
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .trailing)
 
-                                // Memory Usage
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text("\(stats.formattedMemoryUsage)")
                                         .font(.system(.caption, design: .monospaced))
@@ -165,17 +186,15 @@ struct StatsTableView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .trailing)
 
-                                // Network I/O (RX / TX)
                                 VStack(alignment: .trailing, spacing: 2) {
-                                    Text("↓ \(stats.formattedNetworkRx)")
+                                    Text("\u{2193} \(stats.formattedNetworkRx)")
                                         .font(.system(.caption, design: .monospaced))
-                                    Text("↑ \(stats.formattedNetworkTx)")
+                                    Text("\u{2191} \(stats.formattedNetworkTx)")
                                         .font(.system(.caption, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .trailing)
 
-                                // Block I/O (Read / Write)
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text("R \(stats.formattedBlockRead)")
                                         .font(.system(.caption, design: .monospaced))
@@ -185,7 +204,6 @@ struct StatsTableView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .trailing)
 
-                                // Number of processes
                                 Text("\(stats.numProcesses)")
                                     .font(.system(.body, design: .monospaced))
                                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -196,7 +214,7 @@ struct StatsTableView: View {
                     .padding(.vertical, 8)
                     .background(Color.clear)
 
-                    if stats.id != containerStats.last?.id {
+                    if stats.id != sortedStats.last?.id {
                         Divider()
                             .padding(.leading, 12)
                     }
