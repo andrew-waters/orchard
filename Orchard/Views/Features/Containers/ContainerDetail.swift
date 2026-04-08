@@ -846,6 +846,8 @@ struct ContainerImageDetailView: View {
     @EnvironmentObject var containerService: ContainerService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @State private var inspection: ImageInspection?
+    @State private var isInspecting: Bool = false
 
     private var imageName: String {
         let components = image.reference.split(separator: "/")
@@ -874,42 +876,53 @@ struct ContainerImageDetailView: View {
         }
     }
 
-
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ImageDetailHeader(image: image)
                 .environmentObject(containerService)
 
-            // Content
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top, spacing: 20) {
-                        // Overview section
                         imageOverviewSection()
-
                         Divider()
-
-                        // Technical details section
                         imageTechnicalSection()
+                    }
 
-                        Divider()
-
+                    // Image config from inspection
+                    if isInspecting {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Inspecting image...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if let inspection = inspection {
+                        ForEach(Array(inspection.variants.enumerated()), id: \.offset) { _, variant in
+                            Divider()
+                            imageConfigSection(variant: variant)
+                        }
                     }
 
                     if let annotations = image.descriptor.annotations, !annotations.isEmpty {
                         Divider()
-
-                        // Annotations section
                         imageAnnotationsSection(annotations: annotations)
                     }
 
-                    // Used by containers section
+                    Divider()
                     containersUsingImageSection()
 
                     Spacer(minLength: 20)
                 }
                 .padding()
+            }
+        }
+        .onAppear {
+            Task {
+                isInspecting = true
+                inspection = try? await containerService.inspectImage(reference: image.reference)
+                isInspecting = false
             }
         }
     }
@@ -923,7 +936,7 @@ struct ContainerImageDetailView: View {
                 .foregroundColor(.primary)
 
             VStack(alignment: .leading, spacing: 8) {
-                CopyableInfoRow(label: "Reference", value: image.reference)
+                InfoRow(label: "Reference", value: image.reference)
                 InfoRow(label: "Name", value: imageName)
                 InfoRow(label: "Tag", value: imageTag)
                 InfoRow(
@@ -944,14 +957,89 @@ struct ContainerImageDetailView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 InfoRow(label: "Media Type", value: image.descriptor.mediaType)
-                CopyableInfoRow(
+                InfoRow(
                     label: "Digest",
                     value: String(
                         image.descriptor.digest.replacingOccurrences(of: "sha256:", with: "")
-                            .prefix(12)),
-                    copyValue: image.descriptor.digest
+                            .prefix(12))
                 )
                 InfoRow(label: "Size (bytes)", value: "\(image.descriptor.size)")
+            }
+        }
+    }
+
+    private func imageConfigSection(variant: ImageInspection.Variant) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Configuration")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text("(\(variant.platform))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(ByteCountFormatter().string(fromByteCount: variant.size))
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                if let entrypoint = variant.entrypoint, !entrypoint.isEmpty {
+                    InfoRow(label: "Entrypoint", value: entrypoint.joined(separator: " "))
+                }
+
+                if let cmd = variant.cmd, !cmd.isEmpty {
+                    InfoRow(label: "Cmd", value: cmd.joined(separator: " "))
+                }
+
+                if let workingDir = variant.workingDir, !workingDir.isEmpty {
+                    InfoRow(label: "Working Dir", value: workingDir)
+                }
+
+                if let user = variant.user, !user.isEmpty {
+                    InfoRow(label: "User", value: user)
+                }
+
+                if let ports = variant.exposedPorts, !ports.isEmpty {
+                    InfoRow(label: "Exposed Ports", value: ports.joined(separator: ", "))
+                }
+
+                if let volumes = variant.volumes, !volumes.isEmpty {
+                    InfoRow(label: "Volumes", value: volumes.joined(separator: ", "))
+                }
+            }
+
+            if let env = variant.env, !env.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Environment")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 4) {
+                            ForEach(env, id: \.self) { envVar in
+                                let parts = envVar.split(separator: "=", maxSplits: 1)
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text(String(parts.first ?? ""))
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.primary)
+                                    Text("=")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                    Text(String(parts.count > 1 ? parts[1] : ""))
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                        .textSelection(.enabled)
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 200)
+                    .padding(8)
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    .cornerRadius(6)
+                }
             }
         }
     }
@@ -991,8 +1079,6 @@ struct ContainerImageDetailView: View {
                                 .foregroundColor(.secondary)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                            CopyButton(text: value, label: "Copy value")
                         }
                         .padding(.vertical, 2)
                     }
@@ -1004,8 +1090,6 @@ struct ContainerImageDetailView: View {
             .cornerRadius(8)
         }
     }
-
-    // MARK: - Helper Methods
 
     private func formatDate(_ dateString: String) -> String {
         let formatter = ISO8601DateFormatter()

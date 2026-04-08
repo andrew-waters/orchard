@@ -291,6 +291,28 @@ struct ContainerImageDescriptor: Codable, Equatable {
     }
 }
 
+// MARK: - Image Inspection Models
+
+struct ImageInspection {
+    let name: String
+    let digest: String
+    let mediaType: String
+    let size: Int64
+    let variants: [Variant]
+
+    struct Variant {
+        let platform: String
+        let size: Int64
+        let entrypoint: [String]?
+        let cmd: [String]?
+        let env: [String]?
+        let workingDir: String?
+        let user: String?
+        let exposedPorts: [String]?
+        let volumes: [String]?
+    }
+}
+
 // MARK: - Mount Models
 
 struct ContainerMount: Identifiable, Equatable {
