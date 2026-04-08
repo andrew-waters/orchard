@@ -4,10 +4,13 @@ import Foundation
 struct LogsView: View {
     let containerId: String
     @EnvironmentObject var containerService: ContainerService
+    @Environment(\.openWindow) private var openWindow
     @State private var logLines: [String] = []
     @State private var isLoading: Bool = false
     @State private var refreshTimer: Timer?
     @State private var filterText: String = ""
+    @State private var hasScrolledToBottom: Bool = false
+    @State private var isPaused: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,6 +25,18 @@ struct LogsView: View {
                     .foregroundColor(.secondary)
 
                 Spacer()
+
+                Button(action: { isPaused.toggle() }) {
+                    SwiftUI.Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                        .foregroundColor(isPaused ? .orange : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .help(isPaused ? "Resume log refresh" : "Pause log refresh")
+
+                Button(action: { openWindow(id: "logs") }) {
+                    Label("Open Log Viewer", systemImage: "rectangle.on.rectangle")
+                }
+                .buttonStyle(.borderless)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -53,6 +68,7 @@ struct LogsView: View {
             Divider()
 
             // Logs content
+            ScrollViewReader { proxy in
                 ScrollView {
                     if isLoading && logLines.isEmpty {
                         HStack {
@@ -82,6 +98,13 @@ struct LogsView: View {
                     }
                 }
                 .background(Color.black.opacity(0.85))
+                .onChange(of: logLines.count) {
+                    if !hasScrolledToBottom && !logLines.isEmpty {
+                        hasScrolledToBottom = true
+                        proxy.scrollTo(displayLines.count - 1, anchor: .bottom)
+                    }
+                }
+            }
         }
         .onAppear {
             startLogRefresh()
@@ -154,6 +177,7 @@ struct LogsView: View {
     }
 
     private func fetchLogs() async {
+        guard !isPaused else { return }
         if logLines.isEmpty {
             await MainActor.run { isLoading = true }
         }

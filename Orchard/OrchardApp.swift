@@ -32,6 +32,13 @@ struct OrchardApp: App {
 
 
 
+        WindowGroup(id: "logs") {
+            MultiLogView()
+                .environmentObject(containerService)
+        }
+        .defaultSize(width: 900, height: 600)
+        .windowToolbarStyle(.unified(showsTitle: false))
+
         MenuBarExtra("Orchard", systemImage: "cube.box") {
             MenuBarView()
                 .environmentObject(containerService)
