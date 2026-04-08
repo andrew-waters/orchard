@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContainersListView: View {
     @EnvironmentObject var containerService: ContainerService
+    @Environment(\.openWindow) private var openWindow
     @Binding var selectedContainer: String?
     @Binding var lastSelectedContainer: String?
     @Binding var searchText: String
@@ -37,6 +38,10 @@ struct ContainersListView: View {
                                     await containerService.startContainer(container.configuration.id)
                                 }
                             }
+                        }
+
+                        Button("View in Log Viewer") {
+                            openWindow(id: "logs")
                         }
 
                         Divider()
