@@ -1,12 +1,5 @@
 import SwiftUI
 
-struct MergedLogLine: Identifiable {
-    let id: Int
-    let containerId: String
-    let text: String
-    let color: Color
-}
-
 // MARK: - Multi-pane log viewer window
 
 struct MultiLogView: View {
@@ -88,7 +81,7 @@ struct MultiLogView: View {
     }
 }
 
-// MARK: - Individual log pane
+// MARK: - Individual log pane (single container)
 
 struct LogPaneView: View {
     let paneId: UUID
@@ -96,98 +89,56 @@ struct LogPaneView: View {
     let onClose: () -> Void
 
     @EnvironmentObject var containerService: ContainerService
-    @State private var selectedContainerIds: Set<String> = []
-    @State private var mergedLines: [MergedLogLine] = []
+    @State private var selectedContainerId: String?
+    @State private var logLines: [String] = []
     @State private var filterText: String = ""
     @State private var refreshTimer: Timer?
     @State private var isLoading: Bool = false
     @State private var hasScrolledToBottom: Bool = false
     @State private var isPaused: Bool = false
 
-    private static let palette: [Color] = [.blue, .orange, .purple, .pink, .cyan, .yellow, .mint, .indigo]
-    private static let maxLines = 5000
-
-    private func colorFor(_ containerId: String) -> Color {
-        let allIds = containerService.containers.map(\.configuration.id).sorted()
-        let index = allIds.firstIndex(of: containerId) ?? 0
-        return Self.palette[index % Self.palette.count]
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            // Container picker bar
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+            // Header: container picker + controls
+            HStack(spacing: 8) {
+                Picker("", selection: $selectedContainerId) {
+                    Text("Select container...")
+                        .tag(nil as String?)
                     ForEach(containerService.containers, id: \.configuration.id) { container in
-                        let cid = container.configuration.id
-                        let isSelected = selectedContainerIds.contains(cid)
-                        let color = colorFor(cid)
-
-                        Button(action: {
-                            if isSelected {
-                                selectedContainerIds.remove(cid)
-                            } else {
-                                selectedContainerIds.insert(cid)
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(color)
-                                    .frame(width: 8, height: 8)
-                                Text(cid)
-                                    .font(.system(size: 11))
-                                    .lineLimit(1)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(isSelected ? color.opacity(0.2) : Color.clear)
-                            .cornerRadius(4)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(isSelected ? color.opacity(0.5) : Color.secondary.opacity(0.3), lineWidth: 1)
-                            )
+                        HStack {
+                            Circle()
+                                .fill(container.status.lowercased() == "running" ? .green : .secondary)
+                                .frame(width: 6, height: 6)
+                            Text(container.configuration.id)
                         }
-                        .buttonStyle(.plain)
-                    }
-
-                    Spacer()
-
-                    Button("All") {
-                        selectedContainerIds = Set(containerService.containers.map(\.configuration.id))
-                    }
-                    .font(.system(size: 11))
-                    .buttonStyle(.borderless)
-
-                    Button("None") {
-                        selectedContainerIds.removeAll()
-                    }
-                    .font(.system(size: 11))
-                    .buttonStyle(.borderless)
-
-                    Divider()
-                        .frame(height: 16)
-
-                    Button(action: { isPaused.toggle() }) {
-                        SwiftUI.Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                            .foregroundColor(isPaused ? .orange : .secondary)
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .help(isPaused ? "Resume log refresh" : "Pause log refresh")
-
-                    if canClose {
-                        Button(action: onClose) {
-                            SwiftUI.Image(systemName: "xmark")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 10))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Close this pane")
+                        .tag(container.configuration.id as String?)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .pickerStyle(.menu)
+                .frame(maxWidth: 250)
+
+                Spacer()
+
+                Button(action: { isPaused.toggle() }) {
+                    SwiftUI.Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                        .foregroundColor(isPaused ? .orange : .secondary)
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .help(isPaused ? "Resume log refresh" : "Pause log refresh")
+
+                if canClose {
+                    Button(action: onClose) {
+                        SwiftUI.Image(systemName: "xmark")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close this pane")
+                }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
 
             Divider()
 
@@ -217,10 +168,10 @@ struct LogPaneView: View {
 
             Divider()
 
-            // Merged log stream
+            // Log stream
             ScrollViewReader { proxy in
                 ScrollView {
-                    if isLoading && mergedLines.isEmpty {
+                    if isLoading && logLines.isEmpty {
                         HStack {
                             Spacer()
                             ProgressView("Loading logs...")
@@ -228,84 +179,84 @@ struct LogPaneView: View {
                                 .padding()
                             Spacer()
                         }
-                    } else if mergedLines.isEmpty {
+                    } else if selectedContainerId == nil {
                         HStack {
                             Spacer()
-                            Text(selectedContainerIds.isEmpty ? "Select containers above" : "No logs available")
+                            Text("Select a container above")
+                                .foregroundColor(Color(white: 0.5))
+                                .padding()
+                            Spacer()
+                        }
+                    } else if logLines.isEmpty {
+                        HStack {
+                            Spacer()
+                            Text("No logs available")
                                 .foregroundColor(Color(white: 0.5))
                                 .padding()
                             Spacer()
                         }
                     } else {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(displayLines) { line in
-                                HStack(alignment: .top, spacing: 6) {
-                                    Circle()
-                                        .fill(line.color)
-                                        .frame(width: 6, height: 6)
-                                        .padding(.top, 4)
-
-                                    Text(line.containerId)
-                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                        .foregroundColor(line.color)
-                                        .frame(width: 120, alignment: .leading)
-                                        .lineLimit(1)
-
-                                    if filterText.isEmpty {
-                                        Text(line.text)
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .foregroundColor(Color(white: 0.85))
-                                            .textSelection(.enabled)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    } else {
-                                        Text(highlightMatches(in: line.text))
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .foregroundColor(Color(white: 0.85))
-                                            .textSelection(.enabled)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 1)
+                            ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
+                                logLineView(line)
+                                    .id(index)
                             }
                         }
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .background(Color.black.opacity(0.85))
-                .onChange(of: mergedLines.count) {
-                    if !hasScrolledToBottom && !mergedLines.isEmpty {
+                .onChange(of: logLines.count) {
+                    if !hasScrolledToBottom && !logLines.isEmpty {
                         hasScrolledToBottom = true
-                        if let lastId = displayLines.last?.id {
-                            proxy.scrollTo(lastId, anchor: .bottom)
-                        }
+                        proxy.scrollTo(displayLines.count - 1, anchor: .bottom)
                     }
                 }
             }
         }
         .onAppear {
-            selectedContainerIds = Set(
-                containerService.containers
-                    .filter { $0.status.lowercased() == "running" }
-                    .map(\.configuration.id)
-            )
+            // Default to first running container
+            selectedContainerId = containerService.containers
+                .first { $0.status.lowercased() == "running" }?
+                .configuration.id
             startRefresh()
         }
         .onDisappear {
             stopRefresh()
         }
-        .onChange(of: selectedContainerIds) {
-            Task { await fetchAllLogs() }
+        .onChange(of: selectedContainerId) {
+            logLines = []
+            hasScrolledToBottom = false
+            Task { await fetchLogs() }
         }
     }
 
-    private var displayLines: [MergedLogLine] {
+    private var displayLines: [String] {
         if filterText.isEmpty {
-            return mergedLines
+            return logLines
         }
         let search = filterText.lowercased()
-        return mergedLines.filter {
-            $0.text.lowercased().contains(search) || $0.containerId.lowercased().contains(search)
+        return logLines.filter { $0.lowercased().contains(search) }
+    }
+
+    @ViewBuilder
+    private func logLineView(_ line: String) -> some View {
+        if filterText.isEmpty {
+            Text(line)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundColor(Color(white: 0.85))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 1)
+        } else {
+            Text(highlightMatches(in: line))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundColor(Color(white: 0.85))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 1)
         }
     }
 
@@ -326,9 +277,9 @@ struct LogPaneView: View {
     }
 
     private func startRefresh() {
-        Task { await fetchAllLogs() }
+        Task { await fetchLogs() }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            Task { await fetchAllLogs() }
+            Task { await fetchLogs() }
         }
     }
 
@@ -337,48 +288,28 @@ struct LogPaneView: View {
         refreshTimer = nil
     }
 
-    private func fetchAllLogs() async {
+    private func fetchLogs() async {
         guard !isPaused else { return }
-        let ids = selectedContainerIds
-        guard !ids.isEmpty else {
-            await MainActor.run { mergedLines = [] }
-            return
-        }
+        guard let cid = selectedContainerId else { return }
 
-        if mergedLines.isEmpty {
+        if logLines.isEmpty {
             await MainActor.run { isLoading = true }
         }
 
-        let sortedIds = ids.sorted()
-        var allLines: [MergedLogLine] = []
-        var lineIndex = 0
+        do {
+            let lines = try await containerService.fetchContainerLogs(containerId: cid)
 
-        for cid in sortedIds {
-            let color = colorFor(cid)
-            let linesPerContainer = Self.maxLines / max(sortedIds.count, 1)
-
-            do {
-                let lines = try await containerService.fetchContainerLogs(
-                    containerId: cid,
-                    tailLines: linesPerContainer
-                )
-                for text in lines where !text.isEmpty {
-                    allLines.append(MergedLogLine(id: lineIndex, containerId: cid, text: text, color: color))
-                    lineIndex += 1
-                }
-            } catch {
-                allLines.append(MergedLogLine(id: lineIndex, containerId: cid, text: "Error: \(error.localizedDescription)", color: .red))
-                lineIndex += 1
+            await MainActor.run {
+                logLines = lines
+                isLoading = false
             }
-        }
-
-        if allLines.count > Self.maxLines {
-            allLines = Array(allLines.suffix(Self.maxLines))
-        }
-
-        await MainActor.run {
-            mergedLines = allLines
-            isLoading = false
+        } catch {
+            await MainActor.run {
+                if logLines.isEmpty {
+                    logLines = ["Error: \(error.localizedDescription)"]
+                }
+                isLoading = false
+            }
         }
     }
 }
