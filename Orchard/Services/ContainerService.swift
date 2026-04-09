@@ -80,6 +80,8 @@ class ContainerService: ObservableObject {
     @Published var searchResults: [RegistrySearchResult] = []
     @Published var systemProperties: [SystemProperty] = []
     @Published var isSystemPropertiesLoading = false
+    @Published var preferredTerminal: TerminalApp = .terminal
+    @Published var installedTerminals: [TerminalApp] = [.terminal]
 
     // Container operation locks to prevent multiple simultaneous operations
     private var containerOperationLocks: Set<String> = []
@@ -91,6 +93,7 @@ class ContainerService: ObservableObject {
     private let defaultBinaryPath = "/usr/local/bin/container"
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
     private let lastUpdateCheckKey = "OrchardLastUpdateCheck"
+    private let preferredTerminalKey = "OrchardPreferredTerminal"
 
     // App version info
     let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.7"
@@ -111,6 +114,7 @@ class ContainerService: ObservableObject {
 
     init() {
         loadCustomBinaryPath()
+        loadPreferredTerminal()
     }
 
     private func loadCustomBinaryPath() {
@@ -151,6 +155,25 @@ class ContainerService: ObservableObject {
         } else {
             return false
         }
+    }
+
+
+    private func loadPreferredTerminal() {
+        installedTerminals = TerminalApp.installedTerminals
+        let userDefaults = UserDefaults.standard
+        if let savedTerminal = userDefaults.string(forKey: preferredTerminalKey),
+           let terminal = TerminalApp(rawValue: savedTerminal),
+           terminal.isInstalled {
+            preferredTerminal = terminal
+        } else if let firstInstalled = installedTerminals.first {
+            preferredTerminal = firstInstalled
+        }
+    }
+
+    func setPreferredTerminal(_ terminal: TerminalApp) {
+        preferredTerminal = terminal
+        let userDefaults = UserDefaults.standard
+        userDefaults.set(terminal.rawValue, forKey: preferredTerminalKey)
     }
 
     // MARK: - Update Management
@@ -1814,14 +1837,38 @@ class ContainerService: ObservableObject {
     // MARK: - Container Terminal
 
     func openTerminal(for containerId: String, shell: String = "/bin/sh") {
-        // Build the command to execute in Terminal.app
+        // Build the command to execute in the preferred terminal
         let containerBinary = safeContainerBinaryPath()
 
         // Build the complete command - note: we need to quote the shell path if it has spaces
         let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
 
+        // Debug: print the command and target terminal
+        print(String(repeating: "=", count: 60))
+        print("Opening terminal with:")
+        print("  Terminal: \(preferredTerminal.displayName)")
+        print("  Binary: \(containerBinary)")
+        print("  Container: \(containerId)")
+        print("  Shell: \(shell)")
+        print("  Full command: \(fullCommand)")
+        print(String(repeating: "=", count: 60))
+
+        // Dispatch to the appropriate terminal-specific opener
+        switch preferredTerminal {
+        case .terminal:
+            openInTerminalApp(command: fullCommand)
+        case .iterm2:
+            openInITerm2(command: fullCommand)
+        case .ghostty:
+            openInGhostty(containerBinary: containerBinary, containerId: containerId, shell: shell)
+        }
+    }
+
+    // MARK: - Terminal-Specific Openers
+
+    private func openInTerminalApp(command: String) {
         // Escape for AppleScript - replace backslashes and quotes
-        let escapedCommand = fullCommand
+        let escapedCommand = command
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
 
@@ -1834,15 +1881,51 @@ class ContainerService: ObservableObject {
         end tell
         """
 
-        // Debug: print the command and script
-        print(String(repeating: "=", count: 60))
-        print("Opening terminal with:")
-        print("  Binary: \(containerBinary)")
-        print("  Container: \(containerId)")
-        print("  Shell: \(shell)")
-        print("  Full command: \(fullCommand)")
-        print("  Escaped command: \(escapedCommand)")
-        print(String(repeating: "=", count: 60))
+        executeAppleScript(script)
+    }
+
+    private func openInITerm2(command: String) {
+        let escapedCommand = command
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+
+        let script = """
+        tell application id "com.googlecode.iterm2"
+            activate
+            set newWindow to (create window with default profile)
+            tell current session of newWindow
+                write text "\(escapedCommand)"
+            end tell
+        end tell
+        """
+
+        executeAppleScript(script)
+    }
+
+    private func openInGhostty(containerBinary: String, containerId: String, shell: String) {
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: TerminalApp.ghostty.bundleIdentifier) else {
+            print("❌ Ghostty application not found")
+            self.errorMessage = "Ghostty application not found"
+            return
+        }
+
+        // Use 'open -na' to always open a new window, even if Ghostty is already running
+        // Pass the command via '/bin/sh -c' to avoid Ghostty's argument parsing issues
+        let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-na", appURL.path, "--args", "-e", "/bin/sh", "-c", fullCommand]
+
+        do {
+            try process.run()
+            print("✓ Ghostty opened successfully")
+        } catch {
+            print("❌ Failed to open Ghostty: \(error)")
+            self.errorMessage = "Failed to open Ghostty: \(error.localizedDescription)"
+        }
+    }
+
+    private func executeAppleScript(_ script: String) {
         print("AppleScript:")
         print(script)
         print(String(repeating: "=", count: 60))

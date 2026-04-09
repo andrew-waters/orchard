@@ -9,6 +9,32 @@ struct ConfigurationDetailView: View {
 
             ScrollView {
             VStack(spacing: 30) {
+                // Terminal Application Setting
+                HStack(alignment: .top) {
+                    Text("Terminal Application")
+                        .frame(width: 220, alignment: .trailing)
+                        .padding(.top, 4)
+
+                    VStack(alignment: .leading) {
+                        Picker("", selection: Binding(
+                            get: { containerService.preferredTerminal },
+                            set: { containerService.setPreferredTerminal($0) }
+                        )) {
+                            ForEach(containerService.installedTerminals, id: \.self) { terminal in
+                                Text(terminal.displayName).tag(terminal)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 200, alignment: .leading)
+
+                        Text("The terminal application to use when opening a shell into a container.")
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 10)
+                    }
+
+                    Spacer()
+                }
+
                 // Software Updates Section
                 VStack(spacing: 15) {
                     HStack(alignment: .top) {
