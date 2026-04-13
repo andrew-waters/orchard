@@ -41,13 +41,19 @@ A small number of operations (system start/stop, builders, DNS domain management
 
 ## Installation
 
-You can build from source or download a prebuilt package.
+You can install Orchard via homebrew or via a prebuilt release package. You can also download the source and build it yourself!
 
-### Prebuilt
+### Homebrew
+
+```bash
+brew install orchard
+```
+
+### Release download
 
 1. Download the latest release from [GitHub Releases](https://github.com/andrew-waters/orchard/releases)
 2. Open the `.dmg` file and drag Orchard to your Applications folder
-3. Launch Orchard - you may need to go to **System Settings > Privacy & Security** and click "Open Anyway" to allow the app to run
+3. Launch Orchard from the Apps directory
 
 ### Build from Source
 
