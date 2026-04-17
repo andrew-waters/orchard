@@ -1,14 +1,32 @@
 ![Banner - Orchard](assets/banner.png)
 
-Orchard is a native (Swift) macOS application for managing Linux containers using Apple's [container](https://github.com/apple/container) tooling.
+Orchard is a native (Swift) macOS application for managing containers using Apple's [container](https://github.com/apple/container) tooling.
 
-It has been based on years of experience with Docker Desktop, but dedicated to the new containerization option.
+It gives you a desktop experience that complements the `container` command-line interface.
 
-The ambition of the project is to make it easy for developers to switch from Docker Desktop to Containers. Orchard gives you a desktop experience that complements the `container` command-line interface.
+---
+
+Quickstart ([or other install options](#installation)):
+
+```bash
+brew install orchard
+```
+
+---
+
+- [Highlights of Containers](#highlights-of-containers)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Architecture](#architecture)
+- [Installation](#installation)
+  - [Homebrew](#homebrew)
+  - [Release download](#release-download)
+  - [Build from Source](#build-from-source)
+- [License](#license)
 
 ![container overview screen](assets/overview.png)
 
-## Highlights of Containerization
+## Highlights of Containers
 
 - Made by Apple: Native support, incredible performance and the engineering resources to make it work.
 - Sub second startup times
