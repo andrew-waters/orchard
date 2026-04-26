@@ -53,6 +53,7 @@ class ContainerService: ObservableObject {
     @Published var isBuildersLoading: Bool = false
     @Published var errorMessage: String?
     @Published var systemStatus: SystemStatus = .unknown
+    @Published var systemStatusError: String?
     @Published var systemStatusVersionOverride: Bool = false
     @Published var isSystemLoading = false
     @Published var loadingContainers: Set<String> = []
@@ -687,12 +688,15 @@ class ContainerService: ObservableObject {
                 self.containerVersion = health.apiServerVersion
                 self.parsedContainerVersion = health.apiServerVersion
                 self.systemStatus = .running
+                self.systemStatusError = nil
             }
         } catch {
+            let detail = "\(type(of: error)): \(String(describing: error))"
             await MainActor.run {
                 self.containerVersion = nil
                 self.parsedContainerVersion = nil
                 self.systemStatus = .stopped
+                self.systemStatusError = detail
             }
         }
     }
