@@ -90,7 +90,16 @@ class ContainerService: ObservableObject {
     // Container configuration snapshots for recovery
     private var containerSnapshots: [String: Container] = [:]
 
-    private let defaultBinaryPath = "/usr/local/bin/container"
+    private let fallbackBinaryPath = "/usr/local/bin/container"
+    private let candidateBinaryPaths: [String] = [
+        "/usr/local/bin/container",
+        "/opt/homebrew/bin/container",
+        "\(NSHomeDirectory())/.nix-profile/bin/container",
+        "\(NSHomeDirectory())/.local/bin/container",
+    ]
+    private var defaultBinaryPath: String {
+        candidateBinaryPaths.first(where: { validateBinaryPath($0) }) ?? fallbackBinaryPath
+    }
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
     private let lastUpdateCheckKey = "OrchardLastUpdateCheck"
     private let preferredTerminalKey = "OrchardPreferredTerminal"

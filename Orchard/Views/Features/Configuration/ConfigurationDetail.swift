@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ConfigurationDetailView: View {
@@ -30,6 +31,51 @@ struct ConfigurationDetailView: View {
                         Text("The terminal application to use when opening a shell into a container.")
                             .foregroundColor(.secondary)
                             .padding(.leading, 10)
+                    }
+
+                    Spacer()
+                }
+
+                // Container Binary
+                HStack(alignment: .top) {
+                    Text("Container Binary")
+                        .frame(width: 220, alignment: .trailing)
+                        .padding(.top, 4)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(containerService.containerBinaryPath)
+                            .font(.system(.body, design: .monospaced))
+                            .fontWeight(.medium)
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        HStack(spacing: 8) {
+                            Button("Choose…") {
+                                let panel = NSOpenPanel()
+                                panel.canChooseFiles = true
+                                panel.canChooseDirectories = false
+                                panel.allowsMultipleSelection = false
+                                panel.showsHiddenFiles = true
+                                panel.treatsFilePackagesAsDirectories = true
+                                if panel.runModal() == .OK, let url = panel.url {
+                                    if !containerService.validateAndSetCustomBinaryPath(url.path) {
+                                        containerService.errorMessage = "Selected file is not an executable: \(url.path)"
+                                    }
+                                }
+                            }
+                            .controlSize(.small)
+
+                            if containerService.isUsingCustomBinary {
+                                Button("Reset to Auto-detect") {
+                                    containerService.resetToDefaultBinary()
+                                }
+                                .controlSize(.small)
+                            }
+                        }
+
+                        Text("Path to the `container` CLI. Auto-detected from common locations (Homebrew, Nix, /usr/local); override if your binary lives elsewhere.")
+                            .foregroundColor(.secondary)
                     }
 
                     Spacer()
