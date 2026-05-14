@@ -4,6 +4,7 @@ struct ContainersListView: View {
     @EnvironmentObject var containerService: ContainerService
     @Environment(\.openWindow) private var openWindow
     @Binding var selectedContainer: String?
+    @Binding var selectedContainers: Set<String>
     @Binding var lastSelectedContainer: String?
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
@@ -15,7 +16,7 @@ struct ContainersListView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Container list
-            List(selection: $selectedContainer) {
+            List(selection: $selectedContainers) {
                 ForEach(filteredContainers, id: \.configuration.id) { container in
                     ListItemRow(
                         icon: "cube",
@@ -23,39 +24,10 @@ struct ContainersListView: View {
                         primaryText: container.configuration.id,
                         secondaryLeftText: networkAddress(for: container) ?? "-",
                         secondaryRightText: hostname(for: container),
-                        isSelected: selectedContainer == container.configuration.id
+                        isSelected: selectedContainers.contains(container.configuration.id)
                     )
                     .contextMenu {
-                        if container.status.lowercased() == "running" {
-                            Button("Stop Container") {
-                                Task {
-                                    await containerService.stopContainer(container.configuration.id)
-                                }
-                            }
-                            Button("Force Stop", role: .destructive) {
-                                Task {
-                                    await containerService.forceStopContainer(container.configuration.id)
-                                }
-                            }
-                        } else {
-                            Button("Start Container") {
-                                Task {
-                                    await containerService.startContainer(container.configuration.id)
-                                }
-                            }
-                        }
-
-                        Button("View in Log Viewer") {
-                            openWindow(id: "logs")
-                        }
-
-                        Divider()
-
-                        Button("Remove Container", role: .destructive) {
-                            Task {
-                                await containerService.removeContainer(container.configuration.id)
-                            }
-                        }
+                        contextMenu(for: container)
                     }
                     .tag(container.configuration.id)
                 }
@@ -65,6 +37,61 @@ struct ContainersListView: View {
             .focused($listFocusedTab, equals: .containers)
             .onChange(of: selectedContainer) { _, newValue in
                 lastSelectedContainer = newValue
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func contextMenu(for container: Container) -> some View {
+        // If the right-clicked container is part of a multi-selection, the actions apply to the whole set.
+        let targetIds: [String] = {
+            if selectedContainers.count > 1 && selectedContainers.contains(container.configuration.id) {
+                return Array(selectedContainers)
+            }
+            return [container.configuration.id]
+        }()
+        let multiple = targetIds.count > 1
+        let targetContainers = containerService.containers.filter { targetIds.contains($0.configuration.id) }
+        let anyRunning = targetContainers.contains { $0.status.lowercased() == "running" }
+        let anyStopped = targetContainers.contains { $0.status.lowercased() != "running" }
+
+        if anyRunning {
+            Button(multiple ? "Stop \(targetIds.count) Containers" : "Stop Container") {
+                Task {
+                    for id in targetIds {
+                        await containerService.stopContainer(id)
+                    }
+                }
+            }
+            Button(multiple ? "Force Stop \(targetIds.count) Containers" : "Force Stop", role: .destructive) {
+                Task {
+                    for id in targetIds {
+                        await containerService.forceStopContainer(id)
+                    }
+                }
+            }
+        }
+        if anyStopped {
+            Button(multiple ? "Start \(targetIds.count) Containers" : "Start Container") {
+                Task {
+                    for id in targetIds {
+                        await containerService.startContainer(id)
+                    }
+                }
+            }
+        }
+
+        if !multiple {
+            Button("View in Log Viewer") {
+                openWindow(id: "logs")
+            }
+        }
+
+        Divider()
+
+        Button(multiple ? "Remove \(targetIds.count) Containers" : "Remove Container", role: .destructive) {
+            Task {
+                await containerService.removeContainers(targetIds)
             }
         }
     }

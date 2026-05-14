@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var isWindowFocused: Bool = true
     @State private var selectedTab: TabSelection = .containers
     @State private var selectedContainer: String?
+    @State private var selectedContainers: Set<String> = []
     @State private var selectedImage: String?
     @State private var selectedMount: String?
     @State private var selectedDNSDomain: String?
@@ -55,6 +56,7 @@ struct ContentView: View {
                 MainInterfaceView(
                     selectedTab: $selectedTab,
                     selectedContainer: $selectedContainer,
+                    selectedContainers: $selectedContainers,
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
                     selectedDNSDomain: $selectedDNSDomain,
@@ -100,9 +102,39 @@ struct ContentView: View {
             // Auto-select first container when containers load, but not if we're intentionally in configuration mode
             if selectedContainer == nil && !newContainers.isEmpty && !isInIntentionalConfigurationMode {
                 selectedContainer = newContainers[0].configuration.id
+                selectedContainers = [newContainers[0].configuration.id]
+            }
+            // Prune selectedContainers of any IDs no longer present
+            let existingIds = Set(newContainers.map { $0.configuration.id })
+            let pruned = selectedContainers.intersection(existingIds)
+            if pruned != selectedContainers {
+                selectedContainers = pruned
             }
             if selectedMount == nil && !containerService.allMounts.isEmpty && !isInIntentionalConfigurationMode {
                 selectedMount = containerService.allMounts[0].id
+            }
+        }
+        .onChange(of: selectedContainers) { _, newSet in
+            // Keep selectedContainer (primary) in sync with the set
+            if newSet.isEmpty {
+                if selectedContainer != nil { selectedContainer = nil }
+            } else if let current = selectedContainer, newSet.contains(current) {
+                // primary still valid
+            } else {
+                selectedContainer = newSet.first
+            }
+        }
+        .onChange(of: selectedContainer) { _, newValue in
+            // External navigation (e.g. NavigateToContainer, tab switching) drives primary —
+            // mirror into the set when the set wouldn't already cover this state.
+            if let id = newValue {
+                if !selectedContainers.contains(id) {
+                    selectedContainers = [id]
+                }
+            } else {
+                if !selectedContainers.isEmpty {
+                    selectedContainers = []
+                }
             }
         }
         .onChange(of: containerService.dnsDomains) { oldDomains, newDomains in
@@ -128,6 +160,7 @@ struct ContentView: View {
                 // Switch to containers view and select the specific container
                 selectedTab = TabSelection.containers
                 selectedContainer = containerId
+                selectedContainers = [containerId]
             }
         }
         .onReceive(

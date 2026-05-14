@@ -1119,6 +1119,12 @@ class ContainerService: ObservableObject {
         }
     }
 
+    func removeContainers(_ ids: [String]) async {
+        for id in ids {
+            await removeContainer(id)
+        }
+    }
+
     func fetchContainerLogs(containerId: String, tailLines: Int = 5000) async throws -> [String] {
         let client = ContainerClient()
         let fileHandles = try await client.logs(id: containerId)

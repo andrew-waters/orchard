@@ -10,6 +10,7 @@ struct ThreeColumnLayout: View {
     @AppStorage("imageSortAscending") private var imageSortAscending: Bool = true
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
@@ -223,6 +224,7 @@ struct ThreeColumnLayout: View {
                     ListColumnView(
                         selectedTab: selectedTab,
                         selectedContainer: $selectedContainer,
+                        selectedContainers: $selectedContainers,
                         selectedImage: $selectedImage,
                         selectedMount: $selectedMount,
                         selectedDNSDomain: $selectedDNSDomain,
@@ -250,6 +252,7 @@ struct ThreeColumnLayout: View {
                 DetailContentView(
                     selectedTab: selectedTab,
                     selectedContainer: selectedContainer,
+                    selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
                     selectedMount: selectedMount,
                     selectedDNSDomain: selectedDNSDomain,
@@ -258,6 +261,7 @@ struct ThreeColumnLayout: View {
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
+                    selectedContainersBinding: $selectedContainers,
                     selectedNetworkBinding: $selectedNetwork
                 )
                 .ignoresSafeArea(.container, edges: .top)
@@ -283,6 +287,7 @@ struct ThreeColumnLayout: View {
                 DetailContentView(
                     selectedTab: selectedTab,
                     selectedContainer: selectedContainer,
+                    selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
                     selectedMount: selectedMount,
                     selectedDNSDomain: selectedDNSDomain,
@@ -291,6 +296,7 @@ struct ThreeColumnLayout: View {
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
+                    selectedContainersBinding: $selectedContainers,
                     selectedNetworkBinding: $selectedNetwork
                 )
                 .ignoresSafeArea(.container, edges: .top)
@@ -500,6 +506,7 @@ struct ListColumnView: View {
     @EnvironmentObject var containerService: ContainerService
     let selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
@@ -526,6 +533,7 @@ struct ListColumnView: View {
             case .containers:
                 ContainersListView(
                     selectedContainer: $selectedContainer,
+                    selectedContainers: $selectedContainers,
                     lastSelectedContainer: .constant(lastSelectedContainer),
                     searchText: $searchText,
                     showOnlyRunning: $showOnlyRunning,
@@ -606,6 +614,7 @@ struct DetailColumnView: View {
     @Binding var selectedContainerBinding: String?
     @Binding var selectedNetworkBinding: String?
     @Binding var showingItemNavigatorPopover: Bool
+    @State private var selectedContainersLocal: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -613,6 +622,7 @@ struct DetailColumnView: View {
             DetailContentView(
                 selectedTab: selectedTab,
                 selectedContainer: selectedContainer,
+                selectedContainers: selectedContainersLocal,
                 selectedImage: selectedImage,
                 selectedMount: selectedMount,
                 selectedDNSDomain: selectedDNSDomain,
@@ -621,6 +631,7 @@ struct DetailColumnView: View {
                 lastSelectedContainerTab: $lastSelectedContainerTab,
                 selectedTabBinding: $selectedTabBinding,
                 selectedContainerBinding: $selectedContainerBinding,
+                selectedContainersBinding: $selectedContainersLocal,
                 selectedNetworkBinding: $selectedNetworkBinding
             )
         }

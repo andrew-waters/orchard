@@ -23,6 +23,7 @@ struct SidebarView: View {
     @Binding var isInIntentionalConfigurationMode: Bool
     @FocusState var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
+    @State private var selectedContainersLocal: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -124,6 +125,7 @@ struct SidebarView: View {
                 case .containers:
                     ContainersListView(
                         selectedContainer: $selectedContainer,
+                        selectedContainers: $selectedContainersLocal,
                         lastSelectedContainer: $lastSelectedContainer,
                         searchText: $searchText,
                         showOnlyRunning: $showOnlyRunning,

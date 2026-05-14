@@ -4,6 +4,7 @@ struct DetailContentView: View {
     @EnvironmentObject var containerService: ContainerService
     let selectedTab: TabSelection
     let selectedContainer: String?
+    let selectedContainers: Set<String>
     let selectedImage: String?
     let selectedMount: String?
     let selectedDNSDomain: String?
@@ -12,6 +13,7 @@ struct DetailContentView: View {
     @Binding var lastSelectedContainerTab: String
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
+    @Binding var selectedContainersBinding: Set<String>
     @Binding var selectedNetworkBinding: String?
 
     var body: some View {
@@ -69,18 +71,26 @@ struct DetailContentView: View {
 
     @ViewBuilder
     private var containerDetailView: some View {
-        ForEach(containerService.containers, id: \.configuration.id) { container in
-            if selectedContainer == container.configuration.id {
-                ContainerDetailView(
-                    container: container,
-                    initialSelectedTab: lastSelectedContainerTab,
-                    onTabChanged: { newTab in
-                        lastSelectedContainerTab = newTab
-                    },
-                    selectedTabBinding: $selectedTabBinding,
-                    selectedNetwork: $selectedNetworkBinding
-                )
-                .environmentObject(containerService)
+        if selectedContainers.count > 1 {
+            MultiContainerCardsView(
+                containerIds: selectedContainers,
+                selectedContainersBinding: $selectedContainersBinding
+            )
+            .environmentObject(containerService)
+        } else {
+            ForEach(containerService.containers, id: \.configuration.id) { container in
+                if selectedContainer == container.configuration.id {
+                    ContainerDetailView(
+                        container: container,
+                        initialSelectedTab: lastSelectedContainerTab,
+                        onTabChanged: { newTab in
+                            lastSelectedContainerTab = newTab
+                        },
+                        selectedTabBinding: $selectedTabBinding,
+                        selectedNetwork: $selectedNetworkBinding
+                    )
+                    .environmentObject(containerService)
+                }
             }
         }
     }

@@ -4,6 +4,7 @@ struct MainInterfaceView: View {
     @EnvironmentObject var containerService: ContainerService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedDNSDomain: String?
@@ -103,6 +104,7 @@ struct MainInterfaceView: View {
         ThreeColumnLayout(
             selectedTab: $selectedTab,
             selectedContainer: $selectedContainer,
+            selectedContainers: $selectedContainers,
             selectedImage: $selectedImage,
             selectedMount: $selectedMount,
             selectedDNSDomain: $selectedDNSDomain,
