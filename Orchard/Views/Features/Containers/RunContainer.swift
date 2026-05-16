@@ -367,6 +367,19 @@ struct RunContainerView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
+                Text("Executable")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                TextField("/path/to/executable", text: $config.executable)
+                    .textFieldStyle(.roundedBorder)
+
+                Text("Override the default executable")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Command Override")
                     .font(.subheadline)
                     .fontWeight(.medium)
