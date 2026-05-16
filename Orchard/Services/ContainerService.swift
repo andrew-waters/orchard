@@ -1855,7 +1855,7 @@ class ContainerService: ObservableObject {
 
     // MARK: - Container Terminal
 
-    func openTerminal(for containerId: String, shell: String = "/bin/sh") {
+    func openTerminal(for containerId: String, shell: String = "sh") {
         // Build the command to execute in the preferred terminal
         let containerBinary = safeContainerBinaryPath()
 
@@ -1929,11 +1929,11 @@ class ContainerService: ObservableObject {
         }
 
         // Use 'open -na' to always open a new window, even if Ghostty is already running
-        // Pass the command via '/bin/sh -c' to avoid Ghostty's argument parsing issues
+        // Pass the command via 'sh -c' to avoid Ghostty's argument parsing issues
         let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-na", appURL.path, "--args", "-e", "/bin/sh", "-c", fullCommand]
+        process.arguments = ["-na", appURL.path, "--args", "-e", "sh", "-c", fullCommand]
 
         do {
             try process.run()
@@ -1966,7 +1966,7 @@ class ContainerService: ObservableObject {
     }
 
     func openTerminalWithBash(for containerId: String) {
-        openTerminal(for: containerId, shell: "/bin/bash")
+        openTerminal(for: containerId, shell: "bash")
     }
 
     // MARK: - Image Management
