@@ -140,6 +140,7 @@ struct RunContainerView: View {
             .background(selectedTab == tab ? Color.accentColor.opacity(0.2) : Color.clear)
             .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
             .cornerRadius(6)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

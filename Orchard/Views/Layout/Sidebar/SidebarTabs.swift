@@ -80,6 +80,7 @@ struct SidebarTabs: View {
                                 isActiveTab ? Color.accentColor.opacity(isWindowFocused ? 0.15 : 0.08) : Color.clear
                             )
                             .cornerRadius(6)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help(tab.title)
