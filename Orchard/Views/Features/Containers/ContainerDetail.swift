@@ -942,7 +942,16 @@ struct ContainerImageDetailView: View {
                 InfoRow(label: "Tag", value: imageTag)
                 InfoRow(
                     label: "Size",
-                    value: ByteCountFormatter().string(fromByteCount: Int64(image.descriptor.size)))
+                    value: {
+                        switch containerService.imageSizes[image.reference] {
+                        case .known(let size):
+                            return ByteCountFormatter().string(fromByteCount: size)
+                        case .loading, .none:
+                            return "…"
+                        case .failed:
+                            return "—"
+                        }
+                    }())
                 if let created = createdDate {
                     InfoRow(label: "Created", value: formatDate(created))
                 }
