@@ -1,5 +1,82 @@
 import Foundation
 import SwiftUI
+import Darwin
+
+// MARK: - Host architecture (for picking image variant size)
+
+/// Resolved at first access. Honors Rosetta: a translated x86_64 process on Apple
+/// Silicon still pulls arm64 container images, so ask the host before falling back to
+/// the process slice.
+let hostContainerArchitecture: String = {
+    var translated: Int32 = 0
+    var size = MemoryLayout<Int32>.size
+    let rc = sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0)
+    if rc == 0 && translated == 1 {
+        return "arm64"
+    }
+
+    var machineSize: Int = 0
+    sysctlbyname("hw.machine", nil, &machineSize, nil, 0)
+    guard machineSize > 0 else { return "arm64" }
+    var bytes = [CChar](repeating: 0, count: machineSize)
+    sysctlbyname("hw.machine", &bytes, &machineSize, nil, 0)
+    let raw = String(cString: bytes)
+    return raw.contains("arm64") ? "arm64" : "amd64"
+}()
+
+/// Normalizes a user-provided image reference to the canonical form
+/// `<registry>/<repository>[:tag|@digest]`.
+func canonicalImageReference(_ ref: String) -> String {
+    let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return trimmed }
+
+    let segments = trimmed.split(separator: "/", omittingEmptySubsequences: false)
+    let firstSegment = segments.first.map(String.init) ?? trimmed
+    let looksLikeRegistry =
+        segments.count > 1 &&
+        (firstSegment.contains(".") ||
+         firstSegment.contains(":") ||
+         firstSegment == "localhost")
+
+    if looksLikeRegistry { return trimmed }
+    if trimmed.contains("/") { return "docker.io/\(trimmed)" }
+    return "docker.io/library/\(trimmed)"
+}
+
+/// Picks the variant matching this host's platform; falls back to the first variant.
+func hostVariantSize(_ variants: [ImageInspection.Variant]) -> Int64 {
+    let target = "linux/\(hostContainerArchitecture)"
+    if let match = variants.first(where: { $0.platform == target }) {
+        return match.size
+    }
+    return variants.first?.size ?? 0
+}
+
+// MARK: - Inspect concurrency limiter
+
+actor InspectGate {
+    private let limit: Int
+    private var inflight = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(limit: Int = 4) { self.limit = limit }
+
+    func enter() async {
+        if inflight < limit {
+            inflight += 1
+            return
+        }
+        await withCheckedContinuation { continuation in waiters.append(continuation) }
+    }
+
+    func leave() {
+        if waiters.isEmpty {
+            inflight -= 1
+        } else {
+            waiters.removeFirst().resume()
+        }
+    }
+}
 
 /// Owns image state and operations: listing, inspection, pulling, deletion, and Docker
 /// Hub search. Backed by the XPC image client plus a Docker Hub HTTP search.
@@ -8,8 +85,15 @@ final class ImageService: ObservableObject {
     @Published var images: [ContainerImage] = []
     @Published var isImagesLoading = false
     @Published var pullProgress: [String: ImagePullProgress] = [:]
+    @Published var imageSizes: [String: ImageSizeStatus] = [:]
     @Published var isSearching = false
     @Published var searchResults: [RegistrySearchResult] = []
+    @Published var searchResultsHasMore = false
+    @Published var isLoadingMoreSearchResults = false
+
+    private let inspectGate = InspectGate()
+    private var searchResultsPage = 0
+    private var lastSearchQuery = ""
 
     private let backend: ContainerBackend
     private let alertCenter: AlertCenter
@@ -36,6 +120,14 @@ final class ImageService: ObservableObject {
                 }
             }
             self.isImagesLoading = false
+
+            let existingRefs = Set(newImages.map(\.reference))
+            imageSizes = imageSizes.filter { ref, status in
+                guard existingRefs.contains(ref) else { return false }
+                if case .failed = status { return false }
+                return true
+            }
+            enrichImageSizes(for: newImages)
         } catch {
             self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
             self.isImagesLoading = false
@@ -47,8 +139,62 @@ final class ImageService: ObservableObject {
         try await backend.inspectImage(reference: reference)
     }
 
+    func sizeText(for image: ContainerImage) -> String {
+        switch imageSizes[image.reference] {
+        case .known(let size):
+            return ByteFormat.string(size)
+        case .loading, .none:
+            return "…"
+        case .failed:
+            return "—"
+        }
+    }
+
+    func sortSize(for image: ContainerImage) -> Int64 {
+        if case .known(let size) = imageSizes[image.reference] {
+            return size
+        }
+        return Int64(image.descriptor.size)
+    }
+
+    private func enrichImageSizes(for images: [ContainerImage]) {
+        let backend = backend
+        let inspectGate = inspectGate
+
+        for image in images {
+            let ref = image.reference
+            switch imageSizes[ref] {
+            case .known, .loading:
+                continue
+            case .failed, .none:
+                break
+            }
+
+            imageSizes[ref] = .loading
+            Task {
+                await inspectGate.enter()
+                let result: ImageSizeStatus
+                do {
+                    let inspection = try await backend.inspectImage(reference: ref)
+                    result = .known(hostVariantSize(inspection.variants))
+                } catch {
+                    result = .failed
+                }
+                await inspectGate.leave()
+                await MainActor.run {
+                    self.imageSizes[ref] = result
+                }
+            }
+        }
+    }
+
+    func dismissPullProgress(_ imageName: String) {
+        pullProgress.removeValue(forKey: imageName)
+    }
+
     func pull(_ imageName: String) async {
-        let cleanImageName = imageName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanImageName = canonicalImageReference(imageName)
+        guard !cleanImageName.isEmpty else { return }
 
         pullProgress[cleanImageName] = ImagePullProgress(
             imageName: cleanImageName, status: .pulling, progress: 0.0, message: "Pulling image..."
@@ -76,34 +222,87 @@ final class ImageService: ObservableObject {
     func search(_ query: String) async {
         guard !query.isEmpty else {
             searchResults = []
+            searchResultsHasMore = false
+            searchResultsPage = 0
+            lastSearchQuery = ""
             return
         }
 
         isSearching = true
+        searchResults = []
+        searchResultsHasMore = false
+        searchResultsPage = 0
+        lastSearchQuery = query
 
+        await fetchSearchPage(query: query, page: 1, append: false)
+        isSearching = false
+    }
+
+    func loadMoreSearchResults() async {
+        guard !lastSearchQuery.isEmpty,
+              searchResultsHasMore,
+              !isLoadingMoreSearchResults
+        else { return }
+
+        isLoadingMoreSearchResults = true
+        let query = lastSearchQuery
+        let page = searchResultsPage + 1
+        await fetchSearchPage(query: query, page: page, append: true)
+        isLoadingMoreSearchResults = false
+    }
+
+    private func fetchSearchPage(query: String, page: Int, append: Bool) async {
         do {
-            let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-            let urlString = "https://hub.docker.com/v2/search/repositories/?query=\(encodedQuery)&page_size=25"
+            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+            let urlString = "https://hub.docker.com/v2/search/repositories/?query=\(encoded)&page_size=25&page=\(page)"
 
             guard let url = URL(string: urlString) else {
-                isSearching = false
-                self.alertCenter.error("Invalid search query")
+                if !append { searchResults = [] }
+                searchResultsHasMore = false
+                alertCenter.error("Invalid search query")
                 return
             }
 
             let (data, _) = try await URLSession.shared.data(from: url)
-            let results = parseDockerHubSearch(data: data)
-            self.searchResults = results
-            self.isSearching = false
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let results = json["results"] as? [[String: Any]] else {
+                if !append { searchResults = [] }
+                searchResultsHasMore = false
+                return
+            }
+
+            let newResults: [RegistrySearchResult] = results.compactMap { result in
+                guard let name = result["repo_name"] as? String else { return nil }
+                let fullName = name.contains("/") ? "docker.io/\(name)" : "docker.io/library/\(name)"
+
+                return RegistrySearchResult(
+                    name: fullName,
+                    description: result["short_description"] as? String,
+                    isOfficial: (result["is_official"] as? Bool) ?? false,
+                    starCount: result["star_count"] as? Int
+                )
+            }
+
+            if append {
+                searchResults.append(contentsOf: newResults)
+            } else {
+                searchResults = newResults
+            }
+            searchResultsHasMore = json["next"] as? String != nil
+            searchResultsPage = page
         } catch {
-            self.alertCenter.error("Failed to search images: \(error.localizedDescription)")
-            self.isSearching = false
-            self.searchResults = []
+            alertCenter.error("Failed to search images: \(error.localizedDescription)")
+            if !append { searchResults = [] }
+            searchResultsHasMore = false
         }
     }
 
     func clearSearchResults() {
         searchResults = []
+        searchResultsHasMore = false
+        isLoadingMoreSearchResults = false
+        searchResultsPage = 0
+        lastSearchQuery = ""
     }
 
     func delete(_ imageReference: String) async {

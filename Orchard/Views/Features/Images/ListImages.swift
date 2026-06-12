@@ -14,11 +14,32 @@ struct ImagesListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !imageService.pullProgress.isEmpty {
+                pullProgressBanner
+                Divider()
+            }
             imagesList
         }
         .sheet(isPresented: $showImageSearch) {
             ImageSearchView()
         }
+    }
+
+    private var pullProgressBanner: some View {
+        VStack(spacing: 6) {
+            // Sort by imageName so the row order is stable across status
+            // updates — Dictionary.values has no guaranteed iteration order.
+            ForEach(
+                imageService.pullProgress.values.sorted { $0.imageName < $1.imageName },
+                id: \.id
+            ) { progress in
+                PullProgressRow(progress: progress) {
+                    imageService.dismissPullProgress(progress.imageName)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private var imagesList: some View {
@@ -38,7 +59,7 @@ struct ImagesListView: View {
     private func imageRowView(for image: ContainerImage) -> some View {
         let imageName = imageName(from: image.reference)
         let imageTag = imageTag(from: image.reference)
-        let sizeText = ByteFormat.string(image.descriptor.size)
+        let sizeText = imageService.sizeText(for: image)
 
         return ListItemRow(
             icon: "cube.transparent",
@@ -113,7 +134,11 @@ struct ImagesListView: View {
         case .tag:
             filtered.sort { ascending ? imageTag(from: $0.reference) < imageTag(from: $1.reference) : imageTag(from: $0.reference) > imageTag(from: $1.reference) }
         case .size:
-            filtered.sort { ascending ? $0.descriptor.size < $1.descriptor.size : $0.descriptor.size > $1.descriptor.size }
+            filtered.sort {
+                ascending
+                    ? imageService.sortSize(for: $0) < imageService.sortSize(for: $1)
+                    : imageService.sortSize(for: $0) > imageService.sortSize(for: $1)
+            }
         }
 
         return filtered
