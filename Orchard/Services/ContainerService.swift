@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 import ContainerAPIClient
 import ContainerResource
 import ContainerizationOCI
@@ -83,6 +84,7 @@ class ContainerService: ObservableObject {
     @Published var isSystemPropertiesLoading = false
     @Published var preferredTerminal: TerminalApp = .terminal
     @Published var installedTerminals: [TerminalApp] = [.terminal]
+    @Published var systemDefaultTerminal: (bundleID: String, displayName: String)?
 
     // Container operation locks to prevent multiple simultaneous operations
     private var containerOperationLocks: Set<String> = []
@@ -170,13 +172,34 @@ class ContainerService: ObservableObject {
 
     private func loadPreferredTerminal() {
         installedTerminals = TerminalApp.installedTerminals
+        detectSystemDefaultTerminal()
+
         let userDefaults = UserDefaults.standard
         if let savedTerminal = userDefaults.string(forKey: preferredTerminalKey),
            let terminal = TerminalApp(rawValue: savedTerminal),
            terminal.isInstalled {
             preferredTerminal = terminal
+        } else if let systemDefault = systemDefaultTerminal,
+                  let matched = TerminalApp(rawValue: systemDefault.bundleID),
+                  matched.isInstalled {
+            preferredTerminal = matched
         } else if let firstInstalled = installedTerminals.first {
             preferredTerminal = firstInstalled
+        }
+    }
+
+    private func detectSystemDefaultTerminal() {
+        let contentTypes: [UTType] = [.unixExecutable, .shellScript]
+        for type in contentTypes {
+            guard let appURL = NSWorkspace.shared.urlForApplication(toOpen: type) else { continue }
+            let bundle = Bundle(url: appURL)
+            guard let bundleID = bundle?.bundleIdentifier, !bundleID.isEmpty else { continue }
+            let appName = appURL.deletingPathExtension().lastPathComponent
+            let displayName = bundle?.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+                ?? bundle?.infoDictionary?["CFBundleDisplayName"] as? String
+                ?? appName
+            systemDefaultTerminal = (bundleID: bundleID, displayName: displayName)
+            return
         }
     }
 
@@ -1561,51 +1584,56 @@ class ContainerService: ObservableObject {
     }
 
     private func parseSystemPropertiesFromOutput(_ output: String) -> [SystemProperty] {
+        guard let data = output.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return []
+        }
+
         var properties: [SystemProperty] = []
 
-        do {
-            guard let data = output.data(using: .utf8) else {
-                return properties
-            }
+        let idMappings: [String: String] = [
+            "build.image": "image.builder",
+            "vminit.image": "image.init",
+        ]
 
-            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                for propertyDict in jsonArray {
-                    guard let id = propertyDict["id"] as? String,
-                          let typeString = propertyDict["type"] as? String,
-                          let description = propertyDict["description"] as? String else {
-                        continue
-                    }
-
-                    // Handle value which can be null, bool, or string
+        func flatten(_ dict: [String: Any], prefix: String = "") {
+            for (key, value) in dict {
+                let dotKey = prefix.isEmpty ? key : "\(prefix).\(key)"
+                if let nestedDict = value as? [String: Any] {
+                    flatten(nestedDict, prefix: dotKey)
+                } else {
+                    let propertyId = idMappings[dotKey] ?? dotKey
                     let valueString: String
-                    if let value = propertyDict["value"] {
-                        if value is NSNull {
-                            valueString = "*undefined*"
-                        } else if let boolValue = value as? Bool {
-                            valueString = boolValue ? "true" : "false"
-                        } else if let stringValue = value as? String {
-                            valueString = stringValue
-                        } else {
-                            valueString = String(describing: value)
-                        }
-                    } else {
-                        valueString = "*undefined*"
-                    }
+                    let type: SystemProperty.PropertyType
 
-                    let type: SystemProperty.PropertyType = typeString.lowercased() == "bool" ? .bool : .string
+                    if value is NSNull {
+                        valueString = "*undefined*"
+                        type = .string
+                    } else if let boolValue = value as? Bool {
+                        valueString = boolValue ? "true" : "false"
+                        type = .bool
+                    } else if let stringValue = value as? String {
+                        valueString = stringValue
+                        type = .string
+                    } else if let numberValue = value as? NSNumber {
+                        valueString = numberValue.stringValue
+                        type = .string
+                    } else {
+                        valueString = String(describing: value)
+                        type = .string
+                    }
 
                     properties.append(SystemProperty(
-                        id: id,
+                        id: propertyId,
                         type: type,
                         value: valueString,
-                        description: description
+                        description: ""
                     ))
                 }
             }
-        } catch {
-            print("Error parsing system properties JSON: \(error)")
         }
 
+        flatten(json)
         return properties
     }
 

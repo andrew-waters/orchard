@@ -31,6 +31,16 @@ struct ConfigurationDetailView: View {
                         Text("The terminal application to use when opening a shell into a container.")
                             .foregroundColor(.secondary)
                             .padding(.leading, 10)
+
+                        if let systemDefault = containerService.systemDefaultTerminal {
+                            let label = containerService.preferredTerminal.bundleIdentifier == systemDefault.bundleID
+                                ? "System default (\(systemDefault.displayName))"
+                                : "macOS default: \(systemDefault.displayName)"
+                            Text(label)
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                                .padding(.leading, 10)
+                        }
                     }
 
                     Spacer()
@@ -264,6 +274,7 @@ struct ConfigurationDetailView: View {
         .onAppear {
             Task {
                 await containerService.loadSystemProperties()
+                await containerService.loadDNSDomains()
             }
         }
     }
