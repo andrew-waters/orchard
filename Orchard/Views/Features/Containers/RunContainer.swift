@@ -6,6 +6,7 @@ struct RunContainerView: View {
     @Environment(\.dismiss) var dismiss
 
     let imageName: String
+    let allowsImageSelection: Bool
     @State private var config: ContainerRunConfig
     @State private var selectedTab: ConfigTab = .basic
     @State private var isRunning = false
@@ -31,17 +32,39 @@ struct RunContainerView: View {
 
     init(imageName: String) {
         self.imageName = imageName
-
-        // Generate a default container name from the image
-        let cleanName = imageName
-            .replacingOccurrences(of: "docker.io/library/", with: "")
-            .replacingOccurrences(of: "docker.io/", with: "")
-            .split(separator: ":").first.map(String.init) ?? "container"
+        self.allowsImageSelection = false
 
         _config = State(initialValue: ContainerRunConfig(
-            name: cleanName,
+            name: RunContainerView.derivedName(from: imageName),
             image: imageName
         ))
+    }
+
+    /// Picker mode: no preselected image; user picks/filters from local images
+    /// or pastes any reference.
+    init() {
+        self.imageName = ""
+        self.allowsImageSelection = true
+
+        _config = State(initialValue: ContainerRunConfig(name: "", image: ""))
+    }
+
+    private static func derivedName(from imageRef: String) -> String {
+        let trimmed = imageRef.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "container" }
+
+        // OCI reference grammar: <name>(:<tag>)?(@<digest>)?
+        // 1. Strip digest suffix (everything from '@' onward).
+        var s = trimmed
+        if let at = s.firstIndex(of: "@") { s = String(s[..<at]) }
+        // 2. Take the final path component (after the last '/').
+        if let slash = s.lastIndex(of: "/") {
+            s = String(s[s.index(after: slash)...])
+        }
+        // 3. Strip tag (everything from ':' onward).
+        if let colon = s.firstIndex(of: ":") { s = String(s[..<colon]) }
+
+        return s.isEmpty ? "container" : s
     }
 
     var body: some View {
@@ -97,9 +120,11 @@ struct RunContainerView: View {
                     .font(.headline)
                     .fontWeight(.semibold)
 
-                Text(imageName)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if !allowsImageSelection {
+                    Text(imageName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Spacer()
@@ -165,6 +190,10 @@ struct RunContainerView: View {
 
     private var basicConfigView: some View {
         VStack(alignment: .leading, spacing: 20) {
+            if allowsImageSelection {
+                imagePickerSection
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("Container Name")
                     .font(.subheadline)
@@ -408,7 +437,7 @@ struct RunContainerView: View {
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-            .disabled(config.name.isEmpty || isRunning || nameValidationError != nil)
+            .disabled(config.name.isEmpty || config.image.isEmpty || isRunning || nameValidationError != nil)
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
@@ -516,6 +545,75 @@ struct RunContainerView: View {
             await MainActor.run {
                 isRunning = false
                 dismiss()
+            }
+        }
+    }
+
+    // MARK: - Image Picker (only used when allowsImageSelection)
+
+    private var filteredImages: [ContainerImage] {
+        guard !config.image.isEmpty else { return containerService.images }
+        return containerService.images.filter {
+            $0.reference.localizedCaseInsensitiveContains(config.image)
+        }
+    }
+
+    private func applyImageSelection(_ reference: String) {
+        config.image = reference
+        // Auto-derive container name only if user hasn't typed one
+        if config.name.isEmpty {
+            config.name = RunContainerView.derivedName(from: reference)
+            validateContainerName()
+        }
+    }
+
+    private var imagePickerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Image")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            HStack(spacing: 6) {
+                TextField("Filter local images or paste reference", text: $config.image)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: config.image) { _, newValue in
+                        if config.name.isEmpty && !newValue.isEmpty {
+                            config.name = RunContainerView.derivedName(from: newValue)
+                            validateContainerName()
+                        }
+                    }
+
+                Menu {
+                    if containerService.images.isEmpty {
+                        Text("No local images")
+                    } else if filteredImages.isEmpty {
+                        Text("No matches")
+                    } else {
+                        ForEach(filteredImages, id: \.reference) { image in
+                            Button(image.reference) {
+                                applyImageSelection(image.reference)
+                            }
+                        }
+                    }
+                } label: {
+                    SwiftUI.Image(systemName: "chevron.down.circle")
+                        .font(.body)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 30)
+                .help("Browse local images")
+            }
+
+            if !config.image.isEmpty {
+                if containerService.images.contains(where: { $0.reference == config.image }) {
+                    Label("Local image available", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                } else {
+                    Label("Will be pulled if not present", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }

@@ -13,12 +13,33 @@ struct ImagesListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !containerService.pullProgress.isEmpty {
+                pullProgressBanner
+                Divider()
+            }
             imagesList
         }
         .sheet(isPresented: $showImageSearch) {
             ImageSearchView()
                 .environmentObject(containerService)
         }
+    }
+
+    private var pullProgressBanner: some View {
+        VStack(spacing: 6) {
+            // Sort by imageName so the row order is stable across status
+            // updates — Dictionary.values has no guaranteed iteration order.
+            ForEach(
+                containerService.pullProgress.values.sorted { $0.imageName < $1.imageName },
+                id: \.id
+            ) { progress in
+                PullProgressRow(progress: progress) {
+                    containerService.dismissPullProgress(progress.imageName)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private var imagesList: some View {
@@ -38,7 +59,16 @@ struct ImagesListView: View {
     private func imageRowView(for image: ContainerImage) -> some View {
         let imageName = imageName(from: image.reference)
         let imageTag = imageTag(from: image.reference)
-        let sizeText = ByteCountFormatter().string(fromByteCount: Int64(image.descriptor.size))
+        let sizeText: String = {
+            switch containerService.imageSizes[image.reference] {
+            case .known(let size):
+                return ByteCountFormatter().string(fromByteCount: size)
+            case .loading, .none:
+                return "…"
+            case .failed:
+                return "—"
+            }
+        }()
 
         return ListItemRow(
             icon: "cube.transparent",

@@ -292,6 +292,14 @@ struct ContainerImageDescriptor: Codable, Equatable {
     }
 }
 
+// MARK: - Image Size Status
+
+enum ImageSizeStatus: Equatable {
+    case loading
+    case known(Int64)
+    case failed
+}
+
 // MARK: - Image Inspection Models
 
 struct ImageInspection {
