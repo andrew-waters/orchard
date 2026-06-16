@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 import ContainerAPIClient
 import ContainerResource
 import ContainerizationOCI
@@ -84,8 +83,6 @@ class ContainerService: ObservableObject {
     @Published var isSystemPropertiesLoading = false
     @Published var preferredTerminal: TerminalApp = .terminal
     @Published var installedTerminals: [TerminalApp] = [.terminal]
-    @Published var systemDefaultTerminal: (bundleID: String, displayName: String)?
-
     // Container operation locks to prevent multiple simultaneous operations
     private var containerOperationLocks: Set<String> = []
     private let lockQueue = DispatchQueue(label: "containerOperationLocks", attributes: .concurrent)
@@ -172,34 +169,14 @@ class ContainerService: ObservableObject {
 
     private func loadPreferredTerminal() {
         installedTerminals = TerminalApp.installedTerminals
-        detectSystemDefaultTerminal()
 
         let userDefaults = UserDefaults.standard
         if let savedTerminal = userDefaults.string(forKey: preferredTerminalKey),
            let terminal = TerminalApp(rawValue: savedTerminal),
            terminal.isInstalled {
             preferredTerminal = terminal
-        } else if let systemDefault = systemDefaultTerminal,
-                  let matched = TerminalApp(rawValue: systemDefault.bundleID),
-                  matched.isInstalled {
-            preferredTerminal = matched
         } else if let firstInstalled = installedTerminals.first {
             preferredTerminal = firstInstalled
-        }
-    }
-
-    private func detectSystemDefaultTerminal() {
-        let contentTypes: [UTType] = [.unixExecutable, .shellScript]
-        for type in contentTypes {
-            guard let appURL = NSWorkspace.shared.urlForApplication(toOpen: type) else { continue }
-            let bundle = Bundle(url: appURL)
-            guard let bundleID = bundle?.bundleIdentifier, !bundleID.isEmpty else { continue }
-            let appName = appURL.deletingPathExtension().lastPathComponent
-            let displayName = bundle?.localizedInfoDictionary?["CFBundleDisplayName"] as? String
-                ?? bundle?.infoDictionary?["CFBundleDisplayName"] as? String
-                ?? appName
-            systemDefaultTerminal = (bundleID: bundleID, displayName: displayName)
-            return
         }
     }
 

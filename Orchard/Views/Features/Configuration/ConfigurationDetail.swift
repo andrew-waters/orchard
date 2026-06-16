@@ -32,15 +32,6 @@ struct ConfigurationDetailView: View {
                             .foregroundColor(.secondary)
                             .padding(.leading, 10)
 
-                        if let systemDefault = containerService.systemDefaultTerminal {
-                            let label = containerService.preferredTerminal.bundleIdentifier == systemDefault.bundleID
-                                ? "System default (\(systemDefault.displayName))"
-                                : "macOS default: \(systemDefault.displayName)"
-                            Text(label)
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                                .padding(.leading, 10)
-                        }
                     }
 
                     Spacer()
