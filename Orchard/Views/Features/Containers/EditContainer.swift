@@ -54,7 +54,7 @@ struct EditContainerView: View {
         _config = State(initialValue: ContainerRunConfig(
             name: container.configuration.id,
             image: container.configuration.image.reference,
-            detached: true,
+            detached: !container.configuration.initProcess.terminal,
             removeAfterStop: false,
             environmentVariables: envVars,
             portMappings: [], // Port mappings not available in container config

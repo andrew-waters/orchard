@@ -2097,7 +2097,8 @@ class ContainerService: ObservableObject {
         publishedPorts: [PublishPort],
         dns: ContainerResource.ContainerConfiguration.DNSConfiguration?,
         networkName: String,
-        autoRemove: Bool
+        autoRemove: Bool,
+        terminal: Bool
     ) async throws {
         // Fetch or pull the image
         let image = try await ClientImage.fetch(reference: imageRef)
@@ -2149,7 +2150,7 @@ class ContainerService: ObservableObject {
             arguments: Array(processArgs.dropFirst()),
             environment: mergedEnv,
             workingDirectory: wd,
-            terminal: false,
+            terminal: terminal,
             user: user
         )
 
@@ -2251,7 +2252,8 @@ class ContainerService: ObservableObject {
                 publishedPorts: ports,
                 dns: dns,
                 networkName: config.network,
-                autoRemove: config.removeAfterStop
+                autoRemove: config.removeAfterStop,
+                terminal: !config.detached
             )
 
             await MainActor.run {
@@ -2260,6 +2262,10 @@ class ContainerService: ObservableObject {
 
                 Task {
                     await loadContainers()
+                }
+
+                if !config.detached {
+                    self.openTerminal(for: id)
                 }
             }
         } catch {
