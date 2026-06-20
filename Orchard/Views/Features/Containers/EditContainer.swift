@@ -60,7 +60,10 @@ struct EditContainerView: View {
             portMappings: [], // Port mappings not available in container config
             volumeMappings: volumes,
             workingDirectory: container.configuration.initProcess.workingDirectory,
-            commandOverride: container.configuration.initProcess.arguments.joined(separator: " ")
+            commandOverride: container.configuration.initProcess.arguments.joined(separator: " "),
+            executable: container.configuration.initProcess.executable,
+            dnsDomain: container.configuration.dns.domain ?? "",
+            network: container.networks.first?.network ?? ""
         ))
     }
 
@@ -93,6 +96,10 @@ struct EditContainerView: View {
             footerView
         }
         .frame(width: 700, height: 650)
+        .task {
+            await containerService.loadNetworks()
+            await containerService.loadDNSDomains()
+        }
     }
 
     private var headerView: some View {
@@ -207,6 +214,43 @@ struct EditContainerView: View {
                 Text("Container name cannot be changed")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("DNS Domain")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Picker("DNS Domain", selection: $config.dnsDomain) {
+                    Text("None").tag("")
+                    ForEach(containerService.dnsDomains, id: \.domain) { domain in
+                        Text(domain.domain).tag(domain.domain)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 200, alignment: .leading)
+
+                if !config.dnsDomain.isEmpty {
+                    Text("Selected: \(config.dnsDomain)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 2)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Network")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Picker("Network", selection: $config.network) {
+                    Text("Default").tag("")
+                    ForEach(containerService.networks, id: \.id) { network in
+                        Text(network.id).tag(network.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 200, alignment: .leading)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -348,6 +392,19 @@ struct EditContainerView: View {
                     .textFieldStyle(.roundedBorder)
 
                 Text("Override the default working directory inside the container")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Executable")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                TextField("/path/to/executable", text: $config.executable)
+                    .textFieldStyle(.roundedBorder)
+
+                Text("Override the default executable")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

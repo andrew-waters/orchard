@@ -2071,7 +2071,11 @@ class ContainerService: ObservableObject {
             environmentVariables: envVars,
             portMappings: portMappings,
             volumeMappings: volumeMappings,
-            dnsDomain: config.dns.domain ?? ""
+            workingDirectory: config.initProcess.workingDirectory,
+            commandOverride: config.initProcess.arguments.joined(separator: " "),
+            executable: config.initProcess.executable,
+            dnsDomain: config.dns.domain ?? "",
+            network: snapshot.networks.first?.network ?? ""
         )
 
         await runContainer(config: runConfig)
@@ -2093,6 +2097,7 @@ class ContainerService: ObservableObject {
         environment: [String],
         workingDirectory: String,
         commandOverride: [String],
+        executableOverride: String? = nil,
         mounts: [Filesystem],
         publishedPorts: [PublishPort],
         dns: ContainerResource.ContainerConfiguration.DNSConfiguration?,
@@ -2144,9 +2149,20 @@ class ContainerService: ObservableObject {
 
         let wd = workingDirectory.isEmpty ? (imageConfig?.workingDir ?? "/") : workingDirectory
 
+        let executable: String
+        let arguments: [String]
+
+        if let override = executableOverride, !override.isEmpty {
+            executable = override
+            arguments = processArgs
+        } else {
+            executable = processArgs.first!
+            arguments = Array(processArgs.dropFirst())
+        }
+
         let process = ProcessConfiguration(
-            executable: processArgs.first!,
-            arguments: Array(processArgs.dropFirst()),
+            executable: executable,
+            arguments: arguments,
             environment: mergedEnv,
             workingDirectory: wd,
             terminal: false,
@@ -2247,6 +2263,7 @@ class ContainerService: ObservableObject {
                 environment: envStrings,
                 workingDirectory: config.workingDirectory,
                 commandOverride: commandArgs,
+                executableOverride: config.executable,
                 mounts: mounts,
                 publishedPorts: ports,
                 dns: dns,

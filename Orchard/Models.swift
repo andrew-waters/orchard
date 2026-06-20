@@ -599,6 +599,7 @@ struct ContainerRunConfig: Equatable {
     var volumeMappings: [VolumeMapping] = []
     var workingDirectory: String = ""
     var commandOverride: String = ""
+    var executable: String = ""
     var dnsDomain: String = ""
     var network: String = ""
 
