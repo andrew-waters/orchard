@@ -3,6 +3,7 @@ import SwiftUI
 struct NetworksListView: View {
     @EnvironmentObject var containerService: ContainerService
     @Binding var selectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
     @Binding var lastSelectedNetwork: String?
     @Binding var showAddNetworkSheet: Bool
     @FocusState var listFocusedTab: TabSelection?
@@ -57,24 +58,44 @@ struct NetworksListView: View {
     }
 
     private var networksListView: some View {
-        List(selection: $selectedNetwork) {
+        List(selection: $selectedNetworks) {
             ForEach(Array(containerService.networks), id: \.id) { network in
+                let targetNetworks: [String] = {
+                    if selectedNetworks.contains(network.id) && selectedNetworks.count > 1 {
+                        return Array(selectedNetworks)
+                    }
+                    return [network.id]
+                }()
+                let multiple = targetNetworks.count > 1
+                let deletableNetworks = targetNetworks.filter { $0 != "default" }
+
                 NetworkRowView(
                     network: network,
                     connectedContainerCount: connectedContainerCount(for: network),
-                    selectedNetwork: selectedNetwork
+                    isSelected: selectedNetworks.contains(network.id)
                 )
                 .environmentObject(containerService)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    handleRowTap(id: network.id)
+                }
                 .contextMenu {
-                    Button("Delete Network", role: .destructive) {
-                        confirmNetworkDeletion(networkId: network.id)
+                    if !deletableNetworks.isEmpty {
+                        Button(multiple ? "Delete \(deletableNetworks.count) Networks" : "Delete Network", role: .destructive) {
+                            confirmNetworksDeletion(networkIds: deletableNetworks)
+                        }
                     }
-                    .disabled(network.id == "default")
                 }
                 .tag(network.id)
             }
         }
         .listStyle(PlainListStyle())
+        .background(
+            Button(action: selectAllNetworks) {
+                EmptyView()
+            }
+            .keyboardShortcut("a", modifiers: .command)
+        )
         .animation(.easeInOut(duration: 0.3), value: containerService.networks)
         .focused($listFocusedTab, equals: .networks)
         .onChange(of: selectedNetwork) { _, newValue in
@@ -85,7 +106,7 @@ struct NetworksListView: View {
     private struct NetworkRowView: View {
         let network: ContainerNetwork
         let connectedContainerCount: Int
-        let selectedNetwork: String?
+        let isSelected: Bool
         @EnvironmentObject var containerService: ContainerService
 
         var body: some View {
@@ -97,7 +118,7 @@ struct NetworksListView: View {
                 primaryText: network.id,
                 secondaryLeftText: network.status.address ?? "No address",
                 secondaryRightText: containerText,
-                isSelected: selectedNetwork == network.id
+                isSelected: isSelected
             )
         }
 
@@ -119,16 +140,32 @@ struct NetworksListView: View {
         }.count
     }
 
-    private func confirmNetworkDeletion(networkId: String) {
+    private func handleRowTap(id: String) {
+        let orderedIds = containerService.networks.map { $0.id }
+        SelectionHandler.handleSelection(
+            clickedId: id,
+            orderedIds: orderedIds,
+            selectedSet: &selectedNetworks,
+            lastSelectedId: &lastSelectedNetwork
+        )
+    }
+
+    private func selectAllNetworks() {
+        let orderedIds = containerService.networks.map { $0.id }
+        selectedNetworks = Set(orderedIds)
+    }
+
+    private func confirmNetworksDeletion(networkIds: [String]) {
         let alert = NSAlert()
-        alert.messageText = "Delete Network"
-        alert.informativeText = "Are you sure you want to delete '\(networkId)'? This requires administrator privileges."
+        alert.messageText = networkIds.count > 1 ? "Delete Networks" : "Delete Network"
+        let idsList = networkIds.joined(separator: ", ")
+        alert.informativeText = "Are you sure you want to delete \(networkIds.count > 1 ? "\(networkIds.count) networks (\(idsList))" : "'\(networkIds[0])'")? This requires administrator privileges."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
 
         if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.deleteNetwork(networkId) }
+            Task { await containerService.deleteNetworks(networkIds) }
         }
     }
 }

@@ -6,14 +6,22 @@ struct DetailContentView: View {
     let selectedContainer: String?
     let selectedContainers: Set<String>
     let selectedImage: String?
+    let selectedImages: Set<String>
     let selectedMount: String?
+    let selectedMounts: Set<String>
     let selectedDNSDomain: String?
+    let selectedDNSDomains: Set<String>
     let selectedNetwork: String?
+    let selectedNetworks: Set<String>
     let isInIntentionalConfigurationMode: Bool
     @Binding var lastSelectedContainerTab: String
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
     @Binding var selectedContainersBinding: Set<String>
+    @Binding var selectedImagesBinding: Set<String>
+    @Binding var selectedMountsBinding: Set<String>
+    @Binding var selectedDNSDomainsBinding: Set<String>
+    @Binding var selectedNetworksBinding: Set<String>
     @Binding var selectedNetworkBinding: String?
 
     var body: some View {
@@ -25,7 +33,13 @@ struct DetailContentView: View {
         case .mounts:
             mountDetailView
         case .dns:
-            if let selectedDNSDomain = selectedDNSDomain {
+            if selectedDNSDomains.count > 1 {
+                MultiDNSCardsView(
+                    dnsIds: selectedDNSDomains,
+                    selectedDNSDomainsBinding: $selectedDNSDomainsBinding
+                )
+                .environmentObject(containerService)
+            } else if let selectedDNSDomain = selectedDNSDomain {
                 DNSDetailView(
                     domain: selectedDNSDomain,
                     selectedTab: $selectedTabBinding,
@@ -37,7 +51,13 @@ struct DetailContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         case .networks:
-            if let selectedNetwork = selectedNetwork {
+            if selectedNetworks.count > 1 {
+                MultiNetworkCardsView(
+                    networkIds: selectedNetworks,
+                    selectedNetworksBinding: $selectedNetworksBinding
+                )
+                .environmentObject(containerService)
+            } else if let selectedNetwork = selectedNetwork {
                 NetworkDetailView(
                     networkId: selectedNetwork,
                     selectedTab: $selectedTabBinding,
@@ -97,28 +117,44 @@ struct DetailContentView: View {
 
     @ViewBuilder
     private var imageDetailView: some View {
-        ForEach(containerService.images, id: \.reference) { image in
-            if selectedImage == image.reference {
-                ContainerImageDetailView(
-                    image: image,
-                    selectedTab: $selectedTabBinding,
-                    selectedContainer: $selectedContainerBinding
-                )
-                .environmentObject(containerService)
+        if selectedImages.count > 1 {
+            MultiImageCardsView(
+                imageIds: selectedImages,
+                selectedImagesBinding: $selectedImagesBinding
+            )
+            .environmentObject(containerService)
+        } else {
+            ForEach(containerService.images, id: \.reference) { image in
+                if selectedImage == image.reference {
+                    ContainerImageDetailView(
+                        image: image,
+                        selectedTab: $selectedTabBinding,
+                        selectedContainer: $selectedContainerBinding
+                    )
+                    .environmentObject(containerService)
+                }
             }
         }
     }
 
     @ViewBuilder
     private var mountDetailView: some View {
-        ForEach(containerService.allMounts, id: \.id) { mount in
-            if selectedMount == mount.id {
-                MountDetailView(
-                    mount: mount,
-                    selectedTab: $selectedTabBinding,
-                    selectedContainer: $selectedContainerBinding
-                )
-                .environmentObject(containerService)
+        if selectedMounts.count > 1 {
+            MultiMountCardsView(
+                mountIds: selectedMounts,
+                selectedMountsBinding: $selectedMountsBinding
+            )
+            .environmentObject(containerService)
+        } else {
+            ForEach(containerService.allMounts, id: \.id) { mount in
+                if selectedMount == mount.id {
+                    MountDetailView(
+                        mount: mount,
+                        selectedTab: $selectedTabBinding,
+                        selectedContainer: $selectedContainerBinding
+                    )
+                    .environmentObject(containerService)
+                }
             }
         }
     }

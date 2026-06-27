@@ -6,9 +6,13 @@ struct MainInterfaceView: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
+    @Binding var selectedMounts: Set<String>
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
@@ -106,9 +110,13 @@ struct MainInterfaceView: View {
             selectedContainer: $selectedContainer,
             selectedContainers: $selectedContainers,
             selectedImage: $selectedImage,
+            selectedImages: $selectedImages,
             selectedMount: $selectedMount,
+            selectedMounts: $selectedMounts,
             selectedDNSDomain: $selectedDNSDomain,
+            selectedDNSDomains: $selectedDNSDomains,
             selectedNetwork: $selectedNetwork,
+            selectedNetworks: $selectedNetworks,
             lastSelectedContainer: $lastSelectedContainer,
             lastSelectedImage: $lastSelectedImage,
             lastSelectedMount: $lastSelectedMount,

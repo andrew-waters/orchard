@@ -2000,6 +2000,193 @@ class ContainerService: ObservableObject {
         }
     }
 
+    func deleteImages(_ references: [String]) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+
+        var deletedCount = 0
+        var failedCount = 0
+        var lastError: Error?
+
+        for reference in references {
+            do {
+                try await ClientImage.delete(reference: reference)
+                deletedCount += 1
+            } catch {
+                failedCount += 1
+                lastError = error
+            }
+        }
+
+        await MainActor.run {
+            if deletedCount > 0 {
+                self.successMessage = "Successfully deleted \(deletedCount) image(s)"
+                for ref in references {
+                    self.images.removeAll { $0.reference == ref }
+                }
+            }
+            if failedCount > 0 {
+                self.errorMessage = "Failed to delete \(failedCount) image(s): \(lastError?.localizedDescription ?? "Unknown error")"
+            }
+            Task {
+                await loadImages()
+            }
+        }
+    }
+
+    func deleteDNSDomains(_ domains: [String]) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+
+        var deletedCount = 0
+        var failedCount = 0
+
+        for domain in domains {
+            do {
+                let result = try execWithSudo(
+                    program: safeContainerBinaryPath(),
+                    arguments: ["system", "dns", "delete", domain])
+
+                if !result.failed {
+                    deletedCount += 1
+                } else {
+                    failedCount += 1
+                }
+            } catch {
+                failedCount += 1
+            }
+        }
+
+        await MainActor.run {
+            if deletedCount > 0 {
+                self.successMessage = "Successfully deleted \(deletedCount) DNS domain(s)"
+            }
+            if failedCount > 0 {
+                self.errorMessage = "Failed to delete \(failedCount) DNS domain(s)"
+            }
+            Task {
+                await loadDNSDomains()
+            }
+        }
+    }
+
+    func deleteNetworks(_ networkIds: [String]) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+
+        var deletedCount = 0
+        var failedCount = 0
+        var lastError: Error?
+
+        for networkId in networkIds {
+            if networkId == "default" { continue }
+            do {
+                try await NetworkClient().delete(id: networkId)
+                deletedCount += 1
+            } catch {
+                failedCount += 1
+                lastError = error
+            }
+        }
+
+        await MainActor.run {
+            if deletedCount > 0 {
+                self.successMessage = "Successfully deleted \(deletedCount) network(s)"
+            }
+            if failedCount > 0 {
+                self.errorMessage = "Failed to delete \(failedCount) network(s): \(lastError?.localizedDescription ?? "Unknown error")"
+            }
+            Task {
+                await loadNetworks()
+            }
+        }
+    }
+
+    func deleteMounts(_ mounts: [ContainerMount]) async {
+        await MainActor.run {
+            errorMessage = nil
+            successMessage = nil
+        }
+
+        var deletedCount = 0
+
+        for mount in mounts {
+            for containerId in mount.containerIds {
+                guard let container = containers.first(where: { $0.configuration.id == containerId }) else { continue }
+
+                let oldConfig = container.configuration
+                let updatedMounts = oldConfig.mounts.filter { m in
+                    !(m.source == mount.mount.source && m.destination == mount.mount.destination)
+                }
+
+                var envVars: [ContainerRunConfig.EnvironmentVariable] = []
+                for env in oldConfig.initProcess.environment {
+                    let parts = env.split(separator: "=", maxSplits: 1)
+                    if parts.count == 2 {
+                        envVars.append(.init(key: String(parts[0]), value: String(parts[1])))
+                    }
+                }
+
+                var portMappings: [ContainerRunConfig.PortMapping] = []
+                for port in oldConfig.publishedPorts {
+                    portMappings.append(.init(
+                        hostPort: "\(port.hostPort)",
+                        containerPort: "\(port.containerPort)",
+                        transportProtocol: port.transportProtocol
+                    ))
+                }
+
+                var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
+                for m in updatedMounts {
+                    let isReadonly = m.options.contains("ro")
+                    volumeMappings.append(.init(
+                        hostPath: m.source,
+                        containerPath: m.destination,
+                        readonly: isReadonly
+                    ))
+                }
+
+                let runConfig = ContainerRunConfig(
+                    name: oldConfig.id,
+                    image: oldConfig.image.reference,
+                    detached: true,
+                    removeAfterStop: false,
+                    environmentVariables: envVars,
+                    portMappings: portMappings,
+                    volumeMappings: volumeMappings,
+                    workingDirectory: oldConfig.initProcess.workingDirectory,
+                    commandOverride: oldConfig.initProcess.arguments.joined(separator: " "),
+                    dnsDomain: oldConfig.dns.domain ?? "",
+                    network: container.networks.first?.network ?? ""
+                )
+
+                do {
+                    let client = ContainerClient()
+                    try await client.delete(id: containerId, force: true)
+                    await runContainer(config: runConfig)
+                    deletedCount += 1
+                } catch {
+                    print("Failed to delete mount from container \(containerId): \(error)")
+                }
+            }
+        }
+
+        await MainActor.run {
+            if deletedCount > 0 {
+                self.successMessage = "Successfully removed \(mounts.count) mount(s) from \(deletedCount) container(s)"
+            }
+            Task {
+                await loadContainers()
+            }
+        }
+    }
+
     // MARK: - Container Run Management
 
     func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {

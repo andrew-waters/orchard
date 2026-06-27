@@ -24,6 +24,10 @@ struct SidebarView: View {
     @FocusState var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
     @State private var selectedContainersLocal: Set<String> = []
+    @State private var selectedImagesLocal: Set<String> = []
+    @State private var selectedMountsLocal: Set<String> = []
+    @State private var selectedDNSDomainsLocal: Set<String> = []
+    @State private var selectedNetworksLocal: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -134,6 +138,7 @@ struct SidebarView: View {
                 case .images:
                     ImagesListView(
                         selectedImage: $selectedImage,
+                        selectedImages: $selectedImagesLocal,
                         lastSelectedImage: $lastSelectedImage,
                         searchText: $searchText,
                         showOnlyImagesInUse: $showOnlyImagesInUse,
@@ -143,6 +148,7 @@ struct SidebarView: View {
                 case .mounts:
                     MountsListView(
                         selectedMount: $selectedMount,
+                        selectedMounts: $selectedMountsLocal,
                         lastSelectedMount: $lastSelectedMount,
                         searchText: $searchText,
                         showOnlyMountsInUse: $showOnlyMountsInUse,
@@ -151,6 +157,7 @@ struct SidebarView: View {
                 case .dns:
                     DNSListView(
                         selectedDNSDomain: $selectedDNSDomain,
+                        selectedDNSDomains: $selectedDNSDomainsLocal,
                         lastSelectedDNSDomain: $lastSelectedDNSDomain,
                         showAddDNSDomainSheet: $showAddDNSDomainSheet,
                         listFocusedTab: _listFocusedTab
@@ -158,6 +165,7 @@ struct SidebarView: View {
                 case .networks:
                     NetworksListView(
                         selectedNetwork: $selectedNetwork,
+                        selectedNetworks: $selectedNetworksLocal,
                         lastSelectedNetwork: $lastSelectedNetwork,
                         showAddNetworkSheet: $showAddNetworkSheet,
                         listFocusedTab: _listFocusedTab

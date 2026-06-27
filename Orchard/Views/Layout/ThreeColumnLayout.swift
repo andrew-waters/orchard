@@ -12,9 +12,13 @@ struct ThreeColumnLayout: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
+    @Binding var selectedMounts: Set<String>
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
@@ -226,14 +230,18 @@ struct ThreeColumnLayout: View {
                         selectedContainer: $selectedContainer,
                         selectedContainers: $selectedContainers,
                         selectedImage: $selectedImage,
+                        selectedImages: $selectedImages,
                         selectedMount: $selectedMount,
+                        selectedMounts: $selectedMounts,
                         selectedDNSDomain: $selectedDNSDomain,
+                        selectedDNSDomains: $selectedDNSDomains,
                         selectedNetwork: $selectedNetwork,
-                        lastSelectedContainer: lastSelectedContainer,
-                        lastSelectedImage: lastSelectedImage,
-                        lastSelectedMount: lastSelectedMount,
-                        lastSelectedDNSDomain: lastSelectedDNSDomain,
-                        lastSelectedNetwork: lastSelectedNetwork,
+                        selectedNetworks: $selectedNetworks,
+                        lastSelectedContainer: $lastSelectedContainer,
+                        lastSelectedImage: $lastSelectedImage,
+                        lastSelectedMount: $lastSelectedMount,
+                        lastSelectedDNSDomain: $lastSelectedDNSDomain,
+                        lastSelectedNetwork: $lastSelectedNetwork,
                         searchText: $searchText,
                         showOnlyRunning: $showOnlyRunning,
                         showOnlyImagesInUse: $showOnlyImagesInUse,
@@ -254,14 +262,22 @@ struct ThreeColumnLayout: View {
                     selectedContainer: selectedContainer,
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
+                    selectedImages: selectedImages,
                     selectedMount: selectedMount,
+                    selectedMounts: selectedMounts,
                     selectedDNSDomain: selectedDNSDomain,
+                    selectedDNSDomains: selectedDNSDomains,
                     selectedNetwork: selectedNetwork,
+                    selectedNetworks: selectedNetworks,
                     isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedContainersBinding: $selectedContainers,
+                    selectedImagesBinding: $selectedImages,
+                    selectedMountsBinding: $selectedMounts,
+                    selectedDNSDomainsBinding: $selectedDNSDomains,
+                    selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork
                 )
                 .ignoresSafeArea(.container, edges: .top)
@@ -289,14 +305,22 @@ struct ThreeColumnLayout: View {
                     selectedContainer: selectedContainer,
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
+                    selectedImages: selectedImages,
                     selectedMount: selectedMount,
+                    selectedMounts: selectedMounts,
                     selectedDNSDomain: selectedDNSDomain,
+                    selectedDNSDomains: selectedDNSDomains,
                     selectedNetwork: selectedNetwork,
+                    selectedNetworks: selectedNetworks,
                     isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
                     lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedContainersBinding: $selectedContainers,
+                    selectedImagesBinding: $selectedImages,
+                    selectedMountsBinding: $selectedMounts,
+                    selectedDNSDomainsBinding: $selectedDNSDomains,
+                    selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork
                 )
                 .ignoresSafeArea(.container, edges: .top)
@@ -508,14 +532,18 @@ struct ListColumnView: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
+    @Binding var selectedMounts: Set<String>
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
-    let lastSelectedContainer: String?
-    let lastSelectedImage: String?
-    let lastSelectedMount: String?
-    let lastSelectedDNSDomain: String?
-    let lastSelectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
+    @Binding var lastSelectedContainer: String?
+    @Binding var lastSelectedImage: String?
+    @Binding var lastSelectedMount: String?
+    @Binding var lastSelectedDNSDomain: String?
+    @Binding var lastSelectedNetwork: String?
     @Binding var searchText: String
     @Binding var showOnlyRunning: Bool
     @Binding var showOnlyImagesInUse: Bool
@@ -534,7 +562,7 @@ struct ListColumnView: View {
                 ContainersListView(
                     selectedContainer: $selectedContainer,
                     selectedContainers: $selectedContainers,
-                    lastSelectedContainer: .constant(lastSelectedContainer),
+                    lastSelectedContainer: $lastSelectedContainer,
                     searchText: $searchText,
                     showOnlyRunning: $showOnlyRunning,
                     listFocusedTab: _listFocusedTab
@@ -542,7 +570,8 @@ struct ListColumnView: View {
             case .images:
                 ImagesListView(
                     selectedImage: $selectedImage,
-                    lastSelectedImage: .constant(lastSelectedImage),
+                    selectedImages: $selectedImages,
+                    lastSelectedImage: $lastSelectedImage,
                     searchText: $searchText,
                     showOnlyImagesInUse: $showOnlyImagesInUse,
                     showImageSearch: $showImageSearch,
@@ -551,7 +580,8 @@ struct ListColumnView: View {
             case .mounts:
                 MountsListView(
                     selectedMount: $selectedMount,
-                    lastSelectedMount: .constant(lastSelectedMount),
+                    selectedMounts: $selectedMounts,
+                    lastSelectedMount: $lastSelectedMount,
                     searchText: $searchText,
                     showOnlyMountsInUse: $showOnlyMountsInUse,
                     listFocusedTab: _listFocusedTab
@@ -559,14 +589,16 @@ struct ListColumnView: View {
             case .dns:
                 DNSListView(
                     selectedDNSDomain: $selectedDNSDomain,
-                    lastSelectedDNSDomain: .constant(lastSelectedDNSDomain),
+                    selectedDNSDomains: $selectedDNSDomains,
+                    lastSelectedDNSDomain: $lastSelectedDNSDomain,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     listFocusedTab: _listFocusedTab
                 )
             case .networks:
                 NetworksListView(
                     selectedNetwork: $selectedNetwork,
-                    lastSelectedNetwork: .constant(lastSelectedNetwork),
+                    selectedNetworks: $selectedNetworks,
+                    lastSelectedNetwork: $lastSelectedNetwork,
                     showAddNetworkSheet: $showAddNetworkSheet,
                     listFocusedTab: _listFocusedTab
                 )
@@ -615,6 +647,10 @@ struct DetailColumnView: View {
     @Binding var selectedNetworkBinding: String?
     @Binding var showingItemNavigatorPopover: Bool
     @State private var selectedContainersLocal: Set<String> = []
+    @State private var selectedImagesLocal: Set<String> = []
+    @State private var selectedMountsLocal: Set<String> = []
+    @State private var selectedDNSDomainsLocal: Set<String> = []
+    @State private var selectedNetworksLocal: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -624,14 +660,22 @@ struct DetailColumnView: View {
                 selectedContainer: selectedContainer,
                 selectedContainers: selectedContainersLocal,
                 selectedImage: selectedImage,
+                selectedImages: selectedImagesLocal,
                 selectedMount: selectedMount,
+                selectedMounts: selectedMountsLocal,
                 selectedDNSDomain: selectedDNSDomain,
+                selectedDNSDomains: selectedDNSDomainsLocal,
                 selectedNetwork: selectedNetwork,
+                selectedNetworks: selectedNetworksLocal,
                 isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
                 lastSelectedContainerTab: $lastSelectedContainerTab,
                 selectedTabBinding: $selectedTabBinding,
                 selectedContainerBinding: $selectedContainerBinding,
                 selectedContainersBinding: $selectedContainersLocal,
+                selectedImagesBinding: $selectedImagesLocal,
+                selectedMountsBinding: $selectedMountsLocal,
+                selectedDNSDomainsBinding: $selectedDNSDomainsLocal,
+                selectedNetworksBinding: $selectedNetworksLocal,
                 selectedNetworkBinding: $selectedNetworkBinding
             )
         }

@@ -26,6 +26,10 @@ struct ContainersListView: View {
                         secondaryRightText: hostname(for: container),
                         isSelected: selectedContainers.contains(container.configuration.id)
                     )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        handleRowTap(id: container.configuration.id)
+                    }
                     .contextMenu {
                         contextMenu(for: container)
                     }
@@ -33,6 +37,12 @@ struct ContainersListView: View {
                 }
             }
             .listStyle(PlainListStyle())
+            .background(
+                Button(action: selectAllContainers) {
+                    EmptyView()
+                }
+                .keyboardShortcut("a", modifiers: .command)
+            )
             .animation(.easeInOut(duration: 0.3), value: containerService.containers)
             .focused($listFocusedTab, equals: .containers)
             .onChange(of: selectedContainer) { _, newValue in
@@ -148,5 +158,20 @@ struct ContainersListView: View {
         }
 
         return filtered
+    }
+
+    private func handleRowTap(id: String) {
+        let orderedIds = filteredContainers.map { $0.configuration.id }
+        SelectionHandler.handleSelection(
+            clickedId: id,
+            orderedIds: orderedIds,
+            selectedSet: &selectedContainers,
+            lastSelectedId: &lastSelectedContainer
+        )
+    }
+
+    private func selectAllContainers() {
+        let orderedIds = filteredContainers.map { $0.configuration.id }
+        selectedContainers = Set(orderedIds)
     }
 }
