@@ -74,6 +74,18 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
 }
 
 /// Decode a minimal `Container` fixture with the given id and status.
+// Shared JSON fragments for the Container / Builder fixtures (their configuration
+// shapes differ, but these sub-objects are identical).
+private let fixturePlatformJSON = #"{ "os": "linux", "architecture": "arm64" }"#
+private let fixtureDNSJSON = #"{ "nameservers": [], "searchDomains": [], "options": [] }"#
+private let fixtureInitProcessJSON = """
+{ "terminal": false, "environment": [], "workingDirectory": "/", "arguments": [], \
+"executable": "/bin/sh", "user": {}, "rlimits": [], "supplementalGroups": [] }
+"""
+private func fixtureImageJSON(_ reference: String) -> String {
+    #"{ "reference": "\#(reference)", "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 } }"#
+}
+
 func makeContainer(id: String, status: String) throws -> Container {
     let json = """
     {
@@ -87,23 +99,11 @@ func makeContainer(id: String, status: String) throws -> Container {
         "sysctls": {},
         "publishedPorts": [],
         "mounts": [],
-        "platform": { "os": "linux", "architecture": "arm64" },
-        "image": {
-          "reference": "nginx:latest",
-          "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 }
-        },
-        "dns": { "nameservers": [], "searchDomains": [], "options": [] },
+        "platform": \(fixturePlatformJSON),
+        "image": \(fixtureImageJSON("nginx:latest")),
+        "dns": \(fixtureDNSJSON),
         "resources": { "cpus": 1, "memoryInBytes": 1024 },
-        "initProcess": {
-          "terminal": false,
-          "environment": [],
-          "workingDirectory": "/",
-          "arguments": [],
-          "executable": "/bin/sh",
-          "user": {},
-          "rlimits": [],
-          "supplementalGroups": []
-        }
+        "initProcess": \(fixtureInitProcessJSON)
       }
     }
     """
@@ -124,23 +124,11 @@ func makeBuilderStatusJSON(id: String = "buildkit", status: String) -> String {
         "sysctls": {},
         "mounts": [],
         "networks": [],
-        "platform": { "os": "linux", "architecture": "arm64" },
-        "image": {
-          "reference": "buildkit:latest",
-          "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 }
-        },
-        "dns": { "nameservers": [], "searchDomains": [], "options": [] },
+        "platform": \(fixturePlatformJSON),
+        "image": \(fixtureImageJSON("buildkit:latest")),
+        "dns": \(fixtureDNSJSON),
         "resources": { "cpus": 2, "memoryInBytes": 2048 },
-        "initProcess": {
-          "terminal": false,
-          "environment": [],
-          "workingDirectory": "/",
-          "arguments": [],
-          "executable": "/bin/sh",
-          "user": {},
-          "rlimits": [],
-          "supplementalGroups": []
-        }
+        "initProcess": \(fixtureInitProcessJSON)
       }
     }
     """
