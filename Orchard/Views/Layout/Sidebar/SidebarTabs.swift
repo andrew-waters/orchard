@@ -80,6 +80,20 @@ struct SidebarTabs: View {
                                 isActiveTab ? Color.accentColor.opacity(isWindowFocused ? 0.15 : 0.08) : Color.clear
                             )
                             .cornerRadius(6)
+                            .overlay(alignment: .topTrailing) {
+                                if let count = badgeCount(for: tab), count > 0 {
+                                    Text("\(count)")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .monospacedDigit()
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 4)
+                                        .frame(minWidth: 15, minHeight: 15)
+                                        .background(Capsule().fill(Color.secondary))
+                                        .overlay(Capsule().strokeBorder(Color(NSColor.controlBackgroundColor), lineWidth: 1.5))
+                                        .offset(x: 7, y: -5)
+                                        .allowsHitTesting(false)
+                                }
+                            }
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -90,5 +104,25 @@ struct SidebarTabs: View {
         }
         .padding(.vertical, 8)
         .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    /// Ambient count shown on a tab's icon. Running-count for containers (the active
+    /// subset), plain inventory counts for the resource tabs. Returns nil for tabs
+    /// that have no meaningful count. A count of 0 hides the badge (handled by caller).
+    private func badgeCount(for tab: TabSelection) -> Int? {
+        switch tab {
+        case .containers:
+            return containerService.containers.filter { $0.status.lowercased() == "running" }.count
+        case .images:
+            return containerService.images.count
+        case .mounts:
+            return containerService.allMounts.count
+        case .dns:
+            return containerService.dnsDomains.count
+        case .networks:
+            return containerService.networks.count
+        case .registries, .systemLogs, .stats, .configuration:
+            return nil
+        }
     }
 }

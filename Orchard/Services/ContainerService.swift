@@ -341,7 +341,12 @@ class ContainerService: ObservableObject {
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                // Only surface while the system is up. When it is stopped or tearing
+                // down, the recurring refresh (and NotRunningView's own load) would
+                // otherwise flash this error repeatedly over the not-running screen.
+                if self.systemStatus == .running {
+                    self.errorMessage = error.localizedDescription
+                }
                 self.isLoading = false
             }
             print(error)
@@ -370,7 +375,9 @@ class ContainerService: ObservableObject {
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                if self.systemStatus == .running {
+                    self.errorMessage = error.localizedDescription
+                }
                 self.isImagesLoading = false
             }
             print(error)
@@ -394,17 +401,26 @@ class ContainerService: ObservableObject {
         }
 
         if result.failed {
+            let detail = result.stderr?.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
+                // Only surface to the user if the system is actually up. When it is
+                // stopped or being torn down, a failing background read is expected
+                // and NotRunningView already communicates the state — don't flash.
+                if self.systemStatus == .running {
+                    if let detail, !detail.isEmpty {
+                        self.errorMessage = "Builder status could not be read: \(detail)"
+                    } else {
+                        self.errorMessage = "Builder status could not be read (exit \(result.exitCode))."
+                    }
+                }
             }
-            if let stderr = result.stderr, !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                print("Builder status command failed (exit \(result.exitCode)). Stderr:\n\(stderr)")
-            } else if let stderr2 = result.stderr {
-                print("Builder status command failed: \(stderr2)")
+            if let detail, !detail.isEmpty {
+                print("Builder status command failed (exit \(result.exitCode)). Stderr:\n\(detail)")
             } else {
-                print("Builder status command failed with unknown error.")
+                print("Builder status command failed with unknown error (exit \(result.exitCode)).")
             }
             return
         }
@@ -477,6 +493,9 @@ class ContainerService: ObservableObject {
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
+                if self.systemStatus == .running {
+                    self.errorMessage = "Builder status could not be read: unexpected response from the container service."
+                }
             }
         }
     }
@@ -499,15 +518,28 @@ class ContainerService: ObservableObject {
         let runningContainers = containers.filter { $0.status == "running" }
 
         var allStats: [Orchard.ContainerStats] = []
+        var failedContainers: [String] = []
         for container in runningContainers {
-            if let stats = try? await client.stats(id: container.configuration.id) {
+            do {
+                let stats = try await client.stats(id: container.configuration.id)
                 allStats.append(mapContainerStats(stats))
+            } catch {
+                failedContainers.append(container.configuration.id)
+                print("Failed to load stats for container \(container.configuration.id): \(error)")
             }
         }
 
         await MainActor.run {
             self.containerStats = allStats
             self.isStatsLoading = false
+            // Only surface an error if every running container failed — a single broken
+            // container should not blank out the whole stats page — and only while the
+            // system is up, so a stop/shutdown teardown doesn't flash a banner.
+            if self.systemStatus == .running
+                && !runningContainers.isEmpty
+                && failedContainers.count == runningContainers.count {
+                self.errorMessage = "Unable to read container stats. Check that the container service is running."
+            }
         }
     }
 
@@ -536,7 +568,9 @@ class ContainerService: ObservableObject {
             await MainActor.run {
                 self.systemDiskUsage = nil
                 self.isSystemDiskUsageLoading = false
-                self.errorMessage = "Failed to load system disk usage: \(error.localizedDescription)"
+                if self.systemStatus == .running {
+                    self.errorMessage = "Failed to load system disk usage: \(error.localizedDescription)"
+                }
             }
         }
     }

@@ -251,9 +251,9 @@ struct EditContainerView: View {
                     message: "Add port mappings to expose container ports to the host"
                 )
             } else {
-                ForEach(config.portMappings) { mapping in
+                ForEach($config.portMappings) { $mapping in
                     PortMappingRow(
-                        mapping: binding(for: mapping),
+                        mapping: $mapping,
                         onDelete: { deletePortMapping(mapping) }
                     )
                 }
@@ -288,9 +288,9 @@ struct EditContainerView: View {
                     message: "Add volume mounts to persist data or share files with the container"
                 )
             } else {
-                ForEach(config.volumeMappings) { mapping in
+                ForEach($config.volumeMappings) { $mapping in
                     VolumeMappingRow(
-                        mapping: binding(for: mapping),
+                        mapping: $mapping,
                         onDelete: { deleteVolumeMapping(mapping) }
                     )
                 }
@@ -325,9 +325,9 @@ struct EditContainerView: View {
                     message: "Add environment variables to configure the container"
                 )
             } else {
-                ForEach(config.environmentVariables) { envVar in
+                ForEach($config.environmentVariables) { $envVar in
                     EnvironmentVariableRow(
-                        envVar: binding(for: envVar),
+                        envVar: $envVar,
                         onDelete: { deleteEnvironmentVariable(envVar) }
                     )
                 }
@@ -466,28 +466,6 @@ struct EditContainerView: View {
         }
     }
 
-    // MARK: - Binding Helpers
-
-    private func binding(for mapping: ContainerRunConfig.PortMapping) -> Binding<ContainerRunConfig.PortMapping> {
-        guard let index = config.portMappings.firstIndex(where: { $0.id == mapping.id }) else {
-            fatalError("Port mapping not found")
-        }
-        return $config.portMappings[index]
-    }
-
-    private func binding(for mapping: ContainerRunConfig.VolumeMapping) -> Binding<ContainerRunConfig.VolumeMapping> {
-        guard let index = config.volumeMappings.firstIndex(where: { $0.id == mapping.id }) else {
-            fatalError("Volume mapping not found")
-        }
-        return $config.volumeMappings[index]
-    }
-
-    private func binding(for envVar: ContainerRunConfig.EnvironmentVariable) -> Binding<ContainerRunConfig.EnvironmentVariable> {
-        guard let index = config.environmentVariables.firstIndex(where: { $0.id == envVar.id }) else {
-            fatalError("Environment variable not found")
-        }
-        return $config.environmentVariables[index]
-    }
 }
 
 #Preview {

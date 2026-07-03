@@ -95,6 +95,18 @@ struct ContentView: View {
                 }
             }
         }
+        .alert(
+            "Something Went Wrong",
+            isPresented: Binding(
+                get: { containerService.errorMessage != nil },
+                set: { presented in if !presented { containerService.errorMessage = nil } }
+            ),
+            presenting: containerService.errorMessage
+        ) { _ in
+            Button("OK", role: .cancel) { containerService.errorMessage = nil }
+        } message: { message in
+            Text(message)
+        }
         .onAppear {
             // Default tab is already set to containers
         }
