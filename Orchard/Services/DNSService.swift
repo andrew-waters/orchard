@@ -32,8 +32,11 @@ final class DNSService: ObservableObject {
         }
         defer { isDNSLoading = false }   // clear on every exit path, incl. nil-stdout
 
-        // The default domain comes from system properties — refresh them first.
-        await refreshSystemProperties()
+        // The default domain comes from system properties. Only pay for a full refresh on
+        // user-initiated loads; background polls reuse the already-cached value.
+        if showLoading {
+            await refreshSystemProperties()
+        }
 
         do {
             let listResult = try await runner.run(

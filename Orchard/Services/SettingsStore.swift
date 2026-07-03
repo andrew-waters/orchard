@@ -17,8 +17,14 @@ final class SettingsStore: ObservableObject {
         "\(NSHomeDirectory())/.nix-profile/bin/container",
         "\(NSHomeDirectory())/.local/bin/container",
     ]
+    /// Cache the resolved default so we don't stat up to four candidate paths on every
+    /// CLI call. Invalidated when the binary configuration changes.
+    private var cachedDefaultBinaryPath: String?
     private var defaultBinaryPath: String {
-        candidateBinaryPaths.first(where: { validateBinaryPath($0) }) ?? fallbackBinaryPath
+        if let cached = cachedDefaultBinaryPath { return cached }
+        let resolved = candidateBinaryPaths.first(where: { validateBinaryPath($0) }) ?? fallbackBinaryPath
+        cachedDefaultBinaryPath = resolved
+        return resolved
     }
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
     private let preferredTerminalKey = "OrchardPreferredTerminal"
@@ -48,6 +54,7 @@ final class SettingsStore: ObservableObject {
 
     func setCustomBinaryPath(_ path: String?) {
         customBinaryPath = path
+        cachedDefaultBinaryPath = nil   // re-detect on any binary-config change
         let userDefaults = UserDefaults.standard
         if let path = path, !path.isEmpty {
             userDefaults.set(path, forKey: customBinaryPathKey)

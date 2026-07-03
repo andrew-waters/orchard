@@ -5,7 +5,12 @@ import SwiftUI
 /// remove, run, recreate, logs, and the mounts derived from the list.
 @MainActor
 final class ContainerListService: ObservableObject {
-    @Published var containers: [Container] = []
+    @Published var containers: [Container] = [] {
+        didSet { allMounts = Self.computeMounts(containers) }
+    }
+    /// Unique mounts across the current containers. Recomputed only when `containers`
+    /// changes, not on every read — several views read it on each objectWillChange tick.
+    @Published private(set) var allMounts: [ContainerMount] = []
     @Published var loadingContainers: Set<String> = []
     @Published var isLoading: Bool = false
     /// Containers whose automatic recovery failed — drives the persistent "Recreate"
@@ -29,8 +34,7 @@ final class ContainerListService: ObservableObject {
         self.alertCenter = alertCenter
     }
 
-    /// All unique mounts across the current containers.
-    var allMounts: [ContainerMount] {
+    private static func computeMounts(_ containers: [Container]) -> [ContainerMount] {
         var mountDict: [String: ContainerMount] = [:]
         for container in containers {
             for mount in container.configuration.mounts {

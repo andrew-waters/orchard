@@ -21,25 +21,26 @@ final class ImageService: ObservableObject {
 
     /// Refresh the image list. Driven by the 5s poll, so failures are logged, not
     /// modal — pull/delete (user actions) alert on their own.
-    func load() async {
-        await MainActor.run {
-            isImagesLoading = true
+    func load(showLoading: Bool = false) async {
+        if showLoading {
+            await MainActor.run { isImagesLoading = true }
         }
 
         do {
             let newImages = try await backend.listImages()
             await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    self.images = newImages
+                // Only republish (and animate) when the list actually changed — otherwise
+                // every 5s tick invalidates the whole view tree for nothing.
+                if newImages != self.images {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        self.images = newImages
+                    }
                 }
                 self.isImagesLoading = false
             }
-            for image in newImages {
-                Log.containers.debug("Image: \(image.reference)")
-            }
         } catch {
             await MainActor.run {
-                self.alertCenter.error(error.localizedDescription, source: .background)
+                self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
                 self.isImagesLoading = false
             }
             Log.containers.error("\(error.localizedDescription)")

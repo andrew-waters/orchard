@@ -25,7 +25,9 @@ final class NetworkService: ObservableObject {
         do {
             let networks = try await backend.listNetworks()
             await MainActor.run {
-                self.networks = networks
+                if networks != self.networks {
+                    self.networks = networks
+                }
                 self.isNetworksLoading = false
             }
         } catch {

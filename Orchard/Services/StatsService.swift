@@ -17,39 +17,40 @@ final class StatsService: ObservableObject {
         self.containerList = containerList
     }
 
+    private var isRefreshing = false
+
     func load(showLoading: Bool = true) async {
+        // The 1s poll must not pile up overlapping loads if one runs slow.
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
         if showLoading {
-            await MainActor.run {
-                isStatsLoading = true
-                self.alertCenter.dismiss()
-            }
+            isStatsLoading = true
+            alertCenter.dismiss()
         }
 
-        let runningContainers = containerList.containers.filter { $0.status == "running" }
+        let runningIds = containerList.containers.filter { $0.status == "running" }.map { $0.configuration.id }
+        let backend = self.backend
 
-        var allStats: [ContainerStats] = []
-        var failedContainers: [String] = []
-        for container in runningContainers {
-            do {
-                let stats = try await backend.stats(id: container.configuration.id)
-                allStats.append(stats)
-            } catch {
-                failedContainers.append(container.configuration.id)
-                Log.containers.error("Failed to load stats for container \(container.configuration.id): \(error.localizedDescription)")
+        // Fetch every container's stats concurrently rather than serially.
+        let results: [ContainerStats] = await withTaskGroup(of: ContainerStats?.self) { group in
+            for id in runningIds {
+                group.addTask { try? await backend.stats(id: id) }
             }
+            var collected: [ContainerStats] = []
+            for await case let stats? in group {
+                collected.append(stats)
+            }
+            return collected
         }
 
-        await MainActor.run {
-            self.containerStats = allStats
-            self.isStatsLoading = false
-            // Only surface an error if every running container failed (one broken
-            // container shouldn't blank the page) AND this was user-initiated — the 1s
-            // poll must not storm modals. StatsView shows a passive inline panel instead.
-            if showLoading
-                && !runningContainers.isEmpty
-                && failedContainers.count == runningContainers.count {
-                self.alertCenter.error("Unable to read container stats. Check that the container service is running.")
-            }
+        containerStats = results
+        isStatsLoading = false
+        // Alert only when every running container failed (results empty) AND the load was
+        // user-initiated — the 1s poll stays silent; StatsView shows a passive panel.
+        if showLoading && !runningIds.isEmpty && results.isEmpty {
+            alertCenter.error("Unable to read container stats. Check that the container service is running.")
         }
     }
 
