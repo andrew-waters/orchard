@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
 		AAAA0000000000000000AA03 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA02 /* Sparkle */; };
+		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -486,7 +486,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
-				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.12.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.OrchardTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -508,7 +508,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
-				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.12.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.OrchardTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -606,14 +606,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/container.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.12.3;
-			};
-		};
 		AAAA0000000000000000AA01 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -622,18 +614,26 @@
 				minimumVersion = 2.9.4;
 			};
 		};
+		C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/container.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
-			productName = ContainerAPIClient;
-		};
 		AAAA0000000000000000AA02 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = AAAA0000000000000000AA01 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerAPIClient;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
