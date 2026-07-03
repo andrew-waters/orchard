@@ -53,12 +53,16 @@ class ContainerService: ObservableObject {
     let alertCenter = AlertCenter()
     /// User settings (binary path, preferred terminal).
     let settings: SettingsStore
+    /// Opens container shells in the preferred terminal.
+    let terminalLauncher: TerminalLauncher
     private var cancellables = Set<AnyCancellable>()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
         self.backend = backend
         self.runner = runner
-        self.settings = SettingsStore(alertCenter: alertCenter)
+        let settings = SettingsStore(alertCenter: alertCenter)
+        self.settings = settings
+        self.terminalLauncher = TerminalLauncher(settings: settings, alertCenter: alertCenter)
         // Re-publish the extracted store's changes so views observing this facade
         // still update while the migration is in progress.
         settings.objectWillChange
@@ -1461,120 +1465,14 @@ class ContainerService: ObservableObject {
         searchResults = []
     }
 
-    // MARK: - Container Terminal
+    // MARK: - Container Terminal (forwarded to TerminalLauncher)
 
     func openTerminal(for containerId: String, shell: String = "sh") {
-        // Build the command to execute in the preferred terminal
-        let containerBinary = settings.safeContainerBinaryPath()
-
-        // Build the complete command - note: we need to quote the shell path if it has spaces
-        let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
-
-        // Debug: print the command and target terminal
-        Log.ui.debug("\(String(repeating: "=", count: 60))")
-        Log.ui.debug("Opening terminal with:")
-        Log.ui.debug("  Terminal: \(self.preferredTerminal.displayName)")
-        Log.ui.debug("  Binary: \(containerBinary)")
-        Log.ui.debug("  Container: \(containerId)")
-        Log.ui.debug("  Shell: \(shell)")
-        Log.ui.debug("  Full command: \(fullCommand)")
-        Log.ui.debug("\(String(repeating: "=", count: 60))")
-
-        // Dispatch to the appropriate terminal-specific opener
-        switch preferredTerminal {
-        case .terminal:
-            openInTerminalApp(command: fullCommand)
-        case .iterm2:
-            openInITerm2(command: fullCommand)
-        case .ghostty:
-            openInGhostty(containerBinary: containerBinary, containerId: containerId, shell: shell)
-        }
-    }
-
-    // MARK: - Terminal-Specific Openers
-
-    private func openInTerminalApp(command: String) {
-        // Escape for AppleScript - replace backslashes and quotes
-        let escapedCommand = command
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-
-        // Create AppleScript to open Terminal with the command
-        // Using 'do script' opens a new Terminal window/tab and executes the command
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "\(escapedCommand)"
-        end tell
-        """
-
-        executeAppleScript(script)
-    }
-
-    private func openInITerm2(command: String) {
-        let escapedCommand = command
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-
-        let script = """
-        tell application id "com.googlecode.iterm2"
-            activate
-            set newWindow to (create window with default profile)
-            tell current session of newWindow
-                write text "\(escapedCommand)"
-            end tell
-        end tell
-        """
-
-        executeAppleScript(script)
-    }
-
-    private func openInGhostty(containerBinary: String, containerId: String, shell: String) {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: TerminalApp.ghostty.bundleIdentifier) else {
-            Log.ui.error("❌ Ghostty application not found")
-            self.alertCenter.error("Ghostty application not found")
-            return
-        }
-
-        // Use 'open -na' to always open a new window, even if Ghostty is already running
-        // Pass the command via 'sh -c' to avoid Ghostty's argument parsing issues
-        let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-na", appURL.path, "--args", "-e", "sh", "-c", fullCommand]
-
-        do {
-            try process.run()
-            Log.ui.debug("✓ Ghostty opened successfully")
-        } catch {
-            Log.ui.error("❌ Failed to open Ghostty: \(error.localizedDescription)")
-            self.alertCenter.error("Failed to open Ghostty: \(error.localizedDescription)")
-        }
-    }
-
-    private func executeAppleScript(_ script: String) {
-        Log.ui.debug("AppleScript:")
-        Log.ui.debug("\(script)")
-        Log.ui.debug("\(String(repeating: "=", count: 60))")
-
-        // Execute the AppleScript
-        let appleScript = NSAppleScript(source: script)
-        var error: NSDictionary?
-        let result = appleScript?.executeAndReturnError(&error)
-
-        if let error = error {
-            Log.ui.error("❌ AppleScript error: \(String(describing: error))")
-            DispatchQueue.main.async {
-                self.alertCenter.error("Failed to open terminal: \(error)")
-            }
-        } else if let result = result {
-            Log.ui.debug("✓ AppleScript executed successfully")
-            Log.ui.debug("  Result: \(String(describing: result))")
-        }
+        terminalLauncher.openTerminal(for: containerId, shell: shell)
     }
 
     func openTerminalWithBash(for containerId: String) {
-        openTerminal(for: containerId, shell: "bash")
+        terminalLauncher.openTerminalWithBash(for: containerId)
     }
 
     // MARK: - Image Management
