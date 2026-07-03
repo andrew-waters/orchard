@@ -5,6 +5,14 @@ All notable changes to Orchard are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Automatic in-app updates via [Sparkle](https://sparkle-project.org). Orchard now checks for updates in the background (after asking on first launch) and can install them in place; "Check for Updates…" is also available from the menu. Updates are delivered through an EdDSA-signed appcast.
+
+### Changed
+- The previous manual "check GitHub releases for a newer version" prompt has been replaced by Sparkle.
+
 ## [1.12.2] - 2026-06-16
 
 ### Fixed
