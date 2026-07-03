@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orchard — a native macOS GUI for Apple Containers</title>
+  <meta name="description" content="Orchard is a native (Swift) macOS app for managing containers with Apple's container tooling. Manage containers, images, logs, networks and more without leaving the desktop." />
+  <meta property="og:title" content="Orchard — a native macOS GUI for Apple Containers" />
+  <meta property="og:description" content="A native macOS desktop experience for Apple's container CLI." />
+  <meta property="og:image" content="assets/overview.png" />
+  <style>
+    :root {
+      --accent: #e8590c;
+      --accent-dark: #c94b08;
+      --ink: #1d2127;
+      --muted: #626975;
+      --line: #e6e8eb;
+      --bg-soft: #f7f8fa;
+      --radius: 12px;
+      --maxw: 1040px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; display: block; }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: saturate(180%) blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .brand { font-weight: 700; font-size: 19px; letter-spacing: -.01em; }
+    .brand span { color: var(--accent); }
+    .nav-links a { color: var(--ink); margin-left: 22px; font-size: 15px; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent); text-decoration: none; }
+
+    .hero { padding: 72px 0 48px; text-align: center; }
+    .hero h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; }
+    .hero p.sub { font-size: clamp(17px, 2.4vw, 20px); color: var(--muted); max-width: 620px; margin: 0 auto 28px; }
+
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 15px;
+      border: 1px solid transparent; cursor: pointer;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-dark); text-decoration: none; }
+    .btn-ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    .brew {
+      display: inline-flex; align-items: center; gap: 12px;
+      background: #0f1115; color: #e8eaed; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      padding: 10px 14px; border-radius: 10px; margin: 22px auto 0; font-size: 15px;
+    }
+    .brew code { color: #fff; }
+    .brew button {
+      background: #2a2e37; color: #cfd3da; border: 0; border-radius: 6px;
+      padding: 5px 10px; font-size: 12px; cursor: pointer;
+    }
+    .brew button:hover { background: var(--accent); color: #fff; }
+
+    .badges { margin-top: 26px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .badges img { display: inline-block; }
+
+    .shot { margin: 40px auto 0; max-width: 920px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 50px -25px rgba(0,0,0,.35); }
+
+    section { padding: 64px 0; }
+    section.alt { background: var(--bg-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    h2 { font-size: clamp(24px, 3.5vw, 32px); letter-spacing: -.02em; text-align: center; margin: 0 0 8px; }
+    .lede { text-align: center; color: var(--muted); max-width: 620px; margin: 0 auto 40px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+    .card h3 { margin: 0 0 6px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 40px; }
+    .feature-row:nth-child(even) .feature-text { order: 2; }
+    .feature-row h3 { font-size: 20px; margin: 0 0 8px; }
+    .feature-row p { color: var(--muted); margin: 0; }
+    .feature-row img { border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 16px 40px -24px rgba(0,0,0,.3); }
+    @media (max-width: 720px) { .feature-row { grid-template-columns: 1fr; } .feature-row:nth-child(even) .feature-text { order: 0; } }
+
+    .install-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-top: 32px; }
+    .req { text-align: center; color: var(--muted); margin-top: 28px; font-size: 14px; }
+
+    footer { padding: 40px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .foot a { color: var(--muted); margin-left: 18px; }
+    .foot a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <div class="brand">🌳 <span>Orchard</span></div>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/andrew-waters/orchard">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <h1>The native GUI for<br />Apple Containers</h1>
+        <p class="sub">Orchard is a native macOS app for managing containers with Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling — a fast, focused desktop experience that complements the CLI.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/andrew-waters/orchard/releases/latest">Download for macOS</a>
+          <a class="btn btn-ghost" href="https://github.com/andrew-waters/orchard">View on GitHub</a>
+        </div>
+        <div class="brew">
+          <code id="brew-cmd">brew install orchard</code>
+          <button onclick="navigator.clipboard.writeText('brew install orchard'); this.textContent='Copied'; setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
+        </div>
+        <div class="badges">
+          <a href="https://github.com/andrew-waters/orchard/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/andrew-waters/orchard?color=e8590c&label=stars" /></a>
+          <a href="https://formulae.brew.sh/cask/orchard"><img alt="Homebrew installs" src="https://img.shields.io/homebrew/cask/installs/dm/orchard?color=e8590c&label=homebrew%20installs" /></a>
+          <img alt="License MIT" src="https://img.shields.io/github/license/andrew-waters/orchard?color=e8590c" />
+        </div>
+        <div class="shot"><img src="assets/overview.png" alt="Orchard container overview" /></div>
+      </div>
+    </section>
+
+    <section class="alt" id="features">
+      <div class="wrap">
+        <h2>Everything, without dropping to the CLI</h2>
+        <p class="lede">Orchard puts Apple's container tooling behind a first-class Mac interface — signed, notarized, and native Swift.</p>
+        <div class="grid">
+          <div class="card"><h3>Container management</h3><p>Create, start, stop, force-stop and delete containers, with live status and sortable lists.</p></div>
+          <div class="card"><h3>Image management</h3><p>Pull, delete and search Docker Hub directly, and run containers straight from an image.</p></div>
+          <div class="card"><h3>Multi-pane logs</h3><p>Stream logs from several containers side by side, with split panes, filtering and per-container colour.</p></div>
+          <div class="card"><h3>Live stats</h3><p>Watch CPU, memory, disk and network usage in real time, with sortable columns.</p></div>
+          <div class="card"><h3>Networks &amp; DNS</h3><p>Manage networks, DNS domains, published ports and hostnames from the app.</p></div>
+          <div class="card"><h3>Automatic updates</h3><p>Orchard keeps itself up to date via Sparkle — signed updates delivered in place.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="feature-row">
+          <div class="feature-text"><h3>Search and pull images</h3><p>Browse Docker Hub, inspect image metadata, and pull without memorising CLI flags.</p></div>
+          <img src="assets/images.png" alt="Image management in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Debug across services</h3><p>Split-pane log viewer with text filtering and per-container colour coding keeps multi-service output readable.</p></div>
+          <img src="assets/logs.png" alt="Multi-container logs in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Spot resource hotspots</h3><p>Live CPU, memory and network stats with sortable columns and persistent preferences.</p></div>
+          <img src="assets/runtime.png" alt="Container runtime stats in Orchard" />
+        </div>
+      </div>
+    </section>
+
+    <section class="alt" id="install">
+      <div class="wrap">
+        <h2>Install Orchard</h2>
+        <p class="lede">Every release is code-signed with a registered Apple Developer ID and notarized by Apple, so it installs cleanly — no Gatekeeper warnings.</p>
+        <div class="install-grid">
+          <div class="card">
+            <h3>Homebrew</h3>
+            <p><code>brew install orchard</code></p>
+          </div>
+          <div class="card">
+            <h3>Direct download</h3>
+            <p>Grab the latest <code>.dmg</code> from <a href="https://github.com/andrew-waters/orchard/releases/latest">GitHub Releases</a> and drag Orchard to Applications.</p>
+          </div>
+          <div class="card">
+            <h3>Build from source</h3>
+            <p>Clone the repo and open <code>Orchard.xcodeproj</code> in Xcode — dependencies resolve automatically.</p>
+          </div>
+        </div>
+        <p class="req">Requires macOS 26 (Tahoe) and <a href="https://github.com/apple/container">Apple Container</a> installed.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div>© Orchard · MIT licensed · a native GUI for Apple Containers</div>
+      <div>
+        <a href="https://github.com/andrew-waters/orchard">GitHub</a>
+        <a href="https://github.com/andrew-waters/orchard/releases">Releases</a>
+        <a href="https://github.com/andrew-waters/orchard/issues">Issues</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
