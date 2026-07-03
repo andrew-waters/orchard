@@ -31,6 +31,29 @@ struct StatsView: View {
 
             Divider()
 
+            // Passive, non-modal notice when the daemon can't return stats — the 1s
+            // poll intentionally does not raise an alert for this.
+            if containerService.statsUnavailable {
+                HStack(spacing: 8) {
+                    SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Stats Unavailable")
+                            .font(.subheadline).fontWeight(.medium)
+                        Text("Running containers were found but no statistics came back — check that the container service is up to date and running.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+                .padding()
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
+
             // Stats table
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {

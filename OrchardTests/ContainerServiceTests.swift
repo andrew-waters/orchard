@@ -74,28 +74,26 @@ func specCommandAndName() async {
 // MARK: - Service state transitions
 
 @MainActor
-@Test("loadContainers failure surfaces an alert while the system is running")
-func loadContainersFailureAlerts() async {
+@Test("loadContainers failure from a user-initiated load surfaces an alert")
+func loadContainersUserFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.listContainersError = NotConfigured()
     let service = makeService(backend: backend)
-    service.systemService.systemStatus = .running
 
-    await service.loadContainers(showLoading: true)
+    await service.loadContainers(showLoading: true)   // user-initiated
 
     #expect(service.alertCenter.current != nil)
     #expect(service.isLoading == false)
 }
 
 @MainActor
-@Test("loadContainers failure stays silent when the system is not running")
-func loadContainersFailureSilentWhenStopped() async {
+@Test("loadContainers failure from a background refresh stays silent")
+func loadContainersBackgroundFailureSilent() async {
     let backend = MockContainerBackend()
     backend.listContainersError = NotConfigured()
     let service = makeService(backend: backend)
-    service.systemService.systemStatus = .stopped
 
-    await service.loadContainers(showLoading: true)
+    await service.loadContainers(showLoading: false)   // background poll → no modal
 
     #expect(service.alertCenter.current == nil)
 }

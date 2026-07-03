@@ -7,6 +7,7 @@ struct AddNetworkView: View {
     @State private var subnet: String = ""
     @State private var labels: [NetworkLabel] = []
     @State private var isCreating: Bool = false
+    @State private var validationError: String?
 
     struct NetworkLabel: Identifiable, Equatable {
         let id = UUID()
@@ -121,6 +122,13 @@ struct AddNetworkView: View {
                     }
                 }
 
+                if let validationError {
+                    Text(validationError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Spacer()
             }
             .padding()
@@ -159,25 +167,26 @@ struct AddNetworkView: View {
 
         guard !trimmedName.isEmpty else { return }
         guard isValidNetworkName(trimmedName) else {
-            containerService.alertCenter.error("Invalid network name. Use only alphanumeric characters and hyphens.")
+            validationError = "Invalid network name. Use only alphanumeric characters and hyphens."
             return
         }
 
         // Validate subnet if provided
         let trimmedSubnet = subnet.trimmingCharacters(in: .whitespaces)
         if !trimmedSubnet.isEmpty && !isValidSubnet(trimmedSubnet) {
-            containerService.alertCenter.error("Invalid subnet format. Use CIDR notation (e.g., 192.168.1.0/24).")
+            validationError = "Invalid subnet format. Use CIDR notation (e.g., 192.168.1.0/24)."
             return
         }
 
         // Validate labels
         for label in labels {
             if label.key.trimmingCharacters(in: .whitespaces).isEmpty && !label.value.trimmingCharacters(in: .whitespaces).isEmpty {
-                containerService.alertCenter.error("Label key cannot be empty if value is provided.")
+                validationError = "Label key cannot be empty if value is provided."
                 return
             }
         }
 
+        validationError = nil
         isCreating = true
 
         Task {

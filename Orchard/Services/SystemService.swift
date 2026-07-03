@@ -179,9 +179,9 @@ final class SystemService: ObservableObject {
         } catch {
             self.systemDiskUsage = nil
             self.isSystemDiskUsageLoading = false
-            if self.systemStatus == .running {
-                self.alertCenter.error("Failed to load system disk usage: \(error.localizedDescription)")
-            }
+            // Runs on the 1s stats poll — only a user-initiated load may alert.
+            self.alertCenter.error("Failed to load system disk usage: \(error.localizedDescription)",
+                                   source: showLoading ? .user : .background)
         }
     }
 
@@ -299,7 +299,9 @@ final class SystemService: ObservableObject {
         }
 
         if result.failed {
-            alertCenter.error(result.stderr ?? "Failed to load system properties")
+            // Reached every 5s via the DNS refresh — only alert on a user-initiated load.
+            alertCenter.error(result.stderr ?? "Failed to load system properties",
+                              source: showLoading ? .user : .background)
             isSystemPropertiesLoading = false
             return
         }

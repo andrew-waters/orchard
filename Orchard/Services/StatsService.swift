@@ -11,8 +11,6 @@ final class StatsService: ObservableObject {
     private let alertCenter: AlertCenter
     /// Supplies the current containers; set by the owner.
     var containersProvider: @MainActor () -> [Container] = { [] }
-    /// Whether the container system is up — a total failure during teardown shouldn't alert.
-    var systemIsRunning: @MainActor () -> Bool = { false }
 
     init(backend: ContainerBackend, alertCenter: AlertCenter) {
         self.backend = backend
@@ -44,14 +42,20 @@ final class StatsService: ObservableObject {
         await MainActor.run {
             self.containerStats = allStats
             self.isStatsLoading = false
-            // Only surface an error if every running container failed — a single broken
-            // container should not blank out the whole stats page — and only while the
-            // system is up, so a stop/shutdown teardown doesn't surface a spurious error.
-            if self.systemIsRunning()
+            // Only surface an error if every running container failed (one broken
+            // container shouldn't blank the page) AND this was user-initiated — the 1s
+            // poll must not storm modals. StatsView shows a passive inline panel instead.
+            if showLoading
                 && !runningContainers.isEmpty
                 && failedContainers.count == runningContainers.count {
                 self.alertCenter.error("Unable to read container stats. Check that the container service is running.")
             }
         }
+    }
+
+    /// Whether the stats page should show its passive "unavailable" panel: there are
+    /// running containers but no stats came back. Drives non-modal UI in StatsView.
+    var statsUnavailable: Bool {
+        !containersProvider().filter { $0.status == "running" }.isEmpty && containerStats.isEmpty
     }
 }

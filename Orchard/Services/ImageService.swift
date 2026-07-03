@@ -13,18 +13,17 @@ final class ImageService: ObservableObject {
 
     private let backend: ContainerBackend
     private let alertCenter: AlertCenter
-    /// Whether the container system is up — a failing read during teardown shouldn't alert.
-    var systemIsRunning: @MainActor () -> Bool = { false }
 
     init(backend: ContainerBackend, alertCenter: AlertCenter) {
         self.backend = backend
         self.alertCenter = alertCenter
     }
 
+    /// Refresh the image list. Driven by the 5s poll, so failures are logged, not
+    /// modal — pull/delete (user actions) alert on their own.
     func load() async {
         await MainActor.run {
             isImagesLoading = true
-            self.alertCenter.dismiss()
         }
 
         do {
@@ -40,9 +39,7 @@ final class ImageService: ObservableObject {
             }
         } catch {
             await MainActor.run {
-                if self.systemIsRunning() {
-                    self.alertCenter.error(error.localizedDescription)
-                }
+                self.alertCenter.error(error.localizedDescription, source: .background)
                 self.isImagesLoading = false
             }
             Log.containers.error("\(error.localizedDescription)")

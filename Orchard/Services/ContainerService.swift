@@ -70,12 +70,7 @@ class ContainerService: ObservableObject {
         ] {
             store.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         }
-        // Services that read the system-up state for their teardown guard.
-        builderService.systemIsRunning = { [weak self] in self?.systemService.systemStatus == .running }
-        imageService.systemIsRunning = { [weak self] in self?.systemService.systemStatus == .running }
-        statsService.systemIsRunning = { [weak self] in self?.systemService.systemStatus == .running }
         statsService.containersProvider = { [weak self] in self?.containerListService.containers ?? [] }
-        containerListService.systemIsRunning = { [weak self] in self?.systemService.systemStatus == .running }
         containerListService.reloadBuilders = { [weak self] in await self?.builderService.loadBuilders() }
         // DNS ↔ System: the default domain is a system property.
         dnsService.refreshSystemProperties = { [weak self] in await self?.systemService.loadSystemProperties(showLoading: false) }
@@ -111,6 +106,7 @@ class ContainerService: ObservableObject {
     var loadingContainers: Set<String> { containerListService.loadingContainers }
     var isLoading: Bool { containerListService.isLoading }
     var allMounts: [ContainerMount] { containerListService.allMounts }
+    var recoveryFailedContainerIDs: Set<String> { containerListService.recoveryFailedContainerIDs }
 
     func loadContainers() async { await containerListService.loadContainers(showLoading: false) }
     func loadContainers(showLoading: Bool = true) async { await containerListService.loadContainers(showLoading: showLoading) }
@@ -163,6 +159,7 @@ class ContainerService: ObservableObject {
 
     var containerStats: [ContainerStats] { statsService.containerStats }
     var isStatsLoading: Bool { statsService.isStatsLoading }
+    var statsUnavailable: Bool { statsService.statsUnavailable }
 
     func loadContainerStats() async { await statsService.load(showLoading: true) }
     func loadContainerStats(showLoading: Bool = true) async { await statsService.load(showLoading: showLoading) }
