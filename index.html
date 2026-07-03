@@ -120,6 +120,18 @@
     .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
     .foot a { color: var(--muted); margin-left: 18px; }
     .foot a:hover { color: var(--accent); }
+
+    /* Screenshot lightbox gallery */
+    img.zoomable { cursor: zoom-in; }
+    .lightbox { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; background: rgba(6,12,22,.94); padding: 40px; }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 92vw; max-height: 86vh; border-radius: 10px; box-shadow: 0 30px 90px -20px rgba(0,0,0,.85); }
+    .lb-btn { position: absolute; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.12); color: #fff; border: 0; cursor: pointer; border-radius: 999px; width: 46px; height: 46px; font-size: 26px; line-height: 1; }
+    .lb-btn:hover { background: rgba(255,255,255,.24); }
+    .lb-close { top: 22px; right: 22px; font-size: 22px; }
+    .lb-prev { left: 22px; top: 50%; transform: translateY(-50%); }
+    .lb-next { right: 22px; top: 50%; transform: translateY(-50%); }
+    @media (max-width: 640px) { .lb-btn { width: 40px; height: 40px; } }
   </style>
 </head>
 <body>
@@ -152,7 +164,7 @@
           <a href="https://github.com/andrew-waters/orchard/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/andrew-waters/orchard?color=2f80ed&label=stars" /></a>
           <a href="https://formulae.brew.sh/cask/orchard"><img alt="Homebrew installs" src="https://img.shields.io/homebrew/cask/installs/dm/orchard?color=2f80ed&label=homebrew%20installs" /></a>
         </div>
-        <div class="shot"><img src="assets/overview.png" alt="Orchard container overview" /></div>
+        <div class="shot"><img class="zoomable" src="assets/overview.png" alt="Orchard — container overview" /></div>
       </div>
     </section>
 
@@ -175,15 +187,15 @@
       <div class="wrap">
         <div class="feature-row">
           <div class="feature-text"><h3>Search and pull images</h3><p>Browse Docker Hub, inspect image metadata, and pull without memorising CLI flags.</p></div>
-          <img src="assets/images.png" alt="Image management in Orchard" />
+          <img class="zoomable" src="assets/images.png" alt="Image management in Orchard" />
         </div>
         <div class="feature-row">
           <div class="feature-text"><h3>Debug across services</h3><p>Split-pane log viewer with text filtering and per-container colour coding keeps multi-service output readable.</p></div>
-          <img src="assets/logs.png" alt="Multi-container logs in Orchard" />
+          <img class="zoomable" src="assets/logs.png" alt="Multi-container logs in Orchard" />
         </div>
         <div class="feature-row">
           <div class="feature-text"><h3>Spot resource hotspots</h3><p>Live CPU, memory and network stats with sortable columns and persistent preferences.</p></div>
-          <img src="assets/runtime.png" alt="Container runtime stats in Orchard" />
+          <img class="zoomable" src="assets/runtime.png" alt="Container runtime stats in Orchard" />
         </div>
       </div>
     </section>
@@ -221,6 +233,38 @@
       </div>
     </div>
   </footer>
+
+  <div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-label="Screenshot viewer">
+    <button class="lb-btn lb-close" id="lb-close" aria-label="Close">✕</button>
+    <button class="lb-btn lb-prev" id="lb-prev" aria-label="Previous screenshot">‹</button>
+    <img id="lb-img" src="" alt="" />
+    <button class="lb-btn lb-next" id="lb-next" aria-label="Next screenshot">›</button>
+  </div>
+
+  <script>
+    // Screenshot lightbox gallery
+    (function () {
+      var imgs = Array.prototype.slice.call(document.querySelectorAll('img.zoomable'));
+      if (!imgs.length) return;
+      var lb = document.getElementById('lightbox');
+      var lbImg = document.getElementById('lb-img');
+      var i = 0;
+      function show(n) { i = (n + imgs.length) % imgs.length; lbImg.src = imgs[i].src; lbImg.alt = imgs[i].alt; }
+      function open(n) { show(n); lb.classList.add('open'); lb.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
+      function close() { lb.classList.remove('open'); lb.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+      imgs.forEach(function (im, idx) { im.addEventListener('click', function () { open(idx); }); });
+      document.getElementById('lb-close').addEventListener('click', close);
+      document.getElementById('lb-prev').addEventListener('click', function (e) { e.stopPropagation(); show(i - 1); });
+      document.getElementById('lb-next').addEventListener('click', function (e) { e.stopPropagation(); show(i + 1); });
+      lb.addEventListener('click', function (e) { if (e.target === lb) close(); });
+      document.addEventListener('keydown', function (e) {
+        if (!lb.classList.contains('open')) return;
+        if (e.key === 'Escape') close();
+        else if (e.key === 'ArrowLeft') show(i - 1);
+        else if (e.key === 'ArrowRight') show(i + 1);
+      });
+    })();
+  </script>
 
   <script>
     (function () {
