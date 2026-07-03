@@ -667,7 +667,7 @@ class ContainerService: ObservableObject {
         }
     }
 
-    func startContainer(_ id: String) async {
+    func startContainer(_ id: String, maxRetries: Int = 3, retryDelay: TimeInterval = 1.0) async {
         // Check if container operation is already in progress
         let shouldProceed = lockQueue.sync(flags: .barrier) {
             if containerOperationLocks.contains(id) {
@@ -688,7 +688,7 @@ class ContainerService: ObservableObject {
             return
         }
 
-        await startContainerWithRetry(id, maxRetries: 3, retryDelay: 1.0)
+        await startContainerWithRetry(id, maxRetries: maxRetries, retryDelay: retryDelay)
     }
 
     private func startContainerWithRetry(_ id: String, maxRetries: Int, retryDelay: TimeInterval) async {
