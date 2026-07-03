@@ -8,25 +8,43 @@
   <meta property="og:title" content="Orchard — a native macOS GUI for Apple Containers" />
   <meta property="og:description" content="A native macOS desktop experience for Apple's container CLI." />
   <meta property="og:image" content="assets/overview.png" />
+  <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
   <style>
     :root {
-      --accent: #e8590c;
-      --accent-dark: #c94b08;
+      /* Dark theme — the default */
+      --accent: #4a97ff;
+      --accent-dark: #2f80ed;
+      --green: #34c759;
+      --navy: #0e2138;      /* header + hero, in both themes */
+      --bg: #0b1626;
+      --bg-soft: #0f1d33;
+      --ink: #e7edf6;
+      --muted: #9fb0c9;
+      --line: rgba(255,255,255,.10);
+      --card: #12233c;
+      --radius: 12px;
+      --maxw: 1040px;
+    }
+    [data-theme="light"] {
+      --accent: #2f80ed;
+      --accent-dark: #2668c9;
+      --bg: #ffffff;
+      --bg-soft: #f7f8fa;
       --ink: #1d2127;
       --muted: #626975;
       --line: #e6e8eb;
-      --bg-soft: #f7f8fa;
-      --radius: 12px;
-      --maxw: 1040px;
+      --card: #ffffff;
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
       color: var(--ink);
       line-height: 1.55;
       -webkit-font-smoothing: antialiased;
+      transition: background .2s ease, color .2s ease;
     }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
@@ -35,19 +53,18 @@
 
     header {
       position: sticky; top: 0; z-index: 10;
-      background: rgba(255,255,255,.85);
-      backdrop-filter: saturate(180%) blur(10px);
-      border-bottom: 1px solid var(--line);
+      background: var(--navy);
+      border-bottom: 1px solid rgba(255,255,255,.08);
     }
-    .nav { display: flex; align-items: center; justify-content: space-between; height: 60px; }
-    .brand { font-weight: 700; font-size: 19px; letter-spacing: -.01em; }
-    .brand span { color: var(--accent); }
-    .nav-links a { color: var(--ink); margin-left: 22px; font-size: 15px; font-weight: 500; }
-    .nav-links a:hover { color: var(--accent); text-decoration: none; }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { height: 30px; width: auto; display: block; }
+    .nav-links a { color: #c3cfe2; margin-left: 24px; font-size: 15px; font-weight: 500; }
+    .nav-links a:hover { color: #fff; text-decoration: none; }
 
-    .hero { padding: 72px 0 48px; text-align: center; }
-    .hero h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; }
-    .hero p.sub { font-size: clamp(17px, 2.4vw, 20px); color: var(--muted); max-width: 620px; margin: 0 auto 28px; }
+    .hero { padding: 76px 0 56px; text-align: center; background: var(--navy); color: #eef3fb; }
+    .hero .sub a { color: #7fb0ff; }
+    .hero h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; color: #fff; }
+    .hero p.sub { font-size: clamp(17px, 2.4vw, 20px); color: #a9b7d0; max-width: 620px; margin: 0 auto 28px; }
 
     .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; align-items: center; }
     .btn {
@@ -57,8 +74,8 @@
     }
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { background: var(--accent-dark); text-decoration: none; }
-    .btn-ghost { background: #fff; color: var(--ink); border-color: var(--line); }
-    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+    .btn-ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.28); }
+    .btn-ghost:hover { border-color: #fff; background: rgba(255,255,255,.06); text-decoration: none; }
 
     .brew {
       display: inline-flex; align-items: center; gap: 12px;
@@ -72,8 +89,8 @@
     }
     .brew button:hover { background: var(--accent); color: #fff; }
 
-    .badges { margin-top: 26px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-    .badges img { display: inline-block; }
+    .badges { margin-top: 26px; display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+    .badges img { display: inline-block; height: 20px; width: auto; }
 
     .shot { margin: 40px auto 0; max-width: 920px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 50px -25px rgba(0,0,0,.35); }
 
@@ -83,7 +100,9 @@
     .lede { text-align: center; color: var(--muted); max-width: 620px; margin: 0 auto 40px; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
-    .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+    .theme-btn { margin-left: 24px; background: transparent; border: 0; color: #c3cfe2; font-size: 17px; cursor: pointer; line-height: 1; padding: 4px; }
+    .theme-btn:hover { color: #fff; }
     .card h3 { margin: 0 0 6px; font-size: 17px; }
     .card p { margin: 0; color: var(--muted); font-size: 15px; }
 
@@ -106,11 +125,12 @@
 <body>
   <header>
     <div class="wrap nav">
-      <div class="brand">🌳 <span>Orchard</span></div>
+      <a href="#top" aria-label="Orchard"><img class="logo" src="logo.svg" alt="Orchard" /></a>
       <nav class="nav-links">
         <a href="#features">Features</a>
         <a href="#install">Install</a>
         <a href="https://github.com/andrew-waters/orchard">GitHub</a>
+        <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
       </nav>
     </div>
   </header>
@@ -129,9 +149,8 @@
           <button onclick="navigator.clipboard.writeText('brew install orchard'); this.textContent='Copied'; setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
         </div>
         <div class="badges">
-          <a href="https://github.com/andrew-waters/orchard/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/andrew-waters/orchard?color=e8590c&label=stars" /></a>
-          <a href="https://formulae.brew.sh/cask/orchard"><img alt="Homebrew installs" src="https://img.shields.io/homebrew/cask/installs/dm/orchard?color=e8590c&label=homebrew%20installs" /></a>
-          <img alt="License MIT" src="https://img.shields.io/github/license/andrew-waters/orchard?color=e8590c" />
+          <a href="https://github.com/andrew-waters/orchard/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/andrew-waters/orchard?color=2f80ed&label=stars" /></a>
+          <a href="https://formulae.brew.sh/cask/orchard"><img alt="Homebrew installs" src="https://img.shields.io/homebrew/cask/installs/dm/orchard?color=2f80ed&label=homebrew%20installs" /></a>
         </div>
         <div class="shot"><img src="assets/overview.png" alt="Orchard container overview" /></div>
       </div>
@@ -202,5 +221,21 @@
       </div>
     </div>
   </footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var btn = document.getElementById('theme-toggle');
+      function theme() { return root.getAttribute('data-theme') || 'dark'; }
+      function render() { btn.textContent = theme() === 'dark' ? '☀︎' : '☾'; }
+      render();
+      btn.addEventListener('click', function () {
+        var next = theme() === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        render();
+      });
+    })();
+  </script>
 </body>
 </html>

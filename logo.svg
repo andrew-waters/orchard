@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" width="720" height="160">
+  
+  <g transform="translate(0 20) scale(0.1172)">
+    <defs>
+      <clipPath id="sq-h"><path d="M 186 0 L 838 0 C 930 0 1024 94 1024 186 L 1024 838 C 1024 930 930 1024 838 1024 L 186 1024 C 94 1024 0 930 0 838 L 0 186 C 0 94 94 0 186 0 Z"></path></clipPath>
+      <clipPath id="ap-h"><path d="M 512 260 C 312 260 172 400 172 580 C 172 760 312 880 462 880 C 492 880 512 870 512 870 C 512 870 532 880 562 880 C 712 880 852 760 852 580 C 852 400 712 260 512 260 Z"></path></clipPath>
+    </defs>
+    <path d="M 186 0 L 838 0 C 930 0 1024 94 1024 186 L 1024 838 C 1024 930 930 1024 838 1024 L 186 1024 C 94 1024 0 930 0 838 L 0 186 C 0 94 94 0 186 0 Z" fill="#93C5FD"></path>
+    <g clip-path="url(#sq-h)">
+      <g clip-path="url(#ap-h)">
+        <rect x="172" y="260" width="114" height="620" fill="#0E2240"></rect>
+        <rect x="286" y="260" width="114" height="620" fill="#1E3A66"></rect>
+        <rect x="400" y="260" width="114" height="620" fill="#2B5BA7"></rect>
+        <rect x="514" y="260" width="114" height="620" fill="#3B82F6"></rect>
+        <rect x="628" y="260" width="114" height="620" fill="#60A5FA"></rect>
+        <rect x="742" y="260" width="110" height="620" fill="#93C5FD"></rect>
+        <g stroke="#93C5FD" stroke-width="3">
+          <line x1="286" y1="260" x2="286" y2="880"></line>
+          <line x1="400" y1="260" x2="400" y2="880"></line>
+          <line x1="514" y1="260" x2="514" y2="880"></line>
+          <line x1="628" y1="260" x2="628" y2="880"></line>
+          <line x1="742" y1="260" x2="742" y2="880"></line>
+        </g>
+      </g>
+      <rect x="498" y="196" width="28" height="76" rx="7" fill="#0A1628"></rect>
+      <path d="M 526 218 C 598 194 662 228 670 290 C 602 302 552 266 526 218 Z" fill="#4ADE80"></path>
+    </g>
+  </g>
+
+  
+  <text x="150" y="110" font-family="Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif" font-weight="600" font-size="104" letter-spacing="-3.7" fill="#E8EEF7">Orchard<tspan fill="#4ADE80">.</tspan></text>
+</svg>
