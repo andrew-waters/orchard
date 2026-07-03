@@ -18,11 +18,17 @@ protocol CommandRunner: Sendable {
 /// The production `CommandRunner`: spawns real processes.
 struct SystemCommandRunner: CommandRunner {
     func run(program: String, arguments: [String]) async throws -> ProcessResult {
-        // Run the blocking Process work on a background thread so the caller's
-        // executor (typically the main actor) is never blocked.
-        try await Task.detached(priority: .userInitiated) {
-            try SystemCommandRunner.runProcessSync(program: program, arguments: arguments)
-        }.value
+        // Run the blocking Process work on a global-queue thread — not a Swift-concurrency
+        // cooperative thread — so several concurrent CLI calls can't starve the pool.
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    continuation.resume(returning: try SystemCommandRunner.runProcessSync(program: program, arguments: arguments))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     func runWithSudo(program: String, arguments: [String]) async throws -> ProcessResult {
@@ -49,7 +55,7 @@ struct SystemCommandRunner: CommandRunner {
         return "do shell script \"\(escaped)\" with administrator privileges"
     }
 
-    /// Synchronous process execution.
+    /// Synchronous process execution. Must be called off the main/cooperative threads.
     static func runProcessSync(program: String, arguments: [String]) throws -> ProcessResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: program)
@@ -61,10 +67,26 @@ struct SystemCommandRunner: CommandRunner {
         process.standardError = stderrPipe
 
         try process.run()
-        process.waitUntilExit()
 
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        // Drain both pipes concurrently *before* waiting: a child that writes more than
+        // the ~64KB pipe buffer would otherwise block forever waiting for us to read,
+        // and we'd block forever in waitUntilExit — a mutual deadlock.
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var stdoutData = Data()
+        var stderrData = Data()
+        for (pipe, isStdout) in [(stdoutPipe, true), (stderrPipe, false)] {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                lock.lock()
+                if isStdout { stdoutData = data } else { stderrData = data }
+                lock.unlock()
+                group.leave()
+            }
+        }
+        group.wait()
+        process.waitUntilExit()
 
         var stdoutStr = String(data: stdoutData, encoding: .utf8)
         var stderrStr = String(data: stderrData, encoding: .utf8)
