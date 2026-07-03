@@ -1,260 +1,118 @@
 # Changelog
 
-All notable changes to Orchard will be documented in this file.
+All notable changes to Orchard are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [1.12.2] - 2026-06-16
 
-### Added
-- 
+### Fixed
+- System properties no longer get stuck on "Loading…" (wrong JSON format).
+- Tab controls are now clickable across their entire area.
 
 ### Changed
-- 
-
-### Fixed
-- 
-
+- Use relative shell paths instead of absolute paths.
 
 ## [1.12.1] - 2026-05-14
 
 ### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- Bulk actions for containers.
 
 ## [1.12.0] - 2026-05-06
 
 ### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- Support for Apple `container` 0.12.x.
 
 ## [1.11.7] - 2026-04-26
 
 ### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- Diagnostics view to help troubleshoot setup issues.
 
 ## [1.11.6] - 2026-04-26
 
 ### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- Automatic detection of common `container` binary locations, with a setting to override the path.
 
 ## [1.11.5] - 2026-04-26
 
-### Added
-- 
-
 ### Changed
-- 
-
-### Fixed
-- 
-
+- Larger hit areas for controls for easier clicking.
 
 ## [1.11.4] - 2026-04-17
 
 ### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- Application icon.
+- Homebrew installation instructions.
 
 ## [1.11.3] - 2026-04-13
 
 ### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- User-selectable terminal application for attaching a container shell.
 
 ## [1.11.2] - 2026-04-08
 
 ### Added
-- 
+- Additional image information in the image detail view.
 
-### Changed
-- 
-
-### Fixed
-- 
-
+### Removed
+- System logs and registries views.
 
 ## [1.11.1] - 2026-04-08
 
 ### Added
-- 
+- Release builds are now code-signed with a Developer ID certificate and notarized by Apple.
 
-### Changed
-- 
-
-### Fixed
-- 
-
-
-## [1.11.1] - 2026-04-08
+## [1.11.0] - 2026-04-08
 
 ### Added
-- 
+- Migrated to the Apple `container` XPC API for most operations (no longer shells out to the CLI).
+- Multi-pane log viewer with split panes (one container's logs per pane).
+- Force stop action in the container list.
+- Sortable stats table, and sortable container and image lists.
+- MIT license.
 
 ### Changed
-- 
-
-### Fixed
-- 
-
-
-## [1.11.1] - 2026-04-08
-
-### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
-
-## [1.11.1] - 2026-04-08
-
-### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
-
-## [1.11.1] - 2026-04-08
-
-### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- Improved log viewer performance.
 
 ## [1.7.3] - 2026-03-15
 
-### Added
-- 
-
-### Changed
-- 
-
 ### Fixed
-- 
-
+- Include stopped and pending containers in the container list (`container ls -a`).
 
 ## [1.7.2] - 2026-03-09
 
-### Added
-- 
-
-### Changed
-- 
-
 ### Fixed
-- 
-
+- Running containers not appearing in the container view.
 
 ## [1.7.1] - 2025-12-18
 
 ### Added
-- 
+- Option to keep using the app when a newer version of `container` is available.
 
 ### Changed
-- 
-
-### Fixed
-- 
-
-
-## [1.7.1] - 2025-12-18
-
-### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
+- Updated the supported `container` version.
 
 ## [1.7.0] - 2025-12-03
 
 ### Added
-- 
+- DNS domain management.
+- Container resource stats — CPU, memory, disk, and network — with a sortable stats table.
+- Name-uniqueness check when launching containers.
 
 ### Changed
-- 
-
-### Fixed
-- 
-
+- Renamed "Settings" to "Configuration".
+- Unified content into a single detail view, removed tabs, and made numerous list/table UI improvements.
 
 ## [1.6.0] - 2025-11-30
 
 ### Added
-- 
+- Network management views.
+- System properties and system settings.
+- Published ports and hostname opening.
+- Choose a DNS domain when launching a container.
 
-### Changed
-- 
-
-### Fixed
-- 
-
-
-## [0.6.1] - 2025-11-30
-
-### Added
-- 
-
-### Changed
-- 
-
-### Fixed
-- 
-
-
-## [1.1.8]
+## [1.1.8] - 2025-11-29
 
 ### Added
 - **Image Search and Download**: New feature to search Docker Hub for container images and download them directly from the UI
@@ -290,95 +148,66 @@ All notable changes to Orchard will be documented in this file.
   - Context menu option to open terminal from container list
 
 ### Changed
-- **Settings page deprecated**: You can not access them in the main window
+- **Settings page deprecated**: You can no longer access them in the main window
   - Loading state now displays to prevent jarring view changes
-  - We now required `0.6.0` and check the CLI version for compatibility
+  - Now requires `0.6.0` and checks the CLI version for compatibility
 
 ### Fixed
 - Fixed image commands to use correct CLI syntax for container 0.6.0 (`container image pull` and `container image list` instead of plural `images`)
 
+## [0.1.7] - 2025-11-08
 
-## [1.1.7] - 2025-11-08
-
-Note this should have been 0.1.7 but was incorrectly tagged.
+> Note: this release was also tagged `v1.1.7` by mistake.
 
 ### Added
-- 
+- Split settings into separate views.
 
 ### Changed
-- 
+- Improved DNS domain loading and validity handling.
 
-### Fixed
-- 
+### Removed
+- Registry management.
 
+## [0.1.6] - 2025-06-20
+
+### Changed
+- Removed a conflicting keyboard shortcut.
 
 ## [0.1.5] - 2025-06-19
 
 ### Added
-- 
+- Labels tab in the container view.
 
 ### Changed
-- 
-
-### Fixed
-- 
-
+- Lowered the minimum macOS requirement to 15.0+.
 
 ## [0.1.4] - 2025-06-18
 
-### Added
-- 
-
-### Changed
-- 
-
 ### Fixed
-- 
-
+- Release pipeline fixes.
 
 ## [0.1.3] - 2025-06-18
 
-### Added
-- 
-
 ### Changed
-- 
-
-### Fixed
-- 
-
+- Release process tweaks.
 
 ## [0.1.2] - 2025-06-18
 
-### Added
-- 
-
-### Changed
-- 
-
 ### Fixed
-- 
-
+- Corrected permissions in the release workflow.
 
 ## [0.1.1] - 2025-06-18
 
-### Added
-- 
-
 ### Changed
-- 
-
-### Fixed
-- 
-
+- Updated the release GitHub Action.
 
 ## [0.1.0] - 2025-06-18
 
 ### Added
-- Initial release
-
-### Changed
--
-
-### Fixed
--
+- Initial release — a native macOS GUI for Apple's `container` tooling, including:
+  - Container management (start, stop, view, mounts, logs)
+  - Image management and image views, with filtering
+  - Multi-container logs viewer
+  - Builders / BuildKit and kernel support
+  - DNS controls and registry management
+  - System status and menu bar integration
