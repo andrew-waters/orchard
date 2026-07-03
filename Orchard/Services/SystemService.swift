@@ -289,19 +289,22 @@ final class SystemService: ObservableObject {
             alertCenter.dismiss()
         }
 
-        var result: ProcessResult
+        // Reached every 5s via the DNS refresh — only alert on a user-initiated load.
+        let source: AlertSource = showLoading ? .user : .background
+        let result: ProcessResult
         do {
             result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "property", "list", "--format=json"])
         } catch {
-            result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
+            alertCenter.error("Failed to load system properties: \(error.localizedDescription)", source: source)
+            isSystemPropertiesLoading = false
+            return
         }
 
         if result.failed {
-            // Reached every 5s via the DNS refresh — only alert on a user-initiated load.
-            alertCenter.error(result.stderr ?? "Failed to load system properties",
-                              source: showLoading ? .user : .background)
+            alertCenter.error(.cliFailed(command: "system property list", exitCode: result.exitCode, stderr: result.stderr),
+                              source: source)
             isSystemPropertiesLoading = false
             return
         }
@@ -337,26 +340,23 @@ final class SystemService: ObservableObject {
             markDNSDefault(value)
         }
 
-        var result: ProcessResult
+        let result: ProcessResult
         do {
             result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "property", "set", id, value])
         } catch {
-            result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
+            restoreFocus(currentApp, wasActive: isActive)
+            alertCenter.error("Failed to set system property: \(error.localizedDescription)")
+            await revertDNSDomainIfNeeded(id)
+            return
         }
 
-        // Restore focus if it was lost to the subprocess.
-        if isActive && !currentApp.isActive {
-            currentApp.activate(ignoringOtherApps: true)
-        }
+        restoreFocus(currentApp, wasActive: isActive)
 
         if result.failed {
-            alertCenter.error(result.stderr ?? "Failed to set system property")
-            if id == "dns.domain" {
-                await loadSystemProperties(showLoading: false)
-                await reloadDNS()
-            }
+            alertCenter.error(.cliFailed(command: "system property set \(id)", exitCode: result.exitCode, stderr: result.stderr))
+            await revertDNSDomainIfNeeded(id)
             return
         }
 
@@ -367,5 +367,17 @@ final class SystemService: ObservableObject {
                 await self.reloadDNS()
             }
         }
+    }
+
+    private func restoreFocus(_ app: NSApplication, wasActive: Bool) {
+        if wasActive && !app.isActive {
+            app.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func revertDNSDomainIfNeeded(_ id: String) async {
+        guard id == "dns.domain" else { return }
+        await loadSystemProperties(showLoading: false)
+        await reloadDNS()
     }
 }

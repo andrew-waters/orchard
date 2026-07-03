@@ -36,3 +36,12 @@ func errorCopy() {
     #expect(OrchardError.noEntrypoint.errorDescription == "No entrypoint or command specified for the container.")
     #expect(OrchardError.containerNotFound(id: "web").errorDescription?.contains("web") == true)
 }
+
+@Test("cliFailed: uses stderr when present, else the exit code")
+func cliFailedCopy() {
+    let withStderr = OrchardError.cliFailed(command: "builder start", exitCode: 1, stderr: "daemon down")
+    #expect(withStderr.errorDescription == "builder start failed: daemon down")
+
+    let noStderr = OrchardError.cliFailed(command: "builder start", exitCode: 2, stderr: nil)
+    #expect(noStderr.errorDescription == "builder start failed (exit 2).")
+}
