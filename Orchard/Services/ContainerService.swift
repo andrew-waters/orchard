@@ -18,8 +18,6 @@ class ContainerService: ObservableObject {
     @Published var isDNSLoading = false
     @Published var kernelConfig: KernelConfig = KernelConfig()
     @Published var isKernelLoading = false
-    @Published var containerStats: [ContainerStats] = []
-    @Published var isStatsLoading: Bool = false
     @Published var systemDiskUsage: SystemDiskUsage? = nil
     @Published var isSystemDiskUsageLoading: Bool = false
     @Published var systemProperties: [SystemProperty] = []
@@ -50,6 +48,8 @@ class ContainerService: ObservableObject {
     let networkService: NetworkService
     /// Image state and operations.
     let imageService: ImageService
+    /// Per-container resource stats.
+    let statsService: StatsService
     private var cancellables = Set<AnyCancellable>()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
@@ -65,6 +65,8 @@ class ContainerService: ObservableObject {
         self.networkService = networkService
         let imageService = ImageService(backend: backend, alertCenter: alertCenter)
         self.imageService = imageService
+        let statsService = StatsService(backend: backend, alertCenter: alertCenter)
+        self.statsService = statsService
 
         // Re-publish the extracted stores' changes so views observing this facade
         // still update while the migration is in progress.
@@ -73,12 +75,15 @@ class ContainerService: ObservableObject {
             builderService.objectWillChange,
             networkService.objectWillChange,
             imageService.objectWillChange,
+            statsService.objectWillChange,
         ] {
             store.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         }
         // Services that read the system-up state for their teardown guard.
         builderService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
         imageService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
+        statsService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
+        statsService.containersProvider = { [weak self] in self?.containers ?? [] }
     }
 
     // MARK: - Settings (forwarded to SettingsStore)
@@ -230,45 +235,13 @@ class ContainerService: ObservableObject {
 
     // MARK: - Container Stats Management
 
-    func loadContainerStats() async {
-        await loadContainerStats(showLoading: true)
-    }
+    // MARK: - Container Stats (forwarded to StatsService)
 
-    func loadContainerStats(showLoading: Bool = true) async {
-        if showLoading {
-            await MainActor.run {
-                isStatsLoading = true
-                self.alertCenter.dismiss()
-            }
-        }
+    var containerStats: [ContainerStats] { statsService.containerStats }
+    var isStatsLoading: Bool { statsService.isStatsLoading }
 
-        let runningContainers = containers.filter { $0.status == "running" }
-
-        var allStats: [Orchard.ContainerStats] = []
-        var failedContainers: [String] = []
-        for container in runningContainers {
-            do {
-                let stats = try await backend.stats(id: container.configuration.id)
-                allStats.append(stats)
-            } catch {
-                failedContainers.append(container.configuration.id)
-                Log.containers.error("Failed to load stats for container \(container.configuration.id): \(error.localizedDescription)")
-            }
-        }
-
-        await MainActor.run {
-            self.containerStats = allStats
-            self.isStatsLoading = false
-            // Only surface an error if every running container failed — a single broken
-            // container should not blank out the whole stats page — and only while the
-            // system is up, so a stop/shutdown teardown doesn't surface a spurious error.
-            if self.systemStatus == .running
-                && !runningContainers.isEmpty
-                && failedContainers.count == runningContainers.count {
-                self.alertCenter.error("Unable to read container stats. Check that the container service is running.")
-            }
-        }
-    }
+    func loadContainerStats() async { await statsService.load(showLoading: true) }
+    func loadContainerStats(showLoading: Bool = true) async { await statsService.load(showLoading: showLoading) }
 
     // MARK: - System Disk Usage Management
 
