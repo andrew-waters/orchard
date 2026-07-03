@@ -14,8 +14,6 @@ class ContainerService: ObservableObject {
     @Published var loadingContainers: Set<String> = []
     @Published var containerVersion: String?
     @Published var parsedContainerVersion: String?
-    @Published var dnsDomains: [DNSDomain] = []
-    @Published var isDNSLoading = false
     @Published var kernelConfig: KernelConfig = KernelConfig()
     @Published var isKernelLoading = false
     @Published var systemDiskUsage: SystemDiskUsage? = nil
@@ -50,6 +48,8 @@ class ContainerService: ObservableObject {
     let imageService: ImageService
     /// Per-container resource stats.
     let statsService: StatsService
+    /// DNS domain state and operations.
+    let dnsService: DNSService
     private var cancellables = Set<AnyCancellable>()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
@@ -67,6 +67,8 @@ class ContainerService: ObservableObject {
         self.imageService = imageService
         let statsService = StatsService(backend: backend, alertCenter: alertCenter)
         self.statsService = statsService
+        let dnsService = DNSService(runner: runner, settings: settings, alertCenter: alertCenter)
+        self.dnsService = dnsService
 
         // Re-publish the extracted stores' changes so views observing this facade
         // still update while the migration is in progress.
@@ -76,6 +78,7 @@ class ContainerService: ObservableObject {
             networkService.objectWillChange,
             imageService.objectWillChange,
             statsService.objectWillChange,
+            dnsService.objectWillChange,
         ] {
             store.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         }
@@ -84,6 +87,20 @@ class ContainerService: ObservableObject {
         imageService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
         statsService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
         statsService.containersProvider = { [weak self] in self?.containers ?? [] }
+        // DNS reads/writes the default domain, which is a system property.
+        dnsService.refreshSystemProperties = { [weak self] in await self?.loadSystemProperties(showLoading: false) }
+        dnsService.defaultDomain = { [weak self] in
+            self?.systemProperties.first(where: { $0.id == "dns.domain" })?.value
+        }
+        dnsService.setDefaultDomainProperty = { [weak self] domain in
+            guard let self, let index = self.systemProperties.firstIndex(where: { $0.id == "dns.domain" }) else { return }
+            self.systemProperties[index] = SystemProperty(
+                id: "dns.domain",
+                type: self.systemProperties[index].type,
+                value: domain,
+                description: self.systemProperties[index].description
+            )
+        }
     }
 
     // MARK: - Settings (forwarded to SettingsStore)
@@ -692,89 +709,17 @@ class ContainerService: ObservableObject {
 
     // MARK: - DNS Management
 
-    func loadDNSDomains() async {
-        await loadDNSDomains(showLoading: false)
-    }
+    // MARK: - DNS (forwarded to DNSService)
 
-    func loadDNSDomains(showLoading: Bool = true) async {
-        if showLoading {
-            await MainActor.run {
-                isDNSLoading = true
-                self.alertCenter.dismiss()
-            }
-        }
+    var dnsDomains: [DNSDomain] { dnsService.dnsDomains }
+    var isDNSLoading: Bool { dnsService.isDNSLoading }
 
-        // Load system properties first to get the default domain
-        await loadSystemProperties(showLoading: false)
-
-        do {
-            // Get list of domains in JSON format
-            let listResult = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "dns", "ls", "--format=json"])
-
-            if let output = listResult.stdout {
-                // Get the current default domain from system properties
-                let currentDefaultDomain = self.systemProperties.first(where: { $0.id == "dns.domain" })?.value
-                let domains = parseDNSDomains(json: output, defaultDomain: currentDefaultDomain)
-                await MainActor.run {
-                    self.dnsDomains = domains
-                    self.isDNSLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                if showLoading {
-                    self.alertCenter.error("Failed to load DNS domains: \(error.localizedDescription)")
-                }
-                self.isDNSLoading = false
-            }
-        }
-    }
-
+    func loadDNSDomains() async { await dnsService.load(showLoading: false) }
+    func loadDNSDomains(showLoading: Bool = true) async { await dnsService.load(showLoading: showLoading) }
     @discardableResult
-    func createDNSDomain(_ domain: String) async -> Bool {
-        do {
-            let result = try await runner.runWithSudo(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "dns", "create", domain])
-
-            if !result.failed {
-                await loadDNSDomains()
-                return true
-            } else {
-                await MainActor.run {
-                    self.alertCenter.error(result.stderr ?? "Failed to create DNS domain")
-                }
-                return false
-            }
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to create DNS domain: \(error.localizedDescription)")
-            }
-            return false
-        }
-    }
-
-    func deleteDNSDomain(_ domain: String) async {
-        do {
-            let result = try await runner.runWithSudo(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "dns", "delete", domain])
-
-            if !result.failed {
-                await loadDNSDomains()
-            } else {
-                await MainActor.run {
-                    self.alertCenter.error(result.stderr ?? "Failed to delete DNS domain")
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to delete DNS domain: \(error.localizedDescription)")
-            }
-        }
-    }
+    func createDNSDomain(_ domain: String) async -> Bool { await dnsService.create(domain) }
+    func deleteDNSDomain(_ domain: String) async { await dnsService.delete(domain) }
+    func setDefaultDNSDomain(_ domain: String) async { await dnsService.setDefault(domain) }
 
     // MARK: - Networks (forwarded to NetworkService)
 
@@ -991,12 +936,7 @@ class ContainerService: ObservableObject {
                 }
 
                 // Update DNS domains default status optimistically
-                for i in 0..<self.dnsDomains.count {
-                    self.dnsDomains[i] = DNSDomain(
-                        domain: self.dnsDomains[i].domain,
-                        isDefault: self.dnsDomains[i].domain == value
-                    )
-                }
+                self.dnsService.markDefault(value)
             }
         }
 
@@ -1039,62 +979,6 @@ class ContainerService: ObservableObject {
             }
         }
     }
-
-    func setDefaultDNSDomain(_ domain: String) async {
-        // Immediate UI update without subprocess for better focus handling
-        await MainActor.run {
-            // Update system properties optimistically
-            if let index = self.systemProperties.firstIndex(where: { $0.id == "dns.domain" }) {
-                self.systemProperties[index] = SystemProperty(
-                    id: "dns.domain",
-                    type: self.systemProperties[index].type,
-                    value: domain,
-                    description: self.systemProperties[index].description
-                )
-            }
-
-            // Update DNS domains default status immediately
-            for i in 0..<self.dnsDomains.count {
-                self.dnsDomains[i] = DNSDomain(
-                    domain: self.dnsDomains[i].domain,
-                    isDefault: self.dnsDomains[i].domain == domain
-                )
-            }
-        }
-
-        // Execute command in background without capturing self in a concurrently-executing closure
-        let binaryPath = self.settings.safeContainerBinaryPath()
-        let selectedDomain = domain
-        let weakSelf = self
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            Task { @MainActor in
-                // Switch to a nonisolated copy to avoid capturing main-actor state in concurrent context
-                let service = weakSelf
-                do {
-                    let result = try await service.runner.run(
-                        program: binaryPath,
-                        arguments: ["system", "property", "set", "dns.domain", selectedDomain])
-
-                    if result.failed {
-                        // Revert on failure
-                        await service.loadSystemProperties(showLoading: false)
-                        await service.loadDNSDomains(showLoading: false)
-
-                        service.alertCenter.error(result.stderr ?? "Failed to set default DNS domain")
-                    }
-                } catch {
-                    // Revert on error
-                    await service.loadSystemProperties(showLoading: false)
-                    await service.loadDNSDomains(showLoading: false)
-
-                    service.alertCenter.error("Failed to set default DNS domain: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
-
-    // MARK: - Image Pull Management
 
     // MARK: - Container Terminal (forwarded to TerminalLauncher)
 

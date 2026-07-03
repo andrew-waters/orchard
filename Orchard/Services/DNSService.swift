@@ -1,0 +1,118 @@
+import Foundation
+
+/// Owns DNS domain state and operations, backed by the `container system dns` CLI
+/// (create/delete require sudo). The default domain is a system property, so this reads
+/// and writes it through closures the owner wires to the system service.
+@MainActor
+final class DNSService: ObservableObject {
+    @Published var dnsDomains: [DNSDomain] = []
+    @Published var isDNSLoading = false
+
+    private let runner: CommandRunner
+    private let settings: SettingsStore
+    private let alertCenter: AlertCenter
+
+    /// Refresh the system properties (which hold the default domain). Set by the owner.
+    var refreshSystemProperties: () async -> Void = {}
+    /// The current default domain from system properties. Set by the owner.
+    var defaultDomain: @MainActor () -> String? = { nil }
+    /// Optimistically record `domain` as the default system property. Set by the owner.
+    var setDefaultDomainProperty: @MainActor (String) -> Void = { _ in }
+
+    init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter) {
+        self.runner = runner
+        self.settings = settings
+        self.alertCenter = alertCenter
+    }
+
+    func load(showLoading: Bool = true) async {
+        if showLoading {
+            isDNSLoading = true
+            alertCenter.dismiss()
+        }
+
+        // The default domain comes from system properties — refresh them first.
+        await refreshSystemProperties()
+
+        do {
+            let listResult = try await runner.run(
+                program: settings.safeContainerBinaryPath(),
+                arguments: ["system", "dns", "ls", "--format=json"])
+
+            if let output = listResult.stdout {
+                dnsDomains = parseDNSDomains(json: output, defaultDomain: defaultDomain())
+                isDNSLoading = false
+            }
+        } catch {
+            if showLoading {
+                alertCenter.error("Failed to load DNS domains: \(error.localizedDescription)")
+            }
+            isDNSLoading = false
+        }
+    }
+
+    @discardableResult
+    func create(_ domain: String) async -> Bool {
+        do {
+            let result = try await runner.runWithSudo(
+                program: settings.safeContainerBinaryPath(),
+                arguments: ["system", "dns", "create", domain])
+
+            if !result.failed {
+                await load()
+                return true
+            } else {
+                alertCenter.error(result.stderr ?? "Failed to create DNS domain")
+                return false
+            }
+        } catch {
+            alertCenter.error("Failed to create DNS domain: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    func delete(_ domain: String) async {
+        do {
+            let result = try await runner.runWithSudo(
+                program: settings.safeContainerBinaryPath(),
+                arguments: ["system", "dns", "delete", domain])
+
+            if !result.failed {
+                await load()
+            } else {
+                alertCenter.error(result.stderr ?? "Failed to delete DNS domain")
+            }
+        } catch {
+            alertCenter.error("Failed to delete DNS domain: \(error.localizedDescription)")
+        }
+    }
+
+    /// Optimistically mark `domain` as the default in the local list.
+    func markDefault(_ domain: String) {
+        for i in dnsDomains.indices {
+            dnsDomains[i] = DNSDomain(domain: dnsDomains[i].domain, isDefault: dnsDomains[i].domain == domain)
+        }
+    }
+
+    func setDefault(_ domain: String) async {
+        // Optimistic UI update.
+        setDefaultDomainProperty(domain)
+        markDefault(domain)
+
+        do {
+            let result = try await runner.run(
+                program: settings.safeContainerBinaryPath(),
+                arguments: ["system", "property", "set", "dns.domain", domain])
+
+            if result.failed {
+                await refreshSystemProperties()
+                await load(showLoading: false)
+                alertCenter.error(result.stderr ?? "Failed to set default DNS domain")
+            }
+        } catch {
+            await refreshSystemProperties()
+            await load(showLoading: false)
+            alertCenter.error("Failed to set default DNS domain: \(error.localizedDescription)")
+        }
+    }
+}
