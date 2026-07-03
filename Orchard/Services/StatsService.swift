@@ -1,7 +1,7 @@
 import Foundation
 
-/// Owns per-container resource stats. Reads the current container list via a provider
-/// (the list is owned elsewhere) and fetches stats for the running ones.
+/// Owns per-container resource stats. Reads the running containers from the container
+/// list (owned by `ContainerListService`) and fetches stats for each.
 @MainActor
 final class StatsService: ObservableObject {
     @Published var containerStats: [ContainerStats] = []
@@ -9,12 +9,12 @@ final class StatsService: ObservableObject {
 
     private let backend: ContainerBackend
     private let alertCenter: AlertCenter
-    /// Supplies the current containers; set by the owner.
-    var containersProvider: @MainActor () -> [Container] = { [] }
+    private let containerList: ContainerListService
 
-    init(backend: ContainerBackend, alertCenter: AlertCenter) {
+    init(backend: ContainerBackend, alertCenter: AlertCenter, containerList: ContainerListService) {
         self.backend = backend
         self.alertCenter = alertCenter
+        self.containerList = containerList
     }
 
     func load(showLoading: Bool = true) async {
@@ -25,7 +25,7 @@ final class StatsService: ObservableObject {
             }
         }
 
-        let runningContainers = containersProvider().filter { $0.status == "running" }
+        let runningContainers = containerList.containers.filter { $0.status == "running" }
 
         var allStats: [ContainerStats] = []
         var failedContainers: [String] = []
@@ -56,6 +56,6 @@ final class StatsService: ObservableObject {
     /// Whether the stats page should show its passive "unavailable" panel: there are
     /// running containers but no stats came back. Drives non-modal UI in StatsView.
     var statsUnavailable: Bool {
-        !containersProvider().filter { $0.status == "running" }.isEmpty && containerStats.isEmpty
+        !containerList.containers.filter { $0.status == "running" }.isEmpty && containerStats.isEmpty
     }
 }

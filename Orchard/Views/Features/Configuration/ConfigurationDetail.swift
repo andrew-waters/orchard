@@ -245,8 +245,8 @@ struct ConfigurationDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             Task {
-                await containerService.loadSystemProperties()
-                await containerService.loadDNSDomains()
+                await containerService.loadSystemProperties(showLoading: true)
+                await containerService.loadDNSDomains(showLoading: true)
             }
         }
     }

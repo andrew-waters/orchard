@@ -23,6 +23,13 @@ func startErrorGeneric() {
     #expect(OrchardError.classifyStartError(error("disk full"), id: "abc") == .generic("disk full"))
 }
 
+@Test("isAlreadyExistsError: recognizes the idempotent-install messages")
+func alreadyExistsClassifier() {
+    #expect(OrchardError.isAlreadyExistsError("item with the same name already exists") == true)
+    #expect(OrchardError.isAlreadyExistsError("mkdir: File exists") == true)
+    #expect(OrchardError.isAlreadyExistsError("permission denied") == false)
+}
+
 @Test("Error copy: cases produce user-facing descriptions")
 func errorCopy() {
     #expect(OrchardError.xpcUnavailable.errorDescription?.isEmpty == false)

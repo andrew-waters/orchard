@@ -156,7 +156,7 @@ struct ContainerDetailView: View {
         }
         .onAppear {
             Task {
-                await containerService.loadContainerStats()
+                await containerService.loadContainerStats(showLoading: true)
             }
             statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 Task { @MainActor in

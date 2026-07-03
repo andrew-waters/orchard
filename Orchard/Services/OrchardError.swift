@@ -60,4 +60,11 @@ extension OrchardError {
         }
         return .generic(message)
     }
+
+    /// Whether a CLI stderr indicates the resource already exists — treated as an
+    /// idempotent success (e.g. the recommended kernel is already installed). Kept here
+    /// beside `classifyStartError` so all runtime message-matching lives in one place.
+    static func isAlreadyExistsError(_ stderr: String) -> Bool {
+        stderr.contains("item with the same name already exists") || stderr.contains("File exists")
+    }
 }

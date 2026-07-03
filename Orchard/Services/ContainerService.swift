@@ -47,14 +47,15 @@ class ContainerService: ObservableObject {
         self.networkService = networkService
         let imageService = ImageService(backend: backend, alertCenter: alertCenter)
         self.imageService = imageService
-        let statsService = StatsService(backend: backend, alertCenter: alertCenter)
-        self.statsService = statsService
         let dnsService = DNSService(runner: runner, settings: settings, alertCenter: alertCenter)
         self.dnsService = dnsService
         let systemService = SystemService(backend: backend, runner: runner, settings: settings, alertCenter: alertCenter)
         self.systemService = systemService
+        // ContainerListService is built before StatsService, which depends on it.
         let containerListService = ContainerListService(backend: backend, alertCenter: alertCenter)
         self.containerListService = containerListService
+        let statsService = StatsService(backend: backend, alertCenter: alertCenter, containerList: containerListService)
+        self.statsService = statsService
 
         // Re-publish the extracted stores' changes so views observing this facade
         // still update while the migration is in progress.
@@ -70,7 +71,6 @@ class ContainerService: ObservableObject {
         ] {
             store.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         }
-        statsService.containersProvider = { [weak self] in self?.containerListService.containers ?? [] }
         containerListService.reloadBuilders = { [weak self] in await self?.builderService.loadBuilders() }
         // DNS ↔ System: the default domain is a system property.
         dnsService.refreshSystemProperties = { [weak self] in await self?.systemService.loadSystemProperties(showLoading: false) }
@@ -108,7 +108,6 @@ class ContainerService: ObservableObject {
     var allMounts: [ContainerMount] { containerListService.allMounts }
     var recoveryFailedContainerIDs: Set<String> { containerListService.recoveryFailedContainerIDs }
 
-    func loadContainers() async { await containerListService.loadContainers(showLoading: false) }
     func loadContainers(showLoading: Bool = true) async { await containerListService.loadContainers(showLoading: showLoading) }
     func forceStopContainer(_ id: String) async { await containerListService.forceStopContainer(id) }
     func stopContainer(_ id: String) async { await containerListService.stopContainer(id) }
@@ -161,7 +160,6 @@ class ContainerService: ObservableObject {
     var isStatsLoading: Bool { statsService.isStatsLoading }
     var statsUnavailable: Bool { statsService.statsUnavailable }
 
-    func loadContainerStats() async { await statsService.load(showLoading: true) }
     func loadContainerStats(showLoading: Bool = true) async { await statsService.load(showLoading: showLoading) }
 
     // MARK: - System (forwarded to SystemService)
@@ -190,10 +188,8 @@ class ContainerService: ObservableObject {
     func setCustomKernel(binary: String?, tar: String?, arch: KernelArch) async {
         await systemService.setCustomKernel(binary: binary, tar: tar, arch: arch)
     }
-    func loadSystemProperties() async { await systemService.loadSystemProperties(showLoading: false) }
     func loadSystemProperties(showLoading: Bool = true) async { await systemService.loadSystemProperties(showLoading: showLoading) }
     func setSystemProperty(_ id: String, value: String) async { await systemService.setSystemProperty(id, value: value) }
-    func loadSystemDiskUsage() async { await systemService.loadSystemDiskUsage(showLoading: true) }
     func loadSystemDiskUsage(showLoading: Bool = true) async { await systemService.loadSystemDiskUsage(showLoading: showLoading) }
 
 
@@ -206,7 +202,6 @@ class ContainerService: ObservableObject {
     var dnsDomains: [DNSDomain] { dnsService.dnsDomains }
     var isDNSLoading: Bool { dnsService.isDNSLoading }
 
-    func loadDNSDomains() async { await dnsService.load(showLoading: false) }
     func loadDNSDomains(showLoading: Bool = true) async { await dnsService.load(showLoading: showLoading) }
     @discardableResult
     func createDNSDomain(_ domain: String) async -> Bool { await dnsService.create(domain) }
@@ -218,7 +213,6 @@ class ContainerService: ObservableObject {
     var networks: [ContainerNetwork] { networkService.networks }
     var isNetworksLoading: Bool { networkService.isNetworksLoading }
 
-    func loadNetworks() async { await networkService.load(showLoading: false) }
     func loadNetworks(showLoading: Bool = true) async { await networkService.load(showLoading: showLoading) }
     @discardableResult
     func createNetwork(name: String, subnet: String? = nil, labels: [String] = []) async -> Bool {

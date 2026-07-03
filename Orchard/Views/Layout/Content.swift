@@ -203,7 +203,7 @@ struct ContentView: View {
 
                 // Ensure DNS domains are loaded before selecting
                 Task {
-                    await containerService.loadDNSDomains()
+                    await containerService.loadDNSDomains(showLoading: false)
                     await MainActor.run {
                         // Verify the domain exists in the loaded list
                         if containerService.dnsDomains.contains(where: { $0.domain == domainName }) {
@@ -227,7 +227,7 @@ struct ContentView: View {
 
                 // Ensure networks are loaded before selecting
                 Task {
-                    await containerService.loadNetworks()
+                    await containerService.loadNetworks(showLoading: false)
                     await MainActor.run {
                         // Verify the network exists in the loaded list
                         if containerService.networks.contains(where: { $0.id == networkId }) {

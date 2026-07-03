@@ -69,8 +69,8 @@ struct RunContainerView: View {
         }
         .frame(width: 700, height: 600)
         .task {
-            await containerService.loadNetworks()
-            await containerService.loadDNSDomains()
+            await containerService.loadNetworks(showLoading: false)
+            await containerService.loadDNSDomains(showLoading: false)
 
             // Set default DNS domain if one exists and config doesn't have one set
             await MainActor.run {

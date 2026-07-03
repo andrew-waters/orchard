@@ -240,7 +240,7 @@ final class SystemService: ObservableObject {
             } else {
                 let errorOutput = result.stderr ?? ""
                 // Treat "already installed" as success.
-                if errorOutput.contains("item with the same name already exists") || errorOutput.contains("File exists") {
+                if OrchardError.isAlreadyExistsError(errorOutput) {
                     self.kernelConfig = KernelConfig(isRecommended: true)
                     self.isKernelLoading = false
                 } else {

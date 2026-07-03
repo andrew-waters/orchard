@@ -78,8 +78,8 @@ struct StatsView: View {
         }
         .onAppear {
             Task {
-                await containerService.loadContainerStats()
-                await containerService.loadSystemDiskUsage()
+                await containerService.loadContainerStats(showLoading: true)
+                await containerService.loadSystemDiskUsage(showLoading: true)
             }
             startStatsTimer()
         }
