@@ -30,6 +30,7 @@ final class DNSService: ObservableObject {
             isDNSLoading = true
             alertCenter.dismiss()
         }
+        defer { isDNSLoading = false }   // clear on every exit path, incl. nil-stdout
 
         // The default domain comes from system properties — refresh them first.
         await refreshSystemProperties()
@@ -39,15 +40,22 @@ final class DNSService: ObservableObject {
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "dns", "ls", "--format=json"])
 
+            if listResult.failed {
+                // Leave the existing domains untouched rather than blanking them; only
+                // alert when the user asked for this load, not on a background refresh.
+                if showLoading {
+                    alertCenter.error(listResult.stderr ?? "Failed to load DNS domains")
+                }
+                return
+            }
+
             if let output = listResult.stdout {
                 dnsDomains = parseDNSDomains(json: output, defaultDomain: defaultDomain())
-                isDNSLoading = false
             }
         } catch {
             if showLoading {
                 alertCenter.error("Failed to load DNS domains: \(error.localizedDescription)")
             }
-            isDNSLoading = false
         }
     }
 
