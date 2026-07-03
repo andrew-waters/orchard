@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/andrew-waters/orchard/security/advisories/new
+    about: Please report security issues privately, not as public issues.
