@@ -6,41 +6,6 @@ import ContainerResource
 import ContainerizationOCI
 import ContainerizationExtras
 
-// MARK: - Process execution (replaces SwiftExec)
-
-struct ProcessResult {
-    let exitCode: Int32
-    let stdout: String?
-    let stderr: String?
-    var failed: Bool { exitCode != 0 }
-}
-
-func runProcess(program: String, arguments: [String]) throws -> ProcessResult {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: program)
-    process.arguments = arguments
-
-    let stdoutPipe = Pipe()
-    let stderrPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = stderrPipe
-
-    try process.run()
-    process.waitUntilExit()
-
-    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
-    var stdoutStr = String(data: stdoutData, encoding: .utf8)
-    var stderrStr = String(data: stderrData, encoding: .utf8)
-
-    // Strip trailing newline
-    if let s = stdoutStr, s.hasSuffix("\n") { stdoutStr = String(s.dropLast()) }
-    if let s = stderrStr, s.hasSuffix("\n") { stderrStr = String(s.dropLast()) }
-
-    return ProcessResult(exitCode: process.terminationStatus, stdout: stdoutStr, stderr: stderrStr)
-}
-
 @MainActor
 class ContainerService: ObservableObject {
     // Version is now obtained from ClientHealthCheck.ping()
@@ -115,7 +80,11 @@ class ContainerService: ObservableObject {
 
 
 
-    init() {
+    /// Runs CLI commands. Injectable so tests can supply a mock.
+    private let runner: CommandRunner
+
+    init(runner: CommandRunner = SystemCommandRunner()) {
+        self.runner = runner
         loadCustomBinaryPath()
         loadPreferredTerminal()
     }
@@ -392,7 +361,7 @@ class ContainerService: ObservableObject {
 
         var result: ProcessResult
         do {
-            result = try runProcess(
+            result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "status", "--format", "json"]
             )
@@ -425,70 +394,29 @@ class ContainerService: ObservableObject {
             return
         }
 
-        let raw = result.stdout ?? ""
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = trimmed.lowercased()
-
-        // Known non-JSON "not running" output
-        if lower.hasPrefix("builder is not running") || lower.hasPrefix("no builder") {
+        switch parseBuilderStatus(stdout: result.stdout ?? "") {
+        case .notRunning:
             await MainActor.run {
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
             }
-            print("Builder status indicates not running (plain text).")
-            return
-        }
+            print("Builder status indicates no builder present.")
 
-        // Empty or explicit empty JSON
-        if trimmed.isEmpty || trimmed == "null" || trimmed == "[]" {
-            await MainActor.run {
-                self.builders = []
-                self.builderStatus = .stopped
-                self.isBuildersLoading = false
-            }
-            if trimmed.isEmpty {
-                print("Builder status returned empty output; assuming no builder.")
-            } else {
-                print("Builder status returned \(trimmed); no builder present.")
-            }
-            return
-        }
-
-        // Try decoding JSON (single object or array)
-        do {
-            let data = Data(trimmed.utf8)
-
-            if let single = try? JSONDecoder().decode(Builder.self, from: data) {
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        self.builders = [single]
-                    }
-                    self.builderStatus = single.status.lowercased() == "running" ? .running : .stopped
-                    self.isBuildersLoading = false
-                }
-                print("Builder: \(single.configuration.id), Status: \(single.status)")
-                return
-            }
-
-            let array = try JSONDecoder().decode([Builder].self, from: data)
+        case .builders(let list):
             await MainActor.run {
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    self.builders = array
+                    self.builders = list
                 }
-                if let first = array.first {
-                    self.builderStatus = first.status.lowercased() == "running" ? .running : .stopped
-                } else {
-                    self.builderStatus = .stopped
-                }
+                self.builderStatus = (list.first?.status.lowercased() == "running") ? .running : .stopped
                 self.isBuildersLoading = false
             }
-            for b in array {
+            for b in list {
                 print("Builder: \(b.configuration.id), Status: \(b.status)")
             }
-        } catch {
-            let preview = String(trimmed.prefix(200))
-            print("Failed to decode builder status. Error: \(error)\nStdout preview (first 200 chars):\n\(preview)")
+
+        case .decodeFailure(let preview):
+            print("Failed to decode builder status. Stdout preview (first 200 chars):\n\(preview)")
             await MainActor.run {
                 self.builders = []
                 self.builderStatus = .stopped
@@ -534,7 +462,7 @@ class ContainerService: ObservableObject {
             self.isStatsLoading = false
             // Only surface an error if every running container failed — a single broken
             // container should not blank out the whole stats page — and only while the
-            // system is up, so a stop/shutdown teardown doesn't flash a banner.
+            // system is up, so a stop/shutdown teardown doesn't surface a spurious error.
             if self.systemStatus == .running
                 && !runningContainers.isEmpty
                 && failedContainers.count == runningContainers.count {
@@ -673,7 +601,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            _ = try runProcess(
+            _ = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "start"])
 
@@ -701,7 +629,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            _ = try runProcess(
+            _ = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "stop"])
 
@@ -729,7 +657,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            _ = try runProcess(
+            _ = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "restart"])
 
@@ -949,7 +877,7 @@ class ContainerService: ObservableObject {
 
         var result: ProcessResult
         do {
-            result = try runProcess(
+            result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "start"])
 
@@ -985,7 +913,7 @@ class ContainerService: ObservableObject {
 
         var result: ProcessResult
         do {
-            result = try runProcess(
+            result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "stop"])
 
@@ -1021,7 +949,7 @@ class ContainerService: ObservableObject {
 
         var result: ProcessResult
         do {
-            result = try runProcess(
+            result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["builder", "delete"])
 
@@ -1155,14 +1083,14 @@ class ContainerService: ObservableObject {
 
         do {
             // Get list of domains in JSON format
-            let listResult = try runProcess(
+            let listResult = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "dns", "ls", "--format=json"])
 
             if let output = listResult.stdout {
                 // Get the current default domain from system properties
                 let currentDefaultDomain = self.systemProperties.first(where: { $0.id == "dns.domain" })?.value
-                let domains = parseDNSDomainsFromJSON(output, defaultDomain: currentDefaultDomain)
+                let domains = parseDNSDomains(json: output, defaultDomain: currentDefaultDomain)
                 await MainActor.run {
                     self.dnsDomains = domains
                     self.isDNSLoading = false
@@ -1180,7 +1108,7 @@ class ContainerService: ObservableObject {
 
     func createDNSDomain(_ domain: String) async {
         do {
-            let result = try execWithSudo(
+            let result = try await runner.runWithSudo(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "dns", "create", domain])
 
@@ -1200,7 +1128,7 @@ class ContainerService: ObservableObject {
 
     func deleteDNSDomain(_ domain: String) async {
         do {
-            let result = try execWithSudo(
+            let result = try await runner.runWithSudo(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "dns", "delete", domain])
 
@@ -1369,7 +1297,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let result = try runProcess(
+            let result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "kernel", "set", "--recommended"])
 
@@ -1421,7 +1349,7 @@ class ContainerService: ObservableObject {
                 arguments.append(contentsOf: ["--tar", tar])
             }
 
-            let result = try runProcess(
+            let result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: arguments)
 
@@ -1447,28 +1375,6 @@ class ContainerService: ObservableObject {
 
 
 
-    private func parseDNSDomainsFromJSON(_ output: String, defaultDomain: String?) -> [DNSDomain] {
-        var domains: [DNSDomain] = []
-
-        do {
-            guard let data = output.data(using: .utf8) else {
-                return domains
-            }
-
-            // Parse JSON array of domain strings
-            if let domainArray = try JSONSerialization.jsonObject(with: data) as? [String] {
-                for domainName in domainArray {
-                    let isDefault = domainName == defaultDomain
-                    domains.append(DNSDomain(domain: domainName, isDefault: isDefault))
-                }
-            }
-        } catch {
-            // Ignore JSON parsing errors
-        }
-
-        return domains
-    }
-
     // MARK: - System Properties Management
 
     func loadSystemProperties() async {
@@ -1485,7 +1391,7 @@ class ContainerService: ObservableObject {
 
         var result: ProcessResult
         do {
-            result = try runProcess(
+            result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "property", "list", "--format=json"])
         } catch {
@@ -1508,65 +1414,11 @@ class ContainerService: ObservableObject {
             return
         }
 
-        let properties = parseSystemPropertiesFromOutput(output)
+        let properties = parseSystemProperties(json: output)
         await MainActor.run {
             self.systemProperties = properties
             self.isSystemPropertiesLoading = false
         }
-    }
-
-    private func parseSystemPropertiesFromOutput(_ output: String) -> [SystemProperty] {
-        guard let data = output.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return []
-        }
-
-        var properties: [SystemProperty] = []
-
-        let idMappings: [String: String] = [
-            "build.image": "image.builder",
-            "vminit.image": "image.init",
-        ]
-
-        func flatten(_ dict: [String: Any], prefix: String = "") {
-            for (key, value) in dict {
-                let dotKey = prefix.isEmpty ? key : "\(prefix).\(key)"
-                if let nestedDict = value as? [String: Any] {
-                    flatten(nestedDict, prefix: dotKey)
-                } else {
-                    let propertyId = idMappings[dotKey] ?? dotKey
-                    let valueString: String
-                    let type: SystemProperty.PropertyType
-
-                    if value is NSNull {
-                        valueString = "*undefined*"
-                        type = .string
-                    } else if let boolValue = value as? Bool {
-                        valueString = boolValue ? "true" : "false"
-                        type = .bool
-                    } else if let stringValue = value as? String {
-                        valueString = stringValue
-                        type = .string
-                    } else if let numberValue = value as? NSNumber {
-                        valueString = numberValue.stringValue
-                        type = .string
-                    } else {
-                        valueString = String(describing: value)
-                        type = .string
-                    }
-
-                    properties.append(SystemProperty(
-                        id: propertyId,
-                        type: type,
-                        value: valueString,
-                        description: ""
-                    ))
-                }
-            }
-        }
-
-        flatten(json)
-        return properties
     }
 
     func setSystemProperty(_ id: String, value: String) async {
@@ -1600,7 +1452,7 @@ class ContainerService: ObservableObject {
         var result: ProcessResult
         do {
             // Execute command with focus preservation
-            result = try runProcess(
+            result = try await runner.run(
                 program: safeContainerBinaryPath(),
                 arguments: ["system", "property", "set", id, value])
         } catch {
@@ -1669,7 +1521,7 @@ class ContainerService: ObservableObject {
                 // Switch to a nonisolated copy to avoid capturing main-actor state in concurrent context
                 let service = weakSelf
                 do {
-                    let result = try runProcess(
+                    let result = try await service.runner.run(
                         program: binaryPath,
                         arguments: ["system", "property", "set", "dns.domain", selectedDomain])
 
@@ -1768,37 +1620,10 @@ class ContainerService: ObservableObject {
 
             let (data, _) = try await URLSession.shared.data(from: url)
 
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let results = json["results"] as? [[String: Any]] {
-
-                let searchResults: [RegistrySearchResult] = results.compactMap { result in
-                    guard let name = result["repo_name"] as? String else { return nil }
-
-                    // Build full image name with registry
-                    let fullName: String
-                    if name.contains("/") {
-                        fullName = "docker.io/\(name)"
-                    } else {
-                        fullName = "docker.io/library/\(name)"
-                    }
-
-                    return RegistrySearchResult(
-                        name: fullName,
-                        description: result["short_description"] as? String,
-                        isOfficial: (result["is_official"] as? Bool) ?? false,
-                        starCount: result["star_count"] as? Int
-                    )
-                }
-
-                await MainActor.run {
-                    self.searchResults = searchResults
-                    self.isSearching = false
-                }
-            } else {
-                await MainActor.run {
-                    self.searchResults = []
-                    self.isSearching = false
-                }
+            let searchResults = parseDockerHubSearch(data: data)
+            await MainActor.run {
+                self.searchResults = searchResults
+                self.isSearching = false
             }
         } catch {
             await MainActor.run {
@@ -2224,18 +2049,5 @@ class ContainerService: ObservableObject {
         }
     }
 
-    // MARK: - Sudo Helper
-
-    private func execWithSudo(program: String, arguments: [String]) throws -> ProcessResult {
-        let fullCommand = "\(program) \(arguments.joined(separator: " "))"
-
-        let script = """
-        do shell script "\(fullCommand)" with administrator privileges
-        """
-
-        return try runProcess(
-            program: "/usr/bin/osascript",
-            arguments: ["-e", script])
-    }
 }
 
