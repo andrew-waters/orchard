@@ -166,8 +166,7 @@ struct LiveContainerBackend: ContainerBackend {
             override: spec.commandOverride
         )
         guard !processArgs.isEmpty else {
-            throw NSError(domain: "ContainerService", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "No entrypoint or command specified for the container"])
+            throw OrchardError.noEntrypoint
         }
 
         let user: ProcessConfiguration.User = {

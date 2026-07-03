@@ -10,7 +10,6 @@ class ContainerService: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var isImagesLoading: Bool = false
     @Published var isBuildersLoading: Bool = false
-    @Published var errorMessage: String?
     @Published var systemStatus: SystemStatus = .unknown
     @Published var systemStatusError: String?
     @Published var systemStatusVersionOverride: Bool = false
@@ -26,7 +25,6 @@ class ContainerService: ObservableObject {
     @Published var isNetworksLoading = false
     @Published var kernelConfig: KernelConfig = KernelConfig()
     @Published var isKernelLoading = false
-    @Published var successMessage: String?
     @Published var customBinaryPath: String?
     @Published var containerStats: [ContainerStats] = []
     @Published var isStatsLoading: Bool = false
@@ -78,6 +76,8 @@ class ContainerService: ObservableObject {
     private let runner: CommandRunner
     /// The container runtime, behind an app-model-only boundary. Injectable for tests.
     private let backend: ContainerBackend
+    /// The app's current user-facing alert. Observed separately by the UI.
+    let alertCenter = AlertCenter()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
         self.backend = backend
@@ -179,7 +179,7 @@ class ContainerService: ObservableObject {
             if customBinaryPath != nil {
                 DispatchQueue.main.async {
                     self.customBinaryPath = nil
-                    self.errorMessage = "Invalid binary path detected. Reset to default: \(self.defaultBinaryPath)"
+                    self.alertCenter.error("Invalid binary path detected. Reset to default: \(self.defaultBinaryPath)")
                 }
                 UserDefaults.standard.removeObject(forKey: customBinaryPathKey)
             }
@@ -279,7 +279,7 @@ class ContainerService: ObservableObject {
         if showLoading {
             await MainActor.run {
                 isLoading = true
-                errorMessage = nil
+                self.alertCenter.dismiss()
             }
         }
 
@@ -301,7 +301,7 @@ class ContainerService: ObservableObject {
             }
 
             for container in newContainers {
-                print("Container: \(container.configuration.id), Status: \(container.status)")
+                Log.containers.debug("Container: \(container.configuration.id), Status: \(container.status)")
             }
         } catch {
             await MainActor.run {
@@ -309,18 +309,18 @@ class ContainerService: ObservableObject {
                 // down, the recurring refresh (and NotRunningView's own load) would
                 // otherwise flash this error repeatedly over the not-running screen.
                 if self.systemStatus == .running {
-                    self.errorMessage = error.localizedDescription
+                    self.alertCenter.error(error.localizedDescription)
                 }
                 self.isLoading = false
             }
-            print(error)
+            Log.containers.error("\(error.localizedDescription)")
         }
     }
 
     func loadImages() async {
         await MainActor.run {
             isImagesLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
@@ -334,23 +334,23 @@ class ContainerService: ObservableObject {
             }
 
             for image in newImages {
-                print("Image: \(image.reference)")
+                Log.containers.debug("Image: \(image.reference)")
             }
         } catch {
             await MainActor.run {
                 if self.systemStatus == .running {
-                    self.errorMessage = error.localizedDescription
+                    self.alertCenter.error(error.localizedDescription)
                 }
                 self.isImagesLoading = false
             }
-            print(error)
+            Log.containers.error("\(error.localizedDescription)")
         }
     }
 
     func loadBuilders() async {
         await MainActor.run {
             isBuildersLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         var result: ProcessResult
@@ -374,16 +374,16 @@ class ContainerService: ObservableObject {
                 // and NotRunningView already communicates the state — don't flash.
                 if self.systemStatus == .running {
                     if let detail, !detail.isEmpty {
-                        self.errorMessage = "Builder status could not be read: \(detail)"
+                        self.alertCenter.error("Builder status could not be read: \(detail)")
                     } else {
-                        self.errorMessage = "Builder status could not be read (exit \(result.exitCode))."
+                        self.alertCenter.error("Builder status could not be read (exit \(result.exitCode)).")
                     }
                 }
             }
             if let detail, !detail.isEmpty {
-                print("Builder status command failed (exit \(result.exitCode)). Stderr:\n\(detail)")
+                Log.containers.error("Builder status command failed (exit \(result.exitCode)). Stderr:\n\(detail)")
             } else {
-                print("Builder status command failed with unknown error (exit \(result.exitCode)).")
+                Log.containers.error("Builder status command failed with unknown error (exit \(result.exitCode)).")
             }
             return
         }
@@ -395,7 +395,7 @@ class ContainerService: ObservableObject {
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
             }
-            print("Builder status indicates no builder present.")
+            Log.containers.debug("Builder status indicates no builder present.")
 
         case .builders(let list):
             await MainActor.run {
@@ -406,17 +406,17 @@ class ContainerService: ObservableObject {
                 self.isBuildersLoading = false
             }
             for b in list {
-                print("Builder: \(b.configuration.id), Status: \(b.status)")
+                Log.containers.debug("Builder: \(b.configuration.id), Status: \(b.status)")
             }
 
         case .decodeFailure(let preview):
-            print("Failed to decode builder status. Stdout preview (first 200 chars):\n\(preview)")
+            Log.containers.error("Failed to decode builder status. Stdout preview (first 200 chars):\n\(preview)")
             await MainActor.run {
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
                 if self.systemStatus == .running {
-                    self.errorMessage = "Builder status could not be read: unexpected response from the container service."
+                    self.alertCenter.error("Builder status could not be read: unexpected response from the container service.")
                 }
             }
         }
@@ -432,7 +432,7 @@ class ContainerService: ObservableObject {
         if showLoading {
             await MainActor.run {
                 isStatsLoading = true
-                errorMessage = nil
+                self.alertCenter.dismiss()
             }
         }
 
@@ -446,7 +446,7 @@ class ContainerService: ObservableObject {
                 allStats.append(stats)
             } catch {
                 failedContainers.append(container.configuration.id)
-                print("Failed to load stats for container \(container.configuration.id): \(error)")
+                Log.containers.error("Failed to load stats for container \(container.configuration.id): \(error.localizedDescription)")
             }
         }
 
@@ -459,7 +459,7 @@ class ContainerService: ObservableObject {
             if self.systemStatus == .running
                 && !runningContainers.isEmpty
                 && failedContainers.count == runningContainers.count {
-                self.errorMessage = "Unable to read container stats. Check that the container service is running."
+                self.alertCenter.error("Unable to read container stats. Check that the container service is running.")
             }
         }
     }
@@ -489,7 +489,7 @@ class ContainerService: ObservableObject {
                 self.systemDiskUsage = nil
                 self.isSystemDiskUsageLoading = false
                 if self.systemStatus == .running {
-                    self.errorMessage = "Failed to load system disk usage: \(error.localizedDescription)"
+                    self.alertCenter.error("Failed to load system disk usage: \(error.localizedDescription)")
                 }
             }
         }
@@ -502,14 +502,14 @@ class ContainerService: ObservableObject {
     func forceStopContainer(_ id: String) async {
         await MainActor.run {
             loadingContainers.insert(id)
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
             try await backend.killContainer(id: id, signal: 9)
 
             await MainActor.run {
-                print("Container \(id) force stop (SIGKILL) sent")
+                Log.containers.debug("Container \(id) force stop (SIGKILL) sent")
                 Task {
                     await loadBuilders()
                 }
@@ -520,23 +520,23 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 loadingContainers.remove(id)
-                self.errorMessage = "Failed to force stop container: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to force stop container: \(error.localizedDescription)")
             }
-            print("Error force stopping container: \(error)")
+            Log.containers.error("Error force stopping container: \(error.localizedDescription)")
         }
     }
 
     func stopContainer(_ id: String) async {
         await MainActor.run {
             loadingContainers.insert(id)
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
             try await backend.stopContainer(id: id)
 
             await MainActor.run {
-                print("Container \(id) stop command sent successfully")
+                Log.containers.debug("Container \(id) stop command sent successfully")
                 Task {
                     await loadBuilders()
                 }
@@ -547,9 +547,9 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 loadingContainers.remove(id)
-                self.errorMessage = "Failed to stop container: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to stop container: \(error.localizedDescription)")
             }
-            print("Error stopping container: \(error)")
+            Log.containers.error("Error stopping container: \(error.localizedDescription)")
         }
     }
 
@@ -586,7 +586,7 @@ class ContainerService: ObservableObject {
     func startSystem() async {
         await MainActor.run {
             isSystemLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
@@ -599,22 +599,22 @@ class ContainerService: ObservableObject {
                 self.systemStatus = .running
             }
 
-            print("Container system started successfully")
+            Log.containers.debug("Container system started successfully")
             await loadContainers()
 
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to start system: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to start system: \(error.localizedDescription)")
                 self.isSystemLoading = false
             }
-            print("Error starting system: \(error)")
+            Log.containers.error("Error starting system: \(error.localizedDescription)")
         }
     }
 
     func stopSystem() async {
         await MainActor.run {
             isSystemLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
@@ -628,21 +628,21 @@ class ContainerService: ObservableObject {
                 self.containers.removeAll()
             }
 
-            print("Container system stopped successfully")
+            Log.containers.debug("Container system stopped successfully")
 
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to stop system: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to stop system: \(error.localizedDescription)")
                 self.isSystemLoading = false
             }
-            print("Error stopping system: \(error)")
+            Log.containers.error("Error stopping system: \(error.localizedDescription)")
         }
     }
 
     func restartSystem() async {
         await MainActor.run {
             isSystemLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
@@ -655,15 +655,15 @@ class ContainerService: ObservableObject {
                 self.systemStatus = .running
             }
 
-            print("Container system restarted successfully")
+            Log.containers.debug("Container system restarted successfully")
             await loadContainers()
 
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to restart system: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to restart system: \(error.localizedDescription)")
                 self.isSystemLoading = false
             }
-            print("Error restarting system: \(error)")
+            Log.containers.error("Error restarting system: \(error.localizedDescription)")
         }
     }
 
@@ -684,7 +684,7 @@ class ContainerService: ObservableObject {
         }
 
         guard shouldProceed else {
-            print("DEBUG: Container \(id) operation already in progress, ignoring duplicate call")
+            Log.containers.debug("DEBUG: Container \(id) operation already in progress, ignoring duplicate call")
             return
         }
 
@@ -694,7 +694,7 @@ class ContainerService: ObservableObject {
     private func startContainerWithRetry(_ id: String, maxRetries: Int, retryDelay: TimeInterval) async {
         await MainActor.run {
             loadingContainers.insert(id)
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         for attempt in 1...maxRetries {
@@ -702,7 +702,7 @@ class ContainerService: ObservableObject {
                 try await backend.bootstrapAndStart(id: id)
 
                 await MainActor.run {
-                    print("Container \(id) start command sent successfully (attempt \(attempt))")
+                    Log.containers.debug("Container \(id) start command sent successfully (attempt \(attempt))")
                 }
 
                 Task {
@@ -714,23 +714,22 @@ class ContainerService: ObservableObject {
                 return
             } catch {
                 let errorMsg = error.localizedDescription
-                print("Container \(id) failed to start (attempt \(attempt)): \(errorMsg)")
+                Log.containers.error("Container \(id) failed to start (attempt \(attempt)): \(errorMsg)")
 
-                let containerNotFound = errorMsg.contains("not found")
-                let isTransitionError = errorMsg.contains("shuttingDown") ||
-                                      errorMsg.contains("invalidState") ||
-                                      errorMsg.contains("expected to be in created state")
+                let classified = OrchardError.classifyStartError(error, id: id)
+                let containerNotFound = classified == .containerNotFound(id: id)
+                let isTransitionError = classified == .containerInTransition(id: id)
 
                 if containerNotFound {
-                    print("Container \(id) was auto-removed by runtime, attempting automatic recovery...")
+                    Log.containers.debug("Container \(id) was auto-removed by runtime, attempting automatic recovery...")
 
                     if await recoverContainer(id) {
-                        print("Container \(id) successfully recovered, retrying start...")
+                        Log.containers.debug("Container \(id) successfully recovered, retrying start...")
                         continue
                     } else {
                         await MainActor.run {
-                            print("Container \(id) recovery failed")
-                            self.errorMessage = "Container was automatically removed and could not be recovered. Original configuration may be lost."
+                            Log.containers.error("Container \(id) recovery failed")
+                            self.alertCenter.error("Container was automatically removed and could not be recovered. Original configuration may be lost.")
                             loadingContainers.remove(id)
                         }
 
@@ -742,7 +741,7 @@ class ContainerService: ObservableObject {
                 } else if isTransitionError {
                     if attempt == maxRetries {
                         await MainActor.run {
-                            self.errorMessage = "Container failed to start after \(maxRetries) attempts. The container may be corrupted."
+                            self.alertCenter.error("Container failed to start after \(maxRetries) attempts. The container may be corrupted.")
                             loadingContainers.remove(id)
                         }
 
@@ -752,12 +751,12 @@ class ContainerService: ObservableObject {
                         return
                     } else {
                         await MainActor.run {
-                            self.errorMessage = "Container is in transition state, retrying..."
+                            self.alertCenter.error("Container is in transition state, retrying...")
                         }
                     }
                 } else {
                     await MainActor.run {
-                        self.errorMessage = "Failed to start container: \(errorMsg)"
+                        self.alertCenter.error("Failed to start container: \(errorMsg)")
                         loadingContainers.remove(id)
                     }
 
@@ -790,30 +789,30 @@ class ContainerService: ObservableObject {
             // Check if container is now stopped
             let shouldStop = await MainActor.run {
                 if let container = containers.first(where: { $0.configuration.id == id }) {
-                    print("Checking stop status for \(id): \(container.status)")
+                    Log.containers.debug("Checking stop status for \(id): \(container.status)")
                     return container.status.lowercased() != "running"
                 } else {
-                    print("Container \(id) not found, assuming stopped")
+                    Log.containers.debug("Container \(id) not found, assuming stopped")
                     return true  // Container not found, assume it stopped
                 }
             }
 
             if shouldStop {
                 await MainActor.run {
-                    print("Container \(id) has stopped, removing loading state")
+                    Log.containers.debug("Container \(id) has stopped, removing loading state")
                     loadingContainers.remove(id)
                 }
                 return
             }
 
             attempts += 1
-            print("Container \(id) still running, attempt \(attempts)/\(maxAttempts)")
+            Log.containers.debug("Container \(id) still running, attempt \(attempts)/\(maxAttempts)")
             try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
         }
 
         // Timeout reached, remove loading state
         await MainActor.run {
-            print("Timeout reached for container \(id), removing loading state")
+            Log.containers.debug("Timeout reached for container \(id), removing loading state")
             loadingContainers.remove(id)
         }
     }
@@ -828,7 +827,7 @@ class ContainerService: ObservableObject {
             // Check if container is now running
             let isRunning = await MainActor.run {
                 if let container = containers.first(where: { $0.configuration.id == id }) {
-                    print("Checking start status for \(id): \(container.status)")
+                    Log.containers.debug("Checking start status for \(id): \(container.status)")
                     return container.status.lowercased() == "running"
                 }
                 return false
@@ -836,20 +835,20 @@ class ContainerService: ObservableObject {
 
             if isRunning {
                 await MainActor.run {
-                    print("Container \(id) has started, removing loading state")
+                    Log.containers.debug("Container \(id) has started, removing loading state")
                     loadingContainers.remove(id)
                 }
                 return
             }
 
             attempts += 1
-            print("Container \(id) not running yet, attempt \(attempts)/\(maxAttempts)")
+            Log.containers.debug("Container \(id) not running yet, attempt \(attempts)/\(maxAttempts)")
             try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
         }
 
         // Timeout reached, remove loading state
         await MainActor.run {
-            print("Timeout reached for container \(id), removing loading state")
+            Log.containers.debug("Timeout reached for container \(id), removing loading state")
             loadingContainers.remove(id)
         }
     }
@@ -857,7 +856,7 @@ class ContainerService: ObservableObject {
     func startBuilder() async {
         await MainActor.run {
             isBuilderLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         var result: ProcessResult
@@ -868,15 +867,14 @@ class ContainerService: ObservableObject {
 
             await MainActor.run {
                 if !result.failed {
-                    print("Builder start command sent successfully")
+                    Log.containers.debug("Builder start command sent successfully")
                     self.isBuilderLoading = false
                     // Refresh builder status
                     Task {
                         await loadBuilders()
                     }
                 } else {
-                    self.errorMessage =
-                        "Failed to start builder: \(result.stderr ?? "Unknown error")"
+                    self.alertCenter.error("Failed to start builder: \(result.stderr ?? "Unknown error")")
                     self.isBuilderLoading = false
                 }
             }
@@ -884,16 +882,16 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 self.isBuilderLoading = false
-                self.errorMessage = "Failed to start builder: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to start builder: \(error.localizedDescription)")
             }
-            print("Error starting builder: \(error)")
+            Log.containers.error("Error starting builder: \(error.localizedDescription)")
         }
     }
 
     func stopBuilder() async {
         await MainActor.run {
             isBuilderLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         var result: ProcessResult
@@ -904,15 +902,14 @@ class ContainerService: ObservableObject {
 
             await MainActor.run {
                 if !result.failed {
-                    print("Builder stop command sent successfully")
+                    Log.containers.debug("Builder stop command sent successfully")
                     self.isBuilderLoading = false
                     // Refresh builder status
                     Task {
                         await loadBuilders()
                     }
                 } else {
-                    self.errorMessage =
-                        "Failed to stop builder: \(result.stderr ?? "Unknown error")"
+                    self.alertCenter.error("Failed to stop builder: \(result.stderr ?? "Unknown error")")
                     self.isBuilderLoading = false
                 }
             }
@@ -920,16 +917,16 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 self.isBuilderLoading = false
-                self.errorMessage = "Failed to stop builder: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to stop builder: \(error.localizedDescription)")
             }
-            print("Error stopping builder: \(error)")
+            Log.containers.error("Error stopping builder: \(error.localizedDescription)")
         }
     }
 
     func deleteBuilder() async {
         await MainActor.run {
             isBuilderLoading = true
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         var result: ProcessResult
@@ -940,13 +937,12 @@ class ContainerService: ObservableObject {
 
             await MainActor.run {
                 if !result.failed {
-                    print("Builder delete command sent successfully")
+                    Log.containers.debug("Builder delete command sent successfully")
                     self.isBuilderLoading = false
                     // Clear builders array since it was deleted
                     self.builders = []
                 } else {
-                    self.errorMessage =
-                        "Failed to delete builder: \(result.stderr ?? "Unknown error")"
+                    self.alertCenter.error("Failed to delete builder: \(result.stderr ?? "Unknown error")")
                     self.isBuilderLoading = false
                 }
             }
@@ -954,23 +950,23 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 self.isBuilderLoading = false
-                self.errorMessage = "Failed to delete builder: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to delete builder: \(error.localizedDescription)")
             }
-            print("Error deleting builder: \(error)")
+            Log.containers.error("Error deleting builder: \(error.localizedDescription)")
         }
     }
 
     func removeContainer(_ id: String) async {
         await MainActor.run {
             loadingContainers.insert(id)
-            errorMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
             try await backend.deleteContainer(id: id, force: false)
 
             await MainActor.run {
-                print("Container \(id) remove command sent successfully")
+                Log.containers.debug("Container \(id) remove command sent successfully")
                 Task {
                     await loadBuilders()
                 }
@@ -980,9 +976,9 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 loadingContainers.remove(id)
-                self.errorMessage = "Failed to remove container: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to remove container: \(error.localizedDescription)")
             }
-            print("Error removing container: \(error)")
+            Log.containers.error("Error removing container: \(error.localizedDescription)")
         }
     }
 
@@ -1032,7 +1028,7 @@ class ContainerService: ObservableObject {
         if showLoading {
             await MainActor.run {
                 isDNSLoading = true
-                errorMessage = nil
+                self.alertCenter.dismiss()
             }
         }
 
@@ -1057,14 +1053,15 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 if showLoading {
-                    self.errorMessage = "Failed to load DNS domains: \(error.localizedDescription)"
+                    self.alertCenter.error("Failed to load DNS domains: \(error.localizedDescription)")
                 }
                 self.isDNSLoading = false
             }
         }
     }
 
-    func createDNSDomain(_ domain: String) async {
+    @discardableResult
+    func createDNSDomain(_ domain: String) async -> Bool {
         do {
             let result = try await runner.runWithSudo(
                 program: safeContainerBinaryPath(),
@@ -1072,15 +1069,18 @@ class ContainerService: ObservableObject {
 
             if !result.failed {
                 await loadDNSDomains()
+                return true
             } else {
                 await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to create DNS domain"
+                    self.alertCenter.error(result.stderr ?? "Failed to create DNS domain")
                 }
+                return false
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to create DNS domain: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to create DNS domain: \(error.localizedDescription)")
             }
+            return false
         }
     }
 
@@ -1094,12 +1094,12 @@ class ContainerService: ObservableObject {
                 await loadDNSDomains()
             } else {
                 await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to delete DNS domain"
+                    self.alertCenter.error(result.stderr ?? "Failed to delete DNS domain")
                 }
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to delete DNS domain: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to delete DNS domain: \(error.localizedDescription)")
             }
         }
     }
@@ -1114,7 +1114,7 @@ class ContainerService: ObservableObject {
         if showLoading {
             await MainActor.run {
                 isNetworksLoading = true
-                errorMessage = nil
+                self.alertCenter.dismiss()
             }
         }
 
@@ -1128,14 +1128,15 @@ class ContainerService: ObservableObject {
         } catch {
             await MainActor.run {
                 if showLoading {
-                    self.errorMessage = "Failed to load networks: \(error.localizedDescription)"
+                    self.alertCenter.error("Failed to load networks: \(error.localizedDescription)")
                 }
                 self.isNetworksLoading = false
             }
         }
     }
 
-    func createNetwork(name: String, subnet: String? = nil, labels: [String] = []) async {
+    @discardableResult
+    func createNetwork(name: String, subnet: String? = nil, labels: [String] = []) async -> Bool {
         do {
             var labelDict: [String: String] = [:]
             for label in labels {
@@ -1148,39 +1149,23 @@ class ContainerService: ObservableObject {
             }
 
             try await backend.createNetwork(name: name, labels: labelDict)
-
-            await MainActor.run {
-                self.successMessage = "Network '\(name)' created successfully"
-                self.errorMessage = nil
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                    self.successMessage = nil
-                }
-            }
             await loadNetworks()
+            return true
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to create network: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to create network: \(error.localizedDescription)")
             }
+            return false
         }
     }
 
     func deleteNetwork(_ networkId: String) async {
         do {
             try await backend.deleteNetwork(id: networkId)
-
-            await MainActor.run {
-                self.successMessage = "Network '\(networkId)' deleted successfully"
-                self.errorMessage = nil
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                    self.successMessage = nil
-                }
-            }
             await loadNetworks()
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to delete network: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to delete network: \(error.localizedDescription)")
             }
         }
     }
@@ -1254,7 +1239,6 @@ class ContainerService: ObservableObject {
             if !result.failed {
                 await MainActor.run {
                     self.kernelConfig = KernelConfig(isRecommended: true)
-                    self.successMessage = "Recommended kernel has been installed and configured successfully."
                     self.isKernelLoading = false
                 }
             } else {
@@ -1265,19 +1249,18 @@ class ContainerService: ObservableObject {
                     // Treat this as success - kernel is already installed
                     await MainActor.run {
                         self.kernelConfig = KernelConfig(isRecommended: true)
-                        self.successMessage = "The recommended kernel is already installed and active."
                         self.isKernelLoading = false
                     }
                 } else {
                     await MainActor.run {
-                        self.errorMessage = result.stderr ?? "Failed to set recommended kernel"
+                        self.alertCenter.error(result.stderr ?? "Failed to set recommended kernel")
                         self.isKernelLoading = false
                     }
                 }
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to set recommended kernel: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to set recommended kernel: \(error.localizedDescription)")
                 self.isKernelLoading = false
             }
         }
@@ -1306,18 +1289,17 @@ class ContainerService: ObservableObject {
             if !result.failed {
                 await MainActor.run {
                     self.kernelConfig = KernelConfig(binary: binary, tar: tar, arch: arch, isRecommended: false)
-                    self.successMessage = "Custom kernel has been configured successfully."
                     self.isKernelLoading = false
                 }
             } else {
                 await MainActor.run {
-                    self.errorMessage = result.stderr ?? "Failed to set custom kernel"
+                    self.alertCenter.error(result.stderr ?? "Failed to set custom kernel")
                     self.isKernelLoading = false
                 }
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to set custom kernel: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to set custom kernel: \(error.localizedDescription)")
                 self.isKernelLoading = false
             }
         }
@@ -1335,7 +1317,7 @@ class ContainerService: ObservableObject {
         if showLoading {
             await MainActor.run {
                 isSystemPropertiesLoading = true
-                errorMessage = nil
+                self.alertCenter.dismiss()
             }
         }
 
@@ -1350,7 +1332,7 @@ class ContainerService: ObservableObject {
 
         if result.failed {
             await MainActor.run {
-                self.errorMessage = result.stderr ?? "Failed to load system properties"
+                self.alertCenter.error(result.stderr ?? "Failed to load system properties")
                 self.isSystemPropertiesLoading = false
             }
             return
@@ -1418,7 +1400,7 @@ class ContainerService: ObservableObject {
 
         if result.failed {
             await MainActor.run {
-                self.errorMessage = result.stderr ?? "Failed to set system property"
+                self.alertCenter.error(result.stderr ?? "Failed to set system property")
             }
             // Revert optimistic changes on failure
             if id == "dns.domain" {
@@ -1480,14 +1462,14 @@ class ContainerService: ObservableObject {
                         await service.loadSystemProperties(showLoading: false)
                         await service.loadDNSDomains(showLoading: false)
 
-                        service.errorMessage = result.stderr ?? "Failed to set default DNS domain"
+                        service.alertCenter.error(result.stderr ?? "Failed to set default DNS domain")
                     }
                 } catch {
                     // Revert on error
                     await service.loadSystemProperties(showLoading: false)
                     await service.loadDNSDomains(showLoading: false)
 
-                    service.errorMessage = "Failed to set default DNS domain: \(error.localizedDescription)"
+                    service.alertCenter.error("Failed to set default DNS domain: \(error.localizedDescription)")
                 }
             }
         }
@@ -1517,7 +1499,6 @@ class ContainerService: ObservableObject {
                     progress: 1.0,
                     message: "Pull completed successfully"
                 )
-                self.successMessage = "Successfully pulled image: \(cleanImageName)"
 
                 Task {
                     await loadImages()
@@ -1536,7 +1517,7 @@ class ContainerService: ObservableObject {
                     progress: 0.0,
                     message: "Pull failed: \(errorMsg)"
                 )
-                self.errorMessage = "Failed to pull image: \(errorMsg)"
+                self.alertCenter.error("Failed to pull image: \(errorMsg)")
             }
         }
     }
@@ -1563,7 +1544,7 @@ class ContainerService: ObservableObject {
             guard let url = URL(string: urlString) else {
                 await MainActor.run {
                     isSearching = false
-                    errorMessage = "Invalid search query"
+                    self.alertCenter.error("Invalid search query")
                 }
                 return
             }
@@ -1577,7 +1558,7 @@ class ContainerService: ObservableObject {
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to search images: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to search images: \(error.localizedDescription)")
                 self.isSearching = false
                 self.searchResults = []
             }
@@ -1598,14 +1579,14 @@ class ContainerService: ObservableObject {
         let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
 
         // Debug: print the command and target terminal
-        print(String(repeating: "=", count: 60))
-        print("Opening terminal with:")
-        print("  Terminal: \(preferredTerminal.displayName)")
-        print("  Binary: \(containerBinary)")
-        print("  Container: \(containerId)")
-        print("  Shell: \(shell)")
-        print("  Full command: \(fullCommand)")
-        print(String(repeating: "=", count: 60))
+        Log.ui.debug("\(String(repeating: "=", count: 60))")
+        Log.ui.debug("Opening terminal with:")
+        Log.ui.debug("  Terminal: \(self.preferredTerminal.displayName)")
+        Log.ui.debug("  Binary: \(containerBinary)")
+        Log.ui.debug("  Container: \(containerId)")
+        Log.ui.debug("  Shell: \(shell)")
+        Log.ui.debug("  Full command: \(fullCommand)")
+        Log.ui.debug("\(String(repeating: "=", count: 60))")
 
         // Dispatch to the appropriate terminal-specific opener
         switch preferredTerminal {
@@ -1658,8 +1639,8 @@ class ContainerService: ObservableObject {
 
     private func openInGhostty(containerBinary: String, containerId: String, shell: String) {
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: TerminalApp.ghostty.bundleIdentifier) else {
-            print("❌ Ghostty application not found")
-            self.errorMessage = "Ghostty application not found"
+            Log.ui.error("❌ Ghostty application not found")
+            self.alertCenter.error("Ghostty application not found")
             return
         }
 
@@ -1672,17 +1653,17 @@ class ContainerService: ObservableObject {
 
         do {
             try process.run()
-            print("✓ Ghostty opened successfully")
+            Log.ui.debug("✓ Ghostty opened successfully")
         } catch {
-            print("❌ Failed to open Ghostty: \(error)")
-            self.errorMessage = "Failed to open Ghostty: \(error.localizedDescription)"
+            Log.ui.error("❌ Failed to open Ghostty: \(error.localizedDescription)")
+            self.alertCenter.error("Failed to open Ghostty: \(error.localizedDescription)")
         }
     }
 
     private func executeAppleScript(_ script: String) {
-        print("AppleScript:")
-        print(script)
-        print(String(repeating: "=", count: 60))
+        Log.ui.debug("AppleScript:")
+        Log.ui.debug("\(script)")
+        Log.ui.debug("\(String(repeating: "=", count: 60))")
 
         // Execute the AppleScript
         let appleScript = NSAppleScript(source: script)
@@ -1690,13 +1671,13 @@ class ContainerService: ObservableObject {
         let result = appleScript?.executeAndReturnError(&error)
 
         if let error = error {
-            print("❌ AppleScript error: \(error)")
+            Log.ui.error("❌ AppleScript error: \(String(describing: error))")
             DispatchQueue.main.async {
-                self.errorMessage = "Failed to open terminal: \(error)"
+                self.alertCenter.error("Failed to open terminal: \(error)")
             }
         } else if let result = result {
-            print("✓ AppleScript executed successfully")
-            print("  Result: \(result)")
+            Log.ui.debug("✓ AppleScript executed successfully")
+            Log.ui.debug("  Result: \(String(describing: result))")
         }
     }
 
@@ -1708,15 +1689,13 @@ class ContainerService: ObservableObject {
 
     func deleteImage(_ imageReference: String) async {
         await MainActor.run {
-            errorMessage = nil
-            successMessage = nil
+            self.alertCenter.dismiss()
         }
 
         do {
             try await backend.deleteImage(reference: imageReference)
 
             await MainActor.run {
-                self.successMessage = "Successfully deleted image: \(imageReference)"
                 self.images.removeAll { $0.reference == imageReference }
 
                 Task {
@@ -1725,7 +1704,7 @@ class ContainerService: ObservableObject {
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to delete image: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to delete image: \(error.localizedDescription)")
             }
         }
     }
@@ -1733,24 +1712,12 @@ class ContainerService: ObservableObject {
     // MARK: - Container Run Management
 
     func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
-        await MainActor.run {
-            errorMessage = nil
-            successMessage = nil
-        }
-
         do {
             try await backend.deleteContainer(id: oldContainerId, force: true)
-
             await runContainer(config: newConfig)
-
-            await MainActor.run {
-                if self.errorMessage == nil {
-                    self.successMessage = "Container '\(newConfig.name)' has been recreated with new configuration"
-                }
-            }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to recreate container: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to recreate container: \(error.localizedDescription)")
             }
         }
     }
@@ -1759,11 +1726,11 @@ class ContainerService: ObservableObject {
 
     private func recoverContainer(_ id: String) async -> Bool {
         guard let snapshot = await MainActor.run(body: { containerSnapshots[id] }) else {
-            print("No snapshot available for container \(id)")
+            Log.containers.debug("No snapshot available for container \(id)")
             return false
         }
 
-        print("Attempting to recover container \(id) from snapshot...")
+        Log.containers.debug("Attempting to recover container \(id) from snapshot...")
 
         let config = snapshot.configuration
 
@@ -1803,24 +1770,18 @@ class ContainerService: ObservableObject {
             dnsDomain: config.dns.domain ?? ""
         )
 
-        await runContainer(config: runConfig)
-
-        let hasError = await MainActor.run(body: { self.errorMessage != nil })
-        if hasError {
-            print("Container recovery failed")
-            return false
-        } else {
-            print("Container \(id) recovered successfully")
+        let started = await runContainer(config: runConfig)
+        if started {
+            Log.containers.debug("Container \(id) recovered successfully")
             return true
+        } else {
+            Log.containers.error("Container recovery failed")
+            return false
         }
     }
 
-    func runContainer(config: ContainerRunConfig) async {
-        await MainActor.run {
-            errorMessage = nil
-            successMessage = nil
-        }
-
+    @discardableResult
+    func runContainer(config: ContainerRunConfig) async -> Bool {
         do {
             let id = config.name.isEmpty ? UUID().uuidString.lowercased().prefix(12).description : config.name
 
@@ -1869,17 +1830,16 @@ class ContainerService: ObservableObject {
             try await backend.createContainer(spec)
 
             await MainActor.run {
-                let containerName = config.name.isEmpty ? "Container" : config.name
-                self.successMessage = "Successfully started container: \(containerName)"
-
                 Task {
                     await loadContainers()
                 }
             }
+            return true
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to run container: \(error.localizedDescription)"
+                self.alertCenter.error("Failed to run container: \(error.localizedDescription)")
             }
+            return false
         }
     }
 

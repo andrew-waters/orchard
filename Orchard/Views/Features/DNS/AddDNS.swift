@@ -83,18 +83,18 @@ struct AddDomainView: View {
 
         guard !trimmedDomain.isEmpty else { return }
         guard isValidDomainName(trimmedDomain) else {
-            containerService.errorMessage = "Invalid domain name format."
+            containerService.alertCenter.error("Invalid domain name format.")
             return
         }
 
         isCreating = true
 
         Task {
-            await containerService.createDNSDomain(trimmedDomain)
+            let created = await containerService.createDNSDomain(trimmedDomain)
 
             await MainActor.run {
                 isCreating = false
-                if containerService.errorMessage == nil {
+                if created {
                     dismiss()
                 }
             }

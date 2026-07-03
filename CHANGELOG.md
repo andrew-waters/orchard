@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Sidebar badges showing counts at a glance: running containers, and the number of images, mounts, DNS domains, and networks.
+- Diagnostic logging via Apple's unified logging system — filter by subsystem `dev.andon.orchard` in Console.app when troubleshooting.
 
 ### Fixed
 - Failed actions no longer fail silently. Many operations that failed wrote an error message that most views never displayed, so buttons could appear to do nothing ([#54](https://github.com/andrew-waters/orchard/issues/54)). Errors now appear in a standard alert.

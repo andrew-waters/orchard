@@ -4,6 +4,7 @@ import SwiftUI
 struct ContainerDetailHeader: View {
     let container: Container
     @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var alertCenter: AlertCenter
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var isStarting = false
@@ -145,9 +146,9 @@ struct ContainerDetailHeader: View {
                 }
             }
         }
-        .onChange(of: containerService.errorMessage) { _, errorMessage in
+        .onChange(of: alertCenter.current) { _, alert in
             // If container recovery failed, clear our state flags
-            if let error = errorMessage, error.contains("could not be recovered") {
+            if let message = alert?.message, message.contains("could not be recovered") {
                 wasRunningBeforeStop = false
                 isStarting = false
                 isStopping = false
@@ -166,7 +167,7 @@ struct ContainerDetailHeader: View {
         }
 
         // Check if there's a recovery failure error message
-        if let error = containerService.errorMessage, error.contains("could not be recovered") {
+        if let message = alertCenter.current?.message, message.contains("could not be recovered") {
             return "Recreate"
         }
 

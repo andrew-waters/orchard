@@ -10,6 +10,7 @@ struct OrchardApp: App {
         WindowGroup(id: "main") {
             ContentView()
                 .environmentObject(containerService)
+                .environmentObject(containerService.alertCenter)
                 .environmentObject(updater)
         }
         .defaultSize(width: 1200, height: 800)
@@ -33,6 +34,7 @@ struct OrchardApp: App {
         WindowGroup(id: "logs") {
             MultiLogView()
                 .environmentObject(containerService)
+                .environmentObject(containerService.alertCenter)
         }
         .defaultSize(width: 900, height: 600)
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -40,6 +42,7 @@ struct OrchardApp: App {
         MenuBarExtra("Orchard", systemImage: "cube.box") {
             MenuBarView()
                 .environmentObject(containerService)
+                .environmentObject(containerService.alertCenter)
         }
     }
 }

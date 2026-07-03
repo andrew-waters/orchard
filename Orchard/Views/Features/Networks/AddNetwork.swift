@@ -121,19 +121,6 @@ struct AddNetworkView: View {
                     }
                 }
 
-                // Error/Success message display
-                if let errorMessage = containerService.errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                        .padding(.top, 8)
-                } else if let successMessage = containerService.successMessage {
-                    Text(successMessage)
-                        .foregroundStyle(.green)
-                        .font(.caption)
-                        .padding(.top, 8)
-                }
-
                 Spacer()
             }
             .padding()
@@ -172,33 +159,29 @@ struct AddNetworkView: View {
 
         guard !trimmedName.isEmpty else { return }
         guard isValidNetworkName(trimmedName) else {
-            containerService.errorMessage = "Invalid network name. Use only alphanumeric characters and hyphens."
+            containerService.alertCenter.error("Invalid network name. Use only alphanumeric characters and hyphens.")
             return
         }
 
         // Validate subnet if provided
         let trimmedSubnet = subnet.trimmingCharacters(in: .whitespaces)
         if !trimmedSubnet.isEmpty && !isValidSubnet(trimmedSubnet) {
-            containerService.errorMessage = "Invalid subnet format. Use CIDR notation (e.g., 192.168.1.0/24)."
+            containerService.alertCenter.error("Invalid subnet format. Use CIDR notation (e.g., 192.168.1.0/24).")
             return
         }
 
         // Validate labels
         for label in labels {
             if label.key.trimmingCharacters(in: .whitespaces).isEmpty && !label.value.trimmingCharacters(in: .whitespaces).isEmpty {
-                containerService.errorMessage = "Label key cannot be empty if value is provided."
+                containerService.alertCenter.error("Label key cannot be empty if value is provided.")
                 return
             }
         }
 
         isCreating = true
 
-        // Clear any previous messages
-        containerService.errorMessage = nil
-        containerService.successMessage = nil
-
         Task {
-            await containerService.createNetwork(
+            let created = await containerService.createNetwork(
                 name: trimmedName,
                 subnet: trimmedSubnet.isEmpty ? nil : trimmedSubnet,
                 labels: labels.compactMap { label in
@@ -210,8 +193,7 @@ struct AddNetworkView: View {
 
             await MainActor.run {
                 isCreating = false
-
-                if containerService.errorMessage == nil {
+                if created {
                     dismiss()
                 }
             }

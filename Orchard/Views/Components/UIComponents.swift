@@ -479,8 +479,8 @@ struct ContainerControlButton: View {
         .help(buttonState.helpText)
         .modifier(CursorModifier(cursor: buttonState == .loading ? .arrow : .pointingHand))
         .onChange(of: buttonState) { _, newState in
-            print(
-                "Container \(container.configuration.id) state changed to: \(newState), status: \(container.status), isLoading: \(isLoading)"
+            Log.ui.debug(
+                "Container \(container.configuration.id) state changed to: \(String(describing: newState)), status: \(container.status), isLoading: \(isLoading)"
             )
             isRotating = (newState == .loading)
         }

@@ -62,7 +62,7 @@ struct ConfigurationDetailView: View {
                                 panel.treatsFilePackagesAsDirectories = true
                                 if panel.runModal() == .OK, let url = panel.url {
                                     if !containerService.validateAndSetCustomBinaryPath(url.path) {
-                                        containerService.errorMessage = "Selected file is not an executable: \(url.path)"
+                                        containerService.alertCenter.error("Selected file is not an executable: \(url.path)")
                                     }
                                 }
                             }

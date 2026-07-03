@@ -3,6 +3,7 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var alertCenter: AlertCenter
     @State private var isWindowFocused: Bool = true
     @State private var selectedTab: TabSelection = .containers
     @State private var selectedContainer: String?
@@ -98,14 +99,14 @@ struct ContentView: View {
         .alert(
             "Something Went Wrong",
             isPresented: Binding(
-                get: { containerService.errorMessage != nil },
-                set: { presented in if !presented { containerService.errorMessage = nil } }
+                get: { alertCenter.current != nil },
+                set: { presented in if !presented { alertCenter.dismiss() } }
             ),
-            presenting: containerService.errorMessage
+            presenting: alertCenter.current
         ) { _ in
-            Button("OK", role: .cancel) { containerService.errorMessage = nil }
-        } message: { message in
-            Text(message)
+            Button("OK", role: .cancel) { alertCenter.dismiss() }
+        } message: { alert in
+            Text(alert.message)
         }
         .onAppear {
             // Default tab is already set to containers
