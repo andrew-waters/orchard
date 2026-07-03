@@ -26,6 +26,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var containers: [Container] = []
     var listContainersError: Error?
     var images: [ContainerImage] = []
+    var listImagesError: Error?
+    var pullImageError: Error?
+    var deleteImageError: Error?
+    private(set) var pulledReferences: [String] = []
+    private(set) var deletedImageReferences: [String] = []
     var networks: [ContainerNetwork] = []
     var listNetworksError: Error?
     var createNetworkError: Error?
@@ -63,9 +68,18 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         createdSpecs.append(spec)
         if let error = createContainerError { throw error }
     }
-    func listImages() async throws -> [ContainerImage] { images }
-    func pullImage(reference: String) async throws {}
-    func deleteImage(reference: String) async throws {}
+    func listImages() async throws -> [ContainerImage] {
+        if let listImagesError { throw listImagesError }
+        return images
+    }
+    func pullImage(reference: String) async throws {
+        pulledReferences.append(reference)
+        if let pullImageError { throw pullImageError }
+    }
+    func deleteImage(reference: String) async throws {
+        deletedImageReferences.append(reference)
+        if let deleteImageError { throw deleteImageError }
+    }
     func inspectImage(reference: String) async throws -> ImageInspection { throw NotConfigured() }
     func listNetworks() async throws -> [ContainerNetwork] {
         if let listNetworksError { throw listNetworksError }
@@ -146,6 +160,17 @@ func makeBuilderStatusJSON(id: String = "buildkit", status: String) -> String {
       }
     }
     """
+}
+
+/// A `ContainerImage` fixture with the given reference and otherwise-empty descriptor.
+func makeImage(reference: String) -> ContainerImage {
+    ContainerImage(
+        descriptor: ContainerImageDescriptor(
+            digest: "sha256:abc", mediaType: "application/vnd.oci.image.index.v1+json",
+            size: 0, annotations: nil
+        ),
+        reference: reference
+    )
 }
 
 /// A `ContainerNetwork` fixture with the given id and otherwise-empty fields.
