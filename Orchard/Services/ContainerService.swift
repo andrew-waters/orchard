@@ -6,9 +6,7 @@ import Combine
 @MainActor
 class ContainerService: ObservableObject {
     @Published var containers: [Container] = []
-    @Published var images: [ContainerImage] = []
     @Published var isLoading: Bool = false
-    @Published var isImagesLoading: Bool = false
     @Published var systemStatus: SystemStatus = .unknown
     @Published var systemStatusError: String?
     @Published var systemStatusVersionOverride: Bool = false
@@ -24,9 +22,6 @@ class ContainerService: ObservableObject {
     @Published var isStatsLoading: Bool = false
     @Published var systemDiskUsage: SystemDiskUsage? = nil
     @Published var isSystemDiskUsageLoading: Bool = false
-    @Published var pullProgress: [String: ImagePullProgress] = [:]
-    @Published var isSearching: Bool = false
-    @Published var searchResults: [RegistrySearchResult] = []
     @Published var systemProperties: [SystemProperty] = []
     @Published var isSystemPropertiesLoading = false
     // Container operation locks to prevent multiple simultaneous operations
@@ -53,6 +48,8 @@ class ContainerService: ObservableObject {
     let builderService: BuilderService
     /// Container network state and lifecycle.
     let networkService: NetworkService
+    /// Image state and operations.
+    let imageService: ImageService
     private var cancellables = Set<AnyCancellable>()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
@@ -66,14 +63,22 @@ class ContainerService: ObservableObject {
         self.builderService = builderService
         let networkService = NetworkService(backend: backend, alertCenter: alertCenter)
         self.networkService = networkService
+        let imageService = ImageService(backend: backend, alertCenter: alertCenter)
+        self.imageService = imageService
 
         // Re-publish the extracted stores' changes so views observing this facade
         // still update while the migration is in progress.
-        for store in [settings.objectWillChange, builderService.objectWillChange, networkService.objectWillChange] {
+        for store in [
+            settings.objectWillChange,
+            builderService.objectWillChange,
+            networkService.objectWillChange,
+            imageService.objectWillChange,
+        ] {
             store.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         }
-        // BuilderService needs to know whether the system is up (teardown guard).
+        // Services that read the system-up state for their teardown guard.
         builderService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
+        imageService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
     }
 
     // MARK: - Settings (forwarded to SettingsStore)
@@ -196,35 +201,20 @@ class ContainerService: ObservableObject {
         }
     }
 
-    func loadImages() async {
-        await MainActor.run {
-            isImagesLoading = true
-            self.alertCenter.dismiss()
-        }
+    // MARK: - Images (forwarded to ImageService)
 
-        do {
-            let newImages = try await backend.listImages()
+    var images: [ContainerImage] { imageService.images }
+    var isImagesLoading: Bool { imageService.isImagesLoading }
+    var pullProgress: [String: ImagePullProgress] { imageService.pullProgress }
+    var isSearching: Bool { imageService.isSearching }
+    var searchResults: [RegistrySearchResult] { imageService.searchResults }
 
-            await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    self.images = newImages
-                }
-                self.isImagesLoading = false
-            }
-
-            for image in newImages {
-                Log.containers.debug("Image: \(image.reference)")
-            }
-        } catch {
-            await MainActor.run {
-                if self.systemStatus == .running {
-                    self.alertCenter.error(error.localizedDescription)
-                }
-                self.isImagesLoading = false
-            }
-            Log.containers.error("\(error.localizedDescription)")
-        }
-    }
+    func loadImages() async { await imageService.load() }
+    func inspectImage(reference: String) async throws -> ImageInspection { try await imageService.inspect(reference: reference) }
+    func pullImage(_ imageName: String) async { await imageService.pull(imageName) }
+    func searchImages(_ query: String) async { await imageService.search(query) }
+    func clearSearchResults() { imageService.clearSearchResults() }
+    func deleteImage(_ imageReference: String) async { await imageService.delete(imageReference) }
 
     // MARK: - Builders (forwarded to BuilderService)
 
@@ -727,10 +717,6 @@ class ContainerService: ObservableObject {
 
     // MARK: - Image Inspection
 
-    func inspectImage(reference: String) async throws -> ImageInspection {
-        try await backend.inspectImage(reference: reference)
-    }
-
     // MARK: - DNS Management
 
     func loadDNSDomains() async {
@@ -1137,98 +1123,6 @@ class ContainerService: ObservableObject {
 
     // MARK: - Image Pull Management
 
-    func pullImage(_ imageName: String) async {
-        let cleanImageName = imageName.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        await MainActor.run {
-            pullProgress[cleanImageName] = ImagePullProgress(
-                imageName: cleanImageName,
-                status: .pulling,
-                progress: 0.0,
-                message: "Pulling image..."
-            )
-        }
-
-        do {
-            try await backend.pullImage(reference: cleanImageName)
-
-            await MainActor.run {
-                pullProgress[cleanImageName] = ImagePullProgress(
-                    imageName: cleanImageName,
-                    status: .completed,
-                    progress: 1.0,
-                    message: "Pull completed successfully"
-                )
-
-                Task {
-                    await loadImages()
-                }
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    self.pullProgress.removeValue(forKey: cleanImageName)
-                }
-            }
-        } catch {
-            await MainActor.run {
-                let errorMsg = error.localizedDescription
-                pullProgress[cleanImageName] = ImagePullProgress(
-                    imageName: cleanImageName,
-                    status: .failed(errorMsg),
-                    progress: 0.0,
-                    message: "Pull failed: \(errorMsg)"
-                )
-                self.alertCenter.error("Failed to pull image: \(errorMsg)")
-            }
-        }
-    }
-
-    // MARK: - Registry Search
-
-    func searchImages(_ query: String) async {
-        guard !query.isEmpty else {
-            await MainActor.run {
-                searchResults = []
-            }
-            return
-        }
-
-        await MainActor.run {
-            isSearching = true
-        }
-
-        // Use Docker Hub API to search for images
-        do {
-            let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-            let urlString = "https://hub.docker.com/v2/search/repositories/?query=\(encodedQuery)&page_size=25"
-
-            guard let url = URL(string: urlString) else {
-                await MainActor.run {
-                    isSearching = false
-                    self.alertCenter.error("Invalid search query")
-                }
-                return
-            }
-
-            let (data, _) = try await URLSession.shared.data(from: url)
-
-            let searchResults = parseDockerHubSearch(data: data)
-            await MainActor.run {
-                self.searchResults = searchResults
-                self.isSearching = false
-            }
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to search images: \(error.localizedDescription)")
-                self.isSearching = false
-                self.searchResults = []
-            }
-        }
-    }
-
-    func clearSearchResults() {
-        searchResults = []
-    }
-
     // MARK: - Container Terminal (forwarded to TerminalLauncher)
 
     func openTerminal(for containerId: String, shell: String = "sh") {
@@ -1237,30 +1131,6 @@ class ContainerService: ObservableObject {
 
     func openTerminalWithBash(for containerId: String) {
         terminalLauncher.openTerminalWithBash(for: containerId)
-    }
-
-    // MARK: - Image Management
-
-    func deleteImage(_ imageReference: String) async {
-        await MainActor.run {
-            self.alertCenter.dismiss()
-        }
-
-        do {
-            try await backend.deleteImage(reference: imageReference)
-
-            await MainActor.run {
-                self.images.removeAll { $0.reference == imageReference }
-
-                Task {
-                    await loadImages()
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to delete image: \(error.localizedDescription)")
-            }
-        }
     }
 
     // MARK: - Container Run Management
