@@ -89,7 +89,6 @@ class ContainerService: ObservableObject {
 
     // MARK: - Settings (forwarded to SettingsStore)
 
-    var customBinaryPath: String? { settings.customBinaryPath }
     var containerBinaryPath: String { settings.containerBinaryPath }
     var isUsingCustomBinary: Bool { settings.isUsingCustomBinary }
     var preferredTerminal: TerminalApp { settings.preferredTerminal }
@@ -144,15 +143,10 @@ class ContainerService: ObservableObject {
 
     var builders: [Builder] { builderService.builders }
     var builderStatus: BuilderStatus { builderService.builderStatus }
-    var isBuilderLoading: Bool { builderService.isBuilderLoading }
     var isBuildersLoading: Bool { builderService.isBuildersLoading }
 
     func loadBuilders() async { await builderService.loadBuilders() }
-    func startBuilder() async { await builderService.startBuilder() }
-    func stopBuilder() async { await builderService.stopBuilder() }
-    func deleteBuilder() async { await builderService.deleteBuilder() }
 
-    // MARK: - Container Stats Management
 
     // MARK: - Container Stats (forwarded to StatsService)
 
@@ -166,11 +160,9 @@ class ContainerService: ObservableObject {
 
     var systemStatus: SystemStatus { systemService.systemStatus }
     var systemStatusError: String? { systemService.systemStatusError }
-    var systemStatusVersionOverride: Bool { systemService.systemStatusVersionOverride }
     var isSystemLoading: Bool { systemService.isSystemLoading }
     var containerVersion: String? { systemService.containerVersion }
     var parsedContainerVersion: String? { systemService.parsedContainerVersion }
-    var kernelConfig: KernelConfig { systemService.kernelConfig }
     var isKernelLoading: Bool { systemService.isKernelLoading }
     var systemProperties: [SystemProperty] { systemService.systemProperties }
     var isSystemPropertiesLoading: Bool { systemService.isSystemPropertiesLoading }
@@ -179,23 +171,15 @@ class ContainerService: ObservableObject {
 
     func checkSystemStatus() async { await systemService.checkSystemStatus() }
     func checkSystemStatusIgnoreVersion() async { await systemService.checkSystemStatusIgnoreVersion() }
-    func checkContainerVersion() async { await systemService.checkContainerVersion() }
     func startSystem() async { await systemService.startSystem() }
     func stopSystem() async { await systemService.stopSystem() }
     func restartSystem() async { await systemService.restartSystem() }
-    func loadKernelConfig() async { await systemService.loadKernelConfig() }
-    func setRecommendedKernel() async { await systemService.setRecommendedKernel() }
-    func setCustomKernel(binary: String?, tar: String?, arch: KernelArch) async {
-        await systemService.setCustomKernel(binary: binary, tar: tar, arch: arch)
-    }
     func loadSystemProperties(showLoading: Bool = true) async { await systemService.loadSystemProperties(showLoading: showLoading) }
     func setSystemProperty(_ id: String, value: String) async { await systemService.setSystemProperty(id, value: value) }
     func loadSystemDiskUsage(showLoading: Bool = true) async { await systemService.loadSystemDiskUsage(showLoading: showLoading) }
 
 
-    // MARK: - Image Inspection
 
-    // MARK: - DNS Management
 
     // MARK: - DNS (forwarded to DNSService)
 
