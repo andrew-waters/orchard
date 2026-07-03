@@ -18,8 +18,6 @@ class ContainerService: ObservableObject {
     @Published var parsedContainerVersion: String?
     @Published var dnsDomains: [DNSDomain] = []
     @Published var isDNSLoading = false
-    @Published var networks: [ContainerNetwork] = []
-    @Published var isNetworksLoading = false
     @Published var kernelConfig: KernelConfig = KernelConfig()
     @Published var isKernelLoading = false
     @Published var containerStats: [ContainerStats] = []
@@ -53,6 +51,8 @@ class ContainerService: ObservableObject {
     let terminalLauncher: TerminalLauncher
     /// BuildKit builder state and lifecycle.
     let builderService: BuilderService
+    /// Container network state and lifecycle.
+    let networkService: NetworkService
     private var cancellables = Set<AnyCancellable>()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
@@ -64,10 +64,12 @@ class ContainerService: ObservableObject {
         self.terminalLauncher = TerminalLauncher(settings: settings, alertCenter: alertCenter)
         let builderService = BuilderService(runner: runner, settings: settings, alertCenter: alertCenter)
         self.builderService = builderService
+        let networkService = NetworkService(backend: backend, alertCenter: alertCenter)
+        self.networkService = networkService
 
         // Re-publish the extracted stores' changes so views observing this facade
         // still update while the migration is in progress.
-        for store in [settings.objectWillChange, builderService.objectWillChange] {
+        for store in [settings.objectWillChange, builderService.objectWillChange, networkService.objectWillChange] {
             store.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         }
         // BuilderService needs to know whether the system is up (teardown guard).
@@ -815,71 +817,18 @@ class ContainerService: ObservableObject {
         }
     }
 
-    // MARK: - Network Management
+    // MARK: - Networks (forwarded to NetworkService)
 
-    func loadNetworks() async {
-        await loadNetworks(showLoading: false)
-    }
+    var networks: [ContainerNetwork] { networkService.networks }
+    var isNetworksLoading: Bool { networkService.isNetworksLoading }
 
-    func loadNetworks(showLoading: Bool = true) async {
-        if showLoading {
-            await MainActor.run {
-                isNetworksLoading = true
-                self.alertCenter.dismiss()
-            }
-        }
-
-        do {
-            let networks = try await backend.listNetworks()
-
-            await MainActor.run {
-                self.networks = networks
-                self.isNetworksLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                if showLoading {
-                    self.alertCenter.error("Failed to load networks: \(error.localizedDescription)")
-                }
-                self.isNetworksLoading = false
-            }
-        }
-    }
-
+    func loadNetworks() async { await networkService.load(showLoading: false) }
+    func loadNetworks(showLoading: Bool = true) async { await networkService.load(showLoading: showLoading) }
     @discardableResult
     func createNetwork(name: String, subnet: String? = nil, labels: [String] = []) async -> Bool {
-        do {
-            var labelDict: [String: String] = [:]
-            for label in labels {
-                let parts = label.split(separator: "=", maxSplits: 1)
-                if parts.count == 2 {
-                    labelDict[String(parts[0])] = String(parts[1])
-                } else {
-                    labelDict[label] = ""
-                }
-            }
-
-            try await backend.createNetwork(name: name, labels: labelDict)
-            await loadNetworks()
-            return true
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to create network: \(error.localizedDescription)")
-            }
-            return false
-        }
+        await networkService.create(name: name, subnet: subnet, labels: labels)
     }
-
-    func deleteNetwork(_ networkId: String) async {
-        do {
-            try await backend.deleteNetwork(id: networkId)
-            await loadNetworks()
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to delete network: \(error.localizedDescription)")
-            }
-        }
-    }
+    func deleteNetwork(_ networkId: String) async { await networkService.delete(networkId) }
 
     // MARK: - Kernel Management
 
