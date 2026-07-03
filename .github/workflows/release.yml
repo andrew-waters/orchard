@@ -32,11 +32,15 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
-      - name: Update version in Info.plist and project file
+      - name: Update version in project settings
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" Orchard/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Orchard/Info.plist || true
+          # The Info.plist is generated from build settings (GENERATE_INFOPLIST_FILE):
+          #   CFBundleShortVersionString <- MARKETING_VERSION
+          #   CFBundleVersion            <- CURRENT_PROJECT_VERSION
+          # CFBundleVersion must increase for Sparkle to detect updates, so we use
+          # the CI run number (matches sparkle:version in the appcast).
           sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = ${{ steps.version.outputs.version }}/g" Orchard.xcodeproj/project.pbxproj
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = ${{ github.run_number }}/g" Orchard.xcodeproj/project.pbxproj
 
       - name: Install Developer ID certificate
         env:
@@ -167,6 +171,57 @@ jobs:
         run: |
           shasum -a 256 "Orchard-${{ steps.version.outputs.version }}.dmg" > "Orchard-${{ steps.version.outputs.version }}.dmg.sha256"
 
+      - name: Sign update and generate Sparkle appcast
+        id: appcast
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          # Minimum macOS the update should be offered to (keep in sync with Requirements).
+          MIN_SYSTEM_VERSION: "26.0"
+        run: |
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "SPARKLE_PRIVATE_KEY not set — skipping appcast generation"
+            exit 0
+          fi
+
+          SPARKLE_VERSION=2.9.4
+          curl -sL -o sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          tar -xf sparkle.tar.xz bin/sign_update
+
+          # sign_update prints the enclosure attributes: sparkle:edSignature="..." length="..."
+          SIG=$(./bin/sign_update "Orchard-${VERSION}.dmg" -s "$SPARKLE_PRIVATE_KEY")
+          echo "Signature attributes: $SIG"
+
+          PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S +0000")
+          DL="https://github.com/andrew-waters/orchard/releases/download/v${VERSION}/Orchard-${VERSION}.dmg"
+          NOTES="https://github.com/andrew-waters/orchard/releases/tag/v${VERSION}"
+
+          mkdir -p _site
+          cat > _site/appcast.xml <<EOF
+          <?xml version="1.0" standalone="yes"?>
+          <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+            <channel>
+              <title>Orchard</title>
+              <item>
+                <title>Version ${VERSION}</title>
+                <sparkle:version>${BUILD_NUMBER}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>${MIN_SYSTEM_VERSION}</sparkle:minimumSystemVersion>
+                <link>${NOTES}</link>
+                <sparkle:releaseNotesLink>${NOTES}</sparkle:releaseNotesLink>
+                <pubDate>${PUB_DATE}</pubDate>
+                <enclosure url="${DL}" type="application/octet-stream" ${SIG} />
+              </item>
+            </channel>
+          </rss>
+          EOF
+
+          echo "Generated appcast:"; cat _site/appcast.xml
+          echo "generated=true" >> "$GITHUB_OUTPUT"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -203,3 +258,14 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy appcast to GitHub Pages
+        if: steps.appcast.outputs.generated == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          keep_files: true
+          # Re-asserts the CNAME file so the repo's custom domain (Settings ▸ Pages)
+          # survives every deploy. Serves the appcast at https://orchard.andon.dev/appcast.xml
+          cname: orchard.andon.dev

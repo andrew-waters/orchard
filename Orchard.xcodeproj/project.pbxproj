@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
+		AAAA0000000000000000AA03 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA02 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */,
+				AAAA0000000000000000AA03 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +120,7 @@
 			name = Orchard;
 			packageProductDependencies = (
 				C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */,
+				AAAA0000000000000000AA02 /* Sparkle */,
 			);
 			productName = Orchard;
 			productReference = C25FE6E72E00C69400A8CD32 /* Orchard.app */;
@@ -203,6 +206,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */,
+				AAAA0000000000000000AA01 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C25FE6E82E00C69400A8CD32 /* Products */;
@@ -403,6 +407,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Orchard/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -443,6 +448,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Orchard/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -608,6 +614,14 @@
 				minimumVersion = 0.12.3;
 			};
 		};
+		AAAA0000000000000000AA01 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -615,6 +629,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerAPIClient;
+		};
+		AAAA0000000000000000AA02 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAA0000000000000000AA01 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

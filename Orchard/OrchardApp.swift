@@ -4,26 +4,24 @@ import SwiftUI
 struct OrchardApp: App {
     @StateObject private var containerService = ContainerService()
     @StateObject private var menuBarManager = MenuBarManager()
+    @StateObject private var updater = UpdaterService()
 
     var body: some Scene {
         WindowGroup(id: "main") {
             ContentView()
                 .environmentObject(containerService)
+                .environmentObject(updater)
         }
         .defaultSize(width: 1200, height: 800)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(replacing: .help) {
-                Button("Check for Updates...") {
-                    Task {
-                        await containerService.checkForUpdatesManually()
-                    }
-                }
+                CheckForUpdatesView(updater: updater)
 
                 Divider()
 
                 Button("Orchard Help") {
-                    if let url = URL(string: "https://github.com/\(containerService.githubRepo)") {
+                    if let url = URL(string: "https://github.com/andrew-waters/orchard") {
                         NSWorkspace.shared.open(url)
                     }
                 }

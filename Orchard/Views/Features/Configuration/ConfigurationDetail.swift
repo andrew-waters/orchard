@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ConfigurationDetailView: View {
     @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var updater: UpdaterService
 
     var body: some View {
         VStack(spacing: 0) {
@@ -90,36 +91,16 @@ struct ConfigurationDetailView: View {
                             .padding(.top, 2)
 
                         VStack(alignment: .leading, spacing: 8) {
-                            if containerService.isCheckingForUpdates {
-                                HStack {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                    Text("Checking for updates...")
-                                        .foregroundColor(.secondary)
-                                        .padding(.leading, 10)
-                                }
-                            } else if containerService.updateAvailable {
-                                Button("Download Update") {
-                                    containerService.openReleasesPage()
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-
-                                Text("Update available: v\(containerService.latestVersion ?? "")")
-                                    .foregroundColor(.green)
-                                    .padding(.leading, 10)
-
-                            } else {
-                                Button("Check for Updates") {
-                                    Task { await containerService.checkForUpdates() }
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-
-                                Text("Orchard is up to date (v\(containerService.currentVersion))")
-                                    .foregroundColor(.secondary)
-                                    .padding(.leading, 10)
+                            Button("Check for Updates…") {
+                                updater.checkForUpdates()
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(!updater.canCheckForUpdates)
+
+                            Text("You're running Orchard v\(containerService.currentVersion). Orchard checks for updates automatically.")
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 10)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }

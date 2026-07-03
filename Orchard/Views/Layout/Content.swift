@@ -244,11 +244,6 @@ struct ContentView: View {
 
         await containerService.loadDNSDomains(showLoading: true)
         await containerService.loadNetworks(showLoading: true)
-
-        // Check for updates on startup
-        if containerService.shouldCheckForUpdates() {
-            await containerService.checkForUpdates()
-        }
     }
 
     private func startRefreshTimer() {
@@ -260,10 +255,6 @@ struct ContentView: View {
                 await containerService.loadBuilders()
                 await containerService.loadDNSDomains(showLoading: false)
                 await containerService.loadNetworks(showLoading: false)
-
-                if containerService.shouldCheckForUpdates() {
-                    await containerService.checkForUpdates()
-                }
             }
         }
     }
