@@ -1,0 +1,16 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Orchard</title>
+    <item>
+      <title>Version 1.12.3</title>
+      <sparkle:version>35</sparkle:version>
+      <sparkle:shortVersionString>1.12.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v1.12.3</link>
+      <sparkle:releaseNotesLink>https://github.com/andrew-waters/orchard/releases/tag/v1.12.3</sparkle:releaseNotesLink>
+      <pubDate>Fri, 03 Jul 2026 13:03:08 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v1.12.3/Orchard-1.12.3.dmg" type="application/octet-stream" sparkle:edSignature="UFSiSJxc8h2H+6KCmbZKHeZAVgRrKsZiKUnct7l9hJ7KQPMRjXLMbt5UUrFJ3ANUloVp3r+c8zKc74FrFUFxBg==" length="26879670" />
+    </item>
+  </channel>
+</rss>
