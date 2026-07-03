@@ -27,6 +27,27 @@ func builderStatusDecodeFailure() {
     #expect(!preview.isEmpty)
 }
 
+@Test("Builder status: a valid single-builder JSON object decodes")
+func builderStatusSingleObject() {
+    guard case .builders(let builders) = parseBuilderStatus(stdout: makeBuilderStatusJSON(status: "running")) else {
+        Issue.record("expected .builders")
+        return
+    }
+    #expect(builders.count == 1)
+    #expect(builders.first?.status == "running")
+    #expect(builders.first?.configuration.id == "buildkit")
+}
+
+@Test("Builder status: a JSON array of builders decodes")
+func builderStatusArray() {
+    let arrayJSON = "[\(makeBuilderStatusJSON(status: "running"))]"
+    guard case .builders(let builders) = parseBuilderStatus(stdout: arrayJSON) else {
+        Issue.record("expected .builders")
+        return
+    }
+    #expect(builders.count == 1)
+}
+
 // MARK: - parseDNSDomains
 
 @Test("DNS domains: parses the array and marks the default")

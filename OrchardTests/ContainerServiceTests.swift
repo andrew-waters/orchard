@@ -140,3 +140,39 @@ func startSucceedsFirstTry() async {
     #expect(backend.bootstrapAndStartCount == 1)
     #expect(service.alertCenter.current == nil)
 }
+
+@MainActor
+@Test("Stats: an alert appears only when every running container fails")
+func statsAllFailAlerts() async throws {
+    let backend = MockContainerBackend()
+    backend.statsHandler = { _ in throw NotConfigured() }   // all fail
+    let service = makeService(backend: backend)
+    service.systemStatus = .running
+    service.containers = [try makeContainer(id: "a", status: "running")]
+
+    await service.loadContainerStats(showLoading: true)
+
+    #expect(service.alertCenter.current != nil)
+    #expect(service.containerStats.isEmpty)
+}
+
+@MainActor
+@Test("Stats: one failing container among several does not raise an alert")
+func statsPartialFailureIsSilent() async throws {
+    let backend = MockContainerBackend()
+    backend.statsHandler = { id in
+        if id == "a" { return makeStats(id: id) }
+        throw NotConfigured()
+    }
+    let service = makeService(backend: backend)
+    service.systemStatus = .running
+    service.containers = [
+        try makeContainer(id: "a", status: "running"),
+        try makeContainer(id: "b", status: "running"),
+    ]
+
+    await service.loadContainerStats(showLoading: true)
+
+    #expect(service.alertCenter.current == nil)
+    #expect(service.containerStats.count == 1)
+}

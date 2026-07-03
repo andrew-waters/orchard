@@ -35,6 +35,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)?
     private(set) var bootstrapAndStartCount = 0
 
+    /// Per-container stats; throw to simulate a failure for that container.
+    var statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
+
     func listContainers() async throws -> [Container] {
         if let error = listContainersError { throw error }
         return containers
@@ -47,7 +50,10 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         try bootstrapAndStartHandler?(bootstrapAndStartCount)
     }
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
-    func stats(id: String) async throws -> Orchard.ContainerStats { throw NotConfigured() }
+    func stats(id: String) async throws -> Orchard.ContainerStats {
+        if let handler = statsHandler { return try handler(id) }
+        throw NotConfigured()
+    }
     func createContainer(_ spec: ContainerCreateSpec) async throws {
         createdSpecs.append(spec)
         if let error = createContainerError { throw error }
@@ -61,6 +67,87 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     func deleteNetwork(id: String) async throws {}
     func ping() async throws -> SystemHealthInfo { SystemHealthInfo(apiServerVersion: "test") }
     func diskUsage() async throws -> SystemDiskUsage { throw NotConfigured() }
+}
+
+/// Decode a minimal `Container` fixture with the given id and status.
+func makeContainer(id: String, status: String) throws -> Container {
+    let json = """
+    {
+      "status": "\(status)",
+      "networks": [],
+      "configuration": {
+        "id": "\(id)",
+        "runtimeHandler": "vz",
+        "rosetta": false,
+        "labels": {},
+        "sysctls": {},
+        "publishedPorts": [],
+        "mounts": [],
+        "platform": { "os": "linux", "architecture": "arm64" },
+        "image": {
+          "reference": "nginx:latest",
+          "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 }
+        },
+        "dns": { "nameservers": [], "searchDomains": [], "options": [] },
+        "resources": { "cpus": 1, "memoryInBytes": 1024 },
+        "initProcess": {
+          "terminal": false,
+          "environment": [],
+          "workingDirectory": "/",
+          "arguments": [],
+          "executable": "/bin/sh",
+          "user": {},
+          "rlimits": [],
+          "supplementalGroups": []
+        }
+      }
+    }
+    """
+    return try JSONDecoder().decode(Container.self, from: Data(json.utf8))
+}
+
+/// A single-builder `container builder status --format json` payload with the given status.
+func makeBuilderStatusJSON(id: String = "buildkit", status: String) -> String {
+    """
+    {
+      "status": "\(status)",
+      "networks": [],
+      "configuration": {
+        "id": "\(id)",
+        "rosetta": false,
+        "runtimeHandler": "vz",
+        "labels": {},
+        "sysctls": {},
+        "mounts": [],
+        "networks": [],
+        "platform": { "os": "linux", "architecture": "arm64" },
+        "image": {
+          "reference": "buildkit:latest",
+          "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 }
+        },
+        "dns": { "nameservers": [], "searchDomains": [], "options": [] },
+        "resources": { "cpus": 2, "memoryInBytes": 2048 },
+        "initProcess": {
+          "terminal": false,
+          "environment": [],
+          "workingDirectory": "/",
+          "arguments": [],
+          "executable": "/bin/sh",
+          "user": {},
+          "rlimits": [],
+          "supplementalGroups": []
+        }
+      }
+    }
+    """
+}
+
+/// A stats value with the given id and otherwise-zero fields.
+func makeStats(id: String) -> Orchard.ContainerStats {
+    Orchard.ContainerStats(
+        id: id, cpuUsageUsec: 0, memoryUsageBytes: 0, memoryLimitBytes: 0,
+        blockReadBytes: 0, blockWriteBytes: 0, networkRxBytes: 0, networkTxBytes: 0, numProcesses: 0
+    )
 }
 
 /// Convenience to build a service wired to mocks.
