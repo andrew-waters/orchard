@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Failed actions no longer fail silently. Many operations that failed wrote an error message that most views never displayed, so buttons could appear to do nothing ([#54](https://github.com/andrew-waters/orchard/issues/54)). Errors now appear in a standard alert.
 - Fixed potential crashes when adding or editing a container's port mappings, volume mounts, or environment variables, and when validating a container name.
 - Builder status and container stats failures are no longer silently ignored.
+- CLI commands (builder, DNS, kernel, and system-property operations, including the admin-password prompt for DNS changes) now run off the main thread, so the UI no longer freezes while they execute.
 
 ## [1.12.3] - 2026-07-03
 
