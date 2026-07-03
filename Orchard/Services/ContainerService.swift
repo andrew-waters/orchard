@@ -1,15 +1,9 @@
 import Foundation
 import SwiftUI
 import AppKit
-import ContainerAPIClient
-import ContainerResource
-import ContainerizationOCI
-import ContainerizationExtras
 
 @MainActor
 class ContainerService: ObservableObject {
-    // Version is now obtained from ClientHealthCheck.ping()
-
     @Published var containers: [Container] = []
     @Published var images: [ContainerImage] = []
     @Published var builders: [Builder] = []
@@ -82,8 +76,11 @@ class ContainerService: ObservableObject {
 
     /// Runs CLI commands. Injectable so tests can supply a mock.
     private let runner: CommandRunner
+    /// The container runtime, behind an app-model-only boundary. Injectable for tests.
+    private let backend: ContainerBackend
 
-    init(runner: CommandRunner = SystemCommandRunner()) {
+    init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
+        self.backend = backend
         self.runner = runner
         loadCustomBinaryPath()
         loadPreferredTerminal()
@@ -287,9 +284,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let client = ContainerClient()
-            let snapshots = try await client.list()
-            let newContainers = snapshots.map { mapContainer($0) }
+            let newContainers = try await backend.listContainers()
 
             await MainActor.run {
                 if !areContainersEqual(self.containers, newContainers) {
@@ -329,8 +324,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let clientImages = try await ClientImage.list()
-            let newImages = clientImages.map { mapClientImage($0) }
+            let newImages = try await backend.listImages()
 
             await MainActor.run {
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -442,15 +436,14 @@ class ContainerService: ObservableObject {
             }
         }
 
-        let client = ContainerClient()
         let runningContainers = containers.filter { $0.status == "running" }
 
         var allStats: [Orchard.ContainerStats] = []
         var failedContainers: [String] = []
         for container in runningContainers {
             do {
-                let stats = try await client.stats(id: container.configuration.id)
-                allStats.append(mapContainerStats(stats))
+                let stats = try await backend.stats(id: container.configuration.id)
+                allStats.append(stats)
             } catch {
                 failedContainers.append(container.configuration.id)
                 print("Failed to load stats for container \(container.configuration.id): \(error)")
@@ -485,8 +478,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let stats = try await ClientDiskUsage.get()
-            let diskUsage = mapDiskUsageStats(stats)
+            let diskUsage = try await backend.diskUsage()
 
             await MainActor.run {
                 self.systemDiskUsage = diskUsage
@@ -514,8 +506,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let client = ContainerClient()
-            try await client.kill(id: id, signal: 9)
+            try await backend.killContainer(id: id, signal: 9)
 
             await MainActor.run {
                 print("Container \(id) force stop (SIGKILL) sent")
@@ -542,8 +533,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let client = ContainerClient()
-            try await client.stop(id: id)
+            try await backend.stopContainer(id: id)
 
             await MainActor.run {
                 print("Container \(id) stop command sent successfully")
@@ -565,7 +555,7 @@ class ContainerService: ObservableObject {
 
     func checkSystemStatus() async {
         do {
-            let health = try await ClientHealthCheck.ping()
+            let health = try await backend.ping()
 
             await MainActor.run {
                 self.containerVersion = health.apiServerVersion
@@ -590,7 +580,6 @@ class ContainerService: ObservableObject {
     }
 
     func checkContainerVersion() async {
-        // Version is now obtained via ClientHealthCheck.ping() in checkSystemStatus()
         await checkSystemStatus()
     }
 
@@ -708,13 +697,9 @@ class ContainerService: ObservableObject {
             errorMessage = nil
         }
 
-        let client = ContainerClient()
-
         for attempt in 1...maxRetries {
             do {
-                let stdio: [FileHandle?] = [nil, nil, nil]
-                let process = try await client.bootstrap(id: id, stdio: stdio)
-                try await process.start()
+                try await backend.bootstrapAndStart(id: id)
 
                 await MainActor.run {
                     print("Container \(id) start command sent successfully (attempt \(attempt))")
@@ -982,8 +967,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let client = ContainerClient()
-            try await client.delete(id: id)
+            try await backend.deleteContainer(id: id, force: false)
 
             await MainActor.run {
                 print("Container \(id) remove command sent successfully")
@@ -1009,8 +993,7 @@ class ContainerService: ObservableObject {
     }
 
     func fetchContainerLogs(containerId: String, tailLines: Int = 5000) async throws -> [String] {
-        let client = ContainerClient()
-        let fileHandles = try await client.logs(id: containerId)
+        let fileHandles = try await backend.containerLogs(id: containerId)
 
         // The API returns [containerLog, bootlog] — only read the first (container log)
         guard let containerLog = fileHandles.first else {
@@ -1036,32 +1019,7 @@ class ContainerService: ObservableObject {
     // MARK: - Image Inspection
 
     func inspectImage(reference: String) async throws -> ImageInspection {
-        let image = try await ClientImage.get(reference: reference)
-        let detail = try await image.details()
-
-        var variants: [ImageInspection.Variant] = []
-        for v in detail.variants {
-            let config = v.config.config
-            variants.append(ImageInspection.Variant(
-                platform: "\(v.platform.os)/\(v.platform.architecture)",
-                size: v.size,
-                entrypoint: config?.entrypoint,
-                cmd: config?.cmd,
-                env: config?.env,
-                workingDir: config?.workingDir,
-                user: config?.user,
-                exposedPorts: nil,
-                volumes: nil
-            ))
-        }
-
-        return ImageInspection(
-            name: detail.name,
-            digest: "\(detail.index.digest)",
-            mediaType: detail.index.mediaType,
-            size: detail.index.size,
-            variants: variants
-        )
+        try await backend.inspectImage(reference: reference)
     }
 
     // MARK: - DNS Management
@@ -1161,8 +1119,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let networkStates = try await NetworkClient().list()
-            let networks = networkStates.map { mapNetworkState($0) }
+            let networks = try await backend.listNetworks()
 
             await MainActor.run {
                 self.networks = networks
@@ -1190,14 +1147,7 @@ class ContainerService: ObservableObject {
                 }
             }
 
-            let config = try NetworkConfiguration(
-                id: name,
-                mode: .nat,
-                labels: try ResourceLabels(labelDict),
-                pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
-            )
-
-            _ = try await NetworkClient().create(configuration: config)
+            try await backend.createNetwork(name: name, labels: labelDict)
 
             await MainActor.run {
                 self.successMessage = "Network '\(name)' created successfully"
@@ -1217,7 +1167,7 @@ class ContainerService: ObservableObject {
 
     func deleteNetwork(_ networkId: String) async {
         do {
-            try await NetworkClient().delete(id: networkId)
+            try await backend.deleteNetwork(id: networkId)
 
             await MainActor.run {
                 self.successMessage = "Network '\(networkId)' deleted successfully"
@@ -1558,7 +1508,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            _ = try await ClientImage.pull(reference: cleanImageName)
+            try await backend.pullImage(reference: cleanImageName)
 
             await MainActor.run {
                 pullProgress[cleanImageName] = ImagePullProgress(
@@ -1763,7 +1713,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            try await ClientImage.delete(reference: imageReference)
+            try await backend.deleteImage(reference: imageReference)
 
             await MainActor.run {
                 self.successMessage = "Successfully deleted image: \(imageReference)"
@@ -1789,8 +1739,7 @@ class ContainerService: ObservableObject {
         }
 
         do {
-            let client = ContainerClient()
-            try await client.delete(id: oldContainerId, force: true)
+            try await backend.deleteContainer(id: oldContainerId, force: true)
 
             await runContainer(config: newConfig)
 
@@ -1866,102 +1815,6 @@ class ContainerService: ObservableObject {
         }
     }
 
-    /// Build an API ContainerConfiguration and create+start a container.
-    private func createAndStartContainer(
-        id: String,
-        imageRef: String,
-        environment: [String],
-        workingDirectory: String,
-        commandOverride: [String],
-        mounts: [Filesystem],
-        publishedPorts: [PublishPort],
-        dns: ContainerResource.ContainerConfiguration.DNSConfiguration?,
-        networkName: String,
-        autoRemove: Bool
-    ) async throws {
-        // Fetch or pull the image
-        let image = try await ClientImage.fetch(reference: imageRef)
-        let platform = ContainerizationOCI.Platform.current
-
-        // Unpack image snapshot
-        try await image.getCreateSnapshot(platform: platform)
-
-        // Get the default kernel
-        let kernel = try await ClientKernel.getDefaultKernel(for: .current)
-
-        // Get the OCI image config for entrypoint/cmd/env/user
-        let imageConfig = try await image.config(for: platform).config
-
-        // Build the process arguments: entrypoint + cmd, with user overrides
-        let imageEnv = imageConfig?.env ?? []
-        let mergedEnv = imageEnv + environment
-
-        var processArgs: [String] = []
-        if let entrypoint = imageConfig?.entrypoint, !entrypoint.isEmpty {
-            processArgs = entrypoint
-        }
-        if !commandOverride.isEmpty {
-            if processArgs.isEmpty {
-                processArgs = commandOverride
-            } else {
-                processArgs.append(contentsOf: commandOverride)
-            }
-        } else if let cmd = imageConfig?.cmd, !cmd.isEmpty, processArgs.isEmpty || (imageConfig?.entrypoint != nil) {
-            processArgs.append(contentsOf: cmd)
-        }
-
-        guard !processArgs.isEmpty else {
-            throw NSError(domain: "ContainerService", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "No entrypoint or command specified for the container"])
-        }
-
-        let user: ProcessConfiguration.User = {
-            if let u = imageConfig?.user, !u.isEmpty {
-                return .raw(userString: u)
-            }
-            return .id(uid: 0, gid: 0)
-        }()
-
-        let wd = workingDirectory.isEmpty ? (imageConfig?.workingDir ?? "/") : workingDirectory
-
-        let process = ProcessConfiguration(
-            executable: processArgs.first!,
-            arguments: Array(processArgs.dropFirst()),
-            environment: mergedEnv,
-            workingDirectory: wd,
-            terminal: false,
-            user: user
-        )
-
-        var containerConfig = ContainerResource.ContainerConfiguration(
-            id: id,
-            image: image.description,
-            process: process
-        )
-        containerConfig.mounts = mounts
-        containerConfig.publishedPorts = publishedPorts
-        containerConfig.dns = dns
-
-        // Set up network
-        let builtinNetworkId = try await NetworkClient().builtin?.id
-        let networkId = networkName.isEmpty ? (builtinNetworkId ?? NetworkClient.defaultNetworkName) : networkName
-        containerConfig.networks = [
-            AttachmentConfiguration(
-                network: networkId,
-                options: AttachmentOptions(hostname: id, macAddress: nil, mtu: 1280)
-            )
-        ]
-
-        let client = ContainerClient()
-        let options = ContainerCreateOptions(autoRemove: autoRemove)
-        try await client.create(configuration: containerConfig, options: options, kernel: kernel)
-
-        // Bootstrap and start in detached mode
-        let stdio: [FileHandle?] = [nil, nil, nil]
-        let proc = try await client.bootstrap(id: id, stdio: stdio)
-        try await proc.start()
-    }
-
     func runContainer(config: ContainerRunConfig) async {
         await MainActor.run {
             errorMessage = nil
@@ -1979,41 +1832,21 @@ class ContainerService: ObservableObject {
                 }
             }
 
-            // Build mounts
-            var mounts: [Filesystem] = []
+            // Build volumes
+            var volumes: [ContainerCreateSpec.Volume] = []
             for vol in config.volumeMappings {
                 if !vol.hostPath.isEmpty && !vol.containerPath.isEmpty {
-                    var options: [String] = []
-                    if vol.readonly { options.append("ro") }
-                    mounts.append(.virtiofs(source: vol.hostPath, destination: vol.containerPath, options: options))
+                    volumes.append(.init(hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly))
                 }
             }
 
             // Build published ports
-            var ports: [PublishPort] = []
+            var ports: [ContainerCreateSpec.Port] = []
             for pm in config.portMappings {
                 if let hp = UInt16(pm.hostPort), let cp = UInt16(pm.containerPort) {
-                    let proto = PublishProtocol(pm.transportProtocol) ?? .tcp
-                    ports.append(PublishPort(
-                        hostAddress: try IPAddress("0.0.0.0"),
-                        hostPort: hp,
-                        containerPort: cp,
-                        proto: proto,
-                        count: 1
-                    ))
+                    ports.append(.init(hostPort: hp, containerPort: cp, transportProtocol: pm.transportProtocol))
                 }
             }
-
-            // Build DNS
-            let dns: ContainerResource.ContainerConfiguration.DNSConfiguration? = {
-                if config.dnsDomain.isEmpty { return nil }
-                return .init(
-                    nameservers: ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers,
-                    domain: config.dnsDomain,
-                    searchDomains: [],
-                    options: []
-                )
-            }()
 
             // Build command override
             var commandArgs: [String] = []
@@ -2021,18 +1854,19 @@ class ContainerService: ObservableObject {
                 commandArgs = config.commandOverride.split(separator: " ").map(String.init)
             }
 
-            try await createAndStartContainer(
+            let spec = ContainerCreateSpec(
                 id: id,
                 imageRef: config.image,
                 environment: envStrings,
                 workingDirectory: config.workingDirectory,
                 commandOverride: commandArgs,
-                mounts: mounts,
+                volumes: volumes,
                 publishedPorts: ports,
-                dns: dns,
+                dnsDomain: config.dnsDomain,
                 networkName: config.network,
                 autoRemove: config.removeAfterStop
             )
+            try await backend.createContainer(spec)
 
             await MainActor.run {
                 let containerName = config.name.isEmpty ? "Container" : config.name

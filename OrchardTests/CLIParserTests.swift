@@ -94,3 +94,35 @@ func dockerHubSearchParsed() {
     #expect(namespaced.isOfficial == false)
     #expect(namespaced.description == nil)
 }
+
+// MARK: - resolveProcessArguments
+
+@Test("Process args: entrypoint alone is used when there is no cmd or override")
+func processArgsEntrypointOnly() {
+    #expect(resolveProcessArguments(imageEntrypoint: ["/bin/app"], imageCmd: nil, override: []) == ["/bin/app"])
+}
+
+@Test("Process args: cmd is appended to entrypoint when there is no override")
+func processArgsEntrypointPlusCmd() {
+    #expect(resolveProcessArguments(imageEntrypoint: ["/bin/app"], imageCmd: ["--serve"], override: []) == ["/bin/app", "--serve"])
+}
+
+@Test("Process args: cmd alone is used when there is no entrypoint or override")
+func processArgsCmdOnly() {
+    #expect(resolveProcessArguments(imageEntrypoint: nil, imageCmd: ["sh"], override: []) == ["sh"])
+}
+
+@Test("Process args: override replaces cmd but keeps the entrypoint prefix")
+func processArgsOverrideWithEntrypoint() {
+    #expect(resolveProcessArguments(imageEntrypoint: ["/bin/app"], imageCmd: ["--serve"], override: ["--debug"]) == ["/bin/app", "--debug"])
+}
+
+@Test("Process args: override alone is used when there is no entrypoint")
+func processArgsOverrideOnly() {
+    #expect(resolveProcessArguments(imageEntrypoint: nil, imageCmd: ["sh"], override: ["bash"]) == ["bash"])
+}
+
+@Test("Process args: empty everything yields no arguments")
+func processArgsEmpty() {
+    #expect(resolveProcessArguments(imageEntrypoint: nil, imageCmd: nil, override: []).isEmpty)
+}
