@@ -148,7 +148,7 @@ func statsAllFailAlerts() async throws {
     backend.statsHandler = { _ in throw NotConfigured() }   // all fail
     let service = makeService(backend: backend)
     service.systemService.systemStatus = .running
-    service.containers = [try makeContainer(id: "a", status: "running")]
+    service.containerListService.containers = [try makeContainer(id: "a", status: "running")]
 
     await service.loadContainerStats(showLoading: true)
 
@@ -166,7 +166,7 @@ func statsPartialFailureIsSilent() async throws {
     }
     let service = makeService(backend: backend)
     service.systemService.systemStatus = .running
-    service.containers = [
+    service.containerListService.containers = [
         try makeContainer(id: "a", status: "running"),
         try makeContainer(id: "b", status: "running"),
     ]
