@@ -79,7 +79,7 @@ func loadContainersFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.listContainersError = NotConfigured()
     let service = makeService(backend: backend)
-    service.systemStatus = .running
+    service.systemService.systemStatus = .running
 
     await service.loadContainers(showLoading: true)
 
@@ -93,7 +93,7 @@ func loadContainersFailureSilentWhenStopped() async {
     let backend = MockContainerBackend()
     backend.listContainersError = NotConfigured()
     let service = makeService(backend: backend)
-    service.systemStatus = .stopped
+    service.systemService.systemStatus = .stopped
 
     await service.loadContainers(showLoading: true)
 
@@ -147,7 +147,7 @@ func statsAllFailAlerts() async throws {
     let backend = MockContainerBackend()
     backend.statsHandler = { _ in throw NotConfigured() }   // all fail
     let service = makeService(backend: backend)
-    service.systemStatus = .running
+    service.systemService.systemStatus = .running
     service.containers = [try makeContainer(id: "a", status: "running")]
 
     await service.loadContainerStats(showLoading: true)
@@ -165,7 +165,7 @@ func statsPartialFailureIsSilent() async throws {
         throw NotConfigured()
     }
     let service = makeService(backend: backend)
-    service.systemStatus = .running
+    service.systemService.systemStatus = .running
     service.containers = [
         try makeContainer(id: "a", status: "running"),
         try makeContainer(id: "b", status: "running"),

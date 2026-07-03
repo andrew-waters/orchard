@@ -7,19 +7,7 @@ import Combine
 class ContainerService: ObservableObject {
     @Published var containers: [Container] = []
     @Published var isLoading: Bool = false
-    @Published var systemStatus: SystemStatus = .unknown
-    @Published var systemStatusError: String?
-    @Published var systemStatusVersionOverride: Bool = false
-    @Published var isSystemLoading = false
     @Published var loadingContainers: Set<String> = []
-    @Published var containerVersion: String?
-    @Published var parsedContainerVersion: String?
-    @Published var kernelConfig: KernelConfig = KernelConfig()
-    @Published var isKernelLoading = false
-    @Published var systemDiskUsage: SystemDiskUsage? = nil
-    @Published var isSystemDiskUsageLoading: Bool = false
-    @Published var systemProperties: [SystemProperty] = []
-    @Published var isSystemPropertiesLoading = false
     // Container operation locks to prevent multiple simultaneous operations
     private var containerOperationLocks: Set<String> = []
     private let lockQueue = DispatchQueue(label: "containerOperationLocks", attributes: .concurrent)
@@ -50,6 +38,8 @@ class ContainerService: ObservableObject {
     let statsService: StatsService
     /// DNS domain state and operations.
     let dnsService: DNSService
+    /// Container-system state and lifecycle.
+    let systemService: SystemService
     private var cancellables = Set<AnyCancellable>()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
@@ -69,6 +59,8 @@ class ContainerService: ObservableObject {
         self.statsService = statsService
         let dnsService = DNSService(runner: runner, settings: settings, alertCenter: alertCenter)
         self.dnsService = dnsService
+        let systemService = SystemService(backend: backend, runner: runner, settings: settings, alertCenter: alertCenter)
+        self.systemService = systemService
 
         // Re-publish the extracted stores' changes so views observing this facade
         // still update while the migration is in progress.
@@ -79,28 +71,28 @@ class ContainerService: ObservableObject {
             imageService.objectWillChange,
             statsService.objectWillChange,
             dnsService.objectWillChange,
+            systemService.objectWillChange,
         ] {
             store.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         }
         // Services that read the system-up state for their teardown guard.
-        builderService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
-        imageService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
-        statsService.systemIsRunning = { [weak self] in self?.systemStatus == .running }
+        builderService.systemIsRunning = { [weak self] in self?.systemService.systemStatus == .running }
+        imageService.systemIsRunning = { [weak self] in self?.systemService.systemStatus == .running }
+        statsService.systemIsRunning = { [weak self] in self?.systemService.systemStatus == .running }
         statsService.containersProvider = { [weak self] in self?.containers ?? [] }
-        // DNS reads/writes the default domain, which is a system property.
-        dnsService.refreshSystemProperties = { [weak self] in await self?.loadSystemProperties(showLoading: false) }
+        // DNS ↔ System: the default domain is a system property.
+        dnsService.refreshSystemProperties = { [weak self] in await self?.systemService.loadSystemProperties(showLoading: false) }
         dnsService.defaultDomain = { [weak self] in
-            self?.systemProperties.first(where: { $0.id == "dns.domain" })?.value
+            self?.systemService.systemProperties.first(where: { $0.id == "dns.domain" })?.value
         }
         dnsService.setDefaultDomainProperty = { [weak self] domain in
-            guard let self, let index = self.systemProperties.firstIndex(where: { $0.id == "dns.domain" }) else { return }
-            self.systemProperties[index] = SystemProperty(
-                id: "dns.domain",
-                type: self.systemProperties[index].type,
-                value: domain,
-                description: self.systemProperties[index].description
-            )
+            self?.systemService.setDNSDomainPropertyOptimistically(domain)
         }
+        // System → containers/DNS side effects.
+        systemService.onSystemStarted = { [weak self] in await self?.loadContainers() }
+        systemService.onSystemStopped = { [weak self] in self?.containers.removeAll() }
+        systemService.markDNSDefault = { [weak self] domain in self?.dnsService.markDefault(domain) }
+        systemService.reloadDNS = { [weak self] in await self?.dnsService.load(showLoading: false) }
     }
 
     // MARK: - Settings (forwarded to SettingsStore)
@@ -141,42 +133,6 @@ class ContainerService: ObservableObject {
         return Array(mountDict.values).sorted { $0.mount.source < $1.mount.source }
     }
 
-    enum SystemStatus {
-        case unknown
-        case stopped
-        case running
-        case newerVersion
-        case unsupportedVersion
-
-        var color: Color {
-            switch self {
-            case .unknown, .stopped:
-                return .gray
-            case .running:
-                return .green
-            case .newerVersion:
-                return .yellow
-            case .unsupportedVersion:
-                return .red
-            }
-        }
-
-        var text: String {
-            switch self {
-            case .unknown:
-                return "unknown"
-            case .stopped:
-                return "stopped"
-            case .running:
-                return "running"
-            case .newerVersion:
-                return "version not yet supported"
-            case .unsupportedVersion:
-                return "unsupported version"
-            }
-        }
-    }
-
     func loadContainers() async {
         await loadContainers(showLoading: false)
     }
@@ -214,7 +170,7 @@ class ContainerService: ObservableObject {
                 // Only surface while the system is up. When it is stopped or tearing
                 // down, the recurring refresh (and NotRunningView's own load) would
                 // otherwise flash this error repeatedly over the not-running screen.
-                if self.systemStatus == .running {
+                if self.systemService.systemStatus == .running {
                     self.alertCenter.error(error.localizedDescription)
                 }
                 self.isLoading = false
@@ -260,36 +216,37 @@ class ContainerService: ObservableObject {
     func loadContainerStats() async { await statsService.load(showLoading: true) }
     func loadContainerStats(showLoading: Bool = true) async { await statsService.load(showLoading: showLoading) }
 
-    // MARK: - System Disk Usage Management
+    // MARK: - System (forwarded to SystemService)
 
-    func loadSystemDiskUsage() async {
-        await loadSystemDiskUsage(showLoading: true)
+    var systemStatus: SystemStatus { systemService.systemStatus }
+    var systemStatusError: String? { systemService.systemStatusError }
+    var systemStatusVersionOverride: Bool { systemService.systemStatusVersionOverride }
+    var isSystemLoading: Bool { systemService.isSystemLoading }
+    var containerVersion: String? { systemService.containerVersion }
+    var parsedContainerVersion: String? { systemService.parsedContainerVersion }
+    var kernelConfig: KernelConfig { systemService.kernelConfig }
+    var isKernelLoading: Bool { systemService.isKernelLoading }
+    var systemProperties: [SystemProperty] { systemService.systemProperties }
+    var isSystemPropertiesLoading: Bool { systemService.isSystemPropertiesLoading }
+    var systemDiskUsage: SystemDiskUsage? { systemService.systemDiskUsage }
+    var isSystemDiskUsageLoading: Bool { systemService.isSystemDiskUsageLoading }
+
+    func checkSystemStatus() async { await systemService.checkSystemStatus() }
+    func checkSystemStatusIgnoreVersion() async { await systemService.checkSystemStatusIgnoreVersion() }
+    func checkContainerVersion() async { await systemService.checkContainerVersion() }
+    func startSystem() async { await systemService.startSystem() }
+    func stopSystem() async { await systemService.stopSystem() }
+    func restartSystem() async { await systemService.restartSystem() }
+    func loadKernelConfig() async { await systemService.loadKernelConfig() }
+    func setRecommendedKernel() async { await systemService.setRecommendedKernel() }
+    func setCustomKernel(binary: String?, tar: String?, arch: KernelArch) async {
+        await systemService.setCustomKernel(binary: binary, tar: tar, arch: arch)
     }
-
-    func loadSystemDiskUsage(showLoading: Bool = true) async {
-        if showLoading {
-            await MainActor.run {
-                isSystemDiskUsageLoading = true
-            }
-        }
-
-        do {
-            let diskUsage = try await backend.diskUsage()
-
-            await MainActor.run {
-                self.systemDiskUsage = diskUsage
-                self.isSystemDiskUsageLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.systemDiskUsage = nil
-                self.isSystemDiskUsageLoading = false
-                if self.systemStatus == .running {
-                    self.alertCenter.error("Failed to load system disk usage: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
+    func loadSystemProperties() async { await systemService.loadSystemProperties(showLoading: false) }
+    func loadSystemProperties(showLoading: Bool = true) async { await systemService.loadSystemProperties(showLoading: showLoading) }
+    func setSystemProperty(_ id: String, value: String) async { await systemService.setSystemProperty(id, value: value) }
+    func loadSystemDiskUsage() async { await systemService.loadSystemDiskUsage(showLoading: true) }
+    func loadSystemDiskUsage(showLoading: Bool = true) async { await systemService.loadSystemDiskUsage(showLoading: showLoading) }
 
     private func areContainersEqual(_ old: [Container], _ new: [Container]) -> Bool {
         return old == new
@@ -346,120 +303,6 @@ class ContainerService: ObservableObject {
                 self.alertCenter.error("Failed to stop container: \(error.localizedDescription)")
             }
             Log.containers.error("Error stopping container: \(error.localizedDescription)")
-        }
-    }
-
-    func checkSystemStatus() async {
-        do {
-            let health = try await backend.ping()
-
-            await MainActor.run {
-                self.containerVersion = health.apiServerVersion
-                self.parsedContainerVersion = health.apiServerVersion
-                self.systemStatus = .running
-                self.systemStatusError = nil
-            }
-        } catch {
-            let detail = "\(type(of: error)): \(String(describing: error))"
-            await MainActor.run {
-                self.containerVersion = nil
-                self.parsedContainerVersion = nil
-                self.systemStatus = .stopped
-                self.systemStatusError = detail
-            }
-        }
-    }
-
-    func checkSystemStatusIgnoreVersion() async {
-        self.systemStatusVersionOverride = true
-        await checkSystemStatus()
-    }
-
-    func checkContainerVersion() async {
-        await checkSystemStatus()
-    }
-
-    func startSystem() async {
-        await MainActor.run {
-            isSystemLoading = true
-            self.alertCenter.dismiss()
-        }
-
-        do {
-            _ = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "start"])
-
-            await MainActor.run {
-                self.isSystemLoading = false
-                self.systemStatus = .running
-            }
-
-            Log.containers.debug("Container system started successfully")
-            await loadContainers()
-
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to start system: \(error.localizedDescription)")
-                self.isSystemLoading = false
-            }
-            Log.containers.error("Error starting system: \(error.localizedDescription)")
-        }
-    }
-
-    func stopSystem() async {
-        await MainActor.run {
-            isSystemLoading = true
-            self.alertCenter.dismiss()
-        }
-
-        do {
-            _ = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "stop"])
-
-            await MainActor.run {
-                self.isSystemLoading = false
-                self.systemStatus = .stopped
-                self.containers.removeAll()
-            }
-
-            Log.containers.debug("Container system stopped successfully")
-
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to stop system: \(error.localizedDescription)")
-                self.isSystemLoading = false
-            }
-            Log.containers.error("Error stopping system: \(error.localizedDescription)")
-        }
-    }
-
-    func restartSystem() async {
-        await MainActor.run {
-            isSystemLoading = true
-            self.alertCenter.dismiss()
-        }
-
-        do {
-            _ = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "restart"])
-
-            await MainActor.run {
-                self.isSystemLoading = false
-                self.systemStatus = .running
-            }
-
-            Log.containers.debug("Container system restarted successfully")
-            await loadContainers()
-
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to restart system: \(error.localizedDescription)")
-                self.isSystemLoading = false
-            }
-            Log.containers.error("Error restarting system: \(error.localizedDescription)")
         }
     }
 
@@ -734,251 +577,6 @@ class ContainerService: ObservableObject {
     }
     func deleteNetwork(_ networkId: String) async { await networkService.delete(networkId) }
 
-    // MARK: - Kernel Management
-
-    func loadKernelConfig() async {
-        await MainActor.run {
-            isKernelLoading = true
-        }
-
-        do {
-            let kernelsDir = NSHomeDirectory() + "/Library/Application Support/com.apple.container/kernels/"
-            let fileManager = FileManager.default
-
-            // Check for both architectures
-            let arm64KernelPath = kernelsDir + "default.kernel-arm64"
-            let amd64KernelPath = kernelsDir + "default.kernel-amd64"
-
-            var kernelPath: String?
-            var arch: KernelArch = .arm64
-
-            if fileManager.fileExists(atPath: arm64KernelPath) {
-                kernelPath = arm64KernelPath
-                arch = .arm64
-            } else if fileManager.fileExists(atPath: amd64KernelPath) {
-                kernelPath = amd64KernelPath
-                arch = .amd64
-            }
-
-            if let kernelPath = kernelPath {
-                // Try to resolve the symlink to see what kernel is active
-                let resolvedPath = try fileManager.destinationOfSymbolicLink(atPath: kernelPath)
-
-                // Check if it's the recommended kernel (contains vmlinux pattern)
-                if resolvedPath.contains("vmlinux-") {
-                    await MainActor.run {
-                        self.kernelConfig = KernelConfig(arch: arch, isRecommended: true)
-                        self.isKernelLoading = false
-                    }
-                } else {
-                    await MainActor.run {
-                        self.kernelConfig = KernelConfig(binary: resolvedPath, arch: arch)
-                        self.isKernelLoading = false
-                    }
-                }
-            } else {
-                await MainActor.run {
-                    self.kernelConfig = KernelConfig()
-                    self.isKernelLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.kernelConfig = KernelConfig()
-                self.isKernelLoading = false
-            }
-        }
-    }
-
-    func setRecommendedKernel() async {
-        await MainActor.run {
-            isKernelLoading = true
-        }
-
-        do {
-            let result = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "kernel", "set", "--recommended"])
-
-            if !result.failed {
-                await MainActor.run {
-                    self.kernelConfig = KernelConfig(isRecommended: true)
-                    self.isKernelLoading = false
-                }
-            } else {
-                // Check if the error is due to kernel already being installed
-                let errorOutput = result.stderr ?? ""
-                if errorOutput.contains("item with the same name already exists") ||
-                   errorOutput.contains("File exists") {
-                    // Treat this as success - kernel is already installed
-                    await MainActor.run {
-                        self.kernelConfig = KernelConfig(isRecommended: true)
-                        self.isKernelLoading = false
-                    }
-                } else {
-                    await MainActor.run {
-                        self.alertCenter.error(result.stderr ?? "Failed to set recommended kernel")
-                        self.isKernelLoading = false
-                    }
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to set recommended kernel: \(error.localizedDescription)")
-                self.isKernelLoading = false
-            }
-        }
-    }
-
-    func setCustomKernel(binary: String?, tar: String?, arch: KernelArch) async {
-        await MainActor.run {
-            isKernelLoading = true
-        }
-
-        do {
-            var arguments = ["system", "kernel", "set", "--arch", arch.rawValue]
-
-            if let binary = binary, !binary.isEmpty {
-                arguments.append(contentsOf: ["--binary", binary])
-            }
-
-            if let tar = tar, !tar.isEmpty {
-                arguments.append(contentsOf: ["--tar", tar])
-            }
-
-            let result = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: arguments)
-
-            if !result.failed {
-                await MainActor.run {
-                    self.kernelConfig = KernelConfig(binary: binary, tar: tar, arch: arch, isRecommended: false)
-                    self.isKernelLoading = false
-                }
-            } else {
-                await MainActor.run {
-                    self.alertCenter.error(result.stderr ?? "Failed to set custom kernel")
-                    self.isKernelLoading = false
-                }
-            }
-        } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to set custom kernel: \(error.localizedDescription)")
-                self.isKernelLoading = false
-            }
-        }
-    }
-
-
-
-    // MARK: - System Properties Management
-
-    func loadSystemProperties() async {
-        await loadSystemProperties(showLoading: false)
-    }
-
-    func loadSystemProperties(showLoading: Bool = true) async {
-        if showLoading {
-            await MainActor.run {
-                isSystemPropertiesLoading = true
-                self.alertCenter.dismiss()
-            }
-        }
-
-        var result: ProcessResult
-        do {
-            result = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "property", "list", "--format=json"])
-        } catch {
-            result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
-        }
-
-        if result.failed {
-            await MainActor.run {
-                self.alertCenter.error(result.stderr ?? "Failed to load system properties")
-                self.isSystemPropertiesLoading = false
-            }
-            return
-        }
-
-        guard let output = result.stdout else {
-            await MainActor.run {
-                self.systemProperties = []
-                self.isSystemPropertiesLoading = false
-            }
-            return
-        }
-
-        let properties = parseSystemProperties(json: output)
-        await MainActor.run {
-            self.systemProperties = properties
-            self.isSystemPropertiesLoading = false
-        }
-    }
-
-    func setSystemProperty(_ id: String, value: String) async {
-        // Preserve window focus
-        let currentApp = NSApplication.shared
-        let isActive = currentApp.isActive
-
-        // Optimistically update the UI first
-        await MainActor.run {
-            if id == "dns.domain" {
-                // Update system properties optimistically
-                if let index = self.systemProperties.firstIndex(where: { $0.id == id }) {
-                    self.systemProperties[index] = SystemProperty(
-                        id: id,
-                        type: self.systemProperties[index].type,
-                        value: value,
-                        description: self.systemProperties[index].description
-                    )
-                }
-
-                // Update DNS domains default status optimistically
-                self.dnsService.markDefault(value)
-            }
-        }
-
-        var result: ProcessResult
-        do {
-            // Execute command with focus preservation
-            result = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "property", "set", id, value])
-        } catch {
-            result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
-        }
-
-        // Restore focus if it was lost
-        await MainActor.run {
-            if isActive && !currentApp.isActive {
-                currentApp.activate(ignoringOtherApps: true)
-            }
-        }
-
-        if result.failed {
-            await MainActor.run {
-                self.alertCenter.error(result.stderr ?? "Failed to set system property")
-            }
-            // Revert optimistic changes on failure
-            if id == "dns.domain" {
-                await loadSystemProperties(showLoading: false)
-                await loadDNSDomains(showLoading: false)
-            }
-            return
-        }
-
-        // Success - optionally refresh in background to ensure consistency
-        DispatchQueue.global(qos: .background).async { [weak self] in
-            Task {
-                await self?.loadSystemProperties(showLoading: false)
-                if id == "dns.domain" {
-                    await self?.loadDNSDomains(showLoading: false)
-                }
-            }
-        }
-    }
 
     // MARK: - Container Terminal (forwarded to TerminalLauncher)
 
