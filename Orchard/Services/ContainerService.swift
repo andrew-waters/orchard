@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import Combine
 
 @MainActor
 class ContainerService: ObservableObject {
@@ -25,7 +26,6 @@ class ContainerService: ObservableObject {
     @Published var isNetworksLoading = false
     @Published var kernelConfig: KernelConfig = KernelConfig()
     @Published var isKernelLoading = false
-    @Published var customBinaryPath: String?
     @Published var containerStats: [ContainerStats] = []
     @Published var isStatsLoading: Bool = false
     @Published var systemDiskUsage: SystemDiskUsage? = nil
@@ -35,8 +35,6 @@ class ContainerService: ObservableObject {
     @Published var searchResults: [RegistrySearchResult] = []
     @Published var systemProperties: [SystemProperty] = []
     @Published var isSystemPropertiesLoading = false
-    @Published var preferredTerminal: TerminalApp = .terminal
-    @Published var installedTerminals: [TerminalApp] = [.terminal]
     // Container operation locks to prevent multiple simultaneous operations
     private var containerOperationLocks: Set<String> = []
     private let lockQueue = DispatchQueue(label: "containerOperationLocks", attributes: .concurrent)
@@ -44,33 +42,8 @@ class ContainerService: ObservableObject {
     // Container configuration snapshots for recovery
     private var containerSnapshots: [String: Container] = [:]
 
-    private let fallbackBinaryPath = "/usr/local/bin/container"
-    private let candidateBinaryPaths: [String] = [
-        "/usr/local/bin/container",
-        "/opt/homebrew/bin/container",
-        "\(NSHomeDirectory())/.nix-profile/bin/container",
-        "\(NSHomeDirectory())/.local/bin/container",
-    ]
-    private var defaultBinaryPath: String {
-        candidateBinaryPaths.first(where: { validateBinaryPath($0) }) ?? fallbackBinaryPath
-    }
-    private let customBinaryPathKey = "OrchardCustomBinaryPath"
-    private let preferredTerminalKey = "OrchardPreferredTerminal"
-
     // App version info (used for display; updates are handled by Sparkle).
     let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
-
-    var containerBinaryPath: String {
-        let path = customBinaryPath ?? defaultBinaryPath
-        return validateBinaryPath(path) ? path : defaultBinaryPath
-    }
-
-    var isUsingCustomBinary: Bool {
-        guard let customPath = customBinaryPath else { return false }
-        return customPath != defaultBinaryPath && validateBinaryPath(customPath)
-    }
-
-
 
     /// Runs CLI commands. Injectable so tests can supply a mock.
     private let runner: CommandRunner
@@ -78,114 +51,33 @@ class ContainerService: ObservableObject {
     private let backend: ContainerBackend
     /// The app's current user-facing alert. Observed separately by the UI.
     let alertCenter = AlertCenter()
+    /// User settings (binary path, preferred terminal).
+    let settings: SettingsStore
+    private var cancellables = Set<AnyCancellable>()
 
     init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
         self.backend = backend
         self.runner = runner
-        loadCustomBinaryPath()
-        loadPreferredTerminal()
+        self.settings = SettingsStore(alertCenter: alertCenter)
+        // Re-publish the extracted store's changes so views observing this facade
+        // still update while the migration is in progress.
+        settings.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
-    private func loadCustomBinaryPath() {
-        let userDefaults = UserDefaults.standard
-        if let savedPath = userDefaults.string(forKey: customBinaryPathKey), !savedPath.isEmpty {
-            customBinaryPath = savedPath
-        }
-    }
+    // MARK: - Settings (forwarded to SettingsStore)
 
-    func setCustomBinaryPath(_ path: String?) {
-        customBinaryPath = path
-        let userDefaults = UserDefaults.standard
-        if let path = path, !path.isEmpty {
-            userDefaults.set(path, forKey: customBinaryPathKey)
-        } else {
-            userDefaults.removeObject(forKey: customBinaryPathKey)
-        }
-    }
+    var customBinaryPath: String? { settings.customBinaryPath }
+    var containerBinaryPath: String { settings.containerBinaryPath }
+    var isUsingCustomBinary: Bool { settings.isUsingCustomBinary }
+    var preferredTerminal: TerminalApp { settings.preferredTerminal }
+    var installedTerminals: [TerminalApp] { settings.installedTerminals }
 
-    func resetToDefaultBinary() {
-        setCustomBinaryPath(nil)
-    }
-
-    func validateAndSetCustomBinaryPath(_ path: String?) -> Bool {
-        guard let path = path, !path.isEmpty else {
-            setCustomBinaryPath(nil)
-            return true
-        }
-
-        if validateBinaryPath(path) {
-            // If the selected path is the same as default, treat it as default
-            if path == defaultBinaryPath {
-                setCustomBinaryPath(nil)
-            } else {
-                setCustomBinaryPath(path)
-            }
-            return true
-        } else {
-            return false
-        }
-    }
-
-
-    private func loadPreferredTerminal() {
-        installedTerminals = TerminalApp.installedTerminals
-
-        let userDefaults = UserDefaults.standard
-        if let savedTerminal = userDefaults.string(forKey: preferredTerminalKey),
-           let terminal = TerminalApp(rawValue: savedTerminal),
-           terminal.isInstalled {
-            preferredTerminal = terminal
-        } else if let firstInstalled = installedTerminals.first {
-            preferredTerminal = firstInstalled
-        }
-    }
-
-    func setPreferredTerminal(_ terminal: TerminalApp) {
-        preferredTerminal = terminal
-        let userDefaults = UserDefaults.standard
-        userDefaults.set(terminal.rawValue, forKey: preferredTerminalKey)
-    }
-
-    // MARK: - Update Management
-    //
-    // In-app updates are handled by Sparkle (see `UpdaterService`). The app
-    // still exposes `currentVersion` for display purposes.
-
-    private func validateBinaryPath(_ path: String) -> Bool {
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-
-        // Check if file exists and is not a directory
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
-              !isDirectory.boolValue else {
-            return false
-        }
-
-        // Check if file is executable
-        guard fileManager.isExecutableFile(atPath: path) else {
-            return false
-        }
-
-        return true
-    }
-
-    private func safeContainerBinaryPath() -> String {
-        let currentPath = customBinaryPath ?? defaultBinaryPath
-
-        if validateBinaryPath(currentPath) {
-            return currentPath
-        } else {
-            // Reset to default if custom path is invalid
-            if customBinaryPath != nil {
-                DispatchQueue.main.async {
-                    self.customBinaryPath = nil
-                    self.alertCenter.error("Invalid binary path detected. Reset to default: \(self.defaultBinaryPath)")
-                }
-                UserDefaults.standard.removeObject(forKey: customBinaryPathKey)
-            }
-            return defaultBinaryPath
-        }
-    }
+    func setCustomBinaryPath(_ path: String?) { settings.setCustomBinaryPath(path) }
+    func resetToDefaultBinary() { settings.resetToDefaultBinary() }
+    func validateAndSetCustomBinaryPath(_ path: String?) -> Bool { settings.validateAndSetCustomBinaryPath(path) }
+    func setPreferredTerminal(_ terminal: TerminalApp) { settings.setPreferredTerminal(terminal) }
 
     // Computed property to get all unique mounts from containers
     var allMounts: [ContainerMount] {
@@ -356,7 +248,7 @@ class ContainerService: ObservableObject {
         var result: ProcessResult
         do {
             result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["builder", "status", "--format", "json"]
             )
         } catch {
@@ -591,7 +483,7 @@ class ContainerService: ObservableObject {
 
         do {
             _ = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "start"])
 
             await MainActor.run {
@@ -619,7 +511,7 @@ class ContainerService: ObservableObject {
 
         do {
             _ = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "stop"])
 
             await MainActor.run {
@@ -647,7 +539,7 @@ class ContainerService: ObservableObject {
 
         do {
             _ = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "restart"])
 
             await MainActor.run {
@@ -862,7 +754,7 @@ class ContainerService: ObservableObject {
         var result: ProcessResult
         do {
             result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["builder", "start"])
 
             await MainActor.run {
@@ -897,7 +789,7 @@ class ContainerService: ObservableObject {
         var result: ProcessResult
         do {
             result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["builder", "stop"])
 
             await MainActor.run {
@@ -932,7 +824,7 @@ class ContainerService: ObservableObject {
         var result: ProcessResult
         do {
             result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["builder", "delete"])
 
             await MainActor.run {
@@ -1038,7 +930,7 @@ class ContainerService: ObservableObject {
         do {
             // Get list of domains in JSON format
             let listResult = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "dns", "ls", "--format=json"])
 
             if let output = listResult.stdout {
@@ -1064,7 +956,7 @@ class ContainerService: ObservableObject {
     func createDNSDomain(_ domain: String) async -> Bool {
         do {
             let result = try await runner.runWithSudo(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "dns", "create", domain])
 
             if !result.failed {
@@ -1087,7 +979,7 @@ class ContainerService: ObservableObject {
     func deleteDNSDomain(_ domain: String) async {
         do {
             let result = try await runner.runWithSudo(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "dns", "delete", domain])
 
             if !result.failed {
@@ -1233,7 +1125,7 @@ class ContainerService: ObservableObject {
 
         do {
             let result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "kernel", "set", "--recommended"])
 
             if !result.failed {
@@ -1283,7 +1175,7 @@ class ContainerService: ObservableObject {
             }
 
             let result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: arguments)
 
             if !result.failed {
@@ -1324,7 +1216,7 @@ class ContainerService: ObservableObject {
         var result: ProcessResult
         do {
             result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "property", "list", "--format=json"])
         } catch {
             result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
@@ -1385,7 +1277,7 @@ class ContainerService: ObservableObject {
         do {
             // Execute command with focus preservation
             result = try await runner.run(
-                program: safeContainerBinaryPath(),
+                program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "property", "set", id, value])
         } catch {
             result = ProcessResult(exitCode: -1, stdout: nil, stderr: error.localizedDescription)
@@ -1444,7 +1336,7 @@ class ContainerService: ObservableObject {
         }
 
         // Execute command in background without capturing self in a concurrently-executing closure
-        let binaryPath = self.safeContainerBinaryPath()
+        let binaryPath = self.settings.safeContainerBinaryPath()
         let selectedDomain = domain
         let weakSelf = self
 
@@ -1573,7 +1465,7 @@ class ContainerService: ObservableObject {
 
     func openTerminal(for containerId: String, shell: String = "sh") {
         // Build the command to execute in the preferred terminal
-        let containerBinary = safeContainerBinaryPath()
+        let containerBinary = settings.safeContainerBinaryPath()
 
         // Build the complete command - note: we need to quote the shell path if it has spaces
         let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
