@@ -59,80 +59,62 @@ final class ContainerListService: ObservableObject {
 
     func loadContainers(showLoading: Bool = false) async {
         if showLoading {
-            await MainActor.run {
-                isLoading = true
-                self.alertCenter.dismiss()
-            }
+            isLoading = true
+            self.alertCenter.dismiss()
         }
 
         do {
             let newContainers = try await backend.listContainers()
 
-            await MainActor.run {
-                if !areContainersEqual(self.containers, newContainers) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        self.containers = newContainers
-                    }
+            if !areContainersEqual(self.containers, newContainers) {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    self.containers = newContainers
                 }
-                self.isLoading = false
-                for container in newContainers {
-                    self.containerSnapshots[container.configuration.id] = container
-                }
+            }
+            self.isLoading = false
+            for container in newContainers {
+                self.containerSnapshots[container.configuration.id] = container
             }
 
             for container in newContainers {
                 Log.containers.debug("Container: \(container.configuration.id), Status: \(container.status)")
             }
         } catch {
-            await MainActor.run {
-                // Background refreshes stay silent; only a user-initiated load alerts.
-                self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
-                self.isLoading = false
-            }
+            // Background refreshes stay silent; only a user-initiated load alerts.
+            self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
+            self.isLoading = false
             Log.containers.error("\(error.localizedDescription)")
         }
     }
 
     func forceStopContainer(_ id: String) async {
-        await MainActor.run {
-            loadingContainers.insert(id)
-            self.alertCenter.dismiss()
-        }
+        loadingContainers.insert(id)
+        self.alertCenter.dismiss()
 
         do {
             try await backend.killContainer(id: id, signal: 9)
-            await MainActor.run {
-                Log.containers.debug("Container \(id) force stop (SIGKILL) sent")
-                Task { await self.reloadBuilders() }
-                Task { await self.refreshUntilContainerStopped(id) }
-            }
+            Log.containers.debug("Container \(id) force stop (SIGKILL) sent")
+            Task { await self.reloadBuilders() }
+            Task { await self.refreshUntilContainerStopped(id) }
         } catch {
-            await MainActor.run {
-                loadingContainers.remove(id)
-                self.alertCenter.error("Failed to force stop container: \(error.localizedDescription)")
-            }
+            loadingContainers.remove(id)
+            self.alertCenter.error("Failed to force stop container: \(error.localizedDescription)")
             Log.containers.error("Error force stopping container: \(error.localizedDescription)")
         }
     }
 
     func stopContainer(_ id: String) async {
-        await MainActor.run {
-            loadingContainers.insert(id)
-            self.alertCenter.dismiss()
-        }
+        loadingContainers.insert(id)
+        self.alertCenter.dismiss()
 
         do {
             try await backend.stopContainer(id: id)
-            await MainActor.run {
-                Log.containers.debug("Container \(id) stop command sent successfully")
-                Task { await self.reloadBuilders() }
-                Task { await self.refreshUntilContainerStopped(id) }
-            }
+            Log.containers.debug("Container \(id) stop command sent successfully")
+            Task { await self.reloadBuilders() }
+            Task { await self.refreshUntilContainerStopped(id) }
         } catch {
-            await MainActor.run {
-                loadingContainers.remove(id)
-                self.alertCenter.error("Failed to stop container: \(error.localizedDescription)")
-            }
+            loadingContainers.remove(id)
+            self.alertCenter.error("Failed to stop container: \(error.localizedDescription)")
             Log.containers.error("Error stopping container: \(error.localizedDescription)")
         }
     }
@@ -157,19 +139,15 @@ final class ContainerListService: ObservableObject {
     }
 
     private func startContainerWithRetry(_ id: String, maxRetries: Int, retryDelay: TimeInterval) async {
-        await MainActor.run {
-            loadingContainers.insert(id)
-            self.alertCenter.dismiss()
-        }
+        loadingContainers.insert(id)
+        self.alertCenter.dismiss()
 
         for attempt in 1...maxRetries {
             do {
                 try await backend.bootstrapAndStart(id: id)
 
-                await MainActor.run {
-                    Log.containers.debug("Container \(id) start command sent successfully (attempt \(attempt))")
-                    self.recoveryFailedContainerIDs.remove(id)
-                }
+                Log.containers.debug("Container \(id) start command sent successfully (attempt \(attempt))")
+                self.recoveryFailedContainerIDs.remove(id)
 
                 Task { await self.reloadBuilders() }
                 Task { await self.refreshUntilContainerStarted(id) }
@@ -189,33 +167,25 @@ final class ContainerListService: ObservableObject {
                         Log.containers.debug("Container \(id) successfully recovered, retrying start...")
                         continue
                     } else {
-                        await MainActor.run {
-                            Log.containers.error("Container \(id) recovery failed")
-                            self.recoveryFailedContainerIDs.insert(id)
-                            self.alertCenter.error("Container was automatically removed and could not be recovered. Original configuration may be lost.")
-                            loadingContainers.remove(id)
-                        }
+                        Log.containers.error("Container \(id) recovery failed")
+                        self.recoveryFailedContainerIDs.insert(id)
+                        self.alertCenter.error("Container was automatically removed and could not be recovered. Original configuration may be lost.")
+                        loadingContainers.remove(id)
                         Task { await self.loadContainers() }
                         return
                     }
                 } else if isTransitionError {
                     if attempt == maxRetries {
-                        await MainActor.run {
-                            self.alertCenter.error("Container failed to start after \(maxRetries) attempts. The container may be corrupted.")
-                            loadingContainers.remove(id)
-                        }
+                        self.alertCenter.error("Container failed to start after \(maxRetries) attempts. The container may be corrupted.")
+                        loadingContainers.remove(id)
                         Task { await self.loadContainers() }
                         return
                     } else {
-                        await MainActor.run {
-                            self.alertCenter.error("Container is in transition state, retrying...")
-                        }
+                        self.alertCenter.error("Container is in transition state, retrying...")
                     }
                 } else {
-                    await MainActor.run {
-                        self.alertCenter.error("Failed to start container: \(errorMsg)")
-                        loadingContainers.remove(id)
-                    }
+                    self.alertCenter.error("Failed to start container: \(errorMsg)")
+                    loadingContainers.remove(id)
                     Task { await self.loadContainers() }
                     return
                 }
@@ -226,7 +196,7 @@ final class ContainerListService: ObservableObject {
             }
         }
 
-        _ = await MainActor.run { loadingContainers.remove(id) }
+        loadingContainers.remove(id)
     }
 
     private func refreshUntilContainerStopped(_ id: String) async {
@@ -236,21 +206,18 @@ final class ContainerListService: ObservableObject {
         while attempts < maxAttempts {
             await loadContainers()
 
-            let shouldStop = await MainActor.run {
-                if let container = containers.first(where: { $0.configuration.id == id }) {
-                    Log.containers.debug("Checking stop status for \(id): \(container.status)")
-                    return container.status.lowercased() != "running"
-                } else {
-                    Log.containers.debug("Container \(id) not found, assuming stopped")
-                    return true
-                }
+            let shouldStop: Bool
+            if let container = containers.first(where: { $0.configuration.id == id }) {
+                Log.containers.debug("Checking stop status for \(id): \(container.status)")
+                shouldStop = container.status.lowercased() != "running"
+            } else {
+                Log.containers.debug("Container \(id) not found, assuming stopped")
+                shouldStop = true
             }
 
             if shouldStop {
-                await MainActor.run {
-                    Log.containers.debug("Container \(id) has stopped, removing loading state")
-                    loadingContainers.remove(id)
-                }
+                Log.containers.debug("Container \(id) has stopped, removing loading state")
+                loadingContainers.remove(id)
                 return
             }
 
@@ -259,10 +226,8 @@ final class ContainerListService: ObservableObject {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
 
-        await MainActor.run {
-            Log.containers.debug("Timeout reached for container \(id), removing loading state")
-            loadingContainers.remove(id)
-        }
+        Log.containers.debug("Timeout reached for container \(id), removing loading state")
+        loadingContainers.remove(id)
     }
 
     private func refreshUntilContainerStarted(_ id: String) async {
@@ -272,19 +237,17 @@ final class ContainerListService: ObservableObject {
         while attempts < maxAttempts {
             await loadContainers()
 
-            let isRunning = await MainActor.run {
-                if let container = containers.first(where: { $0.configuration.id == id }) {
-                    Log.containers.debug("Checking start status for \(id): \(container.status)")
-                    return container.status.lowercased() == "running"
-                }
-                return false
+            let isRunning: Bool
+            if let container = containers.first(where: { $0.configuration.id == id }) {
+                Log.containers.debug("Checking start status for \(id): \(container.status)")
+                isRunning = container.status.lowercased() == "running"
+            } else {
+                isRunning = false
             }
 
             if isRunning {
-                await MainActor.run {
-                    Log.containers.debug("Container \(id) has started, removing loading state")
-                    loadingContainers.remove(id)
-                }
+                Log.containers.debug("Container \(id) has started, removing loading state")
+                loadingContainers.remove(id)
                 return
             }
 
@@ -293,31 +256,23 @@ final class ContainerListService: ObservableObject {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
 
-        await MainActor.run {
-            Log.containers.debug("Timeout reached for container \(id), removing loading state")
-            loadingContainers.remove(id)
-        }
+        Log.containers.debug("Timeout reached for container \(id), removing loading state")
+        loadingContainers.remove(id)
     }
 
     func removeContainer(_ id: String) async {
-        await MainActor.run {
-            loadingContainers.insert(id)
-            self.alertCenter.dismiss()
-        }
+        loadingContainers.insert(id)
+        self.alertCenter.dismiss()
 
         do {
             try await backend.deleteContainer(id: id, force: false)
-            await MainActor.run {
-                Log.containers.debug("Container \(id) remove command sent successfully")
-                Task { await self.reloadBuilders() }
-                self.containers.removeAll { $0.configuration.id == id }
-                loadingContainers.remove(id)
-            }
+            Log.containers.debug("Container \(id) remove command sent successfully")
+            Task { await self.reloadBuilders() }
+            self.containers.removeAll { $0.configuration.id == id }
+            loadingContainers.remove(id)
         } catch {
-            await MainActor.run {
-                loadingContainers.remove(id)
-                self.alertCenter.error("Failed to remove container: \(error.localizedDescription)")
-            }
+            loadingContainers.remove(id)
+            self.alertCenter.error("Failed to remove container: \(error.localizedDescription)")
             Log.containers.error("Error removing container: \(error.localizedDescription)")
         }
     }
@@ -354,14 +309,12 @@ final class ContainerListService: ObservableObject {
             try await backend.deleteContainer(id: oldContainerId, force: true)
             await runContainer(config: newConfig)
         } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to recreate container: \(error.localizedDescription)")
-            }
+            self.alertCenter.error("Failed to recreate container: \(error.localizedDescription)")
         }
     }
 
     private func recoverContainer(_ id: String) async -> Bool {
-        guard let snapshot = await MainActor.run(body: { containerSnapshots[id] }) else {
+        guard let snapshot = containerSnapshots[id] else {
             Log.containers.debug("No snapshot available for container \(id)")
             return false
         }
@@ -457,9 +410,7 @@ final class ContainerListService: ObservableObject {
             Task { await self.loadContainers() }
             return true
         } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to run container: \(error.localizedDescription)")
-            }
+            self.alertCenter.error("Failed to run container: \(error.localizedDescription)")
             return false
         }
     }

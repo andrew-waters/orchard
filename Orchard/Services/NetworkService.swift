@@ -16,27 +16,21 @@ final class NetworkService: ObservableObject {
 
     func load(showLoading: Bool = true) async {
         if showLoading {
-            await MainActor.run {
-                isNetworksLoading = true
-                self.alertCenter.dismiss()
-            }
+            isNetworksLoading = true
+            self.alertCenter.dismiss()
         }
 
         do {
             let networks = try await backend.listNetworks()
-            await MainActor.run {
-                if networks != self.networks {
-                    self.networks = networks
-                }
-                self.isNetworksLoading = false
+            if networks != self.networks {
+                self.networks = networks
             }
+            self.isNetworksLoading = false
         } catch {
-            await MainActor.run {
-                if showLoading {
-                    self.alertCenter.error("Failed to load networks: \(error.localizedDescription)")
-                }
-                self.isNetworksLoading = false
+            if showLoading {
+                self.alertCenter.error("Failed to load networks: \(error.localizedDescription)")
             }
+            self.isNetworksLoading = false
         }
     }
 
@@ -57,9 +51,7 @@ final class NetworkService: ObservableObject {
             await load()
             return true
         } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to create network: \(error.localizedDescription)")
-            }
+            self.alertCenter.error("Failed to create network: \(error.localizedDescription)")
             return false
         }
     }
@@ -69,9 +61,7 @@ final class NetworkService: ObservableObject {
             try await backend.deleteNetwork(id: networkId)
             await load()
         } catch {
-            await MainActor.run {
-                self.alertCenter.error("Failed to delete network: \(error.localizedDescription)")
-            }
+            self.alertCenter.error("Failed to delete network: \(error.localizedDescription)")
         }
     }
 }
