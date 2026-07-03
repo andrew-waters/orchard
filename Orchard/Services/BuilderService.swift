@@ -31,9 +31,6 @@ final class BuilderService: ObservableObject {
     private let runner: CommandRunner
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
-    /// Whether the container system is up — a failing read during teardown shouldn't
-    /// alert. Set by the owner after construction (defaults to "not running").
-    var systemIsRunning: @MainActor () -> Bool = { false }
 
     init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter) {
         self.runner = runner
@@ -44,7 +41,6 @@ final class BuilderService: ObservableObject {
     func loadBuilders() async {
         await MainActor.run {
             isBuildersLoading = true
-            self.alertCenter.dismiss()
         }
 
         var result: ProcessResult
@@ -59,19 +55,12 @@ final class BuilderService: ObservableObject {
 
         if result.failed {
             let detail = result.stderr?.trimmingCharacters(in: .whitespacesAndNewlines)
+            // This runs on a 5s poll — degrade silently to .stopped and log; only the
+            // user-initiated builder actions (start/stop/delete) surface alerts.
             await MainActor.run {
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
-                // Only surface to the user if the system is actually up. When it is
-                // stopped or being torn down, a failing background read is expected.
-                if self.systemIsRunning() {
-                    if let detail, !detail.isEmpty {
-                        self.alertCenter.error("Builder status could not be read: \(detail)")
-                    } else {
-                        self.alertCenter.error("Builder status could not be read (exit \(result.exitCode)).")
-                    }
-                }
             }
             if let detail, !detail.isEmpty {
                 Log.containers.error("Builder status command failed (exit \(result.exitCode)). Stderr:\n\(detail)")
@@ -108,9 +97,6 @@ final class BuilderService: ObservableObject {
                 self.builders = []
                 self.builderStatus = .stopped
                 self.isBuildersLoading = false
-                if self.systemIsRunning() {
-                    self.alertCenter.error("Builder status could not be read: unexpected response from the container service.")
-                }
             }
         }
     }

@@ -5,6 +5,7 @@ struct AddDomainView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var domainName: String = ""
     @State private var isCreating: Bool = false
+    @State private var validationError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,6 +44,13 @@ struct AddDomainView: View {
                     Text("Enter a domain name for local container networking. This requires administrator privileges.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+
+                    if let validationError {
+                        Text(validationError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 Spacer()
@@ -83,10 +91,11 @@ struct AddDomainView: View {
 
         guard !trimmedDomain.isEmpty else { return }
         guard isValidDomainName(trimmedDomain) else {
-            containerService.alertCenter.error("Invalid domain name format.")
+            validationError = "Invalid domain name format."
             return
         }
 
+        validationError = nil
         isCreating = true
 
         Task {

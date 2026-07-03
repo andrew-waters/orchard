@@ -26,3 +26,18 @@ func alertCenterDismiss() {
     center.dismiss()
     #expect(center.current == nil)
 }
+
+@MainActor
+@Test("AlertCenter: a background-source error is suppressed (no modal), user is not")
+func alertCenterBackgroundSuppressed() {
+    let center = AlertCenter()
+    center.error("poll failed", source: .background)
+    #expect(center.current == nil)                 // background never presents
+
+    center.error("user action failed", source: .user)
+    #expect(center.current?.message == "user action failed")
+
+    // A subsequent background error must not clobber the user's alert.
+    center.error("poll failed again", source: .background)
+    #expect(center.current?.message == "user action failed")
+}

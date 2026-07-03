@@ -8,12 +8,13 @@ final class ContainerListService: ObservableObject {
     @Published var containers: [Container] = []
     @Published var loadingContainers: Set<String> = []
     @Published var isLoading: Bool = false
+    /// Containers whose automatic recovery failed — drives the persistent "Recreate"
+    /// affordance, which must outlive the transient alert. Cleared on a successful start.
+    @Published var recoveryFailedContainerIDs: Set<String> = []
 
     private let backend: ContainerBackend
     private let alertCenter: AlertCenter
 
-    /// Whether the container system is up — a failing read during teardown shouldn't alert.
-    var systemIsRunning: @MainActor () -> Bool = { false }
     /// Refresh builder state after a lifecycle change. Set by the owner.
     var reloadBuilders: () async -> Void = {}
 
@@ -80,10 +81,8 @@ final class ContainerListService: ObservableObject {
             }
         } catch {
             await MainActor.run {
-                // Only surface while the system is up — a teardown read failing is expected.
-                if self.systemIsRunning() {
-                    self.alertCenter.error(error.localizedDescription)
-                }
+                // Background refreshes stay silent; only a user-initiated load alerts.
+                self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
                 self.isLoading = false
             }
             Log.containers.error("\(error.localizedDescription)")
@@ -165,6 +164,7 @@ final class ContainerListService: ObservableObject {
 
                 await MainActor.run {
                     Log.containers.debug("Container \(id) start command sent successfully (attempt \(attempt))")
+                    self.recoveryFailedContainerIDs.remove(id)
                 }
 
                 Task { await self.reloadBuilders() }
@@ -187,6 +187,7 @@ final class ContainerListService: ObservableObject {
                     } else {
                         await MainActor.run {
                             Log.containers.error("Container \(id) recovery failed")
+                            self.recoveryFailedContainerIDs.insert(id)
                             self.alertCenter.error("Container was automatically removed and could not be recovered. Original configuration may be lost.")
                             loadingContainers.remove(id)
                         }
@@ -448,6 +449,7 @@ final class ContainerListService: ObservableObject {
             )
             try await backend.createContainer(spec)
 
+            recoveryFailedContainerIDs.remove(id)
             Task { await self.loadContainers() }
             return true
         } catch {
