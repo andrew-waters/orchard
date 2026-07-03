@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Sidebar badges showing counts at a glance: running containers, and the number of images, mounts, DNS domains, and networks.
+
+### Fixed
+- Failed actions no longer fail silently. Many operations that failed wrote an error message that most views never displayed, so buttons could appear to do nothing ([#54](https://github.com/andrew-waters/orchard/issues/54)). Errors now appear in a standard alert.
+- Fixed potential crashes when adding or editing a container's port mappings, volume mounts, or environment variables, and when validating a container name.
+- Builder status and container stats failures are no longer silently ignored.
+
 ## [1.12.3] - 2026-07-03
 
 ### Added
