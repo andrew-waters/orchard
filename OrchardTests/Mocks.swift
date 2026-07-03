@@ -27,6 +27,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var listContainersError: Error?
     var images: [ContainerImage] = []
     var networks: [ContainerNetwork] = []
+    var listNetworksError: Error?
+    var createNetworkError: Error?
+    var deleteNetworkError: Error?
+    private(set) var createdNetworks: [(name: String, labels: [String: String])] = []
+    private(set) var deletedNetworkIds: [String] = []
 
     private(set) var createdSpecs: [ContainerCreateSpec] = []
     var createContainerError: Error?
@@ -62,9 +67,18 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     func pullImage(reference: String) async throws {}
     func deleteImage(reference: String) async throws {}
     func inspectImage(reference: String) async throws -> ImageInspection { throw NotConfigured() }
-    func listNetworks() async throws -> [ContainerNetwork] { networks }
-    func createNetwork(name: String, labels: [String: String]) async throws {}
-    func deleteNetwork(id: String) async throws {}
+    func listNetworks() async throws -> [ContainerNetwork] {
+        if let listNetworksError { throw listNetworksError }
+        return networks
+    }
+    func createNetwork(name: String, labels: [String: String]) async throws {
+        createdNetworks.append((name: name, labels: labels))
+        if let createNetworkError { throw createNetworkError }
+    }
+    func deleteNetwork(id: String) async throws {
+        deletedNetworkIds.append(id)
+        if let deleteNetworkError { throw deleteNetworkError }
+    }
     var pingError: Error?
     func ping() async throws -> SystemHealthInfo {
         if let pingError { throw pingError }
@@ -132,6 +146,16 @@ func makeBuilderStatusJSON(id: String = "buildkit", status: String) -> String {
       }
     }
     """
+}
+
+/// A `ContainerNetwork` fixture with the given id and otherwise-empty fields.
+func makeNetwork(id: String, state: String = "running") -> ContainerNetwork {
+    ContainerNetwork(
+        id: id,
+        state: state,
+        config: NetworkConfig(labels: [:], id: id),
+        status: NetworkStatus(gateway: nil, address: nil)
+    )
 }
 
 /// A stats value with the given id and otherwise-zero fields.
