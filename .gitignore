@@ -7,3 +7,5 @@ Orchard.xcodeproj/xcuserdata/*
 .spm-cache/
 TestResults
 *.xcresult
+coverage.json
+badge/

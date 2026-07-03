@@ -38,6 +38,7 @@ jobs:
             -destination 'platform=macOS' \
             -clonedSourcePackagesDirPath .spm-cache \
             -skipPackagePluginValidation \
+            -enableCodeCoverage YES \
             -resultBundlePath TestResults \
             CODE_SIGNING_ALLOWED=NO
 
@@ -47,3 +48,34 @@ jobs:
         with:
           name: test-results
           path: TestResults
+
+      # Coverage is scoped to Orchard/Services/ — views are deliberately untested, so a
+      # whole-app number would read as neglect. Informational only, not a gate.
+      - name: Compute services coverage
+        run: |
+          mkdir -p badge
+          xcrun xccov view --report --json TestResults.xcresult > coverage.json
+          python3 - <<'EOF'
+          import json
+          r = json.load(open("coverage.json"))
+          files = [f for t in r["targets"] for f in t.get("files", [])
+                   if "/Orchard/Services/" in f["path"]]
+          covered = sum(f["coveredLines"] for f in files)
+          total = sum(f["executableLines"] for f in files)
+          pct = round(100 * covered / total) if total else 0
+          json.dump({"schemaVersion": 1, "label": "services coverage",
+                     "message": f"{pct}%", "color": "e8590c"},
+                    open("badge/coverage-badge.json", "w"))
+          print(f"services coverage: {pct}% ({covered}/{total} lines)")
+          EOF
+
+      # Publish the badge JSON additively to gh-pages (served at orchard.andon.dev).
+      # keep_files + cname preserve the landing page and appcast.
+      - name: Publish coverage badge
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./badge
+          keep_files: true
+          cname: orchard.andon.dev
