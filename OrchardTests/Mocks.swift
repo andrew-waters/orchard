@@ -65,7 +65,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     func listNetworks() async throws -> [ContainerNetwork] { networks }
     func createNetwork(name: String, labels: [String: String]) async throws {}
     func deleteNetwork(id: String) async throws {}
-    func ping() async throws -> SystemHealthInfo { SystemHealthInfo(apiServerVersion: "test") }
+    var pingError: Error?
+    func ping() async throws -> SystemHealthInfo {
+        if let pingError { throw pingError }
+        return SystemHealthInfo(apiServerVersion: "test")
+    }
     func diskUsage() async throws -> SystemDiskUsage { throw NotConfigured() }
 }
 

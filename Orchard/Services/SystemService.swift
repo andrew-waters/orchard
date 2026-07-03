@@ -95,16 +95,22 @@ final class SystemService: ObservableObject {
         alertCenter.dismiss()
 
         do {
-            _ = try await runner.run(
+            let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "start"])
             isSystemLoading = false
+            if result.failed {
+                alertCenter.error(result.stderr ?? "Failed to start system")
+                await checkSystemStatus()   // don't assume .running — re-derive
+                return
+            }
             systemStatus = .running
             Log.containers.debug("Container system started successfully")
             await onSystemStarted()
         } catch {
             alertCenter.error("Failed to start system: \(error.localizedDescription)")
             isSystemLoading = false
+            await checkSystemStatus()
             Log.containers.error("Error starting system: \(error.localizedDescription)")
         }
     }
@@ -114,16 +120,22 @@ final class SystemService: ObservableObject {
         alertCenter.dismiss()
 
         do {
-            _ = try await runner.run(
+            let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "stop"])
             isSystemLoading = false
+            if result.failed {
+                alertCenter.error(result.stderr ?? "Failed to stop system")
+                await checkSystemStatus()   // don't assume .stopped — re-derive
+                return
+            }
             systemStatus = .stopped
             onSystemStopped()
             Log.containers.debug("Container system stopped successfully")
         } catch {
             alertCenter.error("Failed to stop system: \(error.localizedDescription)")
             isSystemLoading = false
+            await checkSystemStatus()
             Log.containers.error("Error stopping system: \(error.localizedDescription)")
         }
     }
@@ -133,16 +145,22 @@ final class SystemService: ObservableObject {
         alertCenter.dismiss()
 
         do {
-            _ = try await runner.run(
+            let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "restart"])
             isSystemLoading = false
+            if result.failed {
+                alertCenter.error(result.stderr ?? "Failed to restart system")
+                await checkSystemStatus()   // don't assume .running — re-derive
+                return
+            }
             systemStatus = .running
             Log.containers.debug("Container system restarted successfully")
             await onSystemStarted()
         } catch {
             alertCenter.error("Failed to restart system: \(error.localizedDescription)")
             isSystemLoading = false
+            await checkSystemStatus()
             Log.containers.error("Error restarting system: \(error.localizedDescription)")
         }
     }
