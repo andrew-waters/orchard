@@ -26,11 +26,27 @@ struct SystemCommandRunner: CommandRunner {
     }
 
     func runWithSudo(program: String, arguments: [String]) async throws -> ProcessResult {
-        let fullCommand = "\(program) \(arguments.joined(separator: " "))"
-        let script = """
-        do shell script "\(fullCommand)" with administrator privileges
-        """
+        let script = SystemCommandRunner.adminScript(program: program, arguments: arguments)
         return try await run(program: "/usr/bin/osascript", arguments: ["-e", script])
+    }
+
+    /// Quote a single token for `/bin/sh` by wrapping it in single quotes (which suppress
+    /// all shell interpretation), escaping any embedded single quote as `'\''`.
+    static func shellQuote(_ token: String) -> String {
+        "'" + token.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// Build the AppleScript that runs `program` + `arguments` as an administrator.
+    /// Every token is shell-quoted, then the whole command is escaped for the AppleScript
+    /// double-quoted string literal — so a space, quote, or `$(…)` in a user-supplied
+    /// argument (e.g. a DNS domain) or the binary path is treated as literal text, never
+    /// executed. Pure and unit-tested.
+    static func adminScript(program: String, arguments: [String]) -> String {
+        let command = ([program] + arguments).map(shellQuote).joined(separator: " ")
+        let escaped = command
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "do shell script \"\(escaped)\" with administrator privileges"
     }
 
     /// Synchronous process execution.
