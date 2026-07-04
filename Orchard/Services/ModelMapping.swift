@@ -92,6 +92,9 @@ func mapFilesystem(_ fs: Filesystem) -> Mount {
 
 // MARK: - Platform mapping
 
+// KNOWN-ISSUE (2026-07-04): variant is hardcoded to nil, dropping the OCI platform variant
+// (e.g. arm64 "v8") even though Orchard.Platform carries a `variant` field. Populate it from
+// the source platform if the variant is ever surfaced in the UI.
 func mapPlatform(_ platform: ContainerizationOCI.Platform) -> Orchard.Platform {
     Orchard.Platform(
         os: "\(platform.os)",
