@@ -2,27 +2,22 @@ import Testing
 import Foundation
 @testable import Orchard
 
-// SettingsStore persists to UserDefaults.standard and validates paths against the real
-// filesystem. To avoid touching the host's real settings, each test snapshots and restores
-// the two keys the store owns, and uses stable system paths (/bin/sh is always an
-// executable file; the container default is never /bin/sh) for validation.
+// SettingsStore validates paths against the real filesystem (stable system paths only:
+// /bin/sh is always an executable file; the container default is never /bin/sh) and
+// persists to an injected UserDefaults. Tests back it with a throwaway suite, cleaned up
+// after each test, so the host's real `.standard` domain is never read or mutated.
 
 private let binaryKey = "OrchardCustomBinaryPath"
 private let terminalKey = "OrchardPreferredTerminal"
 
-/// Clear the store's UserDefaults keys for the duration of `body`, then restore them.
+/// Run `body` with a `SettingsStore` on a throwaway suite (and the raw suite, for the few
+/// tests that pre-seed or re-init). The suite is removed afterwards.
 @MainActor
-private func withIsolatedSettingsDefaults(_ body: () -> Void) {
-    let d = UserDefaults.standard
-    let keys = [binaryKey, terminalKey]
-    let saved = keys.map { d.object(forKey: $0) }
-    keys.forEach { d.removeObject(forKey: $0) }
-    defer {
-        for (key, value) in zip(keys, saved) {
-            if let value { d.set(value, forKey: key) } else { d.removeObject(forKey: key) }
-        }
-    }
-    body()
+private func withSettingsStore(_ body: (SettingsStore, UserDefaults) -> Void) {
+    let name = "OrchardTests-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    body(SettingsStore(alertCenter: AlertCenter(), defaults: defaults), defaults)
 }
 
 // MARK: - validateAndSetCustomBinaryPath
@@ -30,9 +25,7 @@ private func withIsolatedSettingsDefaults(_ body: () -> Void) {
 @MainActor
 @Test("Binary path: nil clears the custom path and is not treated as custom")
 func binaryPathNilClears() {
-    withIsolatedSettingsDefaults {
-        let store = SettingsStore(alertCenter: AlertCenter())
-
+    withSettingsStore { store, _ in
         #expect(store.validateAndSetCustomBinaryPath(nil) == true)
         #expect(store.customBinaryPath == nil)
         #expect(store.isUsingCustomBinary == false)
@@ -42,9 +35,7 @@ func binaryPathNilClears() {
 @MainActor
 @Test("Binary path: an empty string is treated as nil")
 func binaryPathEmptyIsNil() {
-    withIsolatedSettingsDefaults {
-        let store = SettingsStore(alertCenter: AlertCenter())
-
+    withSettingsStore { store, _ in
         #expect(store.validateAndSetCustomBinaryPath("") == true)
         #expect(store.customBinaryPath == nil)
     }
@@ -53,9 +44,7 @@ func binaryPathEmptyIsNil() {
 @MainActor
 @Test("Binary path: a nonexistent path is rejected and leaves the custom path unset")
 func binaryPathInvalidRejected() {
-    withIsolatedSettingsDefaults {
-        let store = SettingsStore(alertCenter: AlertCenter())
-
+    withSettingsStore { store, _ in
         #expect(store.validateAndSetCustomBinaryPath("/nonexistent/definitely-not-here") == false)
         #expect(store.customBinaryPath == nil)
     }
@@ -64,37 +53,37 @@ func binaryPathInvalidRejected() {
 @MainActor
 @Test("Binary path: a valid non-default executable is accepted, used, and persisted")
 func binaryPathValidAcceptedAndPersisted() {
-    withIsolatedSettingsDefaults {
-        let store = SettingsStore(alertCenter: AlertCenter())
-
+    withSettingsStore { store, defaults in
         #expect(store.validateAndSetCustomBinaryPath("/bin/sh") == true)
         #expect(store.customBinaryPath == "/bin/sh")
         #expect(store.isUsingCustomBinary == true)
         #expect(store.containerBinaryPath == "/bin/sh")
-        #expect(UserDefaults.standard.string(forKey: binaryKey) == "/bin/sh")
+        // The one raw-key assertion — pins the persisted key name; other persistence
+        // checks below go through a fresh store instead.
+        #expect(defaults.string(forKey: binaryKey) == "/bin/sh")
     }
 }
 
 @MainActor
-@Test("Binary path: reset clears the custom path and removes the persisted key")
+@Test("Binary path: reset clears the custom path, and the removal persists to a fresh store")
 func binaryPathResetClears() {
-    withIsolatedSettingsDefaults {
-        let store = SettingsStore(alertCenter: AlertCenter())
+    withSettingsStore { store, defaults in
         _ = store.validateAndSetCustomBinaryPath("/bin/sh")
 
         store.resetToDefaultBinary()
 
         #expect(store.customBinaryPath == nil)
         #expect(store.isUsingCustomBinary == false)
-        #expect(UserDefaults.standard.string(forKey: binaryKey) == nil)
+        // A fresh store must not resurrect the path — proves the key was actually removed.
+        let reloaded = SettingsStore(alertCenter: AlertCenter(), defaults: defaults)
+        #expect(reloaded.customBinaryPath == nil)
     }
 }
 
 @MainActor
 @Test("Binary path: an invalid custom path falls back to the default when resolved")
 func binaryPathInvalidFallsBack() {
-    withIsolatedSettingsDefaults {
-        let store = SettingsStore(alertCenter: AlertCenter())
+    withSettingsStore { store, _ in
         store.setCustomBinaryPath("/nonexistent/xyz")   // bypasses validation
 
         #expect(store.containerBinaryPath != "/nonexistent/xyz")   // resolved to default
@@ -107,10 +96,10 @@ func binaryPathInvalidFallsBack() {
 @MainActor
 @Test("Binary path: a persisted custom path is loaded on init")
 func binaryPathLoadedOnInit() {
-    withIsolatedSettingsDefaults {
-        UserDefaults.standard.set("/bin/sh", forKey: binaryKey)
+    withSettingsStore { _, defaults in
+        defaults.set("/bin/sh", forKey: binaryKey)
 
-        let store = SettingsStore(alertCenter: AlertCenter())
+        let store = SettingsStore(alertCenter: AlertCenter(), defaults: defaults)
 
         #expect(store.customBinaryPath == "/bin/sh")
     }
@@ -119,16 +108,15 @@ func binaryPathLoadedOnInit() {
 // MARK: - preferred terminal
 
 @MainActor
-@Test("Preferred terminal: setting persists and round-trips through a fresh store")
-func preferredTerminalRoundTrips() {
-    withIsolatedSettingsDefaults {
-        let store = SettingsStore(alertCenter: AlertCenter())
+@Test("Preferred terminal: setting persists to the store")
+func preferredTerminalPersists() {
+    withSettingsStore { store, defaults in
         store.setPreferredTerminal(.terminal)   // Apple Terminal is always installed
 
         #expect(store.preferredTerminal == .terminal)
-        #expect(UserDefaults.standard.string(forKey: terminalKey) == TerminalApp.terminal.rawValue)
-
-        let reloaded = SettingsStore(alertCenter: AlertCenter())
-        #expect(reloaded.preferredTerminal == .terminal)
+        #expect(defaults.string(forKey: terminalKey) == TerminalApp.terminal.rawValue)
+        // No fresh-store round-trip assertion: `.terminal` is the default AND the
+        // always-installed first fallback, so a reloaded store returns it whether or not
+        // the persisted value is read — the read path can't be falsifiably round-tripped.
     }
 }

@@ -34,11 +34,15 @@ class ContainerService: ObservableObject {
     let containerListService: ContainerListService
     private var cancellables = Set<AnyCancellable>()
 
-    init(backend: ContainerBackend = LiveContainerBackend(), runner: CommandRunner = SystemCommandRunner()) {
+    init(
+        backend: ContainerBackend = LiveContainerBackend(),
+        runner: CommandRunner = SystemCommandRunner(),
+        defaults: UserDefaults = .standard
+    ) {
         self.backend = backend
         self.runner = runner
         let alertCenter = alertCenter
-        let settings = SettingsStore(alertCenter: alertCenter)
+        let settings = SettingsStore(alertCenter: alertCenter, defaults: defaults)
         self.settings = settings
         self.terminalLauncher = TerminalLauncher(settings: settings, alertCenter: alertCenter)
         let builderService = BuilderService(runner: runner, settings: settings, alertCenter: alertCenter)

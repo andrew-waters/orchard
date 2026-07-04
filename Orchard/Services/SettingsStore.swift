@@ -9,6 +9,9 @@ final class SettingsStore: ObservableObject {
     @Published var installedTerminals: [TerminalApp] = [.terminal]
 
     private let alertCenter: AlertCenter
+    /// Backing store for persisted settings. Production uses `.standard`; tests inject an
+    /// ephemeral suite so they never read or mutate the real user domain.
+    private let defaults: UserDefaults
 
     private let fallbackBinaryPath = "/usr/local/bin/container"
     private let candidateBinaryPaths: [String] = [
@@ -39,15 +42,15 @@ final class SettingsStore: ObservableObject {
         return customPath != defaultBinaryPath && validateBinaryPath(customPath)
     }
 
-    init(alertCenter: AlertCenter) {
+    init(alertCenter: AlertCenter, defaults: UserDefaults = .standard) {
         self.alertCenter = alertCenter
+        self.defaults = defaults
         loadCustomBinaryPath()
         loadPreferredTerminal()
     }
 
     private func loadCustomBinaryPath() {
-        let userDefaults = UserDefaults.standard
-        if let savedPath = userDefaults.string(forKey: customBinaryPathKey), !savedPath.isEmpty {
+        if let savedPath = defaults.string(forKey: customBinaryPathKey), !savedPath.isEmpty {
             customBinaryPath = savedPath
         }
     }
@@ -55,11 +58,10 @@ final class SettingsStore: ObservableObject {
     func setCustomBinaryPath(_ path: String?) {
         customBinaryPath = path
         cachedDefaultBinaryPath = nil   // re-detect on any binary-config change
-        let userDefaults = UserDefaults.standard
         if let path = path, !path.isEmpty {
-            userDefaults.set(path, forKey: customBinaryPathKey)
+            defaults.set(path, forKey: customBinaryPathKey)
         } else {
-            userDefaults.removeObject(forKey: customBinaryPathKey)
+            defaults.removeObject(forKey: customBinaryPathKey)
         }
     }
 
@@ -89,8 +91,7 @@ final class SettingsStore: ObservableObject {
     private func loadPreferredTerminal() {
         installedTerminals = TerminalApp.installedTerminals
 
-        let userDefaults = UserDefaults.standard
-        if let savedTerminal = userDefaults.string(forKey: preferredTerminalKey),
+        if let savedTerminal = defaults.string(forKey: preferredTerminalKey),
            let terminal = TerminalApp(rawValue: savedTerminal),
            terminal.isInstalled {
             preferredTerminal = terminal
@@ -101,8 +102,7 @@ final class SettingsStore: ObservableObject {
 
     func setPreferredTerminal(_ terminal: TerminalApp) {
         preferredTerminal = terminal
-        let userDefaults = UserDefaults.standard
-        userDefaults.set(terminal.rawValue, forKey: preferredTerminalKey)
+        defaults.set(terminal.rawValue, forKey: preferredTerminalKey)
     }
 
     private func validateBinaryPath(_ path: String) -> Bool {
@@ -135,7 +135,7 @@ final class SettingsStore: ObservableObject {
                     self.customBinaryPath = nil
                     self.alertCenter.error("Invalid binary path detected. Reset to default: \(fallback)")
                 }
-                UserDefaults.standard.removeObject(forKey: customBinaryPathKey)
+                defaults.removeObject(forKey: customBinaryPathKey)
             }
             return defaultBinaryPath
         }
