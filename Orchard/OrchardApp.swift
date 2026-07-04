@@ -70,8 +70,17 @@ struct MenuBarView: View {
     @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var statsService: StatsService
     @State private var refreshTimer: Timer?
     @Environment(\.openWindow) private var openWindow
+
+    /// Current total CPU% and memory across running containers, from the latest samples.
+    private var totalCPU: Double {
+        statsService.latestSamples.values.reduce(0) { $0 + $1.cpuPercent }
+    }
+    private var totalMemoryBytes: Int {
+        statsService.latestSamples.values.reduce(0) { $0 + $1.memoryBytes }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -81,6 +90,19 @@ struct MenuBarView: View {
                     .fill(systemService.systemStatus.color)
                     .frame(width: 8, height: 8)
                 Text("Containers is \(systemService.systemStatus.text)")
+            }
+
+            // Aggregate resource readout (only once at least one sample exists).
+            if !statsService.latestSamples.isEmpty {
+                HStack(spacing: 12) {
+                    Label(String(format: "%.1f%%", totalCPU), systemImage: "cpu")
+                    Label(
+                        ByteCountFormatter.string(fromByteCount: Int64(totalMemoryBytes), countStyle: .memory),
+                        systemImage: "memorychip"
+                    )
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
 
             Divider()
@@ -204,9 +226,11 @@ struct MenuBarView: View {
             await systemService.loadSystemDiskUsage(showLoading: false)
 
             startRefreshTimer()
+            statsService.beginSampling()
         }
         .onDisappear {
             stopRefreshTimer()
+            statsService.endSampling()
         }
     }
 

@@ -48,6 +48,9 @@ final class StatsService: ObservableObject {
     private var samplingConsumers = 0
     /// Set by `activate()` — until then, sampling only runs while a consumer is on screen.
     private var backgroundSamplingEnabled = false
+    /// Whether any app window is on screen. Background sampling pauses while fully hidden
+    /// or minimized; an explicit on-screen consumer still samples regardless.
+    private var appVisible = true
     private var ticksSinceSave = 0
 
     /// Fast cadence while a stats view is visible — smooth charts.
@@ -76,6 +79,17 @@ final class StatsService: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.persistNow(inBackground: false) }
         }
+
+        // Pause/resume background sampling as the app is hidden/shown.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeOcclusionStateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.appVisible = NSApplication.shared.occlusionState.contains(.visible)
+                self.reconfigureSampler()
+            }
+        }
     }
 
     /// Call when a stats-consuming view appears — bumps sampling to the fast cadence.
@@ -95,9 +109,11 @@ final class StatsService: ObservableObject {
     private func reconfigureSampler() {
         let desired: TimeInterval?
         if samplingConsumers > 0 {
-            desired = Self.samplingInterval
+            desired = Self.samplingInterval          // someone's actively looking → always sample
+        } else if backgroundSamplingEnabled && appVisible {
+            desired = Self.idleInterval              // background only while a window is on screen
         } else {
-            desired = backgroundSamplingEnabled ? Self.idleInterval : nil
+            desired = nil                            // hidden and nobody looking → pause
         }
 
         guard desired != currentInterval else { return }
