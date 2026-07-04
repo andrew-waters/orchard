@@ -5,13 +5,6 @@ on:
   push:
     branches: [main]
 
-# contents: write for the coverage-badge push to gh-pages; pages/id-token for the
-# Actions Pages deploy invoked via pages.yml.
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -21,6 +14,9 @@ jobs:
     # Unit tests use the app as TEST_HOST and the deployment target is macOS 26,
     # so they must execute on a Tahoe (macOS 26) runner.
     runs-on: macos-26
+    # contents: write for the coverage-badge push to gh-pages.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -91,4 +87,8 @@ jobs:
   deploy-pages:
     needs: test
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     uses: ./.github/workflows/pages.yml

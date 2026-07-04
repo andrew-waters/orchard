@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   test:
@@ -327,4 +325,8 @@ jobs:
   # Publish the site (with the freshly-persisted appcast) via GitHub Actions Pages.
   deploy-pages:
     needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     uses: ./.github/workflows/pages.yml

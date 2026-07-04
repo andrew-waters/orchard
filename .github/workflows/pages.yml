@@ -35,12 +35,15 @@ jobs:
     steps:
       - name: Checkout site source
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false   # no git writes here; deploy uses the job token/OIDC
 
       - name: Fetch generated files from gh-pages
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: _ghpages
+          persist-credentials: false
         continue-on-error: true   # gh-pages may not exist on a first deploy
 
       - name: Assemble site
