@@ -90,7 +90,7 @@ struct AddDomainView: View {
         let trimmedDomain = domainName.trimmingCharacters(in: .whitespaces)
 
         guard !trimmedDomain.isEmpty else { return }
-        guard isValidDomainName(trimmedDomain) else {
+        guard InputValidation.isValidDomainName(trimmedDomain) else {
             validationError = "Invalid domain name format."
             return
         }
@@ -110,9 +110,4 @@ struct AddDomainView: View {
         }
     }
 
-    private func isValidDomainName(_ domain: String) -> Bool {
-        let domainRegex = "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-        let predicate = NSPredicate(format: "SELF MATCHES %@", domainRegex)
-        return predicate.evaluate(with: domain)
-    }
 }

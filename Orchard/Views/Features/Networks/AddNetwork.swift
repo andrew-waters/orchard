@@ -166,14 +166,14 @@ struct AddNetworkView: View {
         let trimmedName = networkName.trimmingCharacters(in: .whitespaces)
 
         guard !trimmedName.isEmpty else { return }
-        guard isValidNetworkName(trimmedName) else {
+        guard InputValidation.isValidNetworkName(trimmedName) else {
             validationError = "Invalid network name. Use only alphanumeric characters and hyphens."
             return
         }
 
         // Validate subnet if provided
         let trimmedSubnet = subnet.trimmingCharacters(in: .whitespaces)
-        if !trimmedSubnet.isEmpty && !isValidSubnet(trimmedSubnet) {
+        if !trimmedSubnet.isEmpty && !InputValidation.isValidSubnet(trimmedSubnet) {
             validationError = "Invalid subnet format. Use CIDR notation (e.g., 192.168.1.0/24)."
             return
         }
@@ -209,15 +209,4 @@ struct AddNetworkView: View {
         }
     }
 
-    private func isValidNetworkName(_ name: String) -> Bool {
-        let networkNameRegex = "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
-        let predicate = NSPredicate(format: "SELF MATCHES %@", networkNameRegex)
-        return predicate.evaluate(with: name)
-    }
-
-    private func isValidSubnet(_ subnet: String) -> Bool {
-        let subnetRegex = "^([0-9]{1,3}\\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$"
-        let predicate = NSPredicate(format: "SELF MATCHES %@", subnetRegex)
-        return predicate.evaluate(with: subnet)
-    }
 }
