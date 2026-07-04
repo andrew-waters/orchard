@@ -425,6 +425,7 @@ struct TabColumnView: View {
         .onTapGesture {
             selectTab(tab)
         }
+        .accessibilityIdentifier("sidebar-\(tab.rawValue)")
     }
 
 
