@@ -208,7 +208,15 @@ func makeStats(id: String) -> Orchard.ContainerStats {
 @MainActor
 func makeService(
     backend: MockContainerBackend = MockContainerBackend(),
-    runner: MockCommandRunner = MockCommandRunner()
+    runner: MockCommandRunner = MockCommandRunner(),
+    defaults: UserDefaults = ephemeralDefaults()
 ) -> ContainerService {
-    ContainerService(backend: backend, runner: runner)
+    ContainerService(backend: backend, runner: runner, defaults: defaults)
+}
+
+/// A throwaway `UserDefaults` suite, unique per call, so a service built in a test never
+/// reads or mutates the real `.standard` domain (e.g. `safeContainerBinaryPath` clearing
+/// a user's persisted binary path). Unused suites write nothing to disk.
+func ephemeralDefaults() -> UserDefaults {
+    UserDefaults(suiteName: "OrchardTests-\(UUID().uuidString)")!
 }
