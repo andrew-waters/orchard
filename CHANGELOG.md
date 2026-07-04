@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Expanded automated test coverage across the service layer (image, network, builder, container lifecycle/recovery, model mapping, and settings), and hardened the test suite for reliability. No user-facing behaviour change.
+- Refactored the internals: the monolithic container service was split into focused per-domain services with each view observing only what it needs, the Run and Edit container forms now share one implementation, and a UI smoke-test harness was added. No user-facing behaviour change.
 
 ## [1.12.4] - 2026-07-03
 
