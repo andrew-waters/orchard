@@ -3,14 +3,19 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 1.12.4</title>
-      <sparkle:version>36</sparkle:version>
-      <sparkle:shortVersionString>1.12.4</sparkle:shortVersionString>
+      <title>Version 1.12.5</title>
+      <sparkle:version>37</sparkle:version>
+      <sparkle:shortVersionString>1.12.5</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v1.12.4</link>
-      <sparkle:releaseNotesLink>https://github.com/andrew-waters/orchard/releases/tag/v1.12.4</sparkle:releaseNotesLink>
-      <pubDate>Fri, 03 Jul 2026 22:11:03 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v1.12.4/Orchard-1.12.4.dmg" type="application/octet-stream" sparkle:edSignature="Z83byLW67ageAZolnnJkVtjhbr8mibhTNY2nfVLnmwHzUX3wIRHC0sMGbxvGQdLP0QU2UNXSeRa7iNaKA8RsBQ==" length="26980551" />
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v1.12.5</link>
+      <description><![CDATA[
+<h3>Changed</h3>
+<ul>
+<li>Expanded automated test coverage across the service layer (image, network, builder, container lifecycle/recovery, model mapping, and settings), and hardened the test suite for reliability. No user-facing behaviour change.</li>
+</ul>
+]]></description>
+      <pubDate>Sat, 04 Jul 2026 13:23:49 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v1.12.5/Orchard-1.12.5.dmg" type="application/octet-stream" sparkle:edSignature="V/Eus2qPJIuzBVUINg8Ig27FD0ITThDOPq1V2T5LKo3q+aEE++4tsVoP71ap8rtS4ibXbfF5ZmIZ9t9dvGYrCQ==" length="26917993" />
     </item>
   </channel>
 </rss>
