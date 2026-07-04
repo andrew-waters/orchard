@@ -248,8 +248,7 @@ struct ContainerDetailView: View {
                 )
                 InfoRow(
                     label: "Size",
-                    value: ByteCountFormatter().string(
-                        fromByteCount: Int64(container.configuration.image.descriptor.size)))
+                    value: ByteFormat.string(container.configuration.image.descriptor.size))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -376,8 +375,7 @@ struct ContainerDetailView: View {
                 InfoRow(label: "CPUs", value: "\(container.configuration.resources.cpus)")
                 InfoRow(
                     label: "Memory",
-                    value: ByteCountFormatter().string(
-                        fromByteCount: Int64(container.configuration.resources.memoryInBytes)))
+                    value: ByteFormat.string(container.configuration.resources.memoryInBytes))
                 InfoRow(
                     label: "Rosetta",
                     value: container.configuration.rosetta ? "Enabled" : "Disabled")
@@ -941,7 +939,7 @@ struct ContainerImageDetailView: View {
                 InfoRow(label: "Tag", value: imageTag)
                 InfoRow(
                     label: "Size",
-                    value: ByteCountFormatter().string(fromByteCount: Int64(image.descriptor.size)))
+                    value: ByteFormat.string(image.descriptor.size))
                 if let created = createdDate {
                     InfoRow(label: "Created", value: formatDate(created))
                 }
@@ -978,7 +976,7 @@ struct ContainerImageDetailView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 Spacer()
-                Text(ByteCountFormatter().string(fromByteCount: variant.size))
+                Text(ByteFormat.string(variant.size))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }

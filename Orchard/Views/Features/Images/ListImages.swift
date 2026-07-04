@@ -38,7 +38,7 @@ struct ImagesListView: View {
     private func imageRowView(for image: ContainerImage) -> some View {
         let imageName = imageName(from: image.reference)
         let imageTag = imageTag(from: image.reference)
-        let sizeText = ByteCountFormatter().string(fromByteCount: Int64(image.descriptor.size))
+        let sizeText = ByteFormat.string(image.descriptor.size)
 
         return ListItemRow(
             icon: "cube.transparent",

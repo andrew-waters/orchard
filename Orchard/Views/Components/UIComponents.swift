@@ -60,7 +60,7 @@ struct ContainerImageRow: View {
                             .foregroundColor(.secondary)
                         Spacer()
                         Text(
-                            ByteCountFormatter().string(fromByteCount: Int64(image.descriptor.size))
+                            ByteFormat.string(image.descriptor.size)
                         )
                         .font(.caption)
                         .foregroundColor(.secondary)

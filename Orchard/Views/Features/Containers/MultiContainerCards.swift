@@ -241,8 +241,7 @@ private struct ContainerSummaryCard: View {
                     )
                     InfoRow(
                         label: "Memory",
-                        value: ByteCountFormatter().string(
-                            fromByteCount: Int64(container.configuration.resources.memoryInBytes))
+                        value: ByteFormat.string(container.configuration.resources.memoryInBytes)
                     )
                     if isRunning, let stats {
                         InfoRow(label: "Mem used", value: stats.formattedMemoryUsage)
