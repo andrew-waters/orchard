@@ -10,7 +10,11 @@ import ContainerAPIClient
 
 // MARK: - mapContainerStats
 
-@Test("Stats mapping: nil counters coalesce to 0")
+// KNOWN-ISSUE (2026-07-04): nil (unknown/unlimited) is coalesced to 0 and is therefore
+// indistinguishable from a real 0 downstream — the UI renders an unknown/unlimited memory
+// limit as 0%. This test documents the current coalescing, not an endorsement of it; a
+// future fix should preserve optionality.
+@Test("Stats mapping: nil counters coalesce to 0 (see KNOWN-ISSUE)")
 func statsMappingNilCoalesces() {
     let raw = ContainerResource.ContainerStats(
         id: "web", memoryUsageBytes: nil, memoryLimitBytes: nil, cpuUsageUsec: nil,
@@ -68,7 +72,7 @@ func resourcesMapping() {
 
 // MARK: - mapPlatform
 
-@Test("Platform mapping: os/arch stringified, variant always dropped")
+@Test("Platform mapping: os and architecture are stringified from the input")
 func platformMapping() {
     let platform = ContainerizationOCI.Platform(arch: "arm64", os: "linux", variant: "v8")
 
@@ -76,7 +80,38 @@ func platformMapping() {
 
     #expect(mapped.os == "linux")
     #expect(mapped.architecture == "arm64")
-    #expect(mapped.variant == nil)   // mapper deliberately drops the variant
+    // NB: mapPlatform hardcodes variant to nil even though Orchard.Platform has the field —
+    // see the KNOWN-ISSUE on mapPlatform. Not asserted here (a constant can't be falsified).
+}
+
+// MARK: - mapProcessConfiguration (the user-enum switch — actual branching)
+
+@Test("Process mapping: an id-based user maps to a UserID with uid/gid, no raw")
+func processMappingUserID() {
+    let process = ProcessConfiguration(
+        executable: "/bin/sh", arguments: [], environment: [],
+        user: .id(uid: 501, gid: 20)
+    )
+
+    let mapped = mapProcessConfiguration(process)
+
+    #expect(mapped.user.id?.uid == 501)
+    #expect(mapped.user.id?.gid == 20)
+    #expect(mapped.user.raw == nil)
+    #expect(mapped.executable == "/bin/sh")
+}
+
+@Test("Process mapping: a raw user maps to UserRaw, no id")
+func processMappingRawUser() {
+    let process = ProcessConfiguration(
+        executable: "/bin/sh", arguments: [], environment: [],
+        user: .raw(userString: "root:root")
+    )
+
+    let mapped = mapProcessConfiguration(process)
+
+    #expect(mapped.user.raw?.userString == "root:root")
+    #expect(mapped.user.id == nil)
 }
 
 // MARK: - mapDNSConfiguration
