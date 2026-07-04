@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.5] - 2026-07-04
+
 ### Changed
 - Expanded automated test coverage across the service layer (image, network, builder, container lifecycle/recovery, model mapping, and settings), and hardened the test suite for reliability. No user-facing behaviour change.
 
