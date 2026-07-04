@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - Image Detail Header
 struct ImageDetailHeader: View {
     let image: ContainerImage
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
     @State private var showRunContainer = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
@@ -18,7 +19,7 @@ struct ImageDetailHeader: View {
     }
 
     private var containersUsingImage: [Container] {
-        containerService.containers.filter { container in
+        containerListService.containers.filter { container in
             container.configuration.image.reference == image.reference
         }
     }
@@ -26,7 +27,7 @@ struct ImageDetailHeader: View {
     private func deleteImage() {
         isDeleting = true
         Task {
-            await containerService.deleteImage(image.reference)
+            await imageService.delete(image.reference)
             await MainActor.run {
                 isDeleting = false
             }
@@ -71,7 +72,6 @@ struct ImageDetailHeader: View {
         .padding(.bottom, 12)
         .sheet(isPresented: $showRunContainer) {
             RunContainerView(imageName: image.reference)
-                .environmentObject(containerService)
         }
         .alert("Delete Image?", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }

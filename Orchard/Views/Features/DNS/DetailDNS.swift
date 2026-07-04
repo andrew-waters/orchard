@@ -1,13 +1,14 @@
 import SwiftUI
 
 struct DNSDetailView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var dnsService: DNSService
     let domain: String
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
 
     var body: some View {
-        if let dnsDomain = containerService.dnsDomains.first(where: { $0.domain == domain }) {
+        if let dnsDomain = dnsService.dnsDomains.first(where: { $0.domain == domain }) {
             VStack(spacing: 0) {
                 DNSDetailHeader(domain: domain)
 
@@ -18,7 +19,7 @@ struct DNSDetailView: View {
                             Text("Containers using this domain")
                                 .font(.headline)
 
-                            let containersUsingDomain = containerService.containers.filter { container in
+                            let containersUsingDomain = containerListService.containers.filter { container in
                                 // Check if container's DNS domain matches
                                 if let containerDomain = container.configuration.dns.domain {
                                     return containerDomain == dnsDomain.domain

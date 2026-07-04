@@ -6,7 +6,8 @@ import Foundation
 
 struct ContainerImageRow: View {
     let image: ContainerImage
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
     @State private var copyFeedbackStates: [String: Bool] = [:]
     @State private var showDeleteConfirmation = false
 
@@ -30,14 +31,14 @@ struct ContainerImageRow: View {
     }
 
     private var isUsedByRunningContainer: Bool {
-        containerService.containers.contains { container in
+        containerListService.containers.contains { container in
             container.configuration.image.reference == image.reference &&
             container.status.lowercased() == "running"
         }
     }
 
     private var isUsedByAnyContainer: Bool {
-        containerService.containers.contains { container in
+        containerListService.containers.contains { container in
             container.configuration.image.reference == image.reference
         }
     }
@@ -119,7 +120,7 @@ struct ContainerImageRow: View {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 Task {
-                    await containerService.deleteImage(image.reference)
+                    await imageService.delete(image.reference)
                 }
             }
         } message: {
@@ -140,8 +141,8 @@ struct ContainerImageRow: View {
 }
 
 struct MountRow: View {
+    @EnvironmentObject var containerListService: ContainerListService
     let mount: ContainerMount
-    @EnvironmentObject var containerService: ContainerService
     @State private var copyFeedbackStates: [String: Bool] = [:]
 
     private var displaySource: String {
@@ -155,7 +156,7 @@ struct MountRow: View {
     }
 
     private var isUsedByRunningContainer: Bool {
-        containerService.containers.contains { container in
+        containerListService.containers.contains { container in
             mount.containerIds.contains(container.configuration.id) &&
             container.status.lowercased() == "running"
         }

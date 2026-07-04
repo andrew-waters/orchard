@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct ImagesListView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
     @Binding var selectedImage: String?
     @Binding var lastSelectedImage: String?
     @Binding var searchText: String
@@ -17,7 +18,6 @@ struct ImagesListView: View {
         }
         .sheet(isPresented: $showImageSearch) {
             ImageSearchView()
-                .environmentObject(containerService)
         }
     }
 
@@ -28,7 +28,7 @@ struct ImagesListView: View {
             }
         }
         .listStyle(PlainListStyle())
-        .animation(.easeInOut(duration: 0.3), value: containerService.images)
+        .animation(.easeInOut(duration: 0.3), value: imageService.images)
         .focused($listFocusedTab, equals: .images)
         .onChange(of: selectedImage) { _, newValue in
             lastSelectedImage = newValue
@@ -58,7 +58,7 @@ struct ImagesListView: View {
 
             Button("Remove Image", role: .destructive) {
                 Task {
-                    await containerService.deleteImage(image.reference)
+                    await imageService.delete(image.reference)
                 }
             }
         }
@@ -84,12 +84,12 @@ struct ImagesListView: View {
     }
 
     private var filteredImages: [ContainerImage] {
-        var filtered = containerService.images
+        var filtered = imageService.images
 
         // Apply "in use" filter
         if showOnlyImagesInUse {
             filtered = filtered.filter { image in
-                containerService.containers.contains { container in
+                containerListService.containers.contains { container in
                     container.configuration.image.reference == image.reference
                 }
             }
@@ -120,7 +120,7 @@ struct ImagesListView: View {
     }
 
     private func isImageInUseByRunningContainer(_ image: ContainerImage) -> Bool {
-        return containerService.containers.contains { container in
+        return containerListService.containers.contains { container in
             container.configuration.image.reference == image.reference &&
             container.status.lowercased() == "running"
         }

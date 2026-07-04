@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AddDomainView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var dnsService: DNSService
     @Environment(\.dismiss) private var dismiss
     @State private var domainName: String = ""
     @State private var isCreating: Bool = false
@@ -99,7 +99,7 @@ struct AddDomainView: View {
         isCreating = true
 
         Task {
-            let created = await containerService.createDNSDomain(trimmedDomain)
+            let created = await dnsService.create(trimmedDomain)
 
             await MainActor.run {
                 isCreating = false

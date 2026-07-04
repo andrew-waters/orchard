@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AddNetworkView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var networkService: NetworkService
     @Environment(\.dismiss) private var dismiss
     @State private var networkName: String = ""
     @State private var subnet: String = ""
@@ -190,7 +190,7 @@ struct AddNetworkView: View {
         isCreating = true
 
         Task {
-            let created = await containerService.createNetwork(
+            let created = await networkService.create(
                 name: trimmedName,
                 subnet: trimmedSubnet.isEmpty ? nil : trimmedSubnet,
                 labels: labels.compactMap { label in

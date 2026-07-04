@@ -1,14 +1,15 @@
 import SwiftUI
 
 struct NetworkDetailView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var networkService: NetworkService
     let networkId: String
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
 
     var body: some View {
-        if let network = containerService.networks.first(where: { $0.id == networkId }) {
-            let connectedContainers = containerService.containers.filter { container in
+        if let network = networkService.networks.first(where: { $0.id == networkId }) {
+            let connectedContainers = containerListService.containers.filter { container in
                 container.networks.contains { containerNetwork in
                     containerNetwork.network == network.id
                 }

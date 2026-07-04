@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Multi-pane log viewer window
 
 struct MultiLogView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
     @State private var paneIds: [UUID] = [UUID()]
     @State private var splitVertical: Bool = true
 
@@ -39,14 +39,12 @@ struct MultiLogView: View {
             // Panes
             if paneIds.count == 1 {
                 LogPaneView(paneId: paneIds[0], canClose: false, onClose: {})
-                    .environmentObject(containerService)
             } else if splitVertical {
                 VSplitView {
                     ForEach(paneIds, id: \.self) { paneId in
                         LogPaneView(paneId: paneId, canClose: true) {
                             removePane(paneId)
                         }
-                        .environmentObject(containerService)
                         .frame(minHeight: 200)
                     }
                 }
@@ -56,7 +54,6 @@ struct MultiLogView: View {
                         LogPaneView(paneId: paneId, canClose: true) {
                             removePane(paneId)
                         }
-                        .environmentObject(containerService)
                         .frame(minWidth: 300)
                     }
                 }
@@ -84,11 +81,11 @@ struct MultiLogView: View {
 // MARK: - Individual log pane (single container)
 
 struct LogPaneView: View {
+    @EnvironmentObject var containerListService: ContainerListService
     let paneId: UUID
     let canClose: Bool
     let onClose: () -> Void
 
-    @EnvironmentObject var containerService: ContainerService
     @State private var selectedContainerId: String?
     @State private var logLines: [String] = []
     @State private var filterText: String = ""
@@ -104,7 +101,7 @@ struct LogPaneView: View {
                 Picker("", selection: $selectedContainerId) {
                     Text("Select container...")
                         .tag(nil as String?)
-                    ForEach(containerService.containers, id: \.configuration.id) { container in
+                    ForEach(containerListService.containers, id: \.configuration.id) { container in
                         HStack {
                             Circle()
                                 .fill(container.status.lowercased() == "running" ? .green : .secondary)
@@ -218,7 +215,7 @@ struct LogPaneView: View {
         }
         .onAppear {
             // Default to first running container
-            selectedContainerId = containerService.containers
+            selectedContainerId = containerListService.containers
                 .first { $0.status.lowercased() == "running" }?
                 .configuration.id
             startRefresh()
@@ -297,7 +294,7 @@ struct LogPaneView: View {
         }
 
         do {
-            let lines = try await containerService.fetchContainerLogs(containerId: cid)
+            let lines = try await containerListService.fetchContainerLogs(containerId: cid)
 
             await MainActor.run {
                 logLines = lines

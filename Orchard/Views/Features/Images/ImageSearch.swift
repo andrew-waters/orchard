@@ -3,7 +3,7 @@ import AppKit
 
 struct ImageSearchView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var imageService: ImageService
     @State private var searchQuery: String = ""
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isSearchFieldFocused: Bool
@@ -16,11 +16,11 @@ struct ImageSearchView: View {
             Divider()
 
             // Search results or empty state
-            if searchQuery.isEmpty && containerService.searchResults.isEmpty {
+            if searchQuery.isEmpty && imageService.searchResults.isEmpty {
                 emptySearchState
-            } else if containerService.isSearching {
+            } else if imageService.isSearching {
                 loadingState
-            } else if !containerService.searchResults.isEmpty {
+            } else if !imageService.searchResults.isEmpty {
                 searchResultsList
             } else if !searchQuery.isEmpty {
                 noResultsState
@@ -29,7 +29,7 @@ struct ImageSearchView: View {
             }
 
             // Active pulls section
-            if !containerService.pullProgress.isEmpty {
+            if !imageService.pullProgress.isEmpty {
                 Divider()
                 activePullsSection
             }
@@ -40,7 +40,7 @@ struct ImageSearchView: View {
         }
         .onDisappear {
             searchTask?.cancel()
-            containerService.clearSearchResults()
+            imageService.clearSearchResults()
         }
     }
 
@@ -84,7 +84,7 @@ struct ImageSearchView: View {
                 if !searchQuery.isEmpty {
                     Button(action: {
                         searchQuery = ""
-                        containerService.clearSearchResults()
+                        imageService.clearSearchResults()
                     }) {
                         SwiftUI.Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
@@ -99,7 +99,7 @@ struct ImageSearchView: View {
                         .fontWeight(.medium)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(searchQuery.isEmpty || containerService.isSearching)
+                .disabled(searchQuery.isEmpty || imageService.isSearching)
             }
             .padding(10)
             .background(Color(NSColor.textBackgroundColor))
@@ -197,9 +197,8 @@ struct ImageSearchView: View {
     private var searchResultsList: some View {
         ScrollView {
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(280), spacing: 16), count: 3), spacing: 16) {
-                ForEach(containerService.searchResults.prefix(12)) { result in
+                ForEach(imageService.searchResults.prefix(12)) { result in
                     SearchResultRow(result: result)
-                        .environmentObject(containerService)
                 }
             }
             .padding(20)
@@ -218,7 +217,7 @@ struct ImageSearchView: View {
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
 
-            ForEach(Array(containerService.pullProgress.values), id: \.id) { progress in
+            ForEach(Array(imageService.pullProgress.values), id: \.id) { progress in
                 PullProgressRow(progress: progress)
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -235,24 +234,24 @@ struct ImageSearchView: View {
             try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 second debounce
 
             if !Task.isCancelled {
-                await containerService.searchImages(searchQuery)
+                await imageService.search(searchQuery)
             }
         }
     }
 }
 
 struct SearchResultRow: View {
+    @EnvironmentObject var imageService: ImageService
     let result: RegistrySearchResult
-    @EnvironmentObject var containerService: ContainerService
     @State private var isHovered = false
     @State private var showRunContainer = false
 
     private var isPulling: Bool {
-        containerService.pullProgress[result.name] != nil
+        imageService.pullProgress[result.name] != nil
     }
 
     private var isAlreadyPulled: Bool {
-        containerService.images.contains { $0.reference.contains(result.displayName) }
+        imageService.images.contains { $0.reference.contains(result.displayName) }
     }
 
     var body: some View {
@@ -329,7 +328,7 @@ struct SearchResultRow: View {
             } else {
                 Button(action: {
                     Task {
-                        await containerService.pullImage(result.name)
+                        await imageService.pull(result.name)
                     }
                 }) {
                     Text("Pull")
@@ -357,7 +356,6 @@ struct SearchResultRow: View {
         }
         .sheet(isPresented: $showRunContainer) {
             RunContainerView(imageName: result.name)
-                .environmentObject(containerService)
         }
     }
 }
@@ -435,6 +433,6 @@ struct PullProgressRow: View {
 
 #Preview {
     ImageSearchView()
-        .environmentObject(ContainerService())
+        .injectServices(AppServices())
         .frame(width: 700, height: 600)
 }

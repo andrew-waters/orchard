@@ -2,7 +2,13 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var builderService: BuilderService
+    @EnvironmentObject var statsService: StatsService
+    @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var alertCenter: AlertCenter
     @State private var isWindowFocused: Bool = true
     @State private var selectedTab: TabSelection = .containers
@@ -47,11 +53,11 @@ struct ContentView: View {
     @ViewBuilder
     var body: some View {
         Group {
-            if containerService.systemStatus == .stopped {
+            if systemService.systemStatus == .stopped {
                 NotRunningView()
-            } else if containerService.systemStatus == .newerVersion {
+            } else if systemService.systemStatus == .newerVersion {
                 NewerVersionView()
-            } else if containerService.systemStatus == .unsupportedVersion {
+            } else if systemService.systemStatus == .unsupportedVersion {
                 VersionIncompatibilityView()
             } else {
                 MainInterfaceView(
@@ -111,7 +117,7 @@ struct ContentView: View {
         .onAppear {
             // Default tab is already set to containers
         }
-        .onChange(of: containerService.containers) { oldContainers, newContainers in
+        .onChange(of: containerListService.containers) { oldContainers, newContainers in
             // Auto-select first container when containers load, but not if we're intentionally in configuration mode
             if selectedContainer == nil && !newContainers.isEmpty && !isInIntentionalConfigurationMode {
                 selectedContainer = newContainers[0].configuration.id
@@ -123,8 +129,8 @@ struct ContentView: View {
             if pruned != selectedContainers {
                 selectedContainers = pruned
             }
-            if selectedMount == nil && !containerService.allMounts.isEmpty && !isInIntentionalConfigurationMode {
-                selectedMount = containerService.allMounts[0].id
+            if selectedMount == nil && !containerListService.allMounts.isEmpty && !isInIntentionalConfigurationMode {
+                selectedMount = containerListService.allMounts[0].id
             }
         }
         .onChange(of: selectedContainers) { _, newSet in
@@ -150,13 +156,13 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: containerService.dnsDomains) { oldDomains, newDomains in
+        .onChange(of: dnsService.dnsDomains) { oldDomains, newDomains in
             // Auto-select first DNS domain when domains load, but not if we're intentionally in configuration mode
             if selectedDNSDomain == nil && !newDomains.isEmpty && !isInIntentionalConfigurationMode {
                 selectedDNSDomain = newDomains[0].domain
             }
         }
-        .onChange(of: containerService.networks) { oldNetworks, newNetworks in
+        .onChange(of: networkService.networks) { oldNetworks, newNetworks in
             // Auto-select first network when networks load, but not if we're intentionally in configuration mode
             if selectedNetwork == nil && !newNetworks.isEmpty && !isInIntentionalConfigurationMode {
                 selectedNetwork = newNetworks[0].id
@@ -203,10 +209,10 @@ struct ContentView: View {
 
                 // Ensure DNS domains are loaded before selecting
                 Task {
-                    await containerService.loadDNSDomains(showLoading: false)
+                    await dnsService.load(showLoading: false)
                     await MainActor.run {
                         // Verify the domain exists in the loaded list
-                        if containerService.dnsDomains.contains(where: { $0.domain == domainName }) {
+                        if dnsService.dnsDomains.contains(where: { $0.domain == domainName }) {
                             // Add delay to ensure list is rendered before selection
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                 selectedDNSDomain = domainName
@@ -227,10 +233,10 @@ struct ContentView: View {
 
                 // Ensure networks are loaded before selecting
                 Task {
-                    await containerService.loadNetworks(showLoading: false)
+                    await networkService.load(showLoading: false)
                     await MainActor.run {
                         // Verify the network exists in the loaded list
-                        if containerService.networks.contains(where: { $0.id == networkId }) {
+                        if networkService.networks.contains(where: { $0.id == networkId }) {
                             // Add delay to ensure list is rendered before selection
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                 selectedNetwork = networkId
@@ -245,29 +251,29 @@ struct ContentView: View {
     }
 
     private func performInitialLoad() async {
-        await containerService.checkSystemStatus()
+        await systemService.checkSystemStatus()
 
         // Load stats first for immediate display
-        await containerService.loadContainerStats(showLoading: true)
-        await containerService.loadSystemDiskUsage(showLoading: true)
+        await statsService.load(showLoading: true)
+        await systemService.loadSystemDiskUsage(showLoading: true)
 
-        await containerService.loadContainers(showLoading: true)
-        await containerService.loadImages()
-        await containerService.loadBuilders()
+        await containerListService.loadContainers(showLoading: true)
+        await imageService.load()
+        await builderService.loadBuilders()
 
-        await containerService.loadDNSDomains(showLoading: true)
-        await containerService.loadNetworks(showLoading: true)
+        await dnsService.load(showLoading: true)
+        await networkService.load(showLoading: true)
     }
 
     private func startRefreshTimer() {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
-                await containerService.checkSystemStatus()
-                await containerService.loadContainers(showLoading: false)
-                await containerService.loadImages()
-                await containerService.loadBuilders()
-                await containerService.loadDNSDomains(showLoading: false)
-                await containerService.loadNetworks(showLoading: false)
+                await systemService.checkSystemStatus()
+                await containerListService.loadContainers(showLoading: false)
+                await imageService.load()
+                await builderService.loadBuilders()
+                await dnsService.load(showLoading: false)
+                await networkService.load(showLoading: false)
             }
         }
     }

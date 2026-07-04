@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct VersionIncompatibilityView: View {
-    @EnvironmentObject var containerService: ContainerService
-
+    @EnvironmentObject var systemService: SystemService
     var body: some View {
         VStack(spacing: 30) {
             SwiftUI.Image(systemName: "exclamationmark.triangle")
@@ -14,22 +13,22 @@ struct VersionIncompatibilityView: View {
                     .font(.title)
                     .fontWeight(.semibold)
 
-                if let installedVersion = containerService.parsedContainerVersion {
-                    Text("We require Apple Container version \(containerService.parsedContainerVersion ?? "unknown"), but you are running version \(installedVersion)")
+                if let installedVersion = systemService.parsedContainerVersion {
+                    Text("We require Apple Container version \(systemService.parsedContainerVersion ?? "unknown"), but you are running version \(installedVersion)")
                         .padding(.horizontal)
                         .multilineTextAlignment(.center)
-                } else if let rawVersion = containerService.containerVersion {
+                } else if let rawVersion = systemService.containerVersion {
                     Text("Detected version: \(rawVersion)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
                         .multilineTextAlignment(.center)
 
-                    Text("We require Apple Container version \(containerService.parsedContainerVersion ?? "unknown")")
+                    Text("We require Apple Container version \(systemService.parsedContainerVersion ?? "unknown")")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("We require Apple Container version \(containerService.parsedContainerVersion ?? "unknown")")
+                    Text("We require Apple Container version \(systemService.parsedContainerVersion ?? "unknown")")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -51,7 +50,7 @@ struct VersionIncompatibilityView: View {
 
                 Button("Check Again") {
                     Task { @MainActor in
-                        await containerService.checkSystemStatus()
+                        await systemService.checkSystemStatus()
                     }
                 }
                 .buttonStyle(.bordered)
@@ -60,7 +59,7 @@ struct VersionIncompatibilityView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .task {
-            await containerService.checkSystemStatus()
+            await systemService.checkSystemStatus()
         }
     }
 }

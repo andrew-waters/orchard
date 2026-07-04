@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct ItemNavigatorPopover: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
     let selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
@@ -249,7 +252,7 @@ struct ItemNavigatorPopover: View {
     }
 
     private var dnsPopoverItems: some View {
-        ForEach(containerService.dnsDomains) { domain in
+        ForEach(dnsService.dnsDomains) { domain in
             dnsPopoverRow(domain)
         }
     }
@@ -302,9 +305,9 @@ struct ItemNavigatorPopover: View {
     }
 
     private var networkPopoverItems: some View {
-        ForEach(containerService.networks) { network in
+        ForEach(networkService.networks) { network in
             networkPopoverRow(network)
-            if network.id != containerService.networks.last?.id {
+            if network.id != networkService.networks.last?.id {
                 Divider()
             }
         }
@@ -373,7 +376,7 @@ struct ItemNavigatorPopover: View {
     }
 
     private var filteredContainers: [Container] {
-        var filtered = containerService.containers
+        var filtered = containerListService.containers
 
         // Apply running filter
         if showOnlyRunning {
@@ -392,12 +395,12 @@ struct ItemNavigatorPopover: View {
     }
 
     private var filteredImages: [ContainerImage] {
-        var filtered = containerService.images
+        var filtered = imageService.images
 
         // Apply "in use" filter
         if showOnlyImagesInUse {
             filtered = filtered.filter { image in
-                containerService.containers.contains { container in
+                containerListService.containers.contains { container in
                     container.configuration.image.reference == image.reference
                 }
             }
@@ -414,7 +417,7 @@ struct ItemNavigatorPopover: View {
     }
 
     private var filteredMounts: [ContainerMount] {
-        var filtered = containerService.allMounts
+        var filtered = containerListService.allMounts
 
         // Apply search filter
         if !searchText.isEmpty {

@@ -2,7 +2,10 @@ import AppKit
 import SwiftUI
 
 struct ConfigurationDetailView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var alertCenter: AlertCenter
     @EnvironmentObject var updater: UpdaterService
 
     var body: some View {
@@ -19,10 +22,10 @@ struct ConfigurationDetailView: View {
 
                     VStack(alignment: .leading) {
                         Picker("", selection: Binding(
-                            get: { containerService.preferredTerminal },
-                            set: { containerService.setPreferredTerminal($0) }
+                            get: { settings.preferredTerminal },
+                            set: { settings.setPreferredTerminal($0) }
                         )) {
-                            ForEach(containerService.installedTerminals, id: \.self) { terminal in
+                            ForEach(settings.installedTerminals, id: \.self) { terminal in
                                 Text(terminal.displayName).tag(terminal)
                             }
                         }
@@ -45,7 +48,7 @@ struct ConfigurationDetailView: View {
                         .padding(.top, 4)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(containerService.containerBinaryPath)
+                        Text(settings.containerBinaryPath)
                             .font(.system(.body, design: .monospaced))
                             .fontWeight(.medium)
                             .textSelection(.enabled)
@@ -61,16 +64,16 @@ struct ConfigurationDetailView: View {
                                 panel.showsHiddenFiles = true
                                 panel.treatsFilePackagesAsDirectories = true
                                 if panel.runModal() == .OK, let url = panel.url {
-                                    if !containerService.validateAndSetCustomBinaryPath(url.path) {
-                                        containerService.alertCenter.error("Selected file is not an executable: \(url.path)")
+                                    if !settings.validateAndSetCustomBinaryPath(url.path) {
+                                        alertCenter.error("Selected file is not an executable: \(url.path)")
                                     }
                                 }
                             }
                             .controlSize(.small)
 
-                            if containerService.isUsingCustomBinary {
+                            if settings.isUsingCustomBinary {
                                 Button("Reset to Auto-detect") {
-                                    containerService.resetToDefaultBinary()
+                                    settings.resetToDefaultBinary()
                                 }
                                 .controlSize(.small)
                             }
@@ -98,7 +101,7 @@ struct ConfigurationDetailView: View {
                             .controlSize(.small)
                             .disabled(!updater.canCheckForUpdates)
 
-                            Text("You're running Orchard v\(containerService.currentVersion). Orchard checks for updates automatically.")
+                            Text("You're running Orchard v\(AppInfo.version). Orchard checks for updates automatically.")
                                 .foregroundColor(.secondary)
                                 .padding(.leading, 10)
                         }
@@ -112,7 +115,7 @@ struct ConfigurationDetailView: View {
                         .frame(width: 220, alignment: .trailing)
 
                     VStack(alignment: .leading) {
-                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "build.rosetta" })?.displayValue ?? "Loading..."))
+                        TextField("", text: .constant(systemService.systemProperties.first(where: { $0.id == "build.rosetta" })?.displayValue ?? "Loading..."))
                             .textFieldStyle(.plain)
                             .fontWeight(.medium)
                         Text("Build amd64 images on arm64 using Rosetta, instead of QEMU.")
@@ -128,18 +131,18 @@ struct ConfigurationDetailView: View {
                         .frame(width: 220, alignment: .trailing)
 
                     VStack(alignment: .leading) {
-                        let currentDomain = containerService.systemProperties.first(where: { $0.id == "dns.domain" })?.value ?? ""
+                        let currentDomain = systemService.systemProperties.first(where: { $0.id == "dns.domain" })?.value ?? ""
                         Picker("", selection: Binding(
                             get: { currentDomain },
                             set: { newValue in
                                 DispatchQueue.main.async {
                                     Task {
-                                        await containerService.setSystemProperty("dns.domain", value: newValue)
+                                        await systemService.setSystemProperty("dns.domain", value: newValue)
                                     }
                                 }
                             }
                         )) {
-                            ForEach(containerService.dnsDomains, id: \.domain) { domain in
+                            ForEach(dnsService.dnsDomains, id: \.domain) { domain in
                                 Text(domain.domain).tag(domain.domain)
                             }
                         }
@@ -159,7 +162,7 @@ struct ConfigurationDetailView: View {
                         .frame(width: 220, alignment: .trailing)
 
                     VStack(alignment: .leading) {
-                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "image.builder" })?.value ?? "Loading..."))
+                        TextField("", text: .constant(systemService.systemProperties.first(where: { $0.id == "image.builder" })?.value ?? "Loading..."))
                             .textFieldStyle(.plain)
                             .fontWeight(.medium)
                             .font(.system(.body, design: .monospaced))
@@ -176,7 +179,7 @@ struct ConfigurationDetailView: View {
                         .frame(width: 220, alignment: .trailing)
 
                     VStack(alignment: .leading) {
-                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "image.init" })?.value ?? "Loading..."))
+                        TextField("", text: .constant(systemService.systemProperties.first(where: { $0.id == "image.init" })?.value ?? "Loading..."))
                             .textFieldStyle(.plain)
                             .fontWeight(.medium)
                             .font(.system(.body, design: .monospaced))
@@ -193,7 +196,7 @@ struct ConfigurationDetailView: View {
                         .frame(width: 220, alignment: .trailing)
 
                     VStack(alignment: .leading) {
-                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "kernel.binaryPath" })?.value ?? "Loading..."))
+                        TextField("", text: .constant(systemService.systemProperties.first(where: { $0.id == "kernel.binaryPath" })?.value ?? "Loading..."))
                             .textFieldStyle(.plain)
                             .fontWeight(.medium)
                             .font(.system(.body, design: .monospaced))
@@ -210,7 +213,7 @@ struct ConfigurationDetailView: View {
                         .frame(width: 220, alignment: .trailing)
 
                     VStack(alignment: .leading) {
-                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "kernel.url" })?.value ?? "Loading..."))
+                        TextField("", text: .constant(systemService.systemProperties.first(where: { $0.id == "kernel.url" })?.value ?? "Loading..."))
                             .textFieldStyle(.plain)
                             .fontWeight(.medium)
                             .font(.system(.body, design: .monospaced))
@@ -227,7 +230,7 @@ struct ConfigurationDetailView: View {
                         .frame(width: 220, alignment: .trailing)
 
                     VStack(alignment: .leading) {
-                        TextField("", text: .constant(containerService.systemProperties.first(where: { $0.id == "registry.domain" })?.value ?? "Loading..."))
+                        TextField("", text: .constant(systemService.systemProperties.first(where: { $0.id == "registry.domain" })?.value ?? "Loading..."))
                             .textFieldStyle(.plain)
                             .fontWeight(.medium)
                         Text("The default registry to use for image references that do not specify a registry.")
@@ -245,8 +248,8 @@ struct ConfigurationDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             Task {
-                await containerService.loadSystemProperties(showLoading: true)
-                await containerService.loadDNSDomains(showLoading: true)
+                await systemService.loadSystemProperties(showLoading: true)
+                await dnsService.load(showLoading: true)
             }
         }
     }

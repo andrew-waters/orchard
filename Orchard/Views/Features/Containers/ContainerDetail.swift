@@ -7,7 +7,9 @@ struct ContainerDetailView: View {
     let container: Container
     let initialSelectedTab: String
     let onTabChanged: (String) -> Void
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var statsService: StatsService
     @State private var selectedTab: ContainerTab = .overview
     @State private var showEditConfiguration = false
     @State private var statsTimer: Timer?
@@ -37,7 +39,6 @@ struct ContainerDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ContainerDetailHeader(container: container)
-                .environmentObject(containerService)
             tabPickerSection
             tabContentSection
         }
@@ -46,7 +47,6 @@ struct ContainerDetailView: View {
         }
         .sheet(isPresented: $showEditConfiguration) {
             EditContainerView(container: container)
-                .environmentObject(containerService)
         }
     }
 
@@ -114,7 +114,6 @@ struct ContainerDetailView: View {
                 containerMountsTab
             case .logs:
                 LogsView(containerId: container.configuration.id)
-                    .environmentObject(containerService)
             }
         }
     }
@@ -156,11 +155,11 @@ struct ContainerDetailView: View {
         }
         .onAppear {
             Task {
-                await containerService.loadContainerStats(showLoading: true)
+                await statsService.load(showLoading: true)
             }
             statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 Task { @MainActor in
-                    await containerService.loadContainerStats(showLoading: false)
+                    await statsService.load(showLoading: false)
                 }
             }
         }
@@ -522,7 +521,7 @@ struct ContainerDetailView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
 
-            let containerStats = containerService.containerStats.first { $0.id == container.configuration.id }
+            let containerStats = statsService.containerStats.first { $0.id == container.configuration.id }
             let isRunning = container.status.lowercased() == "running"
 
             // Always show stats boxes
@@ -843,8 +842,9 @@ struct LabelsTable: View {
 // MARK: - Container Image Detail View
 
 struct ContainerImageDetailView: View {
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
     let image: ContainerImage
-    @EnvironmentObject var containerService: ContainerService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @State private var inspection: ImageInspection?
@@ -872,7 +872,7 @@ struct ContainerImageDetailView: View {
     }
 
     private var containersUsingImage: [Container] {
-        containerService.containers.filter { container in
+        containerListService.containers.filter { container in
             container.configuration.image.reference == image.reference
         }
     }
@@ -880,7 +880,6 @@ struct ContainerImageDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ImageDetailHeader(image: image)
-                .environmentObject(containerService)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -922,7 +921,7 @@ struct ContainerImageDetailView: View {
         .onAppear {
             Task {
                 isInspecting = true
-                inspection = try? await containerService.inspectImage(reference: image.reference)
+                inspection = try? await imageService.inspect(reference: image.reference)
                 isInspecting = false
             }
         }
@@ -1256,13 +1255,13 @@ struct ContainerImageUsageRow: View {
 }
 
 struct MountDetailView: View {
+    @EnvironmentObject var containerListService: ContainerListService
     let mount: ContainerMount
-    @EnvironmentObject var containerService: ContainerService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
 
     private var containersUsingMount: [Container] {
-        containerService.containers.filter { container in
+        containerListService.containers.filter { container in
             mount.containerIds.contains(container.configuration.id)
         }
     }

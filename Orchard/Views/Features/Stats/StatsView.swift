@@ -1,15 +1,16 @@
 import SwiftUI
 
 struct StatsView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var statsService: StatsService
+    @EnvironmentObject var systemService: SystemService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @State private var statsTimer: Timer?
 
     private var emptyMessage: String {
-        if containerService.isStatsLoading {
+        if statsService.isStatsLoading {
             return "Loading container statistics..."
-        } else if containerService.containerStats.isEmpty {
+        } else if statsService.containerStats.isEmpty {
             return "No running containers or stats unavailable"
         }
         return ""
@@ -33,7 +34,7 @@ struct StatsView: View {
 
             // Passive, non-modal notice when the daemon can't return stats — the 1s
             // poll intentionally does not raise an alert for this.
-            if containerService.statsUnavailable {
+            if statsService.statsUnavailable {
                 HStack(spacing: 8) {
                     SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
@@ -66,7 +67,7 @@ struct StatsView: View {
 
                     // Container Stats Table
                     StatsTableView(
-                        containerStats: containerService.containerStats,
+                        containerStats: statsService.containerStats,
                         selectedTab: $selectedTab,
                         selectedContainer: $selectedContainer,
                         emptyStateMessage: emptyMessage,
@@ -78,8 +79,8 @@ struct StatsView: View {
         }
         .onAppear {
             Task {
-                await containerService.loadContainerStats(showLoading: true)
-                await containerService.loadSystemDiskUsage(showLoading: true)
+                await statsService.load(showLoading: true)
+                await systemService.loadSystemDiskUsage(showLoading: true)
             }
             startStatsTimer()
         }
@@ -91,8 +92,8 @@ struct StatsView: View {
     private func startStatsTimer() {
         statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
-                await containerService.loadContainerStats(showLoading: false)
-                await containerService.loadSystemDiskUsage(showLoading: false)
+                await statsService.load(showLoading: false)
+                await systemService.loadSystemDiskUsage(showLoading: false)
             }
         }
     }
@@ -106,7 +107,7 @@ struct StatsView: View {
 // MARK: - System Disk Usage View
 
 struct SystemDiskUsageView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var systemService: SystemService
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -114,7 +115,7 @@ struct SystemDiskUsageView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
 
-            if let diskUsage = containerService.systemDiskUsage {
+            if let diskUsage = systemService.systemDiskUsage {
                 HStack(spacing: 16) {
                     // Containers
                     VStack(alignment: .leading, spacing: 4) {
@@ -288,5 +289,5 @@ struct SystemDiskUsageView: View {
         selectedTab: .constant(.stats),
         selectedContainer: .constant(nil)
     )
-    .environmentObject(ContainerService())
+    .injectServices(AppServices())
 }

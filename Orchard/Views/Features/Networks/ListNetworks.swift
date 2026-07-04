@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct NetworksListView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var networkService: NetworkService
     @Binding var selectedNetwork: String?
     @Binding var lastSelectedNetwork: String?
     @Binding var showAddNetworkSheet: Bool
@@ -14,15 +15,14 @@ struct NetworksListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showAddNetworkSheet) {
             AddNetworkView()
-                .environmentObject(containerService)
         }
     }
 
     @ViewBuilder
     private var contentView: some View {
-        if containerService.isNetworksLoading {
+        if networkService.isNetworksLoading {
             loadingView
-        } else if containerService.networks.isEmpty {
+        } else if networkService.networks.isEmpty {
             emptyStateView
         } else {
             networksListView
@@ -58,13 +58,12 @@ struct NetworksListView: View {
 
     private var networksListView: some View {
         List(selection: $selectedNetwork) {
-            ForEach(Array(containerService.networks), id: \.id) { network in
+            ForEach(Array(networkService.networks), id: \.id) { network in
                 NetworkRowView(
                     network: network,
                     connectedContainerCount: connectedContainerCount(for: network),
                     selectedNetwork: selectedNetwork
                 )
-                .environmentObject(containerService)
                 .contextMenu {
                     Button("Delete Network", role: .destructive) {
                         confirmNetworkDeletion(networkId: network.id)
@@ -75,7 +74,7 @@ struct NetworksListView: View {
             }
         }
         .listStyle(PlainListStyle())
-        .animation(.easeInOut(duration: 0.3), value: containerService.networks)
+        .animation(.easeInOut(duration: 0.3), value: networkService.networks)
         .focused($listFocusedTab, equals: .networks)
         .onChange(of: selectedNetwork) { _, newValue in
             lastSelectedNetwork = newValue
@@ -83,10 +82,10 @@ struct NetworksListView: View {
     }
 
     private struct NetworkRowView: View {
+        @EnvironmentObject var containerListService: ContainerListService
         let network: ContainerNetwork
         let connectedContainerCount: Int
         let selectedNetwork: String?
-        @EnvironmentObject var containerService: ContainerService
 
         var body: some View {
             let containerText = "\(connectedContainerCount) container\(connectedContainerCount == 1 ? "" : "s")"
@@ -102,7 +101,7 @@ struct NetworksListView: View {
         }
 
         private var hasRunningContainers: Bool {
-            return containerService.containers.contains { container in
+            return containerListService.containers.contains { container in
                 container.status.lowercased() == "running" &&
                 container.networks.contains { containerNetwork in
                     containerNetwork.network == network.id
@@ -112,7 +111,7 @@ struct NetworksListView: View {
     }
 
     private func connectedContainerCount(for network: ContainerNetwork) -> Int {
-        return containerService.containers.filter { container in
+        return containerListService.containers.filter { container in
             container.networks.contains { containerNetwork in
                 containerNetwork.network == network.id
             }
@@ -128,7 +127,7 @@ struct NetworksListView: View {
         alert.addButton(withTitle: "Cancel")
 
         if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.deleteNetwork(networkId) }
+            Task { await networkService.delete(networkId) }
         }
     }
 }

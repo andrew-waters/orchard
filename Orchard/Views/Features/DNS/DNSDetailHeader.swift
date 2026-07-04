@@ -3,8 +3,7 @@ import SwiftUI
 // MARK: - DNS Detail Header
 struct DNSDetailHeader: View {
     let domain: String
-    @EnvironmentObject var containerService: ContainerService
-
+    @EnvironmentObject var dnsService: DNSService
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -16,12 +15,12 @@ struct DNSDetailHeader: View {
 
             // Action buttons
             HStack(spacing: 12) {
-                let dnsDomain = containerService.dnsDomains.first(where: { $0.domain == domain })
+                let dnsDomain = dnsService.dnsDomains.first(where: { $0.domain == domain })
 
                 Button("Make Default") {
                     DispatchQueue.main.async {
                         Task {
-                            await containerService.setDefaultDNSDomain(domain)
+                            await dnsService.setDefault(domain)
                         }
                     }
                 }
@@ -49,7 +48,7 @@ struct DNSDetailHeader: View {
         alert.addButton(withTitle: "Cancel")
 
         if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.deleteDNSDomain(domain) }
+            Task { await dnsService.delete(domain) }
         }
     }
 }

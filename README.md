@@ -77,6 +77,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 | --- | :---: | :---: | :---: |
 | Purpose-built for `apple/container` | ✅ | ➖ via an extension | ✅ |
 | Native macOS app | ✅ Swift / SwiftUI | ❌ Electron | - |
+| Native XPC integration (no CLI shelling) | ✅ | ❌ Docker-API shim | ✅ |
 | Signed & notarized | ✅ | ✅ | ✅ |
 | Multi-pane log viewer | ✅ | ➖ | ➖ terminal only |
 | Live container stats (CPU/mem/net/disk) | ✅ | ✅ | ➖ |
@@ -86,6 +87,8 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 
 Orchard is the **native, purpose-built** choice: a lightweight Swift app focused solely on giving Apple's `container` a first-class desktop experience, rather than a heavyweight cross-platform tool that supports it as one runtime among many. (Note: Docker Desktop is a separate container runtime and doesn't manage `apple/container`.)
 
+Being native goes beyond the UI: Orchard talks to the container daemon over the same typed XPC API the `container` CLI uses internally, rather than spawning the CLI and parsing its output. That means structured data instead of screen-scraping (no breakage when CLI wording changes), no child processes on every refresh, real log streams feeding the multi-pane viewer, and typed errors instead of exit codes.
+
 ## Requirements
 
 - macOS 26 (Tahoe)
@@ -94,9 +97,9 @@ Orchard is the **native, purpose-built** choice: a lightweight Swift app focused
 
 ## Architecture
 
-Orchard communicates with the container daemon primarily through the `ContainerAPIClient` Swift library (from [apple/container](https://github.com/apple/container)) over XPC. This provides typed Swift APIs for container, image, network, and system operations without shelling out to the CLI.
+Orchard communicates with the container daemon through the `ContainerAPIClient` Swift library (from [apple/container](https://github.com/apple/container)) over XPC — typed Swift APIs for containers, images, networks, stats, logs, and system health, with no CLI processes spawned and no output parsing. Every operation the API exposes goes over XPC.
 
-A small number of operations (system start/stop, builders, DNS domain management, system properties) still use the `container` CLI binary via `Foundation.Process`, as these are not yet exposed through the XPC API.
+A small number of operations still use the `container` CLI via `Foundation.Process`, each for a structural reason rather than convenience: system start/stop/restart (the daemon is registered with launchd — there is nothing to XPC to until it's running), builder lifecycle (the API exposes no builder surface; the CLI orchestrates it client-side), system properties (a local defaults store, not an API), and DNS domain create/delete (requires root, so it runs the CLI under administrator privileges).
 
 ## Installation
 

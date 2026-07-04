@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct DetailContentView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
     let selectedTab: TabSelection
     let selectedContainer: String?
     let selectedContainers: Set<String>
@@ -76,9 +77,8 @@ struct DetailContentView: View {
                 containerIds: selectedContainers,
                 selectedContainersBinding: $selectedContainersBinding
             )
-            .environmentObject(containerService)
         } else {
-            ForEach(containerService.containers, id: \.configuration.id) { container in
+            ForEach(containerListService.containers, id: \.configuration.id) { container in
                 if selectedContainer == container.configuration.id {
                     ContainerDetailView(
                         container: container,
@@ -89,7 +89,6 @@ struct DetailContentView: View {
                         selectedTabBinding: $selectedTabBinding,
                         selectedNetwork: $selectedNetworkBinding
                     )
-                    .environmentObject(containerService)
                 }
             }
         }
@@ -97,28 +96,26 @@ struct DetailContentView: View {
 
     @ViewBuilder
     private var imageDetailView: some View {
-        ForEach(containerService.images, id: \.reference) { image in
+        ForEach(imageService.images, id: \.reference) { image in
             if selectedImage == image.reference {
                 ContainerImageDetailView(
                     image: image,
                     selectedTab: $selectedTabBinding,
                     selectedContainer: $selectedContainerBinding
                 )
-                .environmentObject(containerService)
             }
         }
     }
 
     @ViewBuilder
     private var mountDetailView: some View {
-        ForEach(containerService.allMounts, id: \.id) { mount in
+        ForEach(containerListService.allMounts, id: \.id) { mount in
             if selectedMount == mount.id {
                 MountDetailView(
                     mount: mount,
                     selectedTab: $selectedTabBinding,
                     selectedContainer: $selectedContainerBinding
                 )
-                .environmentObject(containerService)
             }
         }
     }

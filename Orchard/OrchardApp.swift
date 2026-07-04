@@ -2,15 +2,14 @@ import SwiftUI
 
 @main
 struct OrchardApp: App {
-    @StateObject private var containerService = ContainerService()
+    @StateObject private var services = AppServices()
     @StateObject private var menuBarManager = MenuBarManager()
     @StateObject private var updater = UpdaterService()
 
     var body: some Scene {
         WindowGroup(id: "main") {
             ContentView()
-                .environmentObject(containerService)
-                .environmentObject(containerService.alertCenter)
+                .injectServices(services)
                 .environmentObject(updater)
         }
         .defaultSize(width: 1200, height: 800)
@@ -33,17 +32,31 @@ struct OrchardApp: App {
 
         WindowGroup(id: "logs") {
             MultiLogView()
-                .environmentObject(containerService)
-                .environmentObject(containerService.alertCenter)
+                .injectServices(services)
         }
         .defaultSize(width: 900, height: 600)
         .windowToolbarStyle(.unified(showsTitle: false))
 
         MenuBarExtra("Orchard", systemImage: "cube.box") {
             MenuBarView()
-                .environmentObject(containerService)
-                .environmentObject(containerService.alertCenter)
+                .injectServices(services)
         }
+    }
+}
+
+/// Injects every per-domain service as an environment object at a scene root.
+extension View {
+    func injectServices(_ s: AppServices) -> some View {
+        environmentObject(s.alertCenter)
+            .environmentObject(s.settings)
+            .environmentObject(s.terminalLauncher)
+            .environmentObject(s.builderService)
+            .environmentObject(s.networkService)
+            .environmentObject(s.imageService)
+            .environmentObject(s.statsService)
+            .environmentObject(s.dnsService)
+            .environmentObject(s.systemService)
+            .environmentObject(s.containerListService)
     }
 }
 
@@ -52,7 +65,11 @@ class MenuBarManager: ObservableObject {
 }
 
 struct MenuBarView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var builderService: BuilderService
+    @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
     @State private var refreshTimer: Timer?
     @Environment(\.openWindow) private var openWindow
 
@@ -61,17 +78,17 @@ struct MenuBarView: View {
             // System Status
             HStack {
                 Circle()
-                    .fill(containerService.systemStatus.color)
+                    .fill(systemService.systemStatus.color)
                     .frame(width: 8, height: 8)
-                Text("Containers is \(containerService.systemStatus.text)")
+                Text("Containers is \(systemService.systemStatus.text)")
             }
 
             Divider()
 
             // Container Controls
-            if !containerService.containers.isEmpty {
-                Menu("Containers (\(containerService.containers.count))") {
-                    ForEach(containerService.containers, id: \.configuration.id) { container in
+            if !containerListService.containers.isEmpty {
+                Menu("Containers (\(containerListService.containers.count))") {
+                    ForEach(containerListService.containers, id: \.configuration.id) { container in
                         Menu {
                             // Container status
                             HStack {
@@ -98,7 +115,7 @@ struct MenuBarView: View {
                             }
 
                             // Start/Stop container
-                            if containerService.loadingContainers.contains(
+                            if containerListService.loadingContainers.contains(
                                 container.configuration.id)
                             {
                                 Text("Loading...")
@@ -106,21 +123,21 @@ struct MenuBarView: View {
                             } else if container.status.lowercased() == "running" {
                                 Button("Stop Container") {
                                     Task { @MainActor in
-                                        await containerService.stopContainer(
+                                        await containerListService.stopContainer(
                                             container.configuration.id)
                                     }
                                 }
                             } else {
                                 Button("Start Container") {
                                     Task { @MainActor in
-                                        await containerService.startContainer(
+                                        await containerListService.startContainer(
                                             container.configuration.id)
                                     }
                                 }
 
                                 Button("Remove Container") {
                                     Task { @MainActor in
-                                        await containerService.removeContainer(
+                                        await containerListService.removeContainer(
                                             container.configuration.id)
                                     }
                                 }
@@ -145,24 +162,24 @@ struct MenuBarView: View {
             // System Controls
             Button("Start") {
                 Task { @MainActor in
-                    await containerService.startSystem()
+                    await systemService.startSystem()
                 }
             }
-            .disabled(containerService.isSystemLoading || containerService.systemStatus == .running)
+            .disabled(systemService.isSystemLoading || systemService.systemStatus == .running)
 
             Button("Stop") {
                 Task { @MainActor in
-                    await containerService.stopSystem()
+                    await systemService.stopSystem()
                 }
             }
-            .disabled(containerService.isSystemLoading || containerService.systemStatus == .stopped)
+            .disabled(systemService.isSystemLoading || systemService.systemStatus == .stopped)
 
             Button("Restart") {
                 Task { @MainActor in
-                    await containerService.restartSystem()
+                    await systemService.restartSystem()
                 }
             }
-            .disabled(containerService.isSystemLoading || containerService.systemStatus == .stopped)
+            .disabled(systemService.isSystemLoading || systemService.systemStatus == .stopped)
 
             Divider()
 
@@ -178,13 +195,13 @@ struct MenuBarView: View {
         .padding(8)
         .frame(width: 200)
         .task {
-            await containerService.checkSystemStatus()
-            await containerService.loadContainers(showLoading: true)
-            await containerService.loadBuilders()
+            await systemService.checkSystemStatus()
+            await containerListService.loadContainers(showLoading: true)
+            await builderService.loadBuilders()
 
-            await containerService.loadDNSDomains(showLoading: true)
-            await containerService.loadNetworks(showLoading: true)
-            await containerService.loadSystemDiskUsage(showLoading: false)
+            await dnsService.load(showLoading: true)
+            await networkService.load(showLoading: true)
+            await systemService.loadSystemDiskUsage(showLoading: false)
 
             startRefreshTimer()
         }
@@ -196,11 +213,11 @@ struct MenuBarView: View {
     private func startRefreshTimer() {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
-                await containerService.checkSystemStatus()
-                await containerService.loadContainers(showLoading: false)
-                await containerService.loadBuilders()
-                await containerService.loadDNSDomains(showLoading: false)
-                await containerService.loadNetworks(showLoading: false)
+                await systemService.checkSystemStatus()
+                await containerListService.loadContainers(showLoading: false)
+                await builderService.loadBuilders()
+                await dnsService.load(showLoading: false)
+                await networkService.load(showLoading: false)
             }
         }
     }

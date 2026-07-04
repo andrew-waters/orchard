@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MountsListView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
     @Binding var selectedMount: String?
     @Binding var lastSelectedMount: String?
     @Binding var searchText: String
@@ -35,7 +35,7 @@ struct MountsListView: View {
                 }
             }
             .listStyle(PlainListStyle())
-            .animation(.easeInOut(duration: 0.3), value: containerService.allMounts)
+            .animation(.easeInOut(duration: 0.3), value: containerListService.allMounts)
             .focused($listFocusedTab, equals: .mounts)
             .onChange(of: selectedMount) { _, newValue in
                 lastSelectedMount = newValue
@@ -46,14 +46,14 @@ struct MountsListView: View {
     }
 
     private var filteredMounts: [ContainerMount] {
-        var filtered = containerService.allMounts
+        var filtered = containerListService.allMounts
 
         // Apply "in use" filter
         if showOnlyMountsInUse {
             filtered = filtered.filter { mount in
                 // Only show mounts used by running containers
                 mount.containerIds.contains { containerID in
-                    containerService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
+                    containerListService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
                 }
             }
         }
@@ -72,7 +72,7 @@ struct MountsListView: View {
 
     private func isMountUsedByRunningContainer(_ mount: ContainerMount) -> Bool {
         return mount.containerIds.contains { containerID in
-            containerService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
+            containerListService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
         }
     }
 }

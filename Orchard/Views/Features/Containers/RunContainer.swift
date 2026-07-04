@@ -2,7 +2,9 @@ import SwiftUI
 import AppKit
 
 struct RunContainerView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
     @Environment(\.dismiss) var dismiss
 
     let imageName: String
@@ -69,13 +71,13 @@ struct RunContainerView: View {
         }
         .frame(width: 700, height: 600)
         .task {
-            await containerService.loadNetworks(showLoading: false)
-            await containerService.loadDNSDomains(showLoading: false)
+            await networkService.load(showLoading: false)
+            await dnsService.load(showLoading: false)
 
             // Set default DNS domain if one exists and config doesn't have one set
             await MainActor.run {
                 if config.dnsDomain.isEmpty {
-                    if let defaultDomain = containerService.dnsDomains.first(where: { $0.isDefault }) {
+                    if let defaultDomain = dnsService.dnsDomains.first(where: { $0.isDefault }) {
                         config.dnsDomain = defaultDomain.domain
                     }
                 }
@@ -191,7 +193,7 @@ struct RunContainerView: View {
 
                 Picker("DNS Domain", selection: $config.dnsDomain) {
                     Text("None").tag("")
-                    ForEach(containerService.dnsDomains, id: \.domain) { domain in
+                    ForEach(dnsService.dnsDomains, id: \.domain) { domain in
                         Text(domain.domain).tag(domain.domain)
                     }
                 }
@@ -213,7 +215,7 @@ struct RunContainerView: View {
 
                 Picker("Network", selection: $config.network) {
                     Text("Default").tag("")
-                    ForEach(containerService.networks, id: \.id) { network in
+                    ForEach(networkService.networks, id: \.id) { network in
                         Text(network.id).tag(network.id)
                     }
                 }
@@ -489,7 +491,7 @@ struct RunContainerView: View {
         }
 
         // Check for existing container with same name
-        let existingContainer = containerService.containers.first { container in
+        let existingContainer = containerListService.containers.first { container in
             container.configuration.id == config.name
         }
 
@@ -508,7 +510,7 @@ struct RunContainerView: View {
         isRunning = true
 
         Task {
-            await containerService.runContainer(config: config)
+            await containerListService.runContainer(config: config)
 
             await MainActor.run {
                 isRunning = false
@@ -623,6 +625,6 @@ struct EnvironmentVariableRow: View {
 
 #Preview {
     RunContainerView(imageName: "docker.io/library/nginx:latest")
-        .environmentObject(ContainerService())
+        .injectServices(AppServices())
 }
 

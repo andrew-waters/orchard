@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - Container Detail Header
 struct ContainerDetailHeader: View {
     let container: Container
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var terminalLauncher: TerminalLauncher
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var isStarting = false
@@ -35,7 +36,7 @@ struct ContainerDetailHeader: View {
         guard !isStarting else { return }
         isStarting = true
         Task {
-            await containerService.startContainer(container.configuration.id)
+            await containerListService.startContainer(container.configuration.id)
             await MainActor.run {
                 isStarting = false
             }
@@ -46,7 +47,7 @@ struct ContainerDetailHeader: View {
         guard !isStopping else { return }
         isStopping = true
         Task {
-            await containerService.stopContainer(container.configuration.id)
+            await containerListService.stopContainer(container.configuration.id)
             await MainActor.run {
                 isStopping = false
                 wasRunningBeforeStop = true
@@ -58,7 +59,7 @@ struct ContainerDetailHeader: View {
         guard !isDeleting else { return }
         isDeleting = true
         Task {
-            await containerService.removeContainer(container.configuration.id)
+            await containerListService.removeContainer(container.configuration.id)
             await MainActor.run {
                 isDeleting = false
             }
@@ -88,12 +89,12 @@ struct ContainerDetailHeader: View {
                     // Terminal buttons - only when running and not stopping
                     if !isStopping {
                         Button("Terminal (sh)") {
-                            containerService.openTerminal(for: container.configuration.id)
+                            terminalLauncher.openTerminal(for: container.configuration.id)
                         }
                         .buttonStyle(BorderedButtonStyle())
 
                         Button("Terminal (bash)") {
-                            containerService.openTerminalWithBash(for: container.configuration.id)
+                            terminalLauncher.openTerminalWithBash(for: container.configuration.id)
                         }
                         .buttonStyle(BorderedButtonStyle())
                     }
@@ -159,7 +160,7 @@ struct ContainerDetailHeader: View {
     /// Whether this container's automatic recovery failed — persistent state, so the
     /// affordance survives the alert being dismissed or replaced.
     private var recoveryFailed: Bool {
-        containerService.recoveryFailedContainerIDs.contains(container.configuration.id)
+        containerListService.recoveryFailedContainerIDs.contains(container.configuration.id)
     }
 
     private var buttonTitle: String {

@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct SidebarView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
@@ -36,8 +39,7 @@ struct SidebarView: View {
                 selectedNetwork: $selectedNetwork,
                 isInIntentionalConfigurationMode: $isInIntentionalConfigurationMode,
                 listFocusedTab: $listFocusedTab,
-                isWindowFocused: isWindowFocused,
-                containerService: containerService
+                isWindowFocused: isWindowFocused
             )
             Divider()
             selectedContentView
@@ -77,19 +79,19 @@ struct SidebarView: View {
             case .dns:
                 if selectedDNSDomain == nil {
                     if let lastSelected = lastSelectedDNSDomain,
-                       containerService.dnsDomains.contains(where: { $0.domain == lastSelected }) {
+                       dnsService.dnsDomains.contains(where: { $0.domain == lastSelected }) {
                         selectedDNSDomain = lastSelected
-                    } else if !containerService.dnsDomains.isEmpty {
-                        selectedDNSDomain = containerService.dnsDomains.first?.domain
+                    } else if !dnsService.dnsDomains.isEmpty {
+                        selectedDNSDomain = dnsService.dnsDomains.first?.domain
                     }
                 }
             case .networks:
                 if selectedNetwork == nil {
                     if let lastSelected = lastSelectedNetwork,
-                       containerService.networks.contains(where: { $0.id == lastSelected }) {
+                       networkService.networks.contains(where: { $0.id == lastSelected }) {
                         selectedNetwork = lastSelected
-                    } else if !containerService.networks.isEmpty {
-                        selectedNetwork = containerService.networks.first?.id
+                    } else if !networkService.networks.isEmpty {
+                        selectedNetwork = networkService.networks.first?.id
                     }
                 }
             case .registries, .systemLogs, .stats, .configuration:
@@ -228,7 +230,7 @@ struct SidebarView: View {
 
     // Helper computed properties for filtering
     private var filteredContainers: [Container] {
-        var filtered = containerService.containers
+        var filtered = containerListService.containers
 
         if showOnlyRunning {
             filtered = filtered.filter { $0.status.lowercased() == "running" }
@@ -245,11 +247,11 @@ struct SidebarView: View {
     }
 
     private var filteredImages: [ContainerImage] {
-        var filtered = containerService.images
+        var filtered = imageService.images
 
         if showOnlyImagesInUse {
             filtered = filtered.filter { image in
-                containerService.containers.contains { container in
+                containerListService.containers.contains { container in
                     container.configuration.image.reference == image.reference
                 }
             }
@@ -265,13 +267,13 @@ struct SidebarView: View {
     }
 
     private var filteredMounts: [ContainerMount] {
-        var filtered = containerService.allMounts
+        var filtered = containerListService.allMounts
 
         if showOnlyMountsInUse {
             filtered = filtered.filter { mount in
                 // Only show mounts used by running containers
                 mount.containerIds.contains { containerID in
-                    containerService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
+                    containerListService.containers.first { $0.configuration.id == containerID }?.status.lowercased() == "running"
                 }
             }
         }

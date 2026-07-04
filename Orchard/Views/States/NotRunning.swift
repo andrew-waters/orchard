@@ -2,16 +2,19 @@ import AppKit
 import SwiftUI
 
 struct NotRunningView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var builderService: BuilderService
+    @EnvironmentObject var systemService: SystemService
     @State private var showDiagnostics = false
 
     var body: some View {
         VStack(spacing: 20) {
             PowerButton(
-                isLoading: containerService.isSystemLoading,
+                isLoading: systemService.isSystemLoading,
                 action: {
                     Task { @MainActor in
-                        await containerService.startSystem()
+                        await systemService.startSystem()
                     }
                 }
             )
@@ -20,7 +23,7 @@ struct NotRunningView: View {
                 .font(.title2)
                 .fontWeight(.medium)
 
-            if let error = containerService.systemStatusError {
+            if let error = systemService.systemStatusError {
                 DisclosureGroup(isExpanded: $showDiagnostics) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(error)
@@ -50,10 +53,10 @@ struct NotRunningView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .task {
-            await containerService.checkSystemStatus()
-            await containerService.loadContainers(showLoading: true)
-            await containerService.loadImages()
-            await containerService.loadBuilders()
+            await systemService.checkSystemStatus()
+            await containerListService.loadContainers(showLoading: true)
+            await imageService.load()
+            await builderService.loadBuilders()
         }
     }
 }

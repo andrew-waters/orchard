@@ -1,10 +1,10 @@
 import Foundation
 import AppKit
 
-/// Opens a container shell in the user's preferred terminal. Not observable — it holds
-/// no published state, just performs the launch.
+/// Opens a container shell in the user's preferred terminal. Holds no published state;
+/// conforms to `ObservableObject` only so it can be injected via `@EnvironmentObject`.
 @MainActor
-final class TerminalLauncher {
+final class TerminalLauncher: ObservableObject {
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
 

@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct EditContainerView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
     @Environment(\.dismiss) var dismiss
 
     let container: Container
@@ -457,7 +457,7 @@ struct EditContainerView: View {
         isUpdating = true
 
         Task {
-            await containerService.recreateContainer(oldContainerId: container.configuration.id, newConfig: config)
+            await containerListService.recreateContainer(oldContainerId: container.configuration.id, newConfig: config)
 
             await MainActor.run {
                 isUpdating = false
@@ -503,5 +503,5 @@ struct EditContainerView: View {
         ),
         networks: []
     ))
-    .environmentObject(ContainerService())
+    .injectServices(AppServices())
 }

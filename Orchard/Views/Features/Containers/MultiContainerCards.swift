@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 struct MultiContainerCardsView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var statsService: StatsService
     let containerIds: Set<String>
     @Binding var selectedContainersBinding: Set<String>
 
@@ -20,7 +21,7 @@ struct MultiContainerCardsView: View {
     }
 
     private var containers: [Container] {
-        containerService.containers
+        containerListService.containers
             .filter { containerIds.contains($0.configuration.id) }
             .sorted { $0.configuration.id < $1.configuration.id }
     }
@@ -43,7 +44,6 @@ struct MultiContainerCardsView: View {
                         ContainerSummaryCard(container: container) {
                             selectedContainersBinding = [container.configuration.id]
                         }
-                        .environmentObject(containerService)
                     }
                 }
                 .padding(16)
@@ -142,9 +142,9 @@ struct MultiContainerCardsView: View {
         Task {
             for id in targets {
                 switch action {
-                case .start: await containerService.startContainer(id)
-                case .stop: await containerService.stopContainer(id)
-                case .remove: await containerService.removeContainer(id)
+                case .start: await containerListService.startContainer(id)
+                case .stop: await containerListService.stopContainer(id)
+                case .remove: await containerListService.removeContainer(id)
                 }
             }
         }
@@ -152,7 +152,8 @@ struct MultiContainerCardsView: View {
 }
 
 private struct ContainerSummaryCard: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var statsService: StatsService
     let container: Container
     let onOpen: () -> Void
 
@@ -168,7 +169,7 @@ private struct ContainerSummaryCard: View {
     }
 
     private var stats: ContainerStats? {
-        containerService.containerStats.first { $0.id == container.configuration.id }
+        statsService.containerStats.first { $0.id == container.configuration.id }
     }
 
     var body: some View {
@@ -199,18 +200,18 @@ private struct ContainerSummaryCard: View {
                 if isRunning {
                     Button("Stop") {
                         let id = container.configuration.id
-                        Task { await containerService.stopContainer(id) }
+                        Task { await containerListService.stopContainer(id) }
                     }
                 } else {
                     Button("Start") {
                         let id = container.configuration.id
-                        Task { await containerService.startContainer(id) }
+                        Task { await containerListService.startContainer(id) }
                     }
                 }
 
                 Button("Remove") {
                     let id = container.configuration.id
-                    Task { await containerService.removeContainer(id) }
+                    Task { await containerListService.removeContainer(id) }
                 }
                 .foregroundColor(.red)
 

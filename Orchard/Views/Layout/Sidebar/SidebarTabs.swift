@@ -10,7 +10,10 @@ struct SidebarTabs: View {
     @Binding var isInIntentionalConfigurationMode: Bool
     @FocusState.Binding var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
-    let containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -26,23 +29,23 @@ struct SidebarTabs: View {
 
                         switch tab {
                         case .containers:
-                            if selectedContainer == nil, let firstContainer = containerService.containers.first {
+                            if selectedContainer == nil, let firstContainer = containerListService.containers.first {
                                 selectedContainer = firstContainer.configuration.id
                             }
                         case .images:
-                            if selectedImage == nil, let firstImage = containerService.images.first {
+                            if selectedImage == nil, let firstImage = imageService.images.first {
                                 selectedImage = firstImage.reference
                             }
                         case .mounts:
-                            if selectedMount == nil, let firstMount = containerService.allMounts.first {
+                            if selectedMount == nil, let firstMount = containerListService.allMounts.first {
                                 selectedMount = firstMount.id
                             }
                         case .dns:
-                            if selectedDNSDomain == nil, let firstDomain = containerService.dnsDomains.first {
+                            if selectedDNSDomain == nil, let firstDomain = dnsService.dnsDomains.first {
                                 selectedDNSDomain = firstDomain.domain
                             }
                         case .networks:
-                            if selectedNetwork == nil, let firstNetwork = containerService.networks.first {
+                            if selectedNetwork == nil, let firstNetwork = networkService.networks.first {
                                 selectedNetwork = firstNetwork.id
                             }
                         case .registries, .systemLogs, .stats, .configuration:
@@ -112,15 +115,15 @@ struct SidebarTabs: View {
     private func badgeCount(for tab: TabSelection) -> Int? {
         switch tab {
         case .containers:
-            return containerService.containers.filter { $0.status.lowercased() == "running" }.count
+            return containerListService.containers.filter { $0.status.lowercased() == "running" }.count
         case .images:
-            return containerService.images.count
+            return imageService.images.count
         case .mounts:
-            return containerService.allMounts.count
+            return containerListService.allMounts.count
         case .dns:
-            return containerService.dnsDomains.count
+            return dnsService.dnsDomains.count
         case .networks:
-            return containerService.networks.count
+            return networkService.networks.count
         case .registries, .systemLogs, .stats, .configuration:
             return nil
         }

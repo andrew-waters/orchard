@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContainersListView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
     @Environment(\.openWindow) private var openWindow
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -33,7 +33,7 @@ struct ContainersListView: View {
                 }
             }
             .listStyle(PlainListStyle())
-            .animation(.easeInOut(duration: 0.3), value: containerService.containers)
+            .animation(.easeInOut(duration: 0.3), value: containerListService.containers)
             .focused($listFocusedTab, equals: .containers)
             .onChange(of: selectedContainer) { _, newValue in
                 lastSelectedContainer = newValue
@@ -51,7 +51,7 @@ struct ContainersListView: View {
             return [container.configuration.id]
         }()
         let multiple = targetIds.count > 1
-        let targetContainers = containerService.containers.filter { targetIds.contains($0.configuration.id) }
+        let targetContainers = containerListService.containers.filter { targetIds.contains($0.configuration.id) }
         let anyRunning = targetContainers.contains { $0.status.lowercased() == "running" }
         let anyStopped = targetContainers.contains { $0.status.lowercased() != "running" }
 
@@ -59,14 +59,14 @@ struct ContainersListView: View {
             Button(multiple ? "Stop \(targetIds.count) Containers" : "Stop Container") {
                 Task {
                     for id in targetIds {
-                        await containerService.stopContainer(id)
+                        await containerListService.stopContainer(id)
                     }
                 }
             }
             Button(multiple ? "Force Stop \(targetIds.count) Containers" : "Force Stop", role: .destructive) {
                 Task {
                     for id in targetIds {
-                        await containerService.forceStopContainer(id)
+                        await containerListService.forceStopContainer(id)
                     }
                 }
             }
@@ -75,7 +75,7 @@ struct ContainersListView: View {
             Button(multiple ? "Start \(targetIds.count) Containers" : "Start Container") {
                 Task {
                     for id in targetIds {
-                        await containerService.startContainer(id)
+                        await containerListService.startContainer(id)
                     }
                 }
             }
@@ -91,7 +91,7 @@ struct ContainersListView: View {
 
         Button(multiple ? "Remove \(targetIds.count) Containers" : "Remove Container", role: .destructive) {
             Task {
-                await containerService.removeContainers(targetIds)
+                await containerListService.removeContainers(targetIds)
             }
         }
     }
@@ -110,7 +110,7 @@ struct ContainersListView: View {
     }
 
     private var filteredContainers: [Container] {
-        var filtered = containerService.containers
+        var filtered = containerListService.containers
 
         // Apply running filter
         if showOnlyRunning {

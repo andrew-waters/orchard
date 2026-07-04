@@ -7,7 +7,7 @@ func startSystemSuccess() async {
     let runner = MockCommandRunner()   // default result: exit 0
     let service = makeService(runner: runner)
 
-    await service.startSystem()
+    await service.systemService.startSystem()
 
     #expect(service.systemService.systemStatus == .running)
     #expect(service.alertCenter.current == nil)
@@ -22,7 +22,7 @@ func startSystemFailureReDerives() async {
     backend.pingError = NotConfigured()   // daemon really is down → re-derive to .stopped
     let service = makeService(backend: backend, runner: runner)
 
-    await service.startSystem()
+    await service.systemService.startSystem()
 
     #expect(service.systemService.systemStatus == .stopped)   // NOT forced to .running
     #expect(service.alertCenter.current != nil)
@@ -36,7 +36,7 @@ func stopSystemFailureReDerives() async {
     let backend = MockContainerBackend()   // ping succeeds → daemon still running
     let service = makeService(backend: backend, runner: runner)
 
-    await service.stopSystem()
+    await service.systemService.stopSystem()
 
     #expect(service.systemService.systemStatus == .running)   // re-derived, not forced .stopped
     #expect(service.alertCenter.current != nil)

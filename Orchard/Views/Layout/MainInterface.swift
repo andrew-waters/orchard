@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainInterfaceView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -63,7 +63,7 @@ struct MainInterfaceView: View {
             return ""
         case .mounts:
             if let selectedMount = selectedMount,
-               let mount = containerService.allMounts.first(where: { $0.id == selectedMount }) {
+               let mount = containerListService.allMounts.first(where: { $0.id == selectedMount }) {
                 return URL(fileURLWithPath: mount.mount.source).lastPathComponent
             }
             return ""
@@ -91,13 +91,13 @@ struct MainInterfaceView: View {
     // Get current container for title bar controls
     private var currentContainer: Container? {
         guard selectedTab == .containers, let selectedContainer = selectedContainer else { return nil }
-        return containerService.containers.first { $0.configuration.id == selectedContainer }
+        return containerListService.containers.first { $0.configuration.id == selectedContainer }
     }
 
     // Get current mount for title bar display
     private var currentMount: ContainerMount? {
         guard selectedTab == .mounts, let selectedMount = selectedMount else { return nil }
-        return containerService.allMounts.first { $0.id == selectedMount }
+        return containerListService.allMounts.first { $0.id == selectedMount }
     }
 
     var body: some View {
@@ -130,6 +130,5 @@ struct MainInterfaceView: View {
             isWindowFocused: isWindowFocused,
             windowTitle: windowTitle
         )
-        .environmentObject(containerService)
     }
 }

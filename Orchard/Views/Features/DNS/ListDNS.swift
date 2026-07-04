@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct DNSListView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var dnsService: DNSService
     @Binding var selectedDNSDomain: String?
     @Binding var lastSelectedDNSDomain: String?
     @Binding var showAddDNSDomainSheet: Bool
@@ -14,15 +15,14 @@ struct DNSListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showAddDNSDomainSheet) {
             AddDomainView()
-                .environmentObject(containerService)
         }
     }
 
     @ViewBuilder
     private var contentView: some View {
-        if containerService.isDNSLoading {
+        if dnsService.isDNSLoading {
             loadingView
-        } else if containerService.dnsDomains.isEmpty {
+        } else if dnsService.dnsDomains.isEmpty {
             emptyStateView
         } else {
             dnsListView
@@ -58,19 +58,18 @@ struct DNSListView: View {
 
     private var dnsListView: some View {
         List(selection: $selectedDNSDomain) {
-            ForEach(containerService.dnsDomains) { domain in
+            ForEach(dnsService.dnsDomains) { domain in
                 DNSRowView(
                     domain: domain,
                     containerCountText: containerCount(for: domain),
                     selectedDNSDomain: selectedDNSDomain
                 )
-                .environmentObject(containerService)
                 .contextMenu {
                     if !domain.isDefault {
                         Button("Make Default") {
                             let currentSelection = selectedDNSDomain
                             Task {
-                                await containerService.setDefaultDNSDomain(domain.domain)
+                                await dnsService.setDefault(domain.domain)
                                 selectedDNSDomain = currentSelection
                             }
                         }
@@ -86,7 +85,7 @@ struct DNSListView: View {
             }
         }
         .listStyle(PlainListStyle())
-        .animation(.easeInOut(duration: 0.3), value: containerService.dnsDomains)
+        .animation(.easeInOut(duration: 0.3), value: dnsService.dnsDomains)
         .focused($listFocusedTab, equals: .dns)
         .onChange(of: selectedDNSDomain) { _, newValue in
             lastSelectedDNSDomain = newValue
@@ -113,7 +112,7 @@ struct DNSListView: View {
     }
 
         private func containerCount(for dnsDomain: DNSDomain) -> String {
-            let count = containerService.containers.filter { container in
+            let count = containerListService.containers.filter { container in
                 if let containerDomain = container.configuration.dns.domain {
                     return containerDomain == dnsDomain.domain
                 }
@@ -132,7 +131,7 @@ struct DNSListView: View {
             alert.addButton(withTitle: "Cancel")
 
             if alert.runModal() == .alertFirstButtonReturn {
-                Task { await containerService.deleteDNSDomain(domain) }
+                Task { await dnsService.delete(domain) }
             }
         }
     }

@@ -3,7 +3,7 @@ import Foundation
 
 struct LogsView: View {
     let containerId: String
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
     @Environment(\.openWindow) private var openWindow
     @State private var logLines: [String] = []
     @State private var isLoading: Bool = false
@@ -183,7 +183,7 @@ struct LogsView: View {
         }
 
         do {
-            let newLines = try await containerService.fetchContainerLogs(containerId: containerId)
+            let newLines = try await containerListService.fetchContainerLogs(containerId: containerId)
 
             await MainActor.run {
                 logLines = newLines

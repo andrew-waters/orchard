@@ -2,7 +2,10 @@ import SwiftUI
 import AppKit
 
 struct ThreeColumnLayout: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
     @AppStorage("containerSortBy") private var containerSortBy: ContainerSortOption = .name
     @AppStorage("containerSortAscending") private var containerSortAscending: Bool = true
     @AppStorage("containerRunningFirst") private var containerRunningFirst: Bool = true
@@ -60,7 +63,6 @@ struct ThreeColumnLayout: View {
                     listFocusedTab: $listFocusedTab,
                     isWindowFocused: isWindowFocused
                 )
-                .environmentObject(containerService)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
             } content: {
                 // Second Column - List view for selected tab
@@ -245,7 +247,6 @@ struct ThreeColumnLayout: View {
                     )
                 }
                 .ignoresSafeArea(.container, edges: .top)
-                .environmentObject(containerService)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 500)
             } detail: {
                 // Third Column - Detail view for selected item
@@ -280,7 +281,6 @@ struct ThreeColumnLayout: View {
                     listFocusedTab: $listFocusedTab,
                     isWindowFocused: isWindowFocused
                 )
-                .environmentObject(containerService)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
             } detail: {
                 // Two-column layout - Detail view only
@@ -311,7 +311,10 @@ struct ThreeColumnLayout: View {
 
 // MARK: - Tab Column View (First Column)
 struct TabColumnView: View {
-    @EnvironmentObject var containerService: ContainerService
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var networkService: NetworkService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
@@ -442,24 +445,24 @@ struct TabColumnView: View {
         // Auto-select first item in tabs with second columns (only if no selection exists)
         switch tab {
         case .containers:
-            if selectedContainer == nil && !containerService.containers.isEmpty {
-                selectedContainer = containerService.containers.first?.configuration.id
+            if selectedContainer == nil && !containerListService.containers.isEmpty {
+                selectedContainer = containerListService.containers.first?.configuration.id
             }
         case .images:
-            if selectedImage == nil && !containerService.images.isEmpty {
-                selectedImage = containerService.images.first?.reference
+            if selectedImage == nil && !imageService.images.isEmpty {
+                selectedImage = imageService.images.first?.reference
             }
         case .mounts:
-            if selectedMount == nil && !containerService.allMounts.isEmpty {
-                selectedMount = containerService.allMounts.first?.id
+            if selectedMount == nil && !containerListService.allMounts.isEmpty {
+                selectedMount = containerListService.allMounts.first?.id
             }
         case .dns:
-            if selectedDNSDomain == nil && !containerService.dnsDomains.isEmpty {
-                selectedDNSDomain = containerService.dnsDomains.first?.domain
+            if selectedDNSDomain == nil && !dnsService.dnsDomains.isEmpty {
+                selectedDNSDomain = dnsService.dnsDomains.first?.domain
             }
         case .networks:
-            if selectedNetwork == nil && !containerService.networks.isEmpty {
-                selectedNetwork = containerService.networks.first?.id
+            if selectedNetwork == nil && !networkService.networks.isEmpty {
+                selectedNetwork = networkService.networks.first?.id
             }
         case .registries, .systemLogs, .stats, .configuration:
             // Clear all selections for tabs without second columns
@@ -486,15 +489,15 @@ struct TabColumnView: View {
     private func getTabCount(for tab: TabSelection) -> Int {
         switch tab {
         case .containers:
-            return containerService.containers.count
+            return containerListService.containers.count
         case .images:
-            return containerService.images.count
+            return imageService.images.count
         case .mounts:
-            return containerService.allMounts.count
+            return containerListService.allMounts.count
         case .dns:
-            return containerService.dnsDomains.count
+            return dnsService.dnsDomains.count
         case .networks:
-            return containerService.networks.count
+            return networkService.networks.count
         case .registries, .systemLogs, .stats, .configuration:
             return 0
         }
@@ -503,7 +506,6 @@ struct TabColumnView: View {
 
 // MARK: - List Column View (Second Column)
 struct ListColumnView: View {
-    @EnvironmentObject var containerService: ContainerService
     let selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -599,7 +601,6 @@ struct ListColumnView: View {
 
 // MARK: - Detail Column View (Third Column)
 struct DetailColumnView: View {
-    @EnvironmentObject var containerService: ContainerService
     let selectedTab: TabSelection
     let selectedContainer: String?
     let selectedImage: String?

@@ -14,7 +14,7 @@ func specPortParsing() async {
         .init(hostPort: "8080", containerPort: "80"),
         .init(hostPort: "notaport", containerPort: "80"),
     ]
-    await service.runContainer(config: config)
+    await service.containerListService.runContainer(config: config)
 
     let spec = backend.createdSpecs.first
     #expect(spec?.publishedPorts.count == 1)
@@ -32,7 +32,7 @@ func specVolumeFiltering() async {
         .init(hostPath: "/host", containerPath: "/data", readonly: true),
         .init(hostPath: "", containerPath: "/nope"),
     ]
-    await service.runContainer(config: config)
+    await service.containerListService.runContainer(config: config)
 
     let spec = backend.createdSpecs.first
     #expect(spec?.volumes.count == 1)
@@ -50,7 +50,7 @@ func specEnvJoining() async {
         .init(key: "FOO", value: "bar"),
         .init(key: "", value: "ignored"),
     ]
-    await service.runContainer(config: config)
+    await service.containerListService.runContainer(config: config)
 
     #expect(backend.createdSpecs.first?.environment == ["FOO=bar"])
 }
@@ -63,7 +63,7 @@ func specCommandAndName() async {
     var config = ContainerRunConfig(name: "", image: "nginx")
     config.commandOverride = "sh -c echo"
     config.dnsDomain = "test"
-    await service.runContainer(config: config)
+    await service.containerListService.runContainer(config: config)
 
     let spec = backend.createdSpecs.first
     #expect(spec?.commandOverride == ["sh", "-c", "echo"])
@@ -80,10 +80,10 @@ func loadContainersUserFailureAlerts() async {
     backend.listContainersError = NotConfigured()
     let service = makeService(backend: backend)
 
-    await service.loadContainers(showLoading: true)   // user-initiated
+    await service.containerListService.loadContainers(showLoading: true)   // user-initiated
 
     #expect(service.alertCenter.current != nil)
-    #expect(service.isLoading == false)
+    #expect(service.containerListService.isLoading == false)
 }
 
 @MainActor
@@ -93,7 +93,7 @@ func loadContainersBackgroundFailureSilent() async {
     backend.listContainersError = NotConfigured()
     let service = makeService(backend: backend)
 
-    await service.loadContainers(showLoading: false)   // background poll → no modal
+    await service.containerListService.loadContainers(showLoading: false)   // background poll → no modal
 
     #expect(service.alertCenter.current == nil)
 }
@@ -105,10 +105,10 @@ func loadBuildersNotRunning() async {
     runner.defaultResult = ProcessResult(exitCode: 0, stdout: "builder is not running", stderr: nil)
     let service = makeService(runner: runner)
 
-    await service.loadBuilders()
+    await service.builderService.loadBuilders()
 
-    #expect(service.builders.isEmpty)
-    #expect(service.builderStatus == .stopped)
+    #expect(service.builderService.builders.isEmpty)
+    #expect(service.builderService.builderStatus == .stopped)
 }
 
 @MainActor
@@ -118,11 +118,11 @@ func startRetryExhausted() async {
     backend.bootstrapAndStartHandler = { _ in throw makeError("invalidState") }
     let service = makeService(backend: backend)
 
-    await service.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await service.containerListService.startContainer("web", maxRetries: 3, retryDelay: 0)
 
     #expect(backend.bootstrapAndStartCount == 3)
     #expect(service.alertCenter.current?.message.contains("failed to start") == true)
-    #expect(service.loadingContainers.contains("web") == false)
+    #expect(service.containerListService.loadingContainers.contains("web") == false)
 }
 
 @MainActor
@@ -131,7 +131,7 @@ func startSucceedsFirstTry() async {
     let backend = MockContainerBackend()   // no handler → bootstrapAndStart succeeds
     let service = makeService(backend: backend)
 
-    await service.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await service.containerListService.startContainer("web", maxRetries: 3, retryDelay: 0)
 
     #expect(backend.bootstrapAndStartCount == 1)
     #expect(service.alertCenter.current == nil)
@@ -146,10 +146,10 @@ func statsAllFailAlerts() async throws {
     service.systemService.systemStatus = .running
     service.containerListService.containers = [try makeContainer(id: "a", status: "running")]
 
-    await service.loadContainerStats(showLoading: true)
+    await service.statsService.load(showLoading: true)
 
     #expect(service.alertCenter.current != nil)
-    #expect(service.containerStats.isEmpty)
+    #expect(service.statsService.containerStats.isEmpty)
 }
 
 @MainActor
@@ -167,8 +167,8 @@ func statsPartialFailureIsSilent() async throws {
         try makeContainer(id: "b", status: "running"),
     ]
 
-    await service.loadContainerStats(showLoading: true)
+    await service.statsService.load(showLoading: true)
 
     #expect(service.alertCenter.current == nil)
-    #expect(service.containerStats.count == 1)
+    #expect(service.statsService.containerStats.count == 1)
 }

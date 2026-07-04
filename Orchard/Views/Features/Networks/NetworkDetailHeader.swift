@@ -3,10 +3,10 @@ import SwiftUI
 // MARK: - Network Detail Header
 struct NetworkDetailHeader: View {
     let network: ContainerNetwork
-    @EnvironmentObject var containerService: ContainerService
-
+    @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var networkService: NetworkService
     private var connectedContainers: [Container] {
-        containerService.containers.filter { container in
+        containerListService.containers.filter { container in
             container.networks.contains { containerNetwork in
                 containerNetwork.network == network.id
             }
@@ -54,7 +54,7 @@ struct NetworkDetailHeader: View {
         alert.addButton(withTitle: "Cancel")
 
         if alert.runModal() == .alertFirstButtonReturn {
-            Task { await containerService.deleteNetwork(networkId) }
+            Task { await networkService.delete(networkId) }
         }
     }
 }
