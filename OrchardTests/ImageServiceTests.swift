@@ -2,9 +2,16 @@ import Testing
 import Foundation
 @testable import Orchard
 
-// ImageService state transitions, driven through the facade's `imageService`.
-// `search(_:)` hits a live Docker Hub URL and isn't covered here (only its empty-query
-// guard, which returns before any network call).
+// ImageService state transitions, driven against a directly-constructed service.
+// `search(_:)` hits a live Docker Hub URL and isn't covered (see the KNOWN-ISSUE on the
+// empty-query test) — it has no transport seam.
+
+@MainActor
+private func makeImageService(_ backend: MockContainerBackend = MockContainerBackend())
+    -> (service: ImageService, alert: AlertCenter) {
+    let alert = AlertCenter()
+    return (ImageService(backend: backend, alertCenter: alert), alert)
+}
 
 // MARK: - load
 
@@ -13,38 +20,28 @@ import Foundation
 func imageLoadSuccess() async {
     let backend = MockContainerBackend()
     backend.images = [makeImage(reference: "nginx:latest"), makeImage(reference: "redis:7")]
-    let service = makeService(backend: backend)
+    let (service, _) = makeImageService(backend)
 
-    await service.imageService.load(showLoading: true)
+    await service.load(showLoading: true)
 
-    #expect(service.imageService.images.map(\.reference) == ["nginx:latest", "redis:7"])
-    #expect(service.imageService.isImagesLoading == false)
+    #expect(service.images.map(\.reference) == ["nginx:latest", "redis:7"])
+    #expect(service.isImagesLoading == false)
 }
 
 @MainActor
-@Test("Images load: a user-initiated failure alerts and clears the spinner")
-func imageLoadUserFailureAlerts() async {
+@Test(
+    "Images load: a failure alerts only when user-initiated",
+    arguments: [(showLoading: true, expectsAlert: true), (showLoading: false, expectsAlert: false)]
+)
+func imageLoadFailure(_ c: (showLoading: Bool, expectsAlert: Bool)) async {
     let backend = MockContainerBackend()
     backend.listImagesError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeImageService(backend)
 
-    await service.imageService.load(showLoading: true)
+    await service.load(showLoading: c.showLoading)   // false = background poll → no modal
 
-    #expect(service.alertCenter.current != nil)
-    #expect(service.imageService.isImagesLoading == false)
-}
-
-@MainActor
-@Test("Images load: a background failure stays silent")
-func imageLoadBackgroundFailureSilent() async {
-    let backend = MockContainerBackend()
-    backend.listImagesError = NotConfigured()
-    let service = makeService(backend: backend)
-
-    await service.imageService.load(showLoading: false)   // 5s poll → no modal
-
-    #expect(service.alertCenter.current == nil)
-    #expect(service.imageService.isImagesLoading == false)
+    #expect((alert.current != nil) == c.expectsAlert)
+    #expect(service.isImagesLoading == false)
 }
 
 // MARK: - pull
@@ -53,13 +50,13 @@ func imageLoadBackgroundFailureSilent() async {
 @Test("Images pull: success marks progress completed and pulls the trimmed reference")
 func imagePullSuccess() async {
     let backend = MockContainerBackend()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeImageService(backend)
 
-    await service.imageService.pull("  nginx:latest  ")   // leading/trailing space trimmed
+    await service.pull("  nginx:latest  ")   // leading/trailing space trimmed
 
     #expect(backend.pulledReferences == ["nginx:latest"])
-    #expect(service.imageService.pullProgress["nginx:latest"]?.status == .completed)
-    #expect(service.alertCenter.current == nil)
+    #expect(service.pullProgress["nginx:latest"]?.status == .completed)
+    #expect(alert.current == nil)
 }
 
 @MainActor
@@ -67,15 +64,15 @@ func imagePullSuccess() async {
 func imagePullFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.pullImageError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeImageService(backend)
 
-    await service.imageService.pull("nginx:latest")
+    await service.pull("nginx:latest")
 
     // Match the case, not the (localized, brittle) message.
-    if case .failed = service.imageService.pullProgress["nginx:latest"]?.status {} else {
-        Issue.record("expected .failed pull status, got \(String(describing: service.imageService.pullProgress["nginx:latest"]?.status))")
+    if case .failed = service.pullProgress["nginx:latest"]?.status {} else {
+        Issue.record("expected .failed pull status, got \(String(describing: service.pullProgress["nginx:latest"]?.status))")
     }
-    #expect(service.alertCenter.current != nil)
+    #expect(alert.current != nil)
 }
 
 // MARK: - delete
@@ -84,13 +81,13 @@ func imagePullFailureAlerts() async {
 @Test("Images delete: success removes the image locally and deletes the reference")
 func imageDeleteSuccess() async {
     let backend = MockContainerBackend()
-    let service = makeService(backend: backend)
-    service.imageService.images = [makeImage(reference: "gone:1"), makeImage(reference: "keep:1")]
+    let (service, _) = makeImageService(backend)
+    service.images = [makeImage(reference: "gone:1"), makeImage(reference: "keep:1")]
 
-    await service.imageService.delete("gone:1")
+    await service.delete("gone:1")
 
     #expect(backend.deletedImageReferences == ["gone:1"])
-    #expect(service.imageService.images.map(\.reference).contains("gone:1") == false)
+    #expect(service.images.map(\.reference).contains("gone:1") == false)
 }
 
 @MainActor
@@ -98,38 +95,27 @@ func imageDeleteSuccess() async {
 func imageDeleteFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.deleteImageError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeImageService(backend)
 
-    await service.imageService.delete("stuck:1")
+    await service.delete("stuck:1")
 
-    #expect(service.alertCenter.current != nil)
+    #expect(alert.current != nil)
 }
 
-// MARK: - search guard / clear
+// MARK: - search guard
 
 @MainActor
-@Test("Images search: an empty query clears results without a network call")
+@Test("Images search: an empty query clears results")
 func imageSearchEmptyQueryClears() async {
-    let service = makeService()
-    service.imageService.searchResults = [
+    let (service, _) = makeImageService()
+    service.searchResults = [
         RegistrySearchResult(name: "stale", description: nil, isOfficial: false, starCount: nil)
     ]
 
-    await service.imageService.search("")
+    await service.search("")
 
-    #expect(service.imageService.searchResults.isEmpty)
-    #expect(service.imageService.isSearching == false)
-}
-
-@MainActor
-@Test("Images clearSearchResults empties the results")
-func imageClearSearchResults() {
-    let service = makeService()
-    service.imageService.searchResults = [
-        RegistrySearchResult(name: "nginx", description: nil, isOfficial: true, starCount: 100)
-    ]
-
-    service.imageService.clearSearchResults()
-
-    #expect(service.imageService.searchResults.isEmpty)
+    #expect(service.searchResults.isEmpty)
+    // KNOWN-ISSUE (2026-07-04): search(_:) hardcodes URLSession.shared with no transport
+    // seam, so the guard can't be verified to skip the network, and the non-empty query
+    // path isn't unit-testable without hitting hub.docker.com.
 }

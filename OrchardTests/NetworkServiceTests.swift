@@ -2,8 +2,15 @@ import Testing
 import Foundation
 @testable import Orchard
 
-// NetworkService state transitions, driven through the facade's `networkService`.
+// NetworkService state transitions, against a directly-constructed service.
 // Backed by MockContainerBackend (records network calls, injects errors).
+
+@MainActor
+private func makeNetworkService(_ backend: MockContainerBackend = MockContainerBackend())
+    -> (service: NetworkService, alert: AlertCenter) {
+    let alert = AlertCenter()
+    return (NetworkService(backend: backend, alertCenter: alert), alert)
+}
 
 // MARK: - load
 
@@ -12,40 +19,31 @@ import Foundation
 func networkLoadSuccess() async {
     let backend = MockContainerBackend()
     backend.networks = [makeNetwork(id: "bridge"), makeNetwork(id: "custom")]
-    let service = makeService(backend: backend)
+    let (service, _) = makeNetworkService(backend)
 
-    await service.networkService.load(showLoading: true)
+    await service.load(showLoading: true)
 
-    #expect(service.networkService.networks.map(\.id) == ["bridge", "custom"])
-    #expect(service.networkService.isNetworksLoading == false)
+    #expect(service.networks.map(\.id) == ["bridge", "custom"])
+    #expect(service.isNetworksLoading == false)
 }
 
 @MainActor
-@Test("Networks load: a user-initiated failure alerts and clears the spinner")
-func networkLoadUserFailureAlerts() async {
-    let backend = MockContainerBackend()
-    backend.listNetworksError = NotConfigured()
-    let service = makeService(backend: backend)
-
-    await service.networkService.load(showLoading: true)
-
-    #expect(service.alertCenter.current != nil)
-    #expect(service.networkService.isNetworksLoading == false)
-}
-
-@MainActor
-@Test("Networks load: a background failure stays silent and leaves existing networks intact")
-func networkLoadBackgroundFailureSilent() async {
+@Test(
+    "Networks load: a failure alerts only when user-initiated and leaves networks intact",
+    arguments: [(showLoading: true, expectsAlert: true), (showLoading: false, expectsAlert: false)]
+)
+func networkLoadFailure(_ c: (showLoading: Bool, expectsAlert: Bool)) async {
     let backend = MockContainerBackend()
     backend.networks = [makeNetwork(id: "bridge")]
-    let service = makeService(backend: backend)
-    await service.networkService.load(showLoading: true)   // seed a network
+    let (service, alert) = makeNetworkService(backend)
+    await service.load(showLoading: false)      // seed a network
 
     backend.listNetworksError = NotConfigured()
-    await service.networkService.load(showLoading: false)  // background poll fails
+    await service.load(showLoading: c.showLoading)
 
-    #expect(service.alertCenter.current == nil)
-    #expect(service.networkService.networks.map(\.id) == ["bridge"])   // unchanged
+    #expect((alert.current != nil) == c.expectsAlert)
+    #expect(service.isNetworksLoading == false)
+    #expect(service.networks.map(\.id) == ["bridge"])   // failed reload leaves the list intact
 }
 
 // MARK: - create
@@ -54,17 +52,15 @@ func networkLoadBackgroundFailureSilent() async {
 @Test("Networks create: labels parse as KEY=VALUE, bare labels get an empty value")
 func networkCreateParsesLabels() async {
     let backend = MockContainerBackend()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeNetworkService(backend)
 
-    let ok = await service.networkService.create(
-        name: "app-net", labels: ["env=prod", "bare", "team=b=c"]
-    )
+    let ok = await service.create(name: "app-net", labels: ["env=prod", "bare", "team=b=c"])
 
     #expect(ok == true)
     let recorded = backend.createdNetworks.first
     #expect(recorded?.name == "app-net")
     #expect(recorded?.labels == ["env": "prod", "bare": "", "team": "b=c"])  // maxSplits: 1
-    #expect(service.alertCenter.current == nil)
+    #expect(alert.current == nil)
 }
 
 @MainActor
@@ -72,12 +68,12 @@ func networkCreateParsesLabels() async {
 func networkCreateFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.createNetworkError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeNetworkService(backend)
 
-    let ok = await service.networkService.create(name: "app-net")
+    let ok = await service.create(name: "app-net")
 
     #expect(ok == false)
-    #expect(service.alertCenter.current != nil)
+    #expect(alert.current != nil)
 }
 
 // MARK: - delete
@@ -87,14 +83,14 @@ func networkCreateFailureAlerts() async {
 func networkDeleteSuccessReloads() async {
     let backend = MockContainerBackend()
     backend.networks = [makeNetwork(id: "gone")]
-    let service = makeService(backend: backend)
-    await service.networkService.load(showLoading: false)   // has "gone"
+    let (service, _) = makeNetworkService(backend)
+    await service.load(showLoading: false)   // has "gone"
 
-    backend.networks = []                                    // backend no longer lists it
-    await service.networkService.delete("gone")
+    backend.networks = []                    // backend no longer lists it
+    await service.delete("gone")
 
     #expect(backend.deletedNetworkIds == ["gone"])
-    #expect(service.networkService.networks.isEmpty)         // reload picked up the removal
+    #expect(service.networks.isEmpty)         // reload picked up the removal
 }
 
 @MainActor
@@ -102,9 +98,9 @@ func networkDeleteSuccessReloads() async {
 func networkDeleteFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.deleteNetworkError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeNetworkService(backend)
 
-    await service.networkService.delete("stuck")
+    await service.delete("stuck")
 
-    #expect(service.alertCenter.current != nil)
+    #expect(alert.current != nil)
 }
