@@ -41,6 +41,10 @@ final class OrchardUITests: XCTestCase {
         let app = launchedApp()
         XCTAssertTrue(app.staticTexts["uitest-web"].waitForExistence(timeout: 20))
 
+        // Diagnostic: dump the accessibility tree so we can see how the sidebar tabs are
+        // exposed (element type + identifier). Remove once the tab matcher is confirmed.
+        print("UI-TREE-BEGIN\n\(app.debugDescription)\nUI-TREE-END")
+
         let imagesTab = element(app, id: "tab-images")
         XCTAssertTrue(imagesTab.waitForExistence(timeout: 10), "Images tab should be present")
         imagesTab.click()
