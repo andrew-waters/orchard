@@ -41,9 +41,12 @@ final class BuilderService: ObservableObject {
     func loadBuilders() async {
         isBuildersLoading = true
 
-        // This runs on a 5s poll — a spawn failure (binary missing) or a nonzero exit
-        // both degrade silently to .stopped and log; only user-initiated builder actions
-        // (start/stop/delete) surface alerts.
+        // This runs on a 5s poll — a spawn failure (binary missing), a nonzero exit, and a
+        // decode failure all degrade silently to .stopped and log; only user-initiated
+        // builder actions (start/stop/delete) surface alerts.
+        // KNOWN-ISSUE (2026-07-04): a zero-exit decode failure means a schema change left the
+        // builder state *unknown* (possibly running), yet we report it as definitively
+        // .stopped. Distinguish "unknown" from "stopped" if this proves misleading.
         let result: ProcessResult
         do {
             result = try await runner.run(
