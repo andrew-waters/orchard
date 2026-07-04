@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct OrchardApp: App {
-    @StateObject private var services = AppServices()
+    @StateObject private var services = AppServices.forLaunch()
     @StateObject private var menuBarManager = MenuBarManager()
     @StateObject private var updater = UpdaterService()
 

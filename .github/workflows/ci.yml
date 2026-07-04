@@ -83,6 +83,46 @@ jobs:
           publish_dir: ./badge
           keep_files: true
 
+  # XCUITest smoke suite — launches the app against the stubbed backend
+  # (--uitest-mock-backend) and drives a few flows. Separate job so the unit-test signal
+  # stays fast; needs a real macOS GUI session (the macos-26 runner provides one).
+  ui-test:
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Cache SwiftPM packages
+        uses: actions/cache@v4
+        with:
+          path: .spm-cache
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Run UI smoke tests
+        run: |
+          xcodebuild test \
+            -project Orchard.xcodeproj \
+            -scheme OrchardUITests \
+            -destination 'platform=macOS' \
+            -clonedSourcePackagesDirPath .spm-cache \
+            -skipPackagePluginValidation \
+            -resultBundlePath UITestResults \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload UI test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: UITestResults
+
   # Publish the site (with the freshly-persisted badge) via GitHub Actions Pages.
   deploy-pages:
     needs: test

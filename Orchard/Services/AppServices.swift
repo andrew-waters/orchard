@@ -22,6 +22,17 @@ final class AppServices: ObservableObject {
     let systemService: SystemService
     let containerListService: ContainerListService
 
+    /// The services for app launch: normally the live backend, or (Debug + launch arg) an
+    /// in-memory stub seeded with fixtures for the XCUITest smoke suite.
+    static func forLaunch() -> AppServices {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(uiTestMockBackendArgument) {
+            return AppServices(backend: UITestBackend(), runner: UITestCommandRunner())
+        }
+        #endif
+        return AppServices()
+    }
+
     init(
         backend: ContainerBackend = LiveContainerBackend(),
         runner: CommandRunner = SystemCommandRunner(),
