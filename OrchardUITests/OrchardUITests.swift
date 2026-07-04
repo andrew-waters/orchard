@@ -40,4 +40,24 @@ final class OrchardUITests: XCTestCase {
             "The selected container's detail pane (with its tab bar) should render"
         )
     }
+
+    /// The #54 class: a failed user action must be visible. With the stub set to fail
+    /// `stopContainer`, stopping the running container should surface the error alert.
+    @MainActor
+    func testFailedActionPresentsErrorAlert() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uitest-mock-backend", "--uitest-fail-stop"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["uitest-web"].waitForExistence(timeout: 20))
+
+        let stop = app.buttons["Stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 10), "The running container's Stop button should render")
+        stop.click()
+
+        XCTAssertTrue(
+            app.staticTexts["Something Went Wrong"].waitForExistence(timeout: 10),
+            "A failed action should present the error alert"
+        )
+    }
 }

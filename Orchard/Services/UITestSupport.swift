@@ -4,6 +4,10 @@ import Foundation
 /// with fixtures — so the XCUITest smoke suite runs without a real `container` daemon.
 let uiTestMockBackendArgument = "--uitest-mock-backend"
 
+/// Launch argument that makes the stub fail `stopContainer`, so the smoke suite can exercise
+/// the error-alert surface (the #54 class: a failed user action must be visible).
+let uiTestFailStopArgument = "--uitest-fail-stop"
+
 /// Distinctive seeded identifiers the UI smoke tests assert on.
 enum UITestSeed {
     static let containerID = "uitest-web"
@@ -60,7 +64,11 @@ struct UITestBackend: ContainerBackend {
         [container(id: UITestSeed.containerID, status: "running"),
          container(id: UITestSeed.stoppedContainerID, status: "stopped")]
     }
-    func stopContainer(id: String) async throws {}
+    func stopContainer(id: String) async throws {
+        if ProcessInfo.processInfo.arguments.contains(uiTestFailStopArgument) {
+            throw OrchardError.generic("simulated stop failure")
+        }
+    }
     func killContainer(id: String, signal: Int32) async throws {}
     func deleteContainer(id: String, force: Bool) async throws {}
     func bootstrapAndStart(id: String) async throws {}
