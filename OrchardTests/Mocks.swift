@@ -3,14 +3,32 @@ import Foundation
 
 struct NotConfigured: Error {}
 
-/// Records the last error and lets tests supply canned CLI output.
+// The mocks are `@unchecked Sendable` and their methods run off the main actor (nonisolated
+// async protocol requirements), so fire-and-forget service Tasks can touch their state
+// concurrently. All mutable state is therefore guarded by an `NSLock` — config via get/set
+// accessors, recorded calls/counters via a locked mutation inside each method with a
+// get-only accessor for tests. Recorded arrays append on SUCCESS only (throw first), so a
+// failed operation never looks like it happened.
+
+/// Records issued commands and lets tests supply canned CLI output.
 final class MockCommandRunner: CommandRunner, @unchecked Sendable {
-    var defaultResult = ProcessResult(exitCode: 0, stdout: "", stderr: nil)
-    var runHandler: (@Sendable (String, [String]) throws -> ProcessResult)?
-    private(set) var calls: [[String]] = []
+    private let lock = NSLock()
+    private var _defaultResult = ProcessResult(exitCode: 0, stdout: "", stderr: nil)
+    private var _runHandler: (@Sendable (String, [String]) throws -> ProcessResult)?
+    private var _calls: [[String]] = []
+
+    var defaultResult: ProcessResult {
+        get { lock.withLock { _defaultResult } }
+        set { lock.withLock { _defaultResult = newValue } }
+    }
+    var runHandler: (@Sendable (String, [String]) throws -> ProcessResult)? {
+        get { lock.withLock { _runHandler } }
+        set { lock.withLock { _runHandler = newValue } }
+    }
+    var calls: [[String]] { lock.withLock { _calls } }
 
     func run(program: String, arguments: [String]) async throws -> ProcessResult {
-        calls.append(arguments)
+        lock.withLock { _calls.append(arguments) }
         if let handler = runHandler { return try handler(program, arguments) }
         return defaultResult
     }
@@ -23,41 +41,122 @@ final class MockCommandRunner: CommandRunner, @unchecked Sendable {
 /// A `ContainerBackend` whose behaviour is configured per test. Methods not needed by a
 /// test either no-op or throw `NotConfigured`.
 final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
-    var containers: [Container] = []
-    var listContainersError: Error?
-    var images: [ContainerImage] = []
-    var listImagesError: Error?
-    var pullImageError: Error?
-    var deleteImageError: Error?
-    private(set) var pulledReferences: [String] = []
-    private(set) var deletedImageReferences: [String] = []
-    var networks: [ContainerNetwork] = []
-    var listNetworksError: Error?
-    var createNetworkError: Error?
-    var deleteNetworkError: Error?
-    private(set) var createdNetworks: [(name: String, labels: [String: String])] = []
-    private(set) var deletedNetworkIds: [String] = []
+    private let lock = NSLock()
 
-    private(set) var createdSpecs: [ContainerCreateSpec] = []
-    var createContainerError: Error?
+    private var _containers: [Container] = []
+    private var _images: [ContainerImage] = []
+    private var _networks: [ContainerNetwork] = []
+    private var _listContainersError: Error?
+    private var _listImagesError: Error?
+    private var _pullImageError: Error?
+    private var _deleteImageError: Error?
+    private var _listNetworksError: Error?
+    private var _createNetworkError: Error?
+    private var _deleteNetworkError: Error?
+    private var _createContainerError: Error?
+    private var _stopContainerError: Error?
+    private var _killContainerError: Error?
+    private var _deleteContainerError: Error?
+    private var _pingError: Error?
+    private var _bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)?
+    private var _statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
 
+    private var _pulledReferences: [String] = []
+    private var _deletedImageReferences: [String] = []
+    private var _createdNetworks: [(name: String, labels: [String: String])] = []
+    private var _deletedNetworkIds: [String] = []
+    private var _createdSpecs: [ContainerCreateSpec] = []
+    private var _deletedContainers: [(id: String, force: Bool)] = []
+    private var _bootstrapAndStartCount = 0
+    private var _listContainersCount = 0
+
+    // Configuration — set by tests.
+    var containers: [Container] {
+        get { lock.withLock { _containers } }
+        set { lock.withLock { _containers = newValue } }
+    }
+    var images: [ContainerImage] {
+        get { lock.withLock { _images } }
+        set { lock.withLock { _images = newValue } }
+    }
+    var networks: [ContainerNetwork] {
+        get { lock.withLock { _networks } }
+        set { lock.withLock { _networks = newValue } }
+    }
+    var listContainersError: Error? {
+        get { lock.withLock { _listContainersError } }
+        set { lock.withLock { _listContainersError = newValue } }
+    }
+    var listImagesError: Error? {
+        get { lock.withLock { _listImagesError } }
+        set { lock.withLock { _listImagesError = newValue } }
+    }
+    var pullImageError: Error? {
+        get { lock.withLock { _pullImageError } }
+        set { lock.withLock { _pullImageError = newValue } }
+    }
+    var deleteImageError: Error? {
+        get { lock.withLock { _deleteImageError } }
+        set { lock.withLock { _deleteImageError = newValue } }
+    }
+    var listNetworksError: Error? {
+        get { lock.withLock { _listNetworksError } }
+        set { lock.withLock { _listNetworksError = newValue } }
+    }
+    var createNetworkError: Error? {
+        get { lock.withLock { _createNetworkError } }
+        set { lock.withLock { _createNetworkError = newValue } }
+    }
+    var deleteNetworkError: Error? {
+        get { lock.withLock { _deleteNetworkError } }
+        set { lock.withLock { _deleteNetworkError = newValue } }
+    }
+    var createContainerError: Error? {
+        get { lock.withLock { _createContainerError } }
+        set { lock.withLock { _createContainerError = newValue } }
+    }
+    var stopContainerError: Error? {
+        get { lock.withLock { _stopContainerError } }
+        set { lock.withLock { _stopContainerError = newValue } }
+    }
+    var killContainerError: Error? {
+        get { lock.withLock { _killContainerError } }
+        set { lock.withLock { _killContainerError = newValue } }
+    }
+    var deleteContainerError: Error? {
+        get { lock.withLock { _deleteContainerError } }
+        set { lock.withLock { _deleteContainerError = newValue } }
+    }
+    var pingError: Error? {
+        get { lock.withLock { _pingError } }
+        set { lock.withLock { _pingError = newValue } }
+    }
     /// Called with the 1-based attempt count; throw to simulate a failed start.
-    var bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)?
-    private(set) var bootstrapAndStartCount = 0
-
+    var bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)? {
+        get { lock.withLock { _bootstrapAndStartHandler } }
+        set { lock.withLock { _bootstrapAndStartHandler = newValue } }
+    }
     /// Per-container stats; throw to simulate a failure for that container.
-    var statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
+    var statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)? {
+        get { lock.withLock { _statsHandler } }
+        set { lock.withLock { _statsHandler = newValue } }
+    }
 
-    private(set) var listContainersCount = 0
+    // Recorded calls — read by tests.
+    var pulledReferences: [String] { lock.withLock { _pulledReferences } }
+    var deletedImageReferences: [String] { lock.withLock { _deletedImageReferences } }
+    var createdNetworks: [(name: String, labels: [String: String])] { lock.withLock { _createdNetworks } }
+    var deletedNetworkIds: [String] { lock.withLock { _deletedNetworkIds } }
+    var createdSpecs: [ContainerCreateSpec] { lock.withLock { _createdSpecs } }
+    var deletedContainers: [(id: String, force: Bool)] { lock.withLock { _deletedContainers } }
+    var bootstrapAndStartCount: Int { lock.withLock { _bootstrapAndStartCount } }
+    var listContainersCount: Int { lock.withLock { _listContainersCount } }
+
     func listContainers() async throws -> [Container] {
-        listContainersCount += 1
+        lock.withLock { _listContainersCount += 1 }
         if let error = listContainersError { throw error }
         return containers
     }
-    var stopContainerError: Error?
-    var killContainerError: Error?
-    var deleteContainerError: Error?
-    private(set) var deletedContainers: [(id: String, force: Bool)] = []
     func stopContainer(id: String) async throws {
         if let stopContainerError { throw stopContainerError }
     }
@@ -65,12 +164,13 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         if let killContainerError { throw killContainerError }
     }
     func deleteContainer(id: String, force: Bool) async throws {
-        deletedContainers.append((id: id, force: force))
         if let deleteContainerError { throw deleteContainerError }
+        lock.withLock { _deletedContainers.append((id: id, force: force)) }
     }
     func bootstrapAndStart(id: String) async throws {
-        bootstrapAndStartCount += 1
-        try bootstrapAndStartHandler?(bootstrapAndStartCount)
+        // Counts every attempt (including failed ones) — increment before the handler throws.
+        let attempt = lock.withLock { () -> Int in _bootstrapAndStartCount += 1; return _bootstrapAndStartCount }
+        try bootstrapAndStartHandler?(attempt)
     }
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
     func stats(id: String) async throws -> Orchard.ContainerStats {
@@ -78,20 +178,20 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         throw NotConfigured()
     }
     func createContainer(_ spec: ContainerCreateSpec) async throws {
-        createdSpecs.append(spec)
         if let error = createContainerError { throw error }
+        lock.withLock { _createdSpecs.append(spec) }
     }
     func listImages() async throws -> [ContainerImage] {
         if let listImagesError { throw listImagesError }
         return images
     }
     func pullImage(reference: String) async throws {
-        pulledReferences.append(reference)
         if let pullImageError { throw pullImageError }
+        lock.withLock { _pulledReferences.append(reference) }
     }
     func deleteImage(reference: String) async throws {
-        deletedImageReferences.append(reference)
         if let deleteImageError { throw deleteImageError }
+        lock.withLock { _deletedImageReferences.append(reference) }
     }
     func inspectImage(reference: String) async throws -> ImageInspection { throw NotConfigured() }
     func listNetworks() async throws -> [ContainerNetwork] {
@@ -99,14 +199,13 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         return networks
     }
     func createNetwork(name: String, labels: [String: String]) async throws {
-        createdNetworks.append((name: name, labels: labels))
         if let createNetworkError { throw createNetworkError }
+        lock.withLock { _createdNetworks.append((name: name, labels: labels)) }
     }
     func deleteNetwork(id: String) async throws {
-        deletedNetworkIds.append(id)
         if let deleteNetworkError { throw deleteNetworkError }
+        lock.withLock { _deletedNetworkIds.append(id) }
     }
-    var pingError: Error?
     func ping() async throws -> SystemHealthInfo {
         if let pingError { throw pingError }
         return SystemHealthInfo(apiServerVersion: "test")
