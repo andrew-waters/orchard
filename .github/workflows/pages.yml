@@ -1,41 +1,81 @@
 name: Deploy site to GitHub Pages
 
-# Publishes the landing page (site/ + screenshots) to the gh-pages branch.
-# Uses keep_files: true so it preserves appcast.xml, which is published
-# separately by the release workflow.
-
+# Deploys the site via the GitHub Actions Pages path (not the flaky legacy branch build).
+# The static landing page lives in `site/`; the two generated files
+# (coverage-badge.json, appcast.xml) are persisted on the gh-pages branch by ci.yml and
+# release.yml and overlaid here, so every deploy publishes the full, current site.
+#
+# Triggered directly when the landing page changes, and invoked by ci.yml / release.yml
+# (workflow_call) after they push their generated file, so a single job owns deployment.
 on:
   push:
     branches: [main]
     paths:
       - "site/**"
-      - "assets/**"
       - ".github/workflows/pages.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Queue overlapping deploys rather than letting a newer one supersede (and fail) an
+    # older one — the failure mode of the previous legacy setup.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout site source
+        uses: actions/checkout@v4
+
+      - name: Fetch generated files from gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: _ghpages
+        continue-on-error: true   # gh-pages may not exist on a first deploy
 
       - name: Assemble site
         run: |
           mkdir -p _site
           cp -R site/. _site/
-          cp -R assets _site/assets
+          for f in coverage-badge.json appcast.xml; do
+            if [ -f "_ghpages/$f" ]; then
+              cp "_ghpages/$f" "_site/$f"
+            else
+              echo "note: $f not present on gh-pages yet — skipping"
+            fi
+          done
+          echo "Assembled site:"; ls -la _site
 
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./_site
-          keep_files: true
-          cname: orchard.andon.dev
+          path: _site
+
+      # Retry once: GitHub's Pages deployment API intermittently returns
+      # "Deployment failed, try again later" for a single attempt. A retry after a short
+      # pause clears the vast majority of those transient failures.
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait before retry
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 20
+
+      - name: Deploy to GitHub Pages (retry)
+        if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4

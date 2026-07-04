@@ -5,6 +5,13 @@ on:
   push:
     branches: [main]
 
+# contents: write for the coverage-badge push to gh-pages; pages/id-token for the
+# Actions Pages deploy invoked via pages.yml.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -69,13 +76,19 @@ jobs:
           print(f"services coverage: {pct}% ({covered}/{total} lines)")
           EOF
 
-      # Publish the badge JSON additively to gh-pages (served at orchard.andon.dev).
-      # keep_files + cname preserve the landing page and appcast.
-      - name: Publish coverage badge
+      # Persist the badge JSON on gh-pages (the data store for generated files).
+      # keep_files preserves appcast.xml; the deploy job below publishes the assembled
+      # site (site/ + badge + appcast) via the Actions Pages path.
+      - name: Persist coverage badge to gh-pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./badge
           keep_files: true
-          cname: orchard.andon.dev
+
+  # Publish the site (with the freshly-persisted badge) via GitHub Actions Pages.
+  deploy-pages:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/pages.yml

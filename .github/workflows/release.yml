@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   test:
@@ -311,13 +313,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy appcast to GitHub Pages
+      # Persist the appcast on gh-pages (the data store for generated files). keep_files
+      # preserves coverage-badge.json; the deploy-pages job below publishes the assembled
+      # site (site/ + badge + appcast) via the Actions Pages path.
+      - name: Persist appcast to gh-pages
         if: steps.appcast.outputs.generated == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
           keep_files: true
-          # Re-asserts the CNAME file so the repo's custom domain (Settings ▸ Pages)
-          # survives every deploy. Serves the appcast at https://orchard.andon.dev/appcast.xml
-          cname: orchard.andon.dev
+
+  # Publish the site (with the freshly-persisted appcast) via GitHub Actions Pages.
+  deploy-pages:
+    needs: build
+    uses: ./.github/workflows/pages.yml
