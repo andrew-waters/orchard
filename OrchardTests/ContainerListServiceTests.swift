@@ -6,7 +6,7 @@ import Foundation
 // beyond the two start cases in ContainerServiceTests: the stop/force-stop/remove failure
 // handling and the auto-removal recovery + retry loop (the riskiest logic in the service).
 //
-// These construct ContainerListService directly (no facade) and set `pollInterval = 0` so
+// These construct ContainerListService directly (no facade) with `pollInterval: 0` so
 // the fire-and-forget `refreshUntilContainer…` poll loops finish in microseconds instead
 // of the 0.5s×10 production cadence — no real sleeps, and no ~5s task leaking past the test.
 // Success paths await quiescence on the loading flag; the backend poll count distinguishes
@@ -21,8 +21,7 @@ import Foundation
 private func makeListService(_ backend: MockContainerBackend = MockContainerBackend())
     -> (service: ContainerListService, alert: AlertCenter) {
     let alert = AlertCenter()
-    let service = ContainerListService(backend: backend, alertCenter: alert)
-    service.pollInterval = 0
+    let service = ContainerListService(backend: backend, alertCenter: alert, pollInterval: 0)
     return (service, alert)
 }
 
@@ -174,24 +173,19 @@ func startContainerNotFoundRecreatesFromSnapshot() async throws {
     let (service, _) = makeListService(backend)
     await service.loadContainers()   // seed the recovery snapshot
 
-    // First start attempt: the container was auto-removed. Recovery should recreate it.
-    backend.bootstrapAndStartHandler = { attempt in
-        if attempt == 1 { throw makeError("container not found") }
-        // later attempts succeed
-    }
+    // The container was auto-removed on the first (and only) start attempt.
+    backend.bootstrapAndStartHandler = { _ in throw makeError("container not found") }
 
     await service.startContainer("web", maxRetries: 3, retryDelay: 0)
     await awaitQuiescence { !service.loadingContainers.contains("web") }
 
-    // What recovery is FOR: a new container is created from the snapshot, and the branch
-    // is not marked recovery-failed. We deliberately do NOT assert bootstrapAndStartCount
-    // as a contract — see KNOWN-ISSUE below.
+    // Recovery recreates the container from the snapshot (createContainer also starts it)
+    // and does NOT re-run bootstrapAndStart — so exactly one bootstrap attempt occurred
+    // (the initial failure), and the branch isn't marked recovery-failed. Labels, resources,
+    // and hostname aren't preserved (no field in the create path); see recoverContainer.
     #expect(backend.createdSpecs.contains { $0.id == "web" })
+    #expect(backend.bootstrapAndStartCount == 1)   // no second start on the recovered container
     #expect(service.recoveryFailedContainerIDs.contains("web") == false)
-    // KNOWN-ISSUE (2026-07-04): recovery re-runs bootstrapAndStart on a container that
-    // createContainer already started, and the recreated config drops network/workingDir/
-    // command/labels/ro-flags/resources/hostname. Verify against the real backend; the mock
-    // models no container state so it can't surface the double-start. See recoverContainer.
 }
 
 // MARK: - refresh poll loops (driven through the public stop/start wiring)
@@ -249,7 +243,7 @@ func stopRefreshTimesOut() async throws {
 
     // The timeout fallback (not the terminal return) clears loading after exhausting the polls.
     #expect(service.loadingContainers.contains("web") == false)
-    #expect(backend.listContainersCount == 10)   // maxRefreshAttempts
+    #expect(backend.listContainersCount == service.maxRefreshAttempts)
 }
 
 // MARK: - recreate

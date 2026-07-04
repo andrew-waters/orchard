@@ -23,9 +23,9 @@ final class ContainerListService: ObservableObject {
     /// Refresh builder state after a lifecycle change. Set by the owner.
     var reloadBuilders: () async -> Void = {}
 
-    /// Delay between polls in the `refreshUntilContainer…` loops. Production uses the
-    /// 0.5s default; tests set it to 0 to drive the loops without real sleeps.
-    var pollInterval: TimeInterval = 0.5
+    /// Delay between polls in the `refreshUntilContainer…` loops. Injected; production uses
+    /// the 0.5s default, tests pass 0 to drive the loops without real sleeps.
+    private let pollInterval: TimeInterval
     /// Number of polls before a refresh loop gives up and clears the loading state.
     let maxRefreshAttempts = 10
 
@@ -35,9 +35,10 @@ final class ContainerListService: ObservableObject {
     // Configuration snapshots for recovery.
     private var containerSnapshots: [String: Container] = [:]
 
-    init(backend: ContainerBackend, alertCenter: AlertCenter) {
+    init(backend: ContainerBackend, alertCenter: AlertCenter, pollInterval: TimeInterval = 0.5) {
         self.backend = backend
         self.alertCenter = alertCenter
+        self.pollInterval = pollInterval
     }
 
     private static func computeMounts(_ containers: [Container]) -> [ContainerMount] {
@@ -170,8 +171,14 @@ final class ContainerListService: ObservableObject {
                     Log.containers.debug("Container \(id) was auto-removed by runtime, attempting automatic recovery...")
 
                     if await recoverContainer(id) {
-                        Log.containers.debug("Container \(id) successfully recovered, retrying start...")
-                        continue
+                        // recoverContainer → runContainer → createContainer already bootstraps
+                        // and starts the container, so this is a completed start — do NOT loop
+                        // back into another bootstrapAndStart on the now-running container.
+                        Log.containers.debug("Container \(id) successfully recovered and started")
+                        self.recoveryFailedContainerIDs.remove(id)
+                        Task { await self.reloadBuilders() }
+                        Task { await self.refreshUntilContainerStarted(id) }
+                        return
                     } else {
                         Log.containers.error("Container \(id) recovery failed")
                         self.recoveryFailedContainerIDs.insert(id)
@@ -317,12 +324,14 @@ final class ContainerListService: ObservableObject {
         }
     }
 
-    // KNOWN-ISSUE (2026-07-04): the caller re-runs bootstrapAndStart after this returns
-    // true, but createContainer already bootstraps and starts the container — verify against
-    // the real backend that the second start doesn't error on an already-running container.
-    // The recreation config below also drops several fields present in the snapshot:
-    // network, workingDirectory, command override, labels, volume readonly flags, resources,
-    // and hostname. Recovery is therefore lossy; revisit before relying on it.
+    // Recovery recreates an auto-removed container from its snapshot. It preserves every
+    // field the create path (ContainerRunConfig → ContainerCreateSpec → createContainer)
+    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS.
+    // Labels, resources (cpus/memory), and hostname are NOT preserved — no field exists for
+    // them anywhere in the create path (a normal `run` drops them too); adding them means
+    // extending the spec and the XPC create call. Command override is intentionally not
+    // reconstructed: the snapshot stores the fully-resolved argv (image entrypoint already
+    // applied), so re-feeding it as an override would double-apply the entrypoint.
     private func recoverContainer(_ id: String) async -> Bool {
         guard let snapshot = containerSnapshots[id] else {
             Log.containers.debug("No snapshot available for container \(id)")
@@ -352,7 +361,11 @@ final class ContainerListService: ObservableObject {
 
         var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
         for mount in config.mounts {
-            volumeMappings.append(.init(hostPath: mount.source, containerPath: mount.destination))
+            volumeMappings.append(.init(
+                hostPath: mount.source,
+                containerPath: mount.destination,
+                readonly: mount.options.contains("ro")
+            ))
         }
 
         let runConfig = ContainerRunConfig(
@@ -362,7 +375,9 @@ final class ContainerListService: ObservableObject {
             environmentVariables: envVars,
             portMappings: portMappings,
             volumeMappings: volumeMappings,
-            dnsDomain: config.dns.domain ?? ""
+            workingDirectory: config.initProcess.workingDirectory,
+            dnsDomain: config.dns.domain ?? "",
+            network: snapshot.networks.first?.network ?? ""
         )
 
         let started = await runContainer(config: runConfig)
