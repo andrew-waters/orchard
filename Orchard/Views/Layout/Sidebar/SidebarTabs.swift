@@ -101,7 +101,6 @@ struct SidebarTabs: View {
                     }
                     .buttonStyle(.plain)
                     .help(tab.title)
-                    .accessibilityIdentifier("tab-\(tab.rawValue)")
                 }
             }
             .padding(.horizontal, 12)
