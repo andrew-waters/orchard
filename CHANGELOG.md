@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refactored the internals: the monolithic container service was split into focused per-domain services with each view observing only what it needs, the Run and Edit container forms now share one implementation, and a UI smoke-test harness was added. No user-facing behaviour change.
 
+### Fixed
+- Network subnet validation now rejects out-of-range addresses (e.g. `999.999.999.999/24`); each octet must be 0–255.
+
 ## [1.12.5] - 2026-07-04
 
 ### Changed
