@@ -33,7 +33,8 @@ func subnet() {
     for ok in ["10.0.0.0/24", "192.168.1.0/16", "0.0.0.0/0", "172.16.0.0/32"] {
         #expect(InputValidation.isValidSubnet(ok), "\(ok) should be valid")
     }
-    for bad in ["10.0.0.0", "10.0.0.0/33", "foo/24", "10.0.0/24", ""] {
+    for bad in ["10.0.0.0", "10.0.0.0/33", "foo/24", "10.0.0/24", "",
+                "999.999.999.999/24", "256.0.0.0/24"] {
         #expect(!InputValidation.isValidSubnet(bad), "\(bad) should be rejected")
     }
 }

@@ -16,9 +16,10 @@ enum InputValidation {
         return NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: name)
     }
 
-    /// A CIDR subnet: dotted-quad IPv4 followed by a /0–/32 prefix length.
+    /// A CIDR subnet: dotted-quad IPv4 (each octet 0–255) followed by a /0–/32 prefix length.
     static func isValidSubnet(_ subnet: String) -> Bool {
-        let regex = "^([0-9]{1,3}\\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$"
+        let octet = "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+        let regex = "^(\(octet)\\.){3}\(octet)/([0-9]|[1-2][0-9]|3[0-2])$"
         return NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: subnet)
     }
 }

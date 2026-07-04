@@ -92,6 +92,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
