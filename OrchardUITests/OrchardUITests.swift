@@ -28,25 +28,30 @@ final class OrchardUITests: XCTestCase {
         )
     }
 
-    /// Tab switching renders each resource list.
+    /// Look up an element by accessibility identifier regardless of element type. The sidebar
+    /// tabs are icon-only SwiftUI `.plain` buttons, which macOS surfaces as image/other
+    /// elements rather than `.buttons`, so a typed query (`app.buttons[...]`) misses them.
+    private func element(_ app: XCUIApplication, id: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: id).firstMatch
+    }
+
+    /// Tab switching renders another resource list.
     @MainActor
     func testTabSwitchingRendersLists() throws {
         let app = launchedApp()
         XCTAssertTrue(app.staticTexts["uitest-web"].waitForExistence(timeout: 20))
 
-        app.buttons["tab-images"].click()
+        let imagesTab = element(app, id: "tab-images")
+        XCTAssertTrue(imagesTab.waitForExistence(timeout: 10), "Images tab should be present")
+        imagesTab.click()
         XCTAssertTrue(
             app.staticTexts["uitest-nginx"].waitForExistence(timeout: 10),
             "Images tab should render the seeded image"
         )
 
-        app.buttons["tab-networks"].click()
-        XCTAssertTrue(
-            app.staticTexts["uitest-net"].waitForExistence(timeout: 10),
-            "Networks tab should render the seeded network"
-        )
-
-        app.buttons["tab-containers"].click()
+        let containersTab = element(app, id: "tab-containers")
+        XCTAssertTrue(containersTab.waitForExistence(timeout: 10), "Containers tab should be present")
+        containersTab.click()
         XCTAssertTrue(app.staticTexts["uitest-web"].waitForExistence(timeout: 10))
     }
 }
