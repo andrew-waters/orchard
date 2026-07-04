@@ -12,7 +12,6 @@ struct ContainerDetailView: View {
     @EnvironmentObject var statsService: StatsService
     @State private var selectedTab: ContainerTab = .overview
     @State private var showEditConfiguration = false
-    @State private var statsTimer: Timer?
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedNetwork: String?
 
@@ -44,6 +43,13 @@ struct ContainerDetailView: View {
         }
         .onAppear {
             selectedTab = tabFromString(initialSelectedTab)
+            // The detail view is a stats consumer: the service samples at 2s while it's
+            // shown, so history accumulates for the charts regardless of the active tab.
+            Task { await statsService.load(showLoading: true) }
+            statsService.beginSampling()
+        }
+        .onDisappear {
+            statsService.endSampling()
         }
         .sheet(isPresented: $showEditConfiguration) {
             EditContainerView(container: container)
@@ -121,8 +127,14 @@ struct ContainerDetailView: View {
     private var containerOverviewTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Container Statistics (at the top)
-                containerStatsSection(container: container)
+                // Container statistics: current-value cards + live charts.
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Statistics")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    ContainerStatsPanel(container: container)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Divider()
 
@@ -152,20 +164,6 @@ struct ContainerDetailView: View {
                 Spacer(minLength: 20)
             }
             .padding()
-        }
-        .onAppear {
-            Task {
-                await statsService.load(showLoading: true)
-            }
-            statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                Task { @MainActor in
-                    await statsService.load(showLoading: false)
-                }
-            }
-        }
-        .onDisappear {
-            statsTimer?.invalidate()
-            statsTimer = nil
         }
     }
 
@@ -511,144 +509,6 @@ struct ContainerDetailView: View {
                     .italic()
             }
         }
-    }
-
-    private func containerStatsSection(container: Container) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Statistics")
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            let containerStats = statsService.containerStats.first { $0.id == container.configuration.id }
-            let isRunning = container.status.lowercased() == "running"
-
-            // Always show stats boxes
-            HStack(spacing: 16) {
-                // Memory Usage
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Memory")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                    if let stats = containerStats, isRunning {
-                        Text(stats.formattedMemoryUsage)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                        Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text(isRunning ? "--" : "Not running")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(8)
-
-                // Network I/O
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Network I/O")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                    if let stats = containerStats, isRunning {
-                        Text("↓ \(stats.formattedNetworkRx)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                        Text("↑ \(stats.formattedNetworkTx)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fontDesign(.monospaced)
-                    } else {
-                        Text(isRunning ? "↓ --" : "Not running")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                        Text(isRunning ? "↑ --" : "")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fontDesign(.monospaced)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(8)
-
-                // Block I/O
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Block I/O")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                    if let stats = containerStats, isRunning {
-                        Text("R \(stats.formattedBlockRead)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                        Text("W \(stats.formattedBlockWrite)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fontDesign(.monospaced)
-                    } else {
-                        Text(isRunning ? "R --" : "Not running")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                        Text(isRunning ? "W --" : "")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fontDesign(.monospaced)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(8)
-
-                // Processes
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Processes")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                    if let stats = containerStats, isRunning {
-                        Text("\(stats.numProcesses)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                    } else {
-                        Text(isRunning ? "--" : "Not running")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                    }
-                    Text("PIDs")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(8)
-            }
-
-
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // Helper function to convert string to enum

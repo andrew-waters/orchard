@@ -5,7 +5,18 @@ struct StatsView: View {
     @EnvironmentObject var systemService: SystemService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
-    @State private var statsTimer: Timer?
+
+    /// Recent CPU% per container id for the table's row sparklines (last 60 samples).
+    private var cpuSparklines: [String: [Double]] {
+        var result: [String: [Double]] = [:]
+        for stats in statsService.containerStats {
+            result[stats.id] = statsService.history
+                .samples(for: StatsKey(id: stats.id))
+                .suffix(60)
+                .map(\.cpuPercent)
+        }
+        return result
+    }
 
     private var emptyMessage: String {
         if statsService.isStatsLoading {
@@ -61,6 +72,9 @@ struct StatsView: View {
                     // System Disk Usage Section
                     SystemDiskUsageView()
 
+                    // System-wide resource charts (aggregate of all containers)
+                    SystemStatsDashboard()
+
                     Text("Container Utilisation")
                         .font(.headline)
                         .foregroundColor(.primary)
@@ -68,6 +82,8 @@ struct StatsView: View {
                     // Container Stats Table
                     StatsTableView(
                         containerStats: statsService.containerStats,
+                        latestSamples: statsService.latestSamples,
+                        sparklines: cpuSparklines,
                         selectedTab: $selectedTab,
                         selectedContainer: $selectedContainer,
                         emptyStateMessage: emptyMessage,
@@ -82,25 +98,13 @@ struct StatsView: View {
                 await statsService.load(showLoading: true)
                 await systemService.loadSystemDiskUsage(showLoading: true)
             }
-            startStatsTimer()
+            // The service owns sampling now (2s cadence), so history keeps accumulating
+            // across view switches. Disk usage changes slowly — refreshed on appear only.
+            statsService.beginSampling()
         }
         .onDisappear {
-            stopStatsTimer()
+            statsService.endSampling()
         }
-    }
-
-    private func startStatsTimer() {
-        statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            Task { @MainActor in
-                await statsService.load(showLoading: false)
-                await systemService.loadSystemDiskUsage(showLoading: false)
-            }
-        }
-    }
-
-    private func stopStatsTimer() {
-        statsTimer?.invalidate()
-        statsTimer = nil
     }
 }
 

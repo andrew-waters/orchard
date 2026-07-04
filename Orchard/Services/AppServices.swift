@@ -30,7 +30,10 @@ final class AppServices: ObservableObject {
             return AppServices(backend: UITestBackend(), runner: UITestCommandRunner())
         }
         #endif
-        return AppServices()
+        let services = AppServices()
+        // Start always-on stats sampling + restore persisted history (real launch only).
+        services.statsService.activate()
+        return services
     }
 
     init(

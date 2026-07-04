@@ -6,6 +6,10 @@ enum StatsSortColumn: String {
 
 struct StatsTableView: View {
     let containerStats: [ContainerStats]
+    /// Latest derived sample per container id — supplies real CPU% (raw stats can't).
+    var latestSamples: [String: StatsSample] = [:]
+    /// Recent CPU% history per container id — drives the per-row load sparkline.
+    var sparklines: [String: [Double]] = [:]
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     let emptyStateMessage: String
@@ -22,7 +26,8 @@ struct StatsTableView: View {
             case .container:
                 result = a.id.localizedCaseInsensitiveCompare(b.id) == .orderedAscending
             case .cpu:
-                result = a.cpuUsageUsec < b.cpuUsageUsec
+                // Sort by current load, not lifetime CPU-seconds. No sample yet sorts low.
+                result = (latestSamples[a.id]?.cpuPercent ?? -1) < (latestSamples[b.id]?.cpuPercent ?? -1)
             case .memory:
                 result = a.memoryUsageBytes < b.memoryUsageBytes
             case .network:
@@ -33,6 +38,19 @@ struct StatsTableView: View {
                 result = a.numProcesses < b.numProcesses
             }
             return ascending ? result : !result
+        }
+    }
+
+    /// Real CPU% from the latest sample, or "collecting" placeholder until two reads exist.
+    @ViewBuilder
+    private func cpuValue(for id: String) -> some View {
+        if let pct = latestSamples[id]?.cpuPercent {
+            Text(String(format: "%.1f%%", pct))
+                .font(.system(.body, design: .monospaced))
+        } else {
+            Text("--")
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -96,6 +114,9 @@ struct StatsTableView: View {
                     if showContainerColumn {
                         columnHeader("Container", column: .container, alignment: .leading)
                         columnHeader("CPU", column: .cpu, width: 100)
+                        Text("Load")
+                            .font(.subheadline).fontWeight(.medium)
+                            .frame(width: 90, alignment: .trailing)
                         columnHeader("Memory", column: .memory, width: 140)
                         columnHeader("Network I/O", column: .network, width: 140)
                         columnHeader("Block I/O", column: .block, width: 140)
@@ -135,10 +156,11 @@ struct StatsTableView: View {
                             }
                             .buttonStyle(.plain)
 
-                            Text("--")
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                            cpuValue(for: stats.id)
                                 .frame(width: 100, alignment: .trailing)
+
+                            Sparkline(values: sparklines[stats.id] ?? [])
+                                .frame(width: 90, alignment: .trailing)
 
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("\(stats.formattedMemoryUsage)")
@@ -172,9 +194,7 @@ struct StatsTableView: View {
                                 .frame(width: 80, alignment: .trailing)
                         } else {
                             HStack {
-                                Text("--")
-                                    .font(.system(.body, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                                cpuValue(for: stats.id)
                                     .frame(maxWidth: .infinity, alignment: .trailing)
 
                                 VStack(alignment: .trailing, spacing: 2) {
