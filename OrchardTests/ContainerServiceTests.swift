@@ -115,9 +115,7 @@ func loadBuildersNotRunning() async {
 @Test("startContainer retries transition errors then surfaces a failure alert")
 func startRetryExhausted() async {
     let backend = MockContainerBackend()
-    backend.bootstrapAndStartHandler = { _ in
-        throw NSError(domain: "t", code: 1, userInfo: [NSLocalizedDescriptionKey: "invalidState"])
-    }
+    backend.bootstrapAndStartHandler = { _ in throw makeError("invalidState") }
     let service = makeService(backend: backend)
 
     await service.startContainer("web", maxRetries: 3, retryDelay: 0)

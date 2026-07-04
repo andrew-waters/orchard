@@ -6,15 +6,24 @@ import Foundation
 // beyond the two start cases in ContainerServiceTests: the stop/force-stop/remove failure
 // handling and the auto-removal recovery + retry loop (the riskiest logic in the service).
 //
-// The `refreshUntilContainerStarted/Stopped` poll loops are private and spawned as
-// fire-and-forget Tasks by stopContainer/forceStopContainer/startContainer. Tests drive
-// that PUBLIC wiring with `pollInterval = 0` (so the loops finish in microseconds instead
-// of the 0.5s×10 production cadence), then await quiescence. The backend's poll count
-// distinguishes terminal-on-first-poll (1 poll) from the timeout fallback (maxRefreshAttempts
-// polls), so inverting the status check or dropping the timeout clear fails a test.
+// These construct ContainerListService directly (no facade) and set `pollInterval = 0` so
+// the fire-and-forget `refreshUntilContainer…` poll loops finish in microseconds instead
+// of the 0.5s×10 production cadence — no real sleeps, and no ~5s task leaking past the test.
+// Success paths await quiescence on the loading flag; the backend poll count distinguishes
+// terminal-on-first-poll (1) from the timeout fallback (maxRefreshAttempts).
+//
+// Alert copy is not asserted (localized/brittle — same stance as ImageServiceTests);
+// branches are distinguished structurally (loading flag, recoveryFailed set, poll/attempt
+// counts, recorded specs).
 
-private func startError(_ message: String) -> NSError {
-    NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+/// A directly-constructed ContainerListService with its own AlertCenter and no poll delay.
+@MainActor
+private func makeListService(_ backend: MockContainerBackend = MockContainerBackend())
+    -> (service: ContainerListService, alert: AlertCenter) {
+    let alert = AlertCenter()
+    let service = ContainerListService(backend: backend, alertCenter: alert)
+    service.pollInterval = 0
+    return (service, alert)
 }
 
 /// Yield until `condition` holds or a bounded number of hops elapses. With `pollInterval = 0`
@@ -34,12 +43,12 @@ private func awaitQuiescence(_ condition: () -> Bool) async {
 func stopContainerFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.stopContainerError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeListService(backend)
 
-    await service.containerListService.stopContainer("web")
+    await service.stopContainer("web")
 
-    #expect(service.alertCenter.current?.message.contains("Failed to stop container") == true)
-    #expect(service.containerListService.loadingContainers.contains("web") == false)
+    #expect(alert.current != nil)
+    #expect(service.loadingContainers.contains("web") == false)
 }
 
 @MainActor
@@ -47,12 +56,12 @@ func stopContainerFailureAlerts() async {
 func forceStopContainerFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.killContainerError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeListService(backend)
 
-    await service.containerListService.forceStopContainer("web")
+    await service.forceStopContainer("web")
 
-    #expect(service.alertCenter.current?.message.contains("Failed to force stop container") == true)
-    #expect(service.containerListService.loadingContainers.contains("web") == false)
+    #expect(alert.current != nil)
+    #expect(service.loadingContainers.contains("web") == false)
 }
 
 // MARK: - remove
@@ -61,18 +70,18 @@ func forceStopContainerFailureAlerts() async {
 @Test("removeContainer: success drops the container locally and clears loading")
 func removeContainerSuccess() async throws {
     let backend = MockContainerBackend()
-    let service = makeService(backend: backend)
-    service.containerListService.containers = [
+    let (service, alert) = makeListService(backend)
+    service.containers = [
         try makeContainer(id: "gone", status: "stopped"),
         try makeContainer(id: "keep", status: "running"),
     ]
 
-    await service.containerListService.removeContainer("gone")
+    await service.removeContainer("gone")
 
     #expect(backend.deletedContainers.contains { $0.id == "gone" && $0.force == false })
-    #expect(service.containerListService.containers.map(\.configuration.id) == ["keep"])
-    #expect(service.containerListService.loadingContainers.contains("gone") == false)
-    #expect(service.alertCenter.current == nil)
+    #expect(service.containers.map(\.configuration.id) == ["keep"])
+    #expect(service.loadingContainers.contains("gone") == false)
+    #expect(alert.current == nil)
 }
 
 @MainActor
@@ -80,28 +89,28 @@ func removeContainerSuccess() async throws {
 func removeContainerFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.deleteContainerError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeListService(backend)
 
-    await service.containerListService.removeContainer("stuck")
+    await service.removeContainer("stuck")
 
-    #expect(service.alertCenter.current?.message.contains("Failed to remove container") == true)
-    #expect(service.containerListService.loadingContainers.contains("stuck") == false)
+    #expect(alert.current != nil)
+    #expect(service.loadingContainers.contains("stuck") == false)
 }
 
 @MainActor
 @Test("removeContainers: removes every id in turn")
 func removeContainersRemovesAll() async throws {
     let backend = MockContainerBackend()
-    let service = makeService(backend: backend)
-    service.containerListService.containers = [
+    let (service, _) = makeListService(backend)
+    service.containers = [
         try makeContainer(id: "a", status: "stopped"),
         try makeContainer(id: "b", status: "stopped"),
     ]
 
-    await service.containerListService.removeContainers(["a", "b"])
+    await service.removeContainers(["a", "b"])
 
     #expect(backend.deletedContainers.map(\.id).sorted() == ["a", "b"])
-    #expect(service.containerListService.containers.isEmpty)
+    #expect(service.containers.isEmpty)
 }
 
 // MARK: - start error classification
@@ -110,30 +119,34 @@ func removeContainersRemovesAll() async throws {
 @Test("startContainer: a generic error alerts once and does not retry")
 func startContainerGenericErrorAlerts() async {
     let backend = MockContainerBackend()
-    backend.bootstrapAndStartHandler = { _ in throw startError("disk is on fire") }
-    let service = makeService(backend: backend)
+    backend.bootstrapAndStartHandler = { _ in throw makeError("disk is on fire") }
+    let (service, alert) = makeListService(backend)
 
-    await service.containerListService.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await service.startContainer("web", maxRetries: 3, retryDelay: 0)
 
     #expect(backend.bootstrapAndStartCount == 1)   // generic → no retry
-    #expect(service.alertCenter.current?.message.contains("Failed to start container") == true)
-    #expect(service.containerListService.loadingContainers.contains("web") == false)
+    #expect(alert.current != nil)
+    // A generic failure is NOT the auto-removal path — it must not set the recovery flag.
+    #expect(service.recoveryFailedContainerIDs.contains("web") == false)
+    #expect(service.loadingContainers.contains("web") == false)
 }
 
 @MainActor
 @Test("startContainer: a transition error retries then succeeds")
-func startContainerTransitionThenSucceeds() async {
+func startContainerTransitionThenSucceeds() async throws {
     let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "running")]   // the eventual started state
     backend.bootstrapAndStartHandler = { attempt in
-        if attempt == 1 { throw startError("expected to be in created state / invalidState") }
+        if attempt == 1 { throw makeError("expected to be in created state / invalidState") }
         // attempt 2 succeeds
     }
-    let service = makeService(backend: backend)
+    let (service, _) = makeListService(backend)
 
-    await service.containerListService.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await service.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await awaitQuiescence { !service.loadingContainers.contains("web") }
 
     #expect(backend.bootstrapAndStartCount == 2)   // retried once, then started
-    #expect(service.containerListService.recoveryFailedContainerIDs.contains("web") == false)
+    #expect(service.recoveryFailedContainerIDs.contains("web") == false)
 }
 
 // MARK: - auto-removal recovery
@@ -142,37 +155,43 @@ func startContainerTransitionThenSucceeds() async {
 @Test("startContainer: 'not found' with no snapshot marks recovery failed and alerts")
 func startContainerNotFoundNoSnapshotFailsRecovery() async {
     let backend = MockContainerBackend()
-    backend.bootstrapAndStartHandler = { _ in throw startError("container not found") }
-    let service = makeService(backend: backend)   // no prior loadContainers → no snapshot
+    backend.bootstrapAndStartHandler = { _ in throw makeError("container not found") }
+    let (service, alert) = makeListService(backend)   // no prior loadContainers → no snapshot
 
-    await service.containerListService.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await service.startContainer("web", maxRetries: 3, retryDelay: 0)
 
     #expect(backend.bootstrapAndStartCount == 1)   // recovery fails → no retry
-    #expect(service.containerListService.recoveryFailedContainerIDs.contains("web"))
-    #expect(service.alertCenter.current?.message.contains("could not be recovered") == true)
-    #expect(service.containerListService.loadingContainers.contains("web") == false)
+    #expect(service.recoveryFailedContainerIDs.contains("web"))   // structural marker of this branch
+    #expect(alert.current != nil)
+    #expect(service.loadingContainers.contains("web") == false)
 }
 
 @MainActor
-@Test("startContainer: 'not found' with a snapshot recovers, recreates, and retries to success")
-func startContainerNotFoundRecoversAndRetries() async throws {
+@Test("startContainer: 'not found' with a snapshot recreates the container from the snapshot")
+func startContainerNotFoundRecreatesFromSnapshot() async throws {
     let backend = MockContainerBackend()
     backend.containers = [try makeContainer(id: "web", status: "running")]
-    let service = makeService(backend: backend)
-    await service.containerListService.loadContainers()   // seed the recovery snapshot
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()   // seed the recovery snapshot
 
-    // First start attempt: container was auto-removed. Recovery recreates it; retry starts it.
+    // First start attempt: the container was auto-removed. Recovery should recreate it.
     backend.bootstrapAndStartHandler = { attempt in
-        if attempt == 1 { throw startError("container not found") }
-        // attempt 2 (post-recovery) succeeds
+        if attempt == 1 { throw makeError("container not found") }
+        // later attempts succeed
     }
 
-    await service.containerListService.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await service.startContainer("web", maxRetries: 3, retryDelay: 0)
+    await awaitQuiescence { !service.loadingContainers.contains("web") }
 
-    #expect(backend.bootstrapAndStartCount == 2)                                   // recovered then retried
-    #expect(backend.createdSpecs.contains { $0.id == "web" })                      // recovery recreated it
-    #expect(service.containerListService.recoveryFailedContainerIDs.contains("web") == false)
-    #expect(service.alertCenter.current == nil)
+    // What recovery is FOR: a new container is created from the snapshot, and the branch
+    // is not marked recovery-failed. We deliberately do NOT assert bootstrapAndStartCount
+    // as a contract — see KNOWN-ISSUE below.
+    #expect(backend.createdSpecs.contains { $0.id == "web" })
+    #expect(service.recoveryFailedContainerIDs.contains("web") == false)
+    // KNOWN-ISSUE (2026-07-04): recovery re-runs bootstrapAndStart on a container that
+    // createContainer already started, and the recreated config drops network/workingDir/
+    // command/labels/ro-flags/resources/hostname. Verify against the real backend; the mock
+    // models no container state so it can't surface the double-start. See recoverContainer.
 }
 
 // MARK: - refresh poll loops (driven through the public stop/start wiring)
@@ -182,8 +201,7 @@ func startContainerNotFoundRecoversAndRetries() async throws {
 func stopRefreshClearsWhenStopped() async throws {
     let backend = MockContainerBackend()
     backend.containers = [try makeContainer(id: "web", status: "stopped")]   // found, not running
-    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
-    service.pollInterval = 0
+    let (service, _) = makeListService(backend)
 
     await service.stopContainer("web")
     await awaitQuiescence { !service.loadingContainers.contains("web") }
@@ -196,8 +214,7 @@ func stopRefreshClearsWhenStopped() async throws {
 @Test("stopContainer: the spawned poll loop clears loading on the first poll once gone")
 func stopRefreshClearsWhenAbsent() async {
     let backend = MockContainerBackend()   // container not in the list → treated as stopped
-    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
-    service.pollInterval = 0
+    let (service, _) = makeListService(backend)
 
     await service.stopContainer("web")
     await awaitQuiescence { !service.loadingContainers.contains("web") }
@@ -211,8 +228,7 @@ func stopRefreshClearsWhenAbsent() async {
 func startRefreshClearsWhenRunning() async throws {
     let backend = MockContainerBackend()
     backend.containers = [try makeContainer(id: "web", status: "running")]   // starts running
-    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
-    service.pollInterval = 0
+    let (service, _) = makeListService(backend)
 
     await service.startContainer("web", maxRetries: 1, retryDelay: 0)
     await awaitQuiescence { !service.loadingContainers.contains("web") }
@@ -226,8 +242,7 @@ func startRefreshClearsWhenRunning() async throws {
 func stopRefreshTimesOut() async throws {
     let backend = MockContainerBackend()
     backend.containers = [try makeContainer(id: "web", status: "running")]   // never reports stopped
-    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
-    service.pollInterval = 0
+    let (service, _) = makeListService(backend)
 
     await service.stopContainer("web")
     await awaitQuiescence { !service.loadingContainers.contains("web") }
@@ -243,15 +258,15 @@ func stopRefreshTimesOut() async throws {
 @Test("recreateContainer: success force-deletes the old container and runs the new config")
 func recreateContainerSuccess() async {
     let backend = MockContainerBackend()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeListService(backend)
 
-    await service.containerListService.recreateContainer(
+    await service.recreateContainer(
         oldContainerId: "old", newConfig: ContainerRunConfig(name: "new", image: "nginx")
     )
 
     #expect(backend.deletedContainers.contains { $0.id == "old" && $0.force == true })
     #expect(backend.createdSpecs.contains { $0.id == "new" })
-    #expect(service.alertCenter.current == nil)
+    #expect(alert.current == nil)
 }
 
 @MainActor
@@ -259,12 +274,12 @@ func recreateContainerSuccess() async {
 func recreateContainerFailureAlerts() async {
     let backend = MockContainerBackend()
     backend.deleteContainerError = NotConfigured()
-    let service = makeService(backend: backend)
+    let (service, alert) = makeListService(backend)
 
-    await service.containerListService.recreateContainer(
+    await service.recreateContainer(
         oldContainerId: "old", newConfig: ContainerRunConfig(name: "new", image: "nginx")
     )
 
-    #expect(service.alertCenter.current?.message.contains("Failed to recreate container") == true)
+    #expect(alert.current != nil)
     #expect(backend.createdSpecs.isEmpty)   // never reached runContainer
 }

@@ -317,6 +317,12 @@ final class ContainerListService: ObservableObject {
         }
     }
 
+    // KNOWN-ISSUE (2026-07-04): the caller re-runs bootstrapAndStart after this returns
+    // true, but createContainer already bootstraps and starts the container — verify against
+    // the real backend that the second start doesn't error on an already-running container.
+    // The recreation config below also drops several fields present in the snapshot:
+    // network, workingDirectory, command override, labels, volume readonly flags, resources,
+    // and hostname. Recovery is therefore lossy; revisit before relying on it.
     private func recoverContainer(_ id: String) async -> Bool {
         guard let snapshot = containerSnapshots[id] else {
             Log.containers.debug("No snapshot available for container \(id)")

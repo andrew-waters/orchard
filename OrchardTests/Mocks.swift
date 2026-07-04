@@ -3,6 +3,12 @@ import Foundation
 
 struct NotConfigured: Error {}
 
+/// An error carrying `message` as its `localizedDescription` — for driving classified
+/// error paths (e.g. OrchardError.classifyStartError matches on the message text).
+func makeError(_ message: String) -> NSError {
+    NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+}
+
 // The mocks are `@unchecked Sendable` and their methods run off the main actor (nonisolated
 // async protocol requirements), so fire-and-forget service Tasks can touch their state
 // concurrently. All mutable state is therefore guarded by an `NSLock` — config via get/set
