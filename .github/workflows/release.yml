@@ -239,7 +239,15 @@ jobs:
 
           PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S +0000")
           DL="https://github.com/andrew-waters/orchard/releases/download/v${VERSION}/Orchard-${VERSION}.dmg"
-          NOTES="https://github.com/andrew-waters/orchard/releases/tag/v${VERSION}"
+          RELEASE_URL="https://github.com/andrew-waters/orchard/releases/tag/v${VERSION}"
+
+          # Render this version's CHANGELOG section as inline HTML so Sparkle shows the notes
+          # in-panel, rather than loading the full GitHub release web page (nav/header chrome)
+          # via sparkle:releaseNotesLink. Fall back to a plain link if the section is missing.
+          NOTES_HTML=$(python3 .github/scripts/changelog_to_html.py "$VERSION" CHANGELOG.md || true)
+          if [[ -z "$NOTES_HTML" ]]; then
+            NOTES_HTML="<p>See the <a href=\"${RELEASE_URL}\">release notes</a>.</p>"
+          fi
 
           mkdir -p _site
           cat > _site/appcast.xml <<EOF
@@ -252,8 +260,10 @@ jobs:
                 <sparkle:version>${BUILD_NUMBER}</sparkle:version>
                 <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
                 <sparkle:minimumSystemVersion>${MIN_SYSTEM_VERSION}</sparkle:minimumSystemVersion>
-                <link>${NOTES}</link>
-                <sparkle:releaseNotesLink>${NOTES}</sparkle:releaseNotesLink>
+                <link>${RELEASE_URL}</link>
+                <description><![CDATA[
+          ${NOTES_HTML}
+          ]]></description>
                 <pubDate>${PUB_DATE}</pubDate>
                 <enclosure url="${DL}" type="application/octet-stream" ${SIG} />
               </item>
