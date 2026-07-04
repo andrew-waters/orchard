@@ -7,9 +7,11 @@ import Foundation
 // ContainerServiceTests: the stop/force-stop/remove failure handling and the
 // auto-removal recovery + retry loop (the riskiest logic in the service).
 //
-// The private `refreshUntilContainerStarted/Stopped` poll loops run in fire-and-forget
-// Tasks off the success paths; they aren't asserted here (no handle to await, and
-// widening their visibility would be a production change).
+// The `refreshUntilContainerStarted/Stopped` poll loops (internal, so tests can await
+// them directly instead of racing the fire-and-forget Tasks that spawn them) are covered
+// for the terminal-state path — where they clear the loading flag on the first poll. The
+// timeout fallback isn't asserted: it would require ~5s of real Task.sleep with no
+// injectable knob, and its loading-clear is the same line as the terminal path's.
 
 private func startError(_ message: String) -> NSError {
     NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
@@ -161,6 +163,46 @@ func startContainerNotFoundRecoversAndRetries() async throws {
     #expect(backend.createdSpecs.contains { $0.id == "web" })                      // recovery recreated it
     #expect(service.containerListService.recoveryFailedContainerIDs.contains("web") == false)
     #expect(service.alertCenter.current == nil)
+}
+
+// MARK: - refresh poll loops (terminal-state path)
+
+@MainActor
+@Test("refreshUntilContainerStarted: clears loading once the container is running")
+func refreshStartedClearsWhenRunning() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "running")]
+    let service = makeService(backend: backend)
+    service.containerListService.loadingContainers.insert("web")
+
+    await service.containerListService.refreshUntilContainerStarted("web")
+
+    #expect(service.containerListService.loadingContainers.contains("web") == false)
+}
+
+@MainActor
+@Test("refreshUntilContainerStopped: clears loading once the container is no longer running")
+func refreshStoppedClearsWhenStopped() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]
+    let service = makeService(backend: backend)
+    service.containerListService.loadingContainers.insert("web")
+
+    await service.containerListService.refreshUntilContainerStopped("web")
+
+    #expect(service.containerListService.loadingContainers.contains("web") == false)
+}
+
+@MainActor
+@Test("refreshUntilContainerStopped: clears loading once the container is gone")
+func refreshStoppedClearsWhenAbsent() async {
+    let backend = MockContainerBackend()   // no containers → treated as stopped
+    let service = makeService(backend: backend)
+    service.containerListService.loadingContainers.insert("web")
+
+    await service.containerListService.refreshUntilContainerStopped("web")
+
+    #expect(service.containerListService.loadingContainers.contains("web") == false)
 }
 
 // MARK: - recreate

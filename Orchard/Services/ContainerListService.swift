@@ -199,7 +199,7 @@ final class ContainerListService: ObservableObject {
         loadingContainers.remove(id)
     }
 
-    private func refreshUntilContainerStopped(_ id: String) async {
+    func refreshUntilContainerStopped(_ id: String) async {
         var attempts = 0
         let maxAttempts = 10
 
@@ -230,7 +230,7 @@ final class ContainerListService: ObservableObject {
         loadingContainers.remove(id)
     }
 
-    private func refreshUntilContainerStarted(_ id: String) async {
+    func refreshUntilContainerStarted(_ id: String) async {
         var attempts = 0
         let maxAttempts = 10
 
