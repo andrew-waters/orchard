@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Ongoing performance and maintainability improvements to the app's internals — views now refresh only when the data they display actually changes.
 - Refactored the internals: the monolithic container service was split into focused per-domain services with each view observing only what it needs, the Run and Edit container forms now share one implementation, and a UI smoke-test harness was added. No user-facing behaviour change.
 
 ### Fixed
