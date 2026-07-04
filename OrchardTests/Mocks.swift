@@ -52,9 +52,20 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         if let error = listContainersError { throw error }
         return containers
     }
-    func stopContainer(id: String) async throws {}
-    func killContainer(id: String, signal: Int32) async throws {}
-    func deleteContainer(id: String, force: Bool) async throws {}
+    var stopContainerError: Error?
+    var killContainerError: Error?
+    var deleteContainerError: Error?
+    private(set) var deletedContainers: [(id: String, force: Bool)] = []
+    func stopContainer(id: String) async throws {
+        if let stopContainerError { throw stopContainerError }
+    }
+    func killContainer(id: String, signal: Int32) async throws {
+        if let killContainerError { throw killContainerError }
+    }
+    func deleteContainer(id: String, force: Bool) async throws {
+        deletedContainers.append((id: id, force: force))
+        if let deleteContainerError { throw deleteContainerError }
+    }
     func bootstrapAndStart(id: String) async throws {
         bootstrapAndStartCount += 1
         try bootstrapAndStartHandler?(bootstrapAndStartCount)
