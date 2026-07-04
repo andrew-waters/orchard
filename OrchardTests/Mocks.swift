@@ -48,7 +48,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     /// Per-container stats; throw to simulate a failure for that container.
     var statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
 
+    private(set) var listContainersCount = 0
     func listContainers() async throws -> [Container] {
+        listContainersCount += 1
         if let error = listContainersError { throw error }
         return containers
     }

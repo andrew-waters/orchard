@@ -23,6 +23,12 @@ final class ContainerListService: ObservableObject {
     /// Refresh builder state after a lifecycle change. Set by the owner.
     var reloadBuilders: () async -> Void = {}
 
+    /// Delay between polls in the `refreshUntilContainer…` loops. Production uses the
+    /// 0.5s default; tests set it to 0 to drive the loops without real sleeps.
+    var pollInterval: TimeInterval = 0.5
+    /// Number of polls before a refresh loop gives up and clears the loading state.
+    let maxRefreshAttempts = 10
+
     // Prevent multiple simultaneous operations on the same container.
     private var containerOperationLocks: Set<String> = []
     private let lockQueue = DispatchQueue(label: "containerOperationLocks", attributes: .concurrent)
@@ -199,11 +205,10 @@ final class ContainerListService: ObservableObject {
         loadingContainers.remove(id)
     }
 
-    func refreshUntilContainerStopped(_ id: String) async {
+    private func refreshUntilContainerStopped(_ id: String) async {
         var attempts = 0
-        let maxAttempts = 10
 
-        while attempts < maxAttempts {
+        while attempts < maxRefreshAttempts {
             await loadContainers()
 
             let shouldStop: Bool
@@ -222,19 +227,18 @@ final class ContainerListService: ObservableObject {
             }
 
             attempts += 1
-            Log.containers.debug("Container \(id) still running, attempt \(attempts)/\(maxAttempts)")
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            Log.containers.debug("Container \(id) still running, attempt \(attempts)/\(self.maxRefreshAttempts)")
+            try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
         }
 
         Log.containers.debug("Timeout reached for container \(id), removing loading state")
         loadingContainers.remove(id)
     }
 
-    func refreshUntilContainerStarted(_ id: String) async {
+    private func refreshUntilContainerStarted(_ id: String) async {
         var attempts = 0
-        let maxAttempts = 10
 
-        while attempts < maxAttempts {
+        while attempts < maxRefreshAttempts {
             await loadContainers()
 
             let isRunning: Bool
@@ -252,8 +256,8 @@ final class ContainerListService: ObservableObject {
             }
 
             attempts += 1
-            Log.containers.debug("Container \(id) not running yet, attempt \(attempts)/\(maxAttempts)")
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            Log.containers.debug("Container \(id) not running yet, attempt \(attempts)/\(self.maxRefreshAttempts)")
+            try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
         }
 
         Log.containers.debug("Timeout reached for container \(id), removing loading state")

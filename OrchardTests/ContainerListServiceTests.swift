@@ -2,19 +2,29 @@ import Testing
 import Foundation
 @testable import Orchard
 
-// ContainerListService lifecycle, recovery, and retry logic, driven through the facade's
-// `containerListService`. Focus is the branches beyond the two start cases in
-// ContainerServiceTests: the stop/force-stop/remove failure handling and the
-// auto-removal recovery + retry loop (the riskiest logic in the service).
+// ContainerListService lifecycle, recovery, and retry logic. Focus is the branches
+// beyond the two start cases in ContainerServiceTests: the stop/force-stop/remove failure
+// handling and the auto-removal recovery + retry loop (the riskiest logic in the service).
 //
-// The `refreshUntilContainerStarted/Stopped` poll loops (internal, so tests can await
-// them directly instead of racing the fire-and-forget Tasks that spawn them) are covered
-// for the terminal-state path — where they clear the loading flag on the first poll. The
-// timeout fallback isn't asserted: it would require ~5s of real Task.sleep with no
-// injectable knob, and its loading-clear is the same line as the terminal path's.
+// The `refreshUntilContainerStarted/Stopped` poll loops are private and spawned as
+// fire-and-forget Tasks by stopContainer/forceStopContainer/startContainer. Tests drive
+// that PUBLIC wiring with `pollInterval = 0` (so the loops finish in microseconds instead
+// of the 0.5s×10 production cadence), then await quiescence. The backend's poll count
+// distinguishes terminal-on-first-poll (1 poll) from the timeout fallback (maxRefreshAttempts
+// polls), so inverting the status check or dropping the timeout clear fails a test.
 
 private func startError(_ message: String) -> NSError {
     NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+}
+
+/// Yield until `condition` holds or a bounded number of hops elapses. With `pollInterval = 0`
+/// the spawned refresh loops complete in a handful of yields; the cap guards against a hang.
+@MainActor
+private func awaitQuiescence(_ condition: () -> Bool) async {
+    for _ in 0..<10_000 {
+        if condition() { return }
+        await Task.yield()
+    }
 }
 
 // MARK: - stop / force-stop failure
@@ -165,44 +175,66 @@ func startContainerNotFoundRecoversAndRetries() async throws {
     #expect(service.alertCenter.current == nil)
 }
 
-// MARK: - refresh poll loops (terminal-state path)
+// MARK: - refresh poll loops (driven through the public stop/start wiring)
 
 @MainActor
-@Test("refreshUntilContainerStarted: clears loading once the container is running")
-func refreshStartedClearsWhenRunning() async throws {
+@Test("stopContainer: the spawned poll loop clears loading on the first poll once stopped")
+func stopRefreshClearsWhenStopped() async throws {
     let backend = MockContainerBackend()
-    backend.containers = [try makeContainer(id: "web", status: "running")]
-    let service = makeService(backend: backend)
-    service.containerListService.loadingContainers.insert("web")
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]   // found, not running
+    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
+    service.pollInterval = 0
 
-    await service.containerListService.refreshUntilContainerStarted("web")
+    await service.stopContainer("web")
+    await awaitQuiescence { !service.loadingContainers.contains("web") }
 
-    #expect(service.containerListService.loadingContainers.contains("web") == false)
+    #expect(service.loadingContainers.contains("web") == false)
+    #expect(backend.listContainersCount == 1)   // terminal detected on the first poll, not via timeout
 }
 
 @MainActor
-@Test("refreshUntilContainerStopped: clears loading once the container is no longer running")
-func refreshStoppedClearsWhenStopped() async throws {
-    let backend = MockContainerBackend()
-    backend.containers = [try makeContainer(id: "web", status: "stopped")]
-    let service = makeService(backend: backend)
-    service.containerListService.loadingContainers.insert("web")
+@Test("stopContainer: the spawned poll loop clears loading on the first poll once gone")
+func stopRefreshClearsWhenAbsent() async {
+    let backend = MockContainerBackend()   // container not in the list → treated as stopped
+    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
+    service.pollInterval = 0
 
-    await service.containerListService.refreshUntilContainerStopped("web")
+    await service.stopContainer("web")
+    await awaitQuiescence { !service.loadingContainers.contains("web") }
 
-    #expect(service.containerListService.loadingContainers.contains("web") == false)
+    #expect(service.loadingContainers.contains("web") == false)
+    #expect(backend.listContainersCount == 1)
 }
 
 @MainActor
-@Test("refreshUntilContainerStopped: clears loading once the container is gone")
-func refreshStoppedClearsWhenAbsent() async {
-    let backend = MockContainerBackend()   // no containers → treated as stopped
-    let service = makeService(backend: backend)
-    service.containerListService.loadingContainers.insert("web")
+@Test("startContainer: the spawned poll loop clears loading on the first poll once running")
+func startRefreshClearsWhenRunning() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "running")]   // starts running
+    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
+    service.pollInterval = 0
 
-    await service.containerListService.refreshUntilContainerStopped("web")
+    await service.startContainer("web", maxRetries: 1, retryDelay: 0)
+    await awaitQuiescence { !service.loadingContainers.contains("web") }
 
-    #expect(service.containerListService.loadingContainers.contains("web") == false)
+    #expect(service.loadingContainers.contains("web") == false)
+    #expect(backend.listContainersCount == 1)   // running detected on the first poll
+}
+
+@MainActor
+@Test("stopContainer: the poll loop times out after maxRefreshAttempts polls and still clears loading")
+func stopRefreshTimesOut() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "running")]   // never reports stopped
+    let service = ContainerListService(backend: backend, alertCenter: AlertCenter())
+    service.pollInterval = 0
+
+    await service.stopContainer("web")
+    await awaitQuiescence { !service.loadingContainers.contains("web") }
+
+    // The timeout fallback (not the terminal return) clears loading after exhausting the polls.
+    #expect(service.loadingContainers.contains("web") == false)
+    #expect(backend.listContainersCount == 10)   // maxRefreshAttempts
 }
 
 // MARK: - recreate
