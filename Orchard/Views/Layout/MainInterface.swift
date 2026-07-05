@@ -25,7 +25,6 @@ struct MainInterfaceView: View {
     @Binding var showAddNetworkSheet: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
-    let isWindowFocused: Bool
     let windowTitle: String
 
     // Computed properties
@@ -108,7 +107,6 @@ struct MainInterfaceView: View {
             showAddNetworkSheet: $showAddNetworkSheet,
             showingItemNavigatorPopover: $showingItemNavigatorPopover,
             listFocusedTab: _listFocusedTab,
-            isWindowFocused: isWindowFocused,
             windowTitle: windowTitle
         )
     }
