@@ -9,35 +9,45 @@ final class OrchardUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launchedApp() -> XCUIApplication {
+    private func launchedApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-mock-backend"]
+        app.launchArguments += ["--uitest-mock-backend"] + extraArguments
         app.launch()
         return app
     }
 
+    /// The app now opens on the Dashboard; the container list lives under the Containers tab.
+    /// Every flow below starts here so it doesn't depend on the launch default.
+    private func openContainersTab(_ app: XCUIApplication) {
+        let tab = app.buttons["sidebar-containers"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 20), "Containers sidebar tab should exist")
+        tab.click()
+    }
+
     /// The "#54 class" of bug: the app is up but everything is broken/empty — invisible to
-    /// service unit tests. If the seeded container renders, launch + system-status +
-    /// container list + the per-service environment injection all worked end-to-end.
+    /// service unit tests. If the seeded container renders in the Containers list, launch +
+    /// system-status + container list + the per-service environment injection all worked.
     @MainActor
     func testLaunchesAndRendersSeededContainers() throws {
         let app = launchedApp()
+        openContainersTab(app)
         XCTAssertTrue(
             app.staticTexts["uitest-web"].waitForExistence(timeout: 20),
-            "Seeded container should render in the list on launch"
+            "Seeded container should render in the Containers list"
         )
     }
 
     /// The auto-selected container's detail pane renders alongside the list — exercising
-    /// ContainerDetail and its sub-services (stats/image sections, header actions), not just
-    /// the list. The detail tab bar's buttons match reliably by label.
+    /// ContainerDetail and its sub-services (stats/image sections, header actions). The detail
+    /// header's Logs button is a stable element unique to the detail pane.
     @MainActor
     func testContainerDetailRenders() throws {
         let app = launchedApp()
+        openContainersTab(app)
         XCTAssertTrue(app.staticTexts["uitest-web"].waitForExistence(timeout: 20))
         XCTAssertTrue(
-            app.buttons["Overview"].waitForExistence(timeout: 10),
-            "The selected container's detail pane (with its tab bar) should render"
+            app.buttons["Logs"].waitForExistence(timeout: 10),
+            "The selected container's detail pane (with its header actions) should render"
         )
     }
 
@@ -45,10 +55,8 @@ final class OrchardUITests: XCTestCase {
     /// `stopContainer`, stopping the running container should surface the error alert.
     @MainActor
     func testFailedActionPresentsErrorAlert() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["--uitest-mock-backend", "--uitest-fail-stop"]
-        app.launch()
-
+        let app = launchedApp(extraArguments: ["--uitest-fail-stop"])
+        openContainersTab(app)
         XCTAssertTrue(app.staticTexts["uitest-web"].waitForExistence(timeout: 20))
 
         let stop = app.buttons["Stop"]
