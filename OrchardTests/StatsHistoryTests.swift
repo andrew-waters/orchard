@@ -336,6 +336,21 @@ func persistenceMissingFile() {
     #expect(StatsPersistence(fileURL: url).load().isEmpty)
 }
 
+@Test("Persistence drops history whose on-disk schema version this build doesn't understand")
+func persistenceVersionMismatch() throws {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        .appendingPathComponent("history.json")
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+    // A future-versioned file with an otherwise-valid series must be dropped, not decoded.
+    let future = #"{"version":9999,"series":[{"host":"local","id":"c1","samples":[]}]}"#
+    try future.data(using: .utf8)!.write(to: url)
+
+    #expect(StatsPersistence(fileURL: url).load().isEmpty)
+}
+
 // MARK: - Aggregation
 
 private func aggSample(at offset: Double, cpu: Double, mem: Int, memLimit: Int, rx: Double) -> StatsSample {
