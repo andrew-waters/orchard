@@ -6,6 +6,12 @@ struct DashboardView: View {
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
 
+    /// Slow refresh for the disk-usage tiles while the Dashboard is on screen. `system df`
+    /// is heavier than a per-container stats read, so this stays well below the 2s sampling
+    /// cadence — enough to catch a pull/prune/remove without hammering the daemon.
+    @State private var diskRefreshTimer: Timer?
+    private static let diskRefreshInterval: TimeInterval = 20
+
     /// Recent CPU% per container id for the table's row sparklines (last 60 samples).
     /// Recent per-metric history per container for the fleet-table sparklines.
     private var rowSparklines: [String: RowSparklines] {
@@ -103,12 +109,30 @@ struct DashboardView: View {
                 await systemService.loadSystemDiskUsage(showLoading: true)
             }
             // The service owns sampling now (2s cadence), so history keeps accumulating
-            // across view switches. Disk usage changes slowly — refreshed on appear only.
+            // across view switches.
             statsService.beginSampling()
+            startDiskRefresh()
         }
         .onDisappear {
             statsService.endSampling()
+            stopDiskRefresh()
         }
+    }
+
+    /// Re-fetch disk usage on a slow cadence while visible so the tiles don't go stale during
+    /// image pulls/prunes. `.common` mode keeps it firing through scroll/menu tracking.
+    private func startDiskRefresh() {
+        diskRefreshTimer?.invalidate()
+        let timer = Timer(timeInterval: Self.diskRefreshInterval, repeats: true) { _ in
+            Task { @MainActor in await systemService.loadSystemDiskUsage(showLoading: false) }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        diskRefreshTimer = timer
+    }
+
+    private func stopDiskRefresh() {
+        diskRefreshTimer?.invalidate()
+        diskRefreshTimer = nil
     }
 }
 
