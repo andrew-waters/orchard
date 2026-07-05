@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="150 180 720 720" width="18" height="18">
+  <!-- Monochrome, sliced-apple menu-bar mark derived from the app logo. Template image:
+       all ink is black; the system tints it. The vertical gaps between strips give the
+       "sliced" effect. (actool's SVG import ignores fill-opacity, so no fade here.) -->
+  <defs>
+    <clipPath id="apple">
+      <path d="M 512 260 C 312 260 172 400 172 580 C 172 760 312 880 462 880 C 492 880 512 870 512 870 C 512 870 532 880 562 880 C 712 880 852 760 852 580 C 852 400 712 260 512 260 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Apple body sliced into six vertical strips (clipped to the apple silhouette). -->
+  <g clip-path="url(#apple)" fill="#000000">
+    <rect x="172" y="260" width="78" height="620"/>
+    <rect x="286" y="260" width="78" height="620"/>
+    <rect x="400" y="260" width="78" height="620"/>
+    <rect x="514" y="260" width="78" height="620"/>
+    <rect x="628" y="260" width="78" height="620"/>
+    <rect x="742" y="260" width="74" height="620"/>
+  </g>
+
+  <!-- Stem -->
+  <rect x="498" y="196" width="28" height="76" rx="7" fill="#000000"/>
+  <!-- Leaf -->
+  <path d="M 526 218 C 598 194 662 228 670 290 C 602 302 552 266 526 218 Z" fill="#000000"/>
+</svg>

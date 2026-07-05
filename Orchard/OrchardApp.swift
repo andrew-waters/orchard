@@ -37,9 +37,15 @@ struct OrchardApp: App {
         .defaultSize(width: 900, height: 600)
         .windowToolbarStyle(.unified(showsTitle: false))
 
-        MenuBarExtra("Orchard", systemImage: "cube.box") {
+        MenuBarExtra {
             MenuBarView()
                 .injectServices(services)
+        } label: {
+            SwiftUI.Image("MenuBarLogo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
         }
         .menuBarExtraStyle(.window)
     }
