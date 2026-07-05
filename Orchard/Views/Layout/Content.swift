@@ -11,7 +11,7 @@ struct ContentView: View {
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var alertCenter: AlertCenter
     @State private var isWindowFocused: Bool = true
-    @State private var selectedTab: TabSelection = .containers
+    @State private var selectedTab: TabSelection = .stats
     @State private var selectedContainer: String?
     @State private var selectedContainers: Set<String> = []
     @State private var selectedImage: String?

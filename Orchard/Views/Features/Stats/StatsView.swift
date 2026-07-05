@@ -35,7 +35,7 @@ struct StatsView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("Stats")
+                Text("Dashboard")
                     .font(.title2)
                     .fontWeight(.semibold)
 

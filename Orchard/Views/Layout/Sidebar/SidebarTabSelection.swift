@@ -28,7 +28,7 @@ enum TabSelection: String, CaseIterable {
         case .systemLogs:
             return "doc.text.below.ecg"
         case .stats:
-            return "water.waves"
+            return "gauge.with.dots.needle.bottom.50percent"
         case .configuration:
             return "gearshape"
         }
@@ -51,7 +51,7 @@ enum TabSelection: String, CaseIterable {
         case .systemLogs:
             return "System Logs"
         case .stats:
-            return "Stats"
+            return "Dashboard"
         case .configuration:
             return "Configuration"
         }
