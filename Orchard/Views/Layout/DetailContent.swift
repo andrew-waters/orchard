@@ -11,7 +11,6 @@ struct DetailContentView: View {
     let selectedDNSDomain: String?
     let selectedNetwork: String?
     let isInIntentionalConfigurationMode: Bool
-    @Binding var lastSelectedContainerTab: String
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
     @Binding var selectedContainersBinding: Set<String>

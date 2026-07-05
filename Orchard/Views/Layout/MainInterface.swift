@@ -14,7 +14,6 @@ struct MainInterfaceView: View {
     @Binding var lastSelectedMount: String?
     @Binding var lastSelectedDNSDomain: String?
     @Binding var lastSelectedNetwork: String?
-    @Binding var lastSelectedContainerTab: String
     @Binding var lastSelectedImageTab: String
     @Binding var lastSelectedMountTab: String
     @Binding var searchText: String
@@ -114,7 +113,6 @@ struct MainInterfaceView: View {
             lastSelectedMount: $lastSelectedMount,
             lastSelectedDNSDomain: $lastSelectedDNSDomain,
             lastSelectedNetwork: $lastSelectedNetwork,
-            lastSelectedContainerTab: $lastSelectedContainerTab,
             lastSelectedImageTab: $lastSelectedImageTab,
             lastSelectedMountTab: $lastSelectedMountTab,
             searchText: $searchText,
