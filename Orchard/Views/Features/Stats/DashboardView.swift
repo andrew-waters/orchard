@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct StatsView: View {
+struct DashboardView: View {
     @EnvironmentObject var statsService: StatsService
     @EnvironmentObject var systemService: SystemService
     @Binding var selectedTab: TabSelection
@@ -158,8 +158,8 @@ struct SystemDiskUsageView: View {
 
 
 #Preview {
-    StatsView(
-        selectedTab: .constant(.stats),
+    DashboardView(
+        selectedTab: .constant(.dashboard),
         selectedContainer: .constant(nil)
     )
     .injectServices(AppServices())
