@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- App preferences now live in a native Settings window (⌘,), split into a **General** pane (terminal application, container-binary path, default DNS domain, and software updates) and a **System** pane showing the read-only `container` daemon properties (Rosetta, image builder/init, kernel, registry).
+
+### Changed
+- Configuration moved out of the sidebar into the Settings window (⌘,); the sidebar no longer has a Configuration tab.
+
+### Fixed
+- Daemon system properties no longer stay stuck on "Loading…" and the default DNS domain shows its current value again — `container system property list` now returns a JSON array, which the parser didn't recognise, so it read no values at all.
+- The sidebar no longer stays greyed-out after you open and dismiss a right-click menu on a container.
+
 ## [1.12.6] - 2026-07-05
 
 ### Added
