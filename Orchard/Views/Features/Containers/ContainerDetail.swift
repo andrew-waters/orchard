@@ -31,24 +31,23 @@ struct ContainerDetailView: View {
     // One scrolling page — the former Overview, Environment and Mounts tabs merged.
     private var content: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                // Info sections, each half-width.
-                LazyVGrid(
-                    columns: [GridItem(.flexible(), spacing: 16, alignment: .top),
-                              GridItem(.flexible(), alignment: .top)],
-                    spacing: 16
-                ) {
-                    containerOverviewSection(container: container).well()
-                    containerImageSection(container: container).well()
-                    containerNetworkSection(container: container).well()
-                    containerResourcesSection(container: container).well()
-                    containerProcessSection(container: container).well()
-                    containerEnvironmentSection(container: container).well()
-                    containerLabelsSection(container: container).well()
-                }
-
+            VStack(alignment: .leading, spacing: 12) {
                 // Stats master–detail; mounts sit beneath the disk stats.
                 ContainerStatsPanel(container: container)
+
+                // The rest of the configuration, two per row (paired to balance heights).
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 12, alignment: .top),
+                              GridItem(.flexible(), alignment: .top)],
+                    spacing: 12
+                ) {
+                    sectionWell("Overview") { containerOverviewSection(container: container) }
+                    sectionWell("Environment") { containerEnvironmentSection(container: container) }
+                    sectionWell("Image") { containerImageSection(container: container) }
+                    sectionWell("Process") { containerProcessSection(container: container) }
+                    sectionWell("Network") { containerNetworkSection(container: container) }
+                    sectionWell("Labels") { containerLabelsSection(container: container) }
+                }
 
                 Spacer(minLength: 20)
             }
@@ -58,12 +57,17 @@ struct ContainerDetailView: View {
 
     // MARK: - Detail Sections
 
+    @ViewBuilder
+    private func sectionWell<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.headline).foregroundColor(.primary)
+            content()
+        }
+        .well()
+    }
+
     private func containerOverviewSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Overview")
-                .font(.headline)
-                .foregroundColor(.primary)
-
             VStack(alignment: .leading, spacing: 8) {
                 CopyableInfoRow(label: "Container ID", value: container.configuration.id)
                 InfoRow(label: "Runtime", value: container.configuration.runtimeHandler)
@@ -82,10 +86,6 @@ struct ContainerDetailView: View {
 
     private func containerImageSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Image")
-                .font(.headline)
-                .foregroundColor(.primary)
-
             VStack(alignment: .leading, spacing: 8) {
                 NavigableInfoRow(
                     label: "Reference",
@@ -115,11 +115,8 @@ struct ContainerDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // Network config, rendered beneath the Network graph (its header comes from the row).
     private func containerNetworkSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Network").font(.headline).foregroundColor(.primary)
-
             if !container.networks.isEmpty {
                 ForEach(container.networks, id: \.hostname) { network in
                     let cleanHostname = network.hostname.hasSuffix(".") ? String(network.hostname.dropLast()) : network.hostname
@@ -186,28 +183,8 @@ struct ContainerDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func containerResourcesSection(container: Container) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Resources")
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            VStack(alignment: .leading, spacing: 8) {
-                // CPU/memory allocation now live in the stats rows above; only Rosetta here.
-                InfoRow(
-                    label: "Rosetta",
-                    value: container.configuration.rosetta ? "Enabled" : "Disabled")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private func containerProcessSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Process Configuration")
-                .font(.headline)
-                .foregroundColor(.primary)
-
             VStack(alignment: .leading, spacing: 8) {
                 InfoRow(label: "Executable", value: container.configuration.initProcess.executable)
                 InfoRow(
@@ -237,10 +214,6 @@ struct ContainerDetailView: View {
 
     private func containerEnvironmentSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Environment Variables")
-                .font(.headline)
-                .foregroundColor(.primary)
-
             if !container.configuration.initProcess.environment.isEmpty {
                 EnvironmentVariablesTable(environment: container.configuration.initProcess.environment)
             } else {
@@ -253,10 +226,6 @@ struct ContainerDetailView: View {
 
     private func containerLabelsSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Labels")
-                .font(.headline)
-                .foregroundColor(.primary)
-
             if !container.configuration.labels.isEmpty {
                 LabelsTable(labels: container.configuration.labels)
             } else {
@@ -273,6 +242,7 @@ struct ContainerDetailView: View {
 
 struct EnvironmentVariablesTable: View {
     let environment: [String]
+    @State private var revealedValues: Set<Int> = []
 
     private var parsedEnvironment: [(key: String, value: String)] {
         environment.compactMap { envVar in
@@ -344,13 +314,33 @@ struct EnvironmentVariablesTable: View {
                             .frame(width: maxKeyWidth, alignment: .leading)
                             .textSelection(.enabled)
 
-                        // Value column
-                        Text(envPair.value)
-                            .font(.system(.subheadline, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                            .lineLimit(nil)
+                        // Value column — hidden until revealed, but copyable either way.
+                        HStack(alignment: .top, spacing: 8) {
+                            if revealedValues.contains(index) {
+                                Text(envPair.value)
+                                    .font(.system(.subheadline, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .textSelection(.enabled)
+                                    .lineLimit(nil)
+                            } else {
+                                Text("••••••••")
+                                    .font(.system(.subheadline, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                            }
+                            Button(revealedValues.contains(index) ? "Hide" : "Show") {
+                                if revealedValues.contains(index) {
+                                    revealedValues.remove(index)
+                                } else {
+                                    revealedValues.insert(index)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            Spacer()
+                            CopyButton(text: envPair.value, label: "Copy value")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)

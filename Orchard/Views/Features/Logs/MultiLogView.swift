@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Multi-pane log viewer window
 
 struct MultiLogView: View {
+    var initialContainerId: String?
     @EnvironmentObject var containerListService: ContainerListService
     @State private var paneIds: [UUID] = [UUID()]
     @State private var splitVertical: Bool = true
@@ -36,13 +37,13 @@ struct MultiLogView: View {
 
             Divider()
 
-            // Panes
+            // Panes — the first pane opens on the container that was targeted.
             if paneIds.count == 1 {
-                LogPaneView(paneId: paneIds[0], canClose: false, onClose: {})
+                LogPaneView(paneId: paneIds[0], initialContainerId: initialContainerId, canClose: false, onClose: {})
             } else if splitVertical {
                 VSplitView {
                     ForEach(paneIds, id: \.self) { paneId in
-                        LogPaneView(paneId: paneId, canClose: true) {
+                        LogPaneView(paneId: paneId, initialContainerId: paneId == paneIds.first ? initialContainerId : nil, canClose: true) {
                             removePane(paneId)
                         }
                         .frame(minHeight: 200)
@@ -51,7 +52,7 @@ struct MultiLogView: View {
             } else {
                 HSplitView {
                     ForEach(paneIds, id: \.self) { paneId in
-                        LogPaneView(paneId: paneId, canClose: true) {
+                        LogPaneView(paneId: paneId, initialContainerId: paneId == paneIds.first ? initialContainerId : nil, canClose: true) {
                             removePane(paneId)
                         }
                         .frame(minWidth: 300)
@@ -83,6 +84,7 @@ struct MultiLogView: View {
 struct LogPaneView: View {
     @EnvironmentObject var containerListService: ContainerListService
     let paneId: UUID
+    var initialContainerId: String?
     let canClose: Bool
     let onClose: () -> Void
 
@@ -214,10 +216,14 @@ struct LogPaneView: View {
             }
         }
         .onAppear {
-            // Default to first running container
-            selectedContainerId = containerListService.containers
-                .first { $0.status.lowercased() == "running" }?
-                .configuration.id
+            // The container this window was opened for, else the first running one.
+            if let initial = initialContainerId, !initial.isEmpty {
+                selectedContainerId = initial
+            } else {
+                selectedContainerId = containerListService.containers
+                    .first { $0.status.lowercased() == "running" }?
+                    .configuration.id
+            }
             startRefresh()
         }
         .onDisappear {

@@ -4,12 +4,20 @@ enum StatsSortColumn: String {
     case container, cpu, memory, network, block, pids
 }
 
+/// Recent history per metric for one container's row sparklines.
+struct RowSparklines {
+    var cpu: [Double] = []
+    var memory: [Double] = []
+    var network: [Double] = []
+    var disk: [Double] = []
+}
+
 struct StatsTableView: View {
     let containerStats: [ContainerStats]
     /// Latest derived sample per container id — supplies real CPU% (raw stats can't).
     var latestSamples: [String: StatsSample] = [:]
-    /// Recent CPU% history per container id — drives the per-row load sparkline.
-    var sparklines: [String: [Double]] = [:]
+    /// Recent per-metric history per container id — drives the per-row sparklines.
+    var sparklines: [String: RowSparklines] = [:]
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     let emptyStateMessage: String
@@ -113,14 +121,11 @@ struct StatsTableView: View {
                 HStack(spacing: 0) {
                     if showContainerColumn {
                         columnHeader("Container", column: .container, alignment: .leading)
-                        columnHeader("CPU", column: .cpu, width: 100)
-                        Text("Load")
-                            .font(.subheadline).fontWeight(.medium)
-                            .frame(width: 90, alignment: .trailing)
-                        columnHeader("Memory", column: .memory, width: 140)
-                        columnHeader("Network I/O", column: .network, width: 140)
-                        columnHeader("Block I/O", column: .block, width: 140)
-                        columnHeader("PIDs", column: .pids, width: 80)
+                        columnHeader("CPU", column: .cpu, width: 120)
+                        columnHeader("Memory", column: .memory, width: 150)
+                        columnHeader("Network I/O", column: .network, width: 150)
+                        columnHeader("Block I/O", column: .block, width: 150)
+                        columnHeader("PIDs", column: .pids, width: 70)
                     } else {
                         HStack {
                             columnHeader("CPU", column: .cpu)
@@ -156,42 +161,51 @@ struct StatsTableView: View {
                             }
                             .buttonStyle(.plain)
 
-                            cpuValue(for: stats.id)
-                                .frame(width: 100, alignment: .trailing)
-
-                            Sparkline(values: sparklines[stats.id] ?? [])
-                                .frame(width: 90, alignment: .trailing)
-
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(stats.formattedMemoryUsage)")
-                                    .font(.system(.caption, design: .monospaced))
-                                Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                cpuValue(for: stats.id)
+                                Sparkline(values: sparklines[stats.id]?.cpu ?? [], color: .blue, maxValue: 100)
                             }
-                            .frame(width: 140, alignment: .trailing)
+                            .frame(width: 120, alignment: .trailing)
 
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\u{2193} \(stats.formattedNetworkRx)")
-                                    .font(.system(.caption, design: .monospaced))
-                                Text("\u{2191} \(stats.formattedNetworkTx)")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(stats.formattedMemoryUsage)")
+                                        .font(.system(.caption, design: .monospaced))
+                                    Text("\(String(format: "%.1f", stats.memoryUsagePercent))%")
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Sparkline(values: sparklines[stats.id]?.memory ?? [], color: .purple, maxValue: 100)
                             }
-                            .frame(width: 140, alignment: .trailing)
+                            .frame(width: 150, alignment: .trailing)
 
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("R \(stats.formattedBlockRead)")
-                                    .font(.system(.caption, design: .monospaced))
-                                Text("W \(stats.formattedBlockWrite)")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\u{2193} \(stats.formattedNetworkRx)")
+                                        .font(.system(.caption, design: .monospaced))
+                                    Text("\u{2191} \(stats.formattedNetworkTx)")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Sparkline(values: sparklines[stats.id]?.network ?? [], color: .green)
                             }
-                            .frame(width: 140, alignment: .trailing)
+                            .frame(width: 150, alignment: .trailing)
+
+                            VStack(alignment: .trailing, spacing: 3) {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("R \(stats.formattedBlockRead)")
+                                        .font(.system(.caption, design: .monospaced))
+                                    Text("W \(stats.formattedBlockWrite)")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Sparkline(values: sparklines[stats.id]?.disk ?? [], color: .teal)
+                            }
+                            .frame(width: 150, alignment: .trailing)
 
                             Text("\(stats.numProcesses)")
                                 .font(.system(.body, design: .monospaced))
-                                .frame(width: 80, alignment: .trailing)
+                                .frame(width: 70, alignment: .trailing)
                         } else {
                             HStack {
                                 cpuValue(for: stats.id)
@@ -231,7 +245,7 @@ struct StatsTableView: View {
                         }
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                     .background(Color.clear)
 
                     if stats.id != sortedStats.last?.id {

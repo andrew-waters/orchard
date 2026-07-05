@@ -34,6 +34,12 @@ struct ContainerDetailHeader: View {
         container.configuration.id
     }
 
+    private var imageReference: String {
+        let reference = container.configuration.image.reference
+        let lastComponent = reference.split(separator: "/").last.map(String.init) ?? reference
+        return lastComponent.contains(":") ? lastComponent : "\(lastComponent):latest"
+    }
+
     private func startContainer() {
         guard !isStarting else { return }
         isStarting = true
@@ -74,6 +80,10 @@ struct ContainerDetailHeader: View {
                 Text(containerName)
                     .font(.title2)
                     .fontWeight(.semibold)
+                Text(imageReference)
+                    .font(.subheadline)
+                    .fontDesign(.monospaced)
+                    .foregroundColor(.secondary)
             }
             Spacer()
 
@@ -125,7 +135,7 @@ struct ContainerDetailHeader: View {
                 }
 
                 Button("Logs") {
-                    openWindow(id: "logs")
+                    openWindow(id: "logs", value: container.configuration.id)
                 }
                 .buttonStyle(BorderedButtonStyle())
             }

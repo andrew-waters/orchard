@@ -30,8 +30,8 @@ struct OrchardApp: App {
 
 
 
-        WindowGroup(id: "logs") {
-            MultiLogView()
+        WindowGroup(id: "logs", for: String.self) { $containerId in
+            MultiLogView(initialContainerId: containerId)
                 .injectServices(services)
         }
         .defaultSize(width: 900, height: 600)
