@@ -46,17 +46,41 @@ jobs:
           persist-credentials: false
         continue-on-error: true   # gh-pages may not exist on a first deploy
 
+      # When invoked from release.yml (same run), the build job uploads the freshly-signed
+      # appcast as an artifact. Prefer it over gh-pages to avoid a read-after-write race where
+      # this deploy re-reads gh-pages before the release's push has propagated. Absent (CI /
+      # site-only / dispatch runs), this is a no-op and we fall back to gh-pages.
+      - name: Fetch freshly generated appcast (release runs only)
+        uses: actions/download-artifact@v4
+        with:
+          name: appcast
+          path: _appcast
+        continue-on-error: true
+
       - name: Assemble site
         run: |
           mkdir -p _site
           cp -R site/. _site/
-          for f in coverage-badge.json appcast.xml; do
-            if [ -f "_ghpages/$f" ]; then
-              cp "_ghpages/$f" "_site/$f"
-            else
-              echo "note: $f not present on gh-pages yet — skipping"
-            fi
-          done
+
+          # Coverage badge: always from gh-pages (persisted by ci.yml).
+          if [ -f _ghpages/coverage-badge.json ]; then
+            cp _ghpages/coverage-badge.json _site/coverage-badge.json
+          else
+            echo "note: coverage-badge.json not on gh-pages yet — skipping"
+          fi
+
+          # Appcast: prefer this run's freshly-generated copy (race-free); else the one
+          # persisted on gh-pages.
+          if [ -f _appcast/appcast.xml ]; then
+            echo "Using freshly generated appcast from this run"
+            cp _appcast/appcast.xml _site/appcast.xml
+          elif [ -f _ghpages/appcast.xml ]; then
+            echo "Using appcast persisted on gh-pages"
+            cp _ghpages/appcast.xml _site/appcast.xml
+          else
+            echo "note: no appcast available yet — skipping"
+          fi
+
           echo "Assembled site:"; ls -la _site
 
       - name: Configure Pages
