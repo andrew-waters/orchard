@@ -32,20 +32,20 @@ struct ContainerDetailView: View {
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 16) {
+                // Info sections, each half-width.
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 16, alignment: .top),
+                              GridItem(.flexible(), alignment: .top)],
+                    spacing: 16
+                ) {
                     containerOverviewSection(container: container).well()
                     containerImageSection(container: container).well()
-                }
-
-                containerNetworkSection(container: container).well()
-
-                HStack(alignment: .top, spacing: 16) {
+                    containerNetworkSection(container: container).well()
                     containerResourcesSection(container: container).well()
                     containerProcessSection(container: container).well()
+                    containerEnvironmentSection(container: container).well()
+                    containerLabelsSection(container: container).well()
                 }
-
-                containerEnvironmentSection(container: container).well()
-                containerLabelsSection(container: container).well()
 
                 // Stats master–detail; mounts sit beneath the disk stats.
                 ContainerStatsPanel(container: container)

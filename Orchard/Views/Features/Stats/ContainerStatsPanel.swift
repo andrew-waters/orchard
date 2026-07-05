@@ -62,18 +62,15 @@ struct ContainerStatsPanel: View {
 
     private var header: some View {
         HStack {
-            if isRunning, let stats = currentStats {
-                Label("\(stats.numProcesses) PIDs", systemImage: "number")
-                    .font(.caption).foregroundColor(.secondary)
-            }
             Spacer()
             Picker("", selection: $window) {
                 ForEach(StatsWindow.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 240)
+            .fixedSize()
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: detail columns
