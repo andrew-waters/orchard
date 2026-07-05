@@ -5,6 +5,9 @@ import SwiftUI
 /// genuine app preferences, System for read-only `container` daemon properties. Adding a
 /// pane (e.g. Telemetry) is a one-line `.tabItem` away.
 struct SettingsView: View {
+    @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var dnsService: DNSService
+
     var body: some View {
         TabView {
             GeneralSettingsView()
@@ -18,6 +21,14 @@ struct SettingsView: View {
                 }
         }
         .frame(width: 540, height: 460)
+        // Loaded once here rather than per-tab: macOS TabView builds both tabs when the
+        // window opens, so a per-tab onAppear would fetch the property list twice.
+        .onAppear {
+            Task {
+                await systemService.loadSystemProperties(showLoading: true)
+                await dnsService.load(showLoading: true)
+            }
+        }
     }
 }
 
@@ -122,12 +133,6 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear {
-            Task {
-                await systemService.loadSystemProperties(showLoading: true)
-                await dnsService.load(showLoading: true)
-            }
-        }
     }
 }
 
@@ -175,11 +180,6 @@ struct SystemSettingsView: View {
             )
         }
         .formStyle(.grouped)
-        .onAppear {
-            Task {
-                await systemService.loadSystemProperties(showLoading: true)
-            }
-        }
     }
 
     /// A read-only daemon property row: label, its value (from `systemProperties`), and a

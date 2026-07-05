@@ -100,6 +100,27 @@ func systemPropertiesMalformed() {
     #expect(parseSystemProperties(json: "{}").isEmpty)
 }
 
+@Test("System properties: skips entries without an id and remaps legacy aliases")
+func systemPropertiesMalformedEntriesAndAliases() {
+    let json = """
+    [
+      { "type": "String", "value": "orphan", "description": "no id, must be skipped" },
+      { "id": "build.image", "type": "String", "value": "ghcr.io/example/builder:1", "description": "" },
+      { "id": "vminit.image", "type": "String", "value": "ghcr.io/example/vminit:1", "description": "" }
+    ]
+    """
+    let props = parseSystemProperties(json: json)
+    func prop(_ id: String) -> SystemProperty? { props.first { $0.id == id } }
+
+    // The entry missing `id` is dropped by compactMap, leaving only the two aliased ones.
+    #expect(props.count == 2)
+    // Legacy ids remap to their current names.
+    #expect(prop("image.builder")?.value == "ghcr.io/example/builder:1")
+    #expect(prop("image.init")?.value == "ghcr.io/example/vminit:1")
+    #expect(prop("build.image") == nil)
+    #expect(prop("vminit.image") == nil)
+}
+
 // MARK: - parseDockerHubSearch
 
 @Test("Docker Hub search: official vs namespaced names get the right registry prefix")
