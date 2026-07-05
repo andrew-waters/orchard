@@ -40,6 +40,11 @@ final class StatsService: ObservableObject {
     private let clock = ContinuousClock()
     /// Previous raw read per container id, with the *monotonic* instant it was taken — the
     /// other half of each `computeSample` call. Monotonic so rates ignore clock changes.
+    ///
+    /// NOTE (Plan C): this and `latestSamples` key on the **bare container id**, while the
+    /// history store keys on `StatsKey(host, id)`. Today `host` is always local so they align,
+    /// but multi-host must re-key these to `(host, id)` too — otherwise two hosts' same-id
+    /// containers would share one rate baseline here and delta across each other.
     private var previousRaw: [String: (stats: ContainerStats, at: ContinuousClock.Instant)] = [:]
     private var samplingTimer: Timer?
     private var currentInterval: TimeInterval = 0
@@ -157,9 +162,13 @@ final class StatsService: ObservableObject {
         samplingTimer = nil
 
         guard let interval = desired else { return }
-        samplingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        // Add to the run loop in `.common` mode rather than `Timer.scheduledTimer` (which uses
+        // `.default`): otherwise sampling — and the live charts — pause during scroll/menu tracking.
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.tick() }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        samplingTimer = timer
     }
 
     private func tick() async {

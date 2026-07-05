@@ -19,12 +19,13 @@ struct ContainerStatsPanel: View {
     private var memoryLimitBytes: Int {
         currentStats?.memoryLimitBytes ?? currentSample?.memoryLimitBytes ?? 0
     }
-    private var points: [ChartPoint] {
-        chartPoints(from: history, now: Date(), windowSeconds: window.seconds, gapThreshold: statsGapThreshold(windowSeconds: window.seconds))
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        // Compute the history lookup and the chart pipeline once per render — the four metric
+        // rows all plot the same series, and a single `now` keeps them time-aligned.
+        let history = history
+        let points = chartPoints(from: history, now: Date(), windowSeconds: window.seconds,
+                                 gapThreshold: statsGapThreshold(windowSeconds: window.seconds))
+        return VStack(alignment: .leading, spacing: 12) {
             header
 
             if isRunning || !history.isEmpty {
@@ -134,7 +135,7 @@ struct ContainerStatsPanel: View {
                     CopyableInfoRow(
                         label: "Address",
                         value: network.address,
-                        copyValue: network.address.replacingOccurrences(of: "/24", with: "")
+                        copyValue: network.address.strippingCIDRSuffix
                     )
                 }
             }

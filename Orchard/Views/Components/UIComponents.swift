@@ -241,7 +241,7 @@ struct ContainerRow: View {
                 return "Not running"
             }
         }
-        return container.networks[0].address.replacingOccurrences(of: "/24", with: "")
+        return container.networks[0].address.strippingCIDRSuffix
     }
 
     private var hostname: String {

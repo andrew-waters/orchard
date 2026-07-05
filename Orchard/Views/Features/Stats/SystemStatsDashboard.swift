@@ -81,15 +81,15 @@ struct SystemStatsDashboard: View {
                         memoryChart(points, windowSeconds: window.seconds, memoryLimitBytes: latest.memoryLimitBytes, showLegend: false)
                     }
                     metricWell("Network") {
-                        MetricPairDetail(top: "↓ \(rate(latest.networkRxPerSec))", topColor: .green,
-                                         bottom: "↑ \(rate(latest.networkTxPerSec))", bottomColor: .orange,
+                        MetricPairDetail(top: "↓ \(networkRate(latest.networkRxPerSec))", topColor: .green,
+                                         bottom: "↑ \(networkRate(latest.networkTxPerSec))", bottomColor: .orange,
                                          topRate: latest.networkRxPerSec, bottomRate: latest.networkTxPerSec)
                     } chart: {
                         networkChart(points, windowSeconds: window.seconds, showLegend: false)
                     }
                     metricWell("Disk") {
-                        MetricPairDetail(top: "R \(rate(latest.blockReadPerSec))", topColor: .teal,
-                                         bottom: "W \(rate(latest.blockWritePerSec))", bottomColor: .pink,
+                        MetricPairDetail(top: "R \(diskRate(latest.blockReadPerSec))", topColor: .teal,
+                                         bottom: "W \(diskRate(latest.blockWritePerSec))", bottomColor: .pink,
                                          topRate: latest.blockReadPerSec, bottomRate: latest.blockWritePerSec)
                     } chart: {
                         diskChart(points, windowSeconds: window.seconds, showLegend: false)
@@ -118,8 +118,13 @@ struct SystemStatsDashboard: View {
     private func bytes(_ value: Int) -> String {
         ByteFormat.memory(value)
     }
-    private func rate(_ perSecond: Double) -> String {
-        ByteFormat.rate(perSecond)
+    // Rate text matches each chart's own axis unit so the current value and the graph read the
+    // same: networkChart plots MB/s, diskChart plots KB/s.
+    private func networkRate(_ perSecond: Double) -> String {
+        String(format: "%.1f MB/s", perSecond / 1_048_576)
+    }
+    private func diskRate(_ perSecond: Double) -> String {
+        String(format: "%.0f KB/s", perSecond / 1024)
     }
 }
 

@@ -256,6 +256,12 @@ struct PublishedPort: Codable, Equatable {
     let transportProtocol: String
     let hostAddress: String?
 
+    /// Stable identity for `ForEach`: `containerPort` alone repeats when the same port is
+    /// published over more than one transport (e.g. tcp + udp), which collapses rows.
+    var uniqueID: String {
+        "\(hostAddress ?? "")|\(hostPort)|\(containerPort)|\(transportProtocol)"
+    }
+
     enum CodingKeys: String, CodingKey {
         case hostPort
         case containerPort
@@ -637,12 +643,6 @@ struct ContainerStats: Codable, Equatable, Identifiable {
     let numProcesses: Int
 
     // Computed properties for display
-    var cpuUsagePercent: Double {
-        // This would need to be calculated based on system CPU time
-        // For now, return 0 as a placeholder
-        return 0.0
-    }
-
     var memoryUsagePercent: Double {
         guard memoryLimitBytes > 0 else { return 0.0 }
         return Double(memoryUsageBytes) / Double(memoryLimitBytes) * 100.0
@@ -726,5 +726,15 @@ struct DiskUsageSection: Codable, Equatable {
     var reclaimablePercent: Double {
         guard sizeInBytes > 0 else { return 0.0 }
         return Double(reclaimable) / Double(sizeInBytes) * 100.0
+    }
+}
+
+extension String {
+    /// A network address with any CIDR suffix removed, e.g. "10.0.0.2/24" → "10.0.0.2".
+    /// Generic over the prefix length — the previous hard-coded "/24" strip left "/16", "/8",
+    /// etc. attached to copied addresses.
+    var strippingCIDRSuffix: String {
+        guard let slash = firstIndex(of: "/") else { return self }
+        return String(self[..<slash])
     }
 }

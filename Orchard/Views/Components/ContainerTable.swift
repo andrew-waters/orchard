@@ -48,7 +48,7 @@ struct ContainerTable: View {
                     let containerNetwork = container.networks.first
                     let displayAddress = {
                         guard let address = containerNetwork?.address else { return "N/A" }
-                        return address.replacingOccurrences(of: "/24", with: "")
+                        return address.strippingCIDRSuffix
                     }()
                     let displayHostname = {
                         guard let hostname = containerNetwork?.hostname else { return "N/A" }
@@ -74,7 +74,7 @@ struct ContainerTable: View {
                         // IP Address (clickable)
                         Button(action: {
                             if let address = containerNetwork?.address, address != "N/A" {
-                                let cleanAddress = address.replacingOccurrences(of: "/24", with: "")
+                                let cleanAddress = address.strippingCIDRSuffix
                                 if let url = URL(string: "http://\(cleanAddress)") {
                                     NSWorkspace.shared.open(url)
                                 }
