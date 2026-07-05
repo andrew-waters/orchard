@@ -10,7 +10,6 @@ struct ContentView: View {
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var alertCenter: AlertCenter
-    @State private var isWindowFocused: Bool = true
     @State private var selectedTab: TabSelection = .dashboard
     @State private var selectedContainer: String?
     @State private var selectedContainers: Set<String> = []
@@ -82,17 +81,10 @@ struct ContentView: View {
                     showAddNetworkSheet: $showAddNetworkSheet,
                     showingItemNavigatorPopover: $showingItemNavigatorPopover,
                     listFocusedTab: _listFocusedTab,
-                    isWindowFocused: isWindowFocused,
                     windowTitle: "Orchard"
                 )
                 .navigationTitle("")
                 .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-                    isWindowFocused = true
-                }
-                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
-                    isWindowFocused = false
-                }
                 .onDisappear {
                     stopRefreshTimer()
                 }

@@ -34,7 +34,6 @@ struct ThreeColumnLayout: View {
     @Binding var showAddNetworkSheet: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
-    let isWindowFocused: Bool
     let windowTitle: String
 
     private var needsMiddleColumn: Bool {
@@ -57,8 +56,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: $selectedMount,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
-                    listFocusedTab: $listFocusedTab,
-                    isWindowFocused: isWindowFocused
+                    listFocusedTab: $listFocusedTab
                 )
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
             } content: {
@@ -272,8 +270,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: $selectedMount,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
-                    listFocusedTab: $listFocusedTab,
-                    isWindowFocused: isWindowFocused
+                    listFocusedTab: $listFocusedTab
                 )
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
             } detail: {
@@ -314,14 +311,17 @@ struct TabColumnView: View {
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @FocusState.Binding var listFocusedTab: TabSelection?
-    let isWindowFocused: Bool
+    // Dim the sidebar only when the whole app is in the background. Uses controlActiveState
+    // rather than key-window notifications so a transient context menu (which briefly takes
+    // key away from the window) doesn't leave the sidebar stuck dimmed.
+    @Environment(\.controlActiveState) private var controlActiveState
 
     var body: some View {
         VStack(spacing: 0) {
             sidebarList
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .opacity(isWindowFocused ? 1.0 : 0.5)
+        .opacity(controlActiveState == .inactive ? 0.5 : 1.0)
         .onAppear {
             // Set initial focus when view appears
             switch selectedTab {
