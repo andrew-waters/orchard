@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Orchard — a native macOS GUI for Apple Containers</title>
+  <title>Orchard - a native macOS GUI for Apple Containers</title>
   <meta name="description" content="Orchard is a native (Swift) macOS app for managing containers with Apple's container tooling. Manage containers, images, logs, networks and more without leaving the desktop." />
-  <meta property="og:title" content="Orchard — a native macOS GUI for Apple Containers" />
+  <meta property="og:title" content="Orchard - a native macOS GUI for Apple Containers" />
   <meta property="og:description" content="A native macOS desktop experience for Apple's container CLI." />
   <meta property="og:image" content="assets/overview.png" />
   <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
   <style>
     :root {
-      /* Dark theme — the default */
+      /* Dark theme - the default */
       --accent: #4a97ff;
       --accent-dark: #2f80ed;
       --green: #34c759;
@@ -151,7 +151,7 @@
     <section class="hero">
       <div class="wrap">
         <h1>The native GUI for<br />Apple Containers</h1>
-        <p class="sub">Orchard is a native macOS app for managing containers with Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling — a fast, focused desktop experience that complements the CLI.</p>
+        <p class="sub">Orchard is a native macOS app for managing containers with Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling - a fast, focused desktop experience that complements the CLI.</p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/andrew-waters/orchard/releases/latest">Download for macOS</a>
           <a class="btn btn-ghost" href="https://github.com/andrew-waters/orchard">View on GitHub</a>
@@ -164,27 +164,31 @@
           <a href="https://github.com/andrew-waters/orchard/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/andrew-waters/orchard?color=2f80ed&label=stars" /></a>
           <a href="https://formulae.brew.sh/cask/orchard"><img alt="Homebrew installs" src="https://img.shields.io/homebrew/cask/installs/dm/orchard?color=2f80ed&label=homebrew%20installs" /></a>
         </div>
-        <div class="shot"><img class="zoomable" src="assets/overview.png" alt="Orchard — container overview" /></div>
+        <div class="shot"><img class="zoomable" src="assets/overview.png" alt="Orchard - container detail with CPU, memory, network and disk over time" /></div>
       </div>
     </section>
 
     <section class="alt" id="features">
       <div class="wrap">
         <h2>Everything, without dropping to the CLI</h2>
-        <p class="lede">Orchard puts Apple's container tooling behind a first-class Mac interface — signed, notarized, and native Swift.</p>
+        <p class="lede">Orchard puts Apple's container tooling behind a first-class Mac interface - signed, notarized, and native Swift.</p>
         <div class="grid">
           <div class="card"><h3>Container management</h3><p>Create, start, stop, force-stop and delete containers, with live status and sortable lists.</p></div>
           <div class="card"><h3>Image management</h3><p>Pull, delete and search Docker Hub directly, and run containers straight from an image.</p></div>
           <div class="card"><h3>Multi-pane logs</h3><p>Stream logs from several containers side by side, with split panes, filtering and per-container colour.</p></div>
           <div class="card"><h3>Live stats</h3><p>Watch CPU, memory, disk and network usage in real time, with sortable columns.</p></div>
           <div class="card"><h3>Networks &amp; DNS</h3><p>Manage networks, DNS domains, published ports and hostnames from the app.</p></div>
-          <div class="card"><h3>Automatic updates</h3><p>Orchard keeps itself up to date via Sparkle — signed updates delivered in place.</p></div>
+          <div class="card"><h3>Automatic updates</h3><p>Orchard keeps itself up to date via Sparkle - signed updates delivered in place.</p></div>
         </div>
       </div>
     </section>
 
     <section>
       <div class="wrap">
+        <div class="feature-row">
+          <div class="feature-text"><h3>See everything at a glance</h3><p>A system-wide dashboard sums CPU, memory, network and disk across every container, with headline disk-usage tiles and per-container sparklines.</p></div>
+          <img class="zoomable" src="assets/dashboard.png" alt="System dashboard in Orchard" />
+        </div>
         <div class="feature-row">
           <div class="feature-text"><h3>Search and pull images</h3><p>Browse Docker Hub, inspect image metadata, and pull without memorising CLI flags.</p></div>
           <img class="zoomable" src="assets/images.png" alt="Image management in Orchard" />
@@ -194,8 +198,20 @@
           <img class="zoomable" src="assets/logs.png" alt="Multi-container logs in Orchard" />
         </div>
         <div class="feature-row">
-          <div class="feature-text"><h3>Spot resource hotspots</h3><p>Live CPU, memory and network stats with sortable columns and persistent preferences.</p></div>
-          <img class="zoomable" src="assets/runtime.png" alt="Container runtime stats in Orchard" />
+          <div class="feature-text"><h3>Networking without port-mapping</h3><p>Every container gets its own IP. See addresses and hostnames per network, and create or remove networks from the app.</p></div>
+          <img class="zoomable" src="assets/networks.png" alt="Network management in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Friendly DNS domains</h3><p>Give containers real hostnames. Set the default DNS domain and add or remove domains without root gymnastics.</p></div>
+          <img class="zoomable" src="assets/dns.png" alt="DNS domain management in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Track every mount</h3><p>See which host paths and volumes each container mounts, and jump straight to them in Finder.</p></div>
+          <img class="zoomable" src="assets/mounts.png" alt="Mount management in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Glance from the menu bar</h3><p>CPU and memory rings across running containers, per-container start/stop controls, and one-click access back to the app.</p></div>
+          <img class="zoomable" src="assets/menubar.png" alt="Menu bar panel in Orchard" />
         </div>
       </div>
     </section>
@@ -203,7 +219,7 @@
     <section class="alt" id="install">
       <div class="wrap">
         <h2>Install Orchard</h2>
-        <p class="lede">Every release is code-signed with a registered Apple Developer ID and notarized by Apple, so it installs cleanly — no Gatekeeper warnings.</p>
+        <p class="lede">Every release is code-signed with a registered Apple Developer ID and notarized by Apple, so it installs cleanly - no Gatekeeper warnings.</p>
         <div class="install-grid">
           <div class="card">
             <h3>Homebrew</h3>
@@ -215,7 +231,7 @@
           </div>
           <div class="card">
             <h3>Build from source</h3>
-            <p>Clone the repo and open <code>Orchard.xcodeproj</code> in Xcode — dependencies resolve automatically.</p>
+            <p>Clone the repo and open <code>Orchard.xcodeproj</code> in Xcode - dependencies resolve automatically.</p>
           </div>
         </div>
         <p class="req">Requires macOS 26 (Tahoe) and <a href="https://github.com/apple/container">Apple Container</a> installed.</p>

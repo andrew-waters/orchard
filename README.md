@@ -36,7 +36,7 @@ Hundreds of installations and starred by engineers from Apple, Microsoft, Red Ha
 - [Star History](#star-history)
 - [License](#license)
 
-![container overview screen](assets/overview.png)
+![Orchard container detail - CPU, memory, network, and disk over time](assets/overview.png)
 
 ## Benefits of Apple Containers
 
@@ -57,6 +57,10 @@ Hundreds of installations and starred by engineers from Apple, Microsoft, Red Ha
 - Builder, kernel and system property management
 - Menu bar integration
 
+![Dashboard - system-wide resource usage](assets/dashboard.png)
+
+A system-wide dashboard - the default view when the app opens - summing CPU, memory, network, and disk across every container, with headline disk-usage tiles and a per-container utilisation table with live sparklines.
+
 ![image management](assets/images.png)
 
 Browse, pull, and delete container images. Search Docker Hub directly from the app and inspect image metadata without dropping to the CLI.
@@ -65,25 +69,40 @@ Browse, pull, and delete container images. Search Docker Hub directly from the a
 
 Stream logs from multiple containers side by side. Split panes, filter by text, and use per-container colour coding to keep output readable when debugging across services.
 
-![container runtime stats](assets/runtime.png)
+![networks and DNS](assets/networks.png)
 
-Monitor live CPU, memory, and network usage for running containers. Sortable columns and persistent preferences make it easy to spot resource hotspots at a glance.
+Manage networks and DNS domains without touching the CLI - see every container's IP address and hostname at a glance, set the default DNS domain, and create or remove domains and networks.
+
+![menu bar](assets/menubar.png)
+
+Keep an eye on things from the menu bar: CPU and memory usage rings across all running containers, a per-container list with start/stop controls, and one-click access back to the app.
 
 ## How Orchard compares
 
 Orchard isn't the only way to work with Apple's `container` runtime:
 
-| | Orchard | Podman Desktop | The `container` CLI |
-| --- | :---: | :---: | :---: |
-| Purpose-built for `apple/container` | ✅ | ➖ via an extension | ✅ |
-| Native macOS app | ✅ Swift / SwiftUI | ❌ Electron | - |
-| Native XPC integration (no CLI shelling) | ✅ | ❌ Docker-API shim | ✅ |
+| Capability | Orchard | Podman Desktop | `container` CLI |
+| :-- | :--: | :--: | :--: |
+| Purpose-built for `apple/container` | ✅ | ➖ <sup>1</sup> | ✅ |
+| Native macOS app | ✅ <sup>2</sup> | ❌ <sup>3</sup> | ❌ |
+| Native XPC integration (no CLI shelling) | ✅ | ❌ <sup>4</sup> | ✅ |
 | Signed & notarized | ✅ | ✅ | ✅ |
-| Multi-pane log viewer | ✅ | ➖ | ➖ terminal only |
+| Multi-pane log viewer | ✅ | ➖ | ➖ <sup>5</sup> |
 | Live container stats (CPU/mem/net/disk) | ✅ | ✅ | ➖ |
 | Network, DNS & builder management | ✅ | ➖ | ✅ |
-| Focused, lightweight footprint | ✅ | ❌ general-purpose | ✅ |
-| Open source (MIT) | ✅ | ✅ (Apache-2.0) | ✅ (Apache-2.0) |
+| Focused, lightweight footprint | ✅ | ❌ <sup>6</sup> | ✅ |
+| Open source | ✅ <sup>7</sup> | ✅ <sup>8</sup> | ✅ <sup>8</sup> |
+
+<sup>✅ full support · ➖ partial or indirect · ❌ not available</sup>
+
+1. Supported through a community extension, not natively.
+2. Native Swift / SwiftUI.
+3. Built on Electron.
+4. Talks to a Docker-API shim rather than the native XPC API.
+5. Terminal output only - no multi-pane viewer.
+6. General-purpose, multi-runtime tool.
+7. MIT licensed.
+8. Apache-2.0 licensed.
 
 Orchard is the **native, purpose-built** choice: a lightweight Swift app focused solely on giving Apple's `container` a first-class desktop experience, rather than a heavyweight cross-platform tool that supports it as one runtime among many. (Note: Docker Desktop is a separate container runtime and doesn't manage `apple/container`.)
 
@@ -97,9 +116,9 @@ Being native goes beyond the UI: Orchard talks to the container daemon over the 
 
 ## Architecture
 
-Orchard communicates with the container daemon primarily through the `ContainerAPIClient` Swift library (from [apple/container](https://github.com/apple/container)) over XPC — typed Swift APIs for containers, images, networks, stats, logs, and system health, with no CLI process spawning or output parsing on this path. Every operation the API exposes goes over XPC; the remaining CLI-backed operations are the exceptions noted below.
+Orchard communicates with the container daemon primarily through the `ContainerAPIClient` Swift library (from [apple/container](https://github.com/apple/container)) over XPC - typed Swift APIs for containers, images, networks, stats, logs, and system health, with no CLI process spawning or output parsing on this path. Every operation the API exposes goes over XPC; the remaining CLI-backed operations are the exceptions noted below.
 
-A small number of operations still use the `container` CLI via `Foundation.Process`, each for a structural reason rather than convenience: system start/stop/restart (the daemon is registered with launchd — there is nothing to XPC to until it's running), builder lifecycle (the API exposes no builder surface; the CLI orchestrates it client-side), system properties (a local defaults store, not an API), DNS domain create/delete (requires root, so it runs the CLI under administrator privileges), and kernel selection (installing the recommended kernel provisions it — an operation the API doesn't expose as a single call).
+A small number of operations still use the `container` CLI via `Foundation.Process`, each for a structural reason rather than convenience: system start/stop/restart (the daemon is registered with launchd - there is nothing to XPC to until it's running), builder lifecycle (the API exposes no builder surface; the CLI orchestrates it client-side), system properties (a local defaults store, not an API), DNS domain create/delete (requires root, so it runs the CLI under administrator privileges), and kernel selection (installing the recommended kernel provisions it - an operation the API doesn't expose as a single call).
 
 ## Installation
 
