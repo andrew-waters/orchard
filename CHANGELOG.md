@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.7] - 2026-07-05
+
 ### Added
 - App preferences now live in a native Settings window (⌘,), split into a **General** pane (terminal application, container-binary path, default DNS domain, and software updates) and a **System** pane showing the read-only `container` daemon properties (Rosetta, image builder/init, kernel, registry).
 
