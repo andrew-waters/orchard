@@ -18,10 +18,19 @@ final class OrchardUITests: XCTestCase {
 
     /// The app now opens on the Dashboard; the container list lives under the Containers tab.
     /// Every flow below starts here so it doesn't depend on the launch default.
+    ///
+    /// The sidebar row is a tap-gesture view (not a `Button`), and a synthetic `click()` on it
+    /// intermittently fails to register on a cold/slow CI launch — the tab never switches and
+    /// the list column never appears. So click until the seeded row actually renders, which is
+    /// the real signal that navigation took; re-selecting the Containers tab is idempotent.
     private func openContainersTab(_ app: XCUIApplication) {
         let tab = app.buttons["sidebar-containers"]
         XCTAssertTrue(tab.waitForExistence(timeout: 20), "Containers sidebar tab should exist")
-        tab.click()
+        for _ in 0..<5 {
+            tab.click()
+            if app.staticTexts["uitest-web"].waitForExistence(timeout: 5) { return }
+        }
+        XCTFail("Containers list did not render after selecting the Containers tab")
     }
 
     /// The "#54 class" of bug: the app is up but everything is broken/empty — invisible to
