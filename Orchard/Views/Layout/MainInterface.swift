@@ -23,7 +23,6 @@ struct MainInterfaceView: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
-    @Binding var isInIntentionalConfigurationMode: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let isWindowFocused: Bool
@@ -31,19 +30,6 @@ struct MainInterfaceView: View {
 
     // Computed properties
     private var currentResourceTitle: String {
-        // Check if we're in intentional configuration mode first
-        if isInIntentionalConfigurationMode {
-            return "Configuration"
-        }
-
-        // Check if we're in configuration mode (no selections)
-        let isConfigurationMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
-
-        // Only show configuration title if we're intentionally in configuration mode, not during initial loading
-        if isConfigurationMode && isInIntentionalConfigurationMode {
-            return "Configuration"
-        }
-
         switch selectedTab {
         case .containers:
             if let selectedContainer = selectedContainer {
@@ -81,8 +67,6 @@ struct MainInterfaceView: View {
         case .systemLogs:
             return ""
         case .dashboard:
-            return ""
-        case .configuration:
             return ""
         }
     }
@@ -122,7 +106,6 @@ struct MainInterfaceView: View {
             showImageSearch: $showImageSearch,
             showAddDNSDomainSheet: $showAddDNSDomainSheet,
             showAddNetworkSheet: $showAddNetworkSheet,
-            isInIntentionalConfigurationMode: $isInIntentionalConfigurationMode,
             showingItemNavigatorPopover: $showingItemNavigatorPopover,
             listFocusedTab: _listFocusedTab,
             isWindowFocused: isWindowFocused,
