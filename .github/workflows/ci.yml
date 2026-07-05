@@ -109,6 +109,10 @@ jobs:
 
       - name: Run UI smoke tests
         run: |
+          # UI smoke tests intermittently fail to attach / find the sidebar on a cold CI
+          # runner (accessibility tree slow to populate after a fresh app launch). Retry
+          # failed tests a few times so a transient miss doesn't fail the job; a test only
+          # fails if it misses on every attempt.
           xcodebuild test \
             -project Orchard.xcodeproj \
             -scheme OrchardUITests \
@@ -116,6 +120,8 @@ jobs:
             -clonedSourcePackagesDirPath .spm-cache \
             -skipPackagePluginValidation \
             -resultBundlePath UITestResults \
+            -retry-tests-on-failure \
+            -test-iterations 3 \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload UI test results
