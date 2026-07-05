@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Live resource charts for every container — CPU, memory, network, and disk over time — on the container Overview, plus a system-wide dashboard on the Stats tab that sums usage across all containers. Charts have selectable time windows (5m / 15m / 1h / 24h) and hover tooltips, and the container list gains a per-row CPU sparkline.
 - Real CPU usage percentage (previously a placeholder that always read 0%). Stats are sampled continuously in the background and the history is saved between launches, so the longer time windows have data to show. Sampling pauses while the app is hidden to save resources.
-- A menu-bar readout of total CPU and memory across running containers.
+- A redesigned menu-bar panel: CPU and memory usage rings across all running containers, a per-container list with start/stop controls, and hover-to-reveal history panels (per container, and system-wide) showing the last hour of CPU and memory.
 
 ### Changed
 - Ongoing performance and maintainability improvements to the app's internals — views now refresh only when the data they display actually changes.
