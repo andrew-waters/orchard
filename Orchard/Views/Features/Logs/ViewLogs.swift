@@ -33,7 +33,7 @@ struct LogsView: View {
                 .buttonStyle(.borderless)
                 .help(isPaused ? "Resume log refresh" : "Pause log refresh")
 
-                Button(action: { openWindow(id: "logs") }) {
+                Button(action: { openWindow(id: "logs", value: "") }) {
                     Label("Open Log Viewer", systemImage: "rectangle.on.rectangle")
                 }
                 .buttonStyle(.borderless)

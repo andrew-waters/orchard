@@ -7,13 +7,17 @@ struct StatsView: View {
     @Binding var selectedContainer: String?
 
     /// Recent CPU% per container id for the table's row sparklines (last 60 samples).
-    private var cpuSparklines: [String: [Double]] {
-        var result: [String: [Double]] = [:]
+    /// Recent per-metric history per container for the fleet-table sparklines.
+    private var rowSparklines: [String: RowSparklines] {
+        var result: [String: RowSparklines] = [:]
         for stats in statsService.containerStats {
-            result[stats.id] = statsService.history
-                .samples(for: StatsKey(id: stats.id))
-                .suffix(60)
-                .map(\.cpuPercent)
+            let samples = statsService.history.samples(for: StatsKey(id: stats.id)).suffix(60)
+            result[stats.id] = RowSparklines(
+                cpu: samples.map(\.cpuPercent),
+                memory: samples.map(\.memoryPercent),
+                network: samples.map { ($0.networkRxPerSec + $0.networkTxPerSec) / 1024 },
+                disk: samples.map { ($0.blockReadPerSec + $0.blockWritePerSec) / 1024 }
+            )
         }
         return result
     }
@@ -83,7 +87,7 @@ struct StatsView: View {
                     StatsTableView(
                         containerStats: statsService.containerStats,
                         latestSamples: statsService.latestSamples,
-                        sparklines: cpuSparklines,
+                        sparklines: rowSparklines,
                         selectedTab: $selectedTab,
                         selectedContainer: $selectedContainer,
                         emptyStateMessage: emptyMessage,
@@ -114,175 +118,40 @@ struct SystemDiskUsageView: View {
     @EnvironmentObject var systemService: SystemService
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("System Disk Usage")
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            if let diskUsage = systemService.systemDiskUsage {
-                HStack(spacing: 16) {
-                    // Containers
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Containers")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text(diskUsage.containers.formattedSize)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                        Text("\(diskUsage.containers.active)/\(diskUsage.containers.total)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-
-                    // Images
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Images")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text(diskUsage.images.formattedSize)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                        Text("\(diskUsage.images.active)/\(diskUsage.images.total)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-
-                    // Volumes
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Volumes")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text(diskUsage.volumes.formattedSize)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                        Text("\(diskUsage.volumes.active)/\(diskUsage.volumes.total)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-
-                    // Reclaimable
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Reclaimable")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text(diskUsage.formattedTotalReclaimable)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.orange)
-                        Text("Space")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-                }
-            } else {
-                HStack(spacing: 16) {
-                    // Containers placeholder
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Containers")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-
-                    // Images placeholder
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Images")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-
-                    // Volumes placeholder
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Volumes")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-
-                    // Reclaimable placeholder
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Reclaimable")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        Text("--")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.secondary)
-                        Text("Space")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-                }
-            }
+        let usage = systemService.systemDiskUsage
+        HStack(spacing: 12) {
+            statTile(icon: "shippingbox", title: "Containers",
+                     value: usage?.containers.formattedSize ?? "--",
+                     detail: usage.map { "\($0.containers.active)/\($0.containers.total)" } ?? "--")
+            statTile(icon: "square.stack.3d.up", title: "Images",
+                     value: usage?.images.formattedSize ?? "--",
+                     detail: usage.map { "\($0.images.active)/\($0.images.total)" } ?? "--")
+            statTile(icon: "externaldrive", title: "Volumes",
+                     value: usage?.volumes.formattedSize ?? "--",
+                     detail: usage.map { "\($0.volumes.active)/\($0.volumes.total)" } ?? "--")
+            statTile(icon: "trash", title: "Reclaimable",
+                     value: usage?.formattedTotalReclaimable ?? "--",
+                     detail: "Space", valueColor: .orange)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func statTile(icon: String, title: String, value: String, detail: String, valueColor: Color = .primary) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            SwiftUI.Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(.secondary)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline).foregroundColor(.primary)
+                Text(value)
+                    .font(.subheadline).fontWeight(.semibold).fontDesign(.monospaced)
+                    .foregroundColor(valueColor)
+                Text(detail).font(.caption).foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .well()
     }
 }
 

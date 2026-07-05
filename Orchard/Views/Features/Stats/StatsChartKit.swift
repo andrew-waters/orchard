@@ -146,20 +146,21 @@ private func autoUpper(_ series: [SeriesPoint]) -> Double {
 // Per-metric chart builders, so the container overview and system dashboard render identical
 // charts while composing their own detail columns around them.
 
-func cpuChart(_ points: [ChartPoint], windowSeconds: Double, cpuDomain: ClosedRange<Double>?) -> MetricChart {
+func cpuChart(_ points: [ChartPoint], windowSeconds: Double, cpuDomain: ClosedRange<Double>?, showLegend: Bool = true) -> MetricChart {
     let series = points.map { SeriesPoint(x: $0.secondsAgo, y: $0.cpuPercent, series: "cpu\($0.segment)", label: "CPU") }
     return MetricChart(series: series, windowSeconds: windowSeconds,
-                       yDomain: cpuDomain ?? 0...autoUpper(series), palette: [("CPU", .blue)], unit: "%")
+                       yDomain: cpuDomain ?? 0...autoUpper(series), palette: [("CPU", .blue)], unit: "%",
+                       showLegend: showLegend)
 }
 
-func memoryChart(_ points: [ChartPoint], windowSeconds: Double, memoryLimitBytes: Int) -> MetricChart {
+func memoryChart(_ points: [ChartPoint], windowSeconds: Double, memoryLimitBytes: Int, showLegend: Bool = true) -> MetricChart {
     let series = points.map { SeriesPoint(x: $0.secondsAgo, y: $0.memoryMB, series: "mem\($0.segment)", label: "Memory") }
     let limitMB = Double(memoryLimitBytes) / 1_048_576
     let maxMem = series.map(\.y).max() ?? 0
     let upper = limitMB > 0 ? max(limitMB, maxMem) * 1.05 : max(maxMem * 1.2, 1)
     return MetricChart(series: series, windowSeconds: windowSeconds, yDomain: 0...upper,
                        palette: [("Memory", .purple)], unit: "MB",
-                       fill: true, ruleY: limitMB > 0 ? limitMB : nil, ruleLabel: "Limit")
+                       fill: true, ruleY: limitMB > 0 ? limitMB : nil, ruleLabel: "Limit", showLegend: showLegend)
 }
 
 /// Symmetric domain for a mirrored (in above / out below) chart.
@@ -168,24 +169,24 @@ private func mirroredDomain(_ series: [SeriesPoint]) -> ClosedRange<Double> {
     return -maxAbs...maxAbs
 }
 
-func networkChart(_ points: [ChartPoint], windowSeconds: Double) -> MetricChart {
+func networkChart(_ points: [ChartPoint], windowSeconds: Double, showLegend: Bool = true) -> MetricChart {
     // Rx above the axis, Tx below — in MB/s.
     let series = points.flatMap {
         [SeriesPoint(x: $0.secondsAgo, y: $0.netRxKBs / 1024, series: "rx\($0.segment)", label: "Rx"),
          SeriesPoint(x: $0.secondsAgo, y: -$0.netTxKBs / 1024, series: "tx\($0.segment)", label: "Tx")]
     }
     return MetricChart(series: series, windowSeconds: windowSeconds, yDomain: mirroredDomain(series),
-                       palette: [("Rx", .green), ("Tx", .orange)], unit: "MB/s", mirrored: true)
+                       palette: [("Rx", .green), ("Tx", .orange)], unit: "MB/s", mirrored: true, showLegend: showLegend)
 }
 
-func diskChart(_ points: [ChartPoint], windowSeconds: Double) -> MetricChart {
+func diskChart(_ points: [ChartPoint], windowSeconds: Double, showLegend: Bool = true) -> MetricChart {
     // Read above the axis, Write below.
     let series = points.flatMap {
         [SeriesPoint(x: $0.secondsAgo, y: $0.blockReadKBs, series: "read\($0.segment)", label: "Read"),
          SeriesPoint(x: $0.secondsAgo, y: -$0.blockWriteKBs, series: "write\($0.segment)", label: "Write")]
     }
     return MetricChart(series: series, windowSeconds: windowSeconds, yDomain: mirroredDomain(series),
-                       palette: [("Read", .teal), ("Write", .pink)], unit: "KB/s", mirrored: true)
+                       palette: [("Read", .teal), ("Write", .pink)], unit: "KB/s", mirrored: true, showLegend: showLegend)
 }
 
 /// Shared style for the primary stat values, so every metric reads the same.
@@ -330,27 +331,29 @@ struct MetricRow<Detail: View, ChartContent: View, Footer: View>: View {
     }
 }
 
-/// A compact, axis-less CPU line used inside the fleet table rows.
+/// A compact, axis-less line used inside the fleet table rows. Fills its column width and
+/// auto-scales unless `maxValue` is given (e.g. 100 for a percentage).
 struct Sparkline: View {
     let values: [Double]
     var color: Color = .blue
+    var maxValue: Double? = nil
 
     var body: some View {
         if values.count < 2 {
-            Color.clear.frame(width: 80, height: 24)
+            Color.clear.frame(height: 18)
         } else {
             Chart {
                 ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                    LineMark(x: .value("i", index), y: .value("cpu", value))
+                    LineMark(x: .value("i", index), y: .value("v", value))
                         .foregroundStyle(color)
                         .interpolationMethod(.monotone)
                 }
             }
-            .chartYScale(domain: 0...100)
+            .chartYScale(domain: 0...(maxValue ?? max(values.max() ?? 1, 0.0001)))
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
             .chartLegend(.hidden)
-            .frame(width: 80, height: 24)
+            .frame(height: 18)
         }
     }
 }
@@ -369,6 +372,8 @@ struct MetricChart: View {
     /// Mirror mode: the second series is plotted negative (below the axis). Labels/tooltips
     /// show absolute values and a zero baseline is drawn.
     var mirrored: Bool = false
+    /// Whether the chart draws its own legend (off when a legend is shown above the graph).
+    var showLegend: Bool = true
 
     @State private var selectedX: Double?
 
@@ -443,7 +448,7 @@ struct MetricChart: View {
         .chartYScale(domain: yDomain)
         .chartXScale(domain: -windowSeconds...0)
         .chartForegroundStyleScale(domain: palette.map(\.0), range: palette.map(\.1))
-        .chartLegend(palette.count > 1 ? .visible : .hidden)
+        .chartLegend(showLegend && palette.count > 1 ? .visible : .hidden)
         .chartXSelection(value: $selectedX)
         .chartXAxis {
             AxisMarks(values: .stride(by: axisStride)) { value in

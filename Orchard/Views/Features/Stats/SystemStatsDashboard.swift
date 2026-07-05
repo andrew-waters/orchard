@@ -5,7 +5,15 @@ import SwiftUI
 /// vs total limit. Shown above the fleet table on the Stats tab.
 struct SystemStatsDashboard: View {
     @EnvironmentObject var statsService: StatsService
+    @EnvironmentObject var containerListService: ContainerListService
     @State private var window: StatsWindow = .fiveMin
+
+    /// Total CPU cores reserved by running containers.
+    private var reservedCores: Int {
+        containerListService.containers
+            .filter { $0.status.lowercased() == "running" }
+            .reduce(0) { $0 + $1.configuration.resources.cpus }
+    }
 
     /// Aggregate only the samples within the selected window — keeps the summation cheap
     /// even when 24h of per-container history is retained.
@@ -33,41 +41,65 @@ struct SystemStatsDashboard: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(width: 240)
+                    .fixedSize()
                 }
 
-                MetricRow("CPU") {
-                    // Summed across containers, so it can exceed 100% — no capacity bar.
-                    MetricValueDetail(primary: "\(Int(latest.cpuPercent.rounded()))%", tint: .blue)
-                } chart: {
-                    cpuChart(points, windowSeconds: window.seconds, cpuDomain: nil)
-                }
-                MetricRow("Memory") {
-                    MetricValueDetail(
-                        primary: bytes(latest.memoryBytes),
-                        secondary: latest.memoryLimitBytes > 0 ? "of \(bytes(latest.memoryLimitBytes))" : nil,
-                        percent: latest.memoryLimitBytes > 0 ? Double(latest.memoryBytes) / Double(latest.memoryLimitBytes) * 100 : nil,
-                        tint: .purple)
-                } chart: {
-                    memoryChart(points, windowSeconds: window.seconds, memoryLimitBytes: latest.memoryLimitBytes)
-                }
-                MetricRow("Network") {
-                    MetricPairDetail(top: "↓ \(rate(latest.networkRxPerSec))", topColor: .green,
-                                     bottom: "↑ \(rate(latest.networkTxPerSec))", bottomColor: .orange,
-                                     topRate: latest.networkRxPerSec, bottomRate: latest.networkTxPerSec)
-                } chart: {
-                    networkChart(points, windowSeconds: window.seconds)
-                }
-                MetricRow("Disk") {
-                    MetricPairDetail(top: "R \(rate(latest.blockReadPerSec))", topColor: .teal,
-                                     bottom: "W \(rate(latest.blockWritePerSec))", bottomColor: .pink,
-                                     topRate: latest.blockReadPerSec, bottomRate: latest.blockWritePerSec)
-                } chart: {
-                    diskChart(points, windowSeconds: window.seconds)
+                // Each metric in its own half-width well: details/legend/bar above the graph.
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 12, alignment: .top),
+                              GridItem(.flexible(), alignment: .top)],
+                    spacing: 12
+                ) {
+                    metricWell("CPU") {
+                        // Summed across containers; the bar clamps at 100%.
+                        MetricValueDetail(primary: "\(Int(latest.cpuPercent.rounded()))%",
+                                          secondary: "\(reservedCores) \(reservedCores == 1 ? "core" : "cores") reserved",
+                                          percent: latest.cpuPercent, tint: .blue)
+                    } chart: {
+                        cpuChart(points, windowSeconds: window.seconds, cpuDomain: nil, showLegend: false)
+                    }
+                    metricWell("Memory") {
+                        MetricValueDetail(
+                            primary: bytes(latest.memoryBytes),
+                            secondary: latest.memoryLimitBytes > 0 ? "of \(bytes(latest.memoryLimitBytes))" : nil,
+                            percent: latest.memoryLimitBytes > 0 ? Double(latest.memoryBytes) / Double(latest.memoryLimitBytes) * 100 : nil,
+                            tint: .purple)
+                    } chart: {
+                        memoryChart(points, windowSeconds: window.seconds, memoryLimitBytes: latest.memoryLimitBytes, showLegend: false)
+                    }
+                    metricWell("Network") {
+                        MetricPairDetail(top: "↓ \(rate(latest.networkRxPerSec))", topColor: .green,
+                                         bottom: "↑ \(rate(latest.networkTxPerSec))", bottomColor: .orange,
+                                         topRate: latest.networkRxPerSec, bottomRate: latest.networkTxPerSec)
+                    } chart: {
+                        networkChart(points, windowSeconds: window.seconds, showLegend: false)
+                    }
+                    metricWell("Disk") {
+                        MetricPairDetail(top: "R \(rate(latest.blockReadPerSec))", topColor: .teal,
+                                         bottom: "W \(rate(latest.blockWritePerSec))", bottomColor: .pink,
+                                         topRate: latest.blockReadPerSec, bottomRate: latest.blockWritePerSec)
+                    } chart: {
+                        diskChart(points, windowSeconds: window.seconds, showLegend: false)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    // A metric well for the system view: title, then details/legend/bar, then the graph.
+    @ViewBuilder
+    private func metricWell<Detail: View, ChartContent: View>(
+        _ title: String,
+        @ViewBuilder detail: () -> Detail,
+        @ViewBuilder chart: () -> ChartContent
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.headline).foregroundColor(.primary)
+            detail()
+            chart()
+        }
+        .well()
     }
 
     private func bytes(_ value: Int) -> String {
