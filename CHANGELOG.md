@@ -14,21 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration moved out of the sidebar into the Settings window (⌘,); the sidebar no longer has a Configuration tab.
 
 ### Fixed
-- Daemon system properties no longer stay stuck on "Loading…" and the default DNS domain shows its current value again — `container system property list` now returns a JSON array, which the parser didn't recognise, so it read no values at all.
+- Daemon system properties no longer stay stuck on "Loading…" and the default DNS domain shows its current value again - `container system property list` now returns a JSON array, which the parser didn't recognise, so it read no values at all.
 - The sidebar no longer stays greyed-out after you open and dismiss a right-click menu on a container.
 
 ## [1.12.6] - 2026-07-05
 
 ### Added
-- Live resource charts for every container — CPU, memory, network, and disk over time — on the container Overview, plus a system-wide dashboard in the Dashboard view that sums usage across all containers. Charts have selectable time windows (5m / 15m / 1h / 24h) and hover tooltips, and the container list gains a per-row CPU sparkline.
+- Live resource charts for every container - CPU, memory, network, and disk over time - on the container Overview, plus a system-wide dashboard in the Dashboard view that sums usage across all containers. Charts have selectable time windows (5m / 15m / 1h / 24h) and hover tooltips, and the container list gains a per-row CPU sparkline.
 - Real CPU usage percentage (previously a placeholder that always read 0%). Stats are sampled continuously in the background and the history is saved between launches, so the longer time windows have data to show. Sampling pauses while the app is hidden to save resources.
 - A redesigned menu-bar panel: CPU and memory usage rings across all running containers, a per-container list with start/stop controls, and hover-to-reveal history panels (per container, and system-wide) showing the last hour of CPU and memory.
 
 ### Changed
 - Redesigned the container detail view into a single scrolling page (no more Overview/Environment/Mounts/Logs tabs): the resource metrics show as CPU, Memory, Network, and Disk panels pairing current values with their graph (network/disk graphs plot inbound above the axis and outbound below), and the remaining configuration sits in boxed sections below. Environment values are hidden until you click Show, and the image reference now appears under the container name in the header. Logs and Edit Configuration moved into the header, and the Logs button opens on the container you're viewing.
-- Reworked the Stats tab into a **Dashboard** — now the default view when the app opens — with disk-usage headline tiles, per-metric panels (CPU / Memory / Network / Disk) each pairing current values with a graph, and per-metric sparklines in the container table.
+- Reworked the Stats tab into a **Dashboard** - now the default view when the app opens - with disk-usage headline tiles, per-metric panels (CPU / Memory / Network / Disk) each pairing current values with a graph, and per-metric sparklines in the container table.
 - Copy controls across the app now read "Copy" and confirm with "Copied" instead of an icon.
-- Ongoing performance and maintainability improvements to the app's internals — views now refresh only when the data they display actually changes.
+- Ongoing performance and maintainability improvements to the app's internals - views now refresh only when the data they display actually changes.
 - Refactored the internals: the monolithic container service was split into focused per-domain services with each view observing only what it needs, the Run and Edit container forms now share one implementation, and a UI smoke-test harness was added. No user-facing behaviour change.
 
 ### Fixed
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Sidebar badges showing counts at a glance: running containers, and the number of images, mounts, DNS domains, and networks.
-- Diagnostic logging via Apple's unified logging system — filter by subsystem `dev.andon.orchard` in Console.app when troubleshooting.
+- Diagnostic logging via Apple's unified logging system - filter by subsystem `dev.andon.orchard` in Console.app when troubleshooting.
 - Continuous integration: the unit test suite runs on every pull request and must pass before a release can ship.
 
 ### Fixed
@@ -152,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - DNS domain management.
-- Container resource stats — CPU, memory, disk, and network — with a sortable stats table.
+- Container resource stats - CPU, memory, disk, and network - with a sortable stats table.
 - Name-uniqueness check when launching containers.
 
 ### Changed
@@ -259,7 +259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-06-18
 
 ### Added
-- Initial release — a native macOS GUI for Apple's `container` tooling, including:
+- Initial release - a native macOS GUI for Apple's `container` tooling, including:
   - Container management (start, stop, view, mounts, logs)
   - Image management and image views, with filtering
   - Multi-container logs viewer
