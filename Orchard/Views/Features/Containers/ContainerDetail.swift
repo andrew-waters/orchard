@@ -116,7 +116,16 @@ struct ContainerDetailView: View {
     }
 
     private func containerNetworkSection(container: Container) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let dns = container.configuration.dns
+        // Published ports and DNS are independent of networks — a container with no networks
+        // can still have valid ports/DNS, so each renders on its own rather than being gated
+        // behind the networks check. "No network configuration" shows only when all are empty.
+        let hasDNSConfig = !dns.nameservers.isEmpty || !dns.searchDomains.isEmpty || !dns.options.isEmpty
+        let hasAnyConfig = !container.networks.isEmpty
+            || !container.configuration.publishedPorts.isEmpty
+            || hasDNSConfig
+
+        return VStack(alignment: .leading, spacing: 12) {
             if !container.networks.isEmpty {
                 ForEach(container.networks, id: \.hostname) { network in
                     let cleanHostname = network.hostname.hasSuffix(".") ? String(network.hostname.dropLast()) : network.hostname
@@ -124,7 +133,7 @@ struct ContainerDetailView: View {
                     CopyableInfoRow(
                         label: "Address",
                         value: network.address,
-                        copyValue: network.address.replacingOccurrences(of: "/24", with: "")
+                        copyValue: network.address.strippingCIDRSuffix
                     )
                     InfoRow(label: "Gateway", value: network.gateway)
                     ClickableInfoRow(
@@ -148,35 +157,36 @@ struct ContainerDetailView: View {
                         )
                     }
                 }
+            }
 
-                if !container.configuration.publishedPorts.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Published Ports").font(.subheadline).fontWeight(.medium).foregroundColor(.primary)
-                        ForEach(container.configuration.publishedPorts, id: \.containerPort) { port in
-                            let portSpec = port.hostAddress != nil ?
-                                "\(port.hostAddress!):\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)" :
-                                "\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)"
-                            CopyableInfoRow(label: "Port", value: portSpec, copyValue: portSpec)
-                        }
+            if !container.configuration.publishedPorts.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Published Ports").font(.subheadline).fontWeight(.medium).foregroundColor(.primary)
+                    ForEach(container.configuration.publishedPorts, id: \.uniqueID) { port in
+                        let portSpec = port.hostAddress != nil ?
+                            "\(port.hostAddress!):\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)" :
+                            "\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)"
+                        CopyableInfoRow(label: "Port", value: portSpec, copyValue: portSpec)
                     }
                 }
+            }
 
-                if !container.configuration.dns.nameservers.isEmpty
-                    || !container.configuration.dns.searchDomains.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("DNS Configuration").font(.subheadline).fontWeight(.medium).foregroundColor(.primary)
-                        if !container.configuration.dns.nameservers.isEmpty {
-                            InfoRow(label: "Nameservers", value: container.configuration.dns.nameservers.joined(separator: ", "))
-                        }
-                        if !container.configuration.dns.searchDomains.isEmpty {
-                            InfoRow(label: "Search Domains", value: container.configuration.dns.searchDomains.joined(separator: ", "))
-                        }
-                        if !container.configuration.dns.options.isEmpty {
-                            InfoRow(label: "Options", value: container.configuration.dns.options.joined(separator: ", "))
-                        }
+            if hasDNSConfig {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("DNS Configuration").font(.subheadline).fontWeight(.medium).foregroundColor(.primary)
+                    if !dns.nameservers.isEmpty {
+                        InfoRow(label: "Nameservers", value: dns.nameservers.joined(separator: ", "))
+                    }
+                    if !dns.searchDomains.isEmpty {
+                        InfoRow(label: "Search Domains", value: dns.searchDomains.joined(separator: ", "))
+                    }
+                    if !dns.options.isEmpty {
+                        InfoRow(label: "Options", value: dns.options.joined(separator: ", "))
                     }
                 }
-            } else {
+            }
+
+            if !hasAnyConfig {
                 Text("No network configuration").foregroundColor(.secondary).italic()
             }
         }
@@ -765,7 +775,7 @@ struct ContainerImageUsageRow: View {
         guard !container.networks.isEmpty else {
             return "No network"
         }
-        return container.networks[0].address.replacingOccurrences(of: "/24", with: "")
+        return container.networks[0].address.strippingCIDRSuffix
     }
 
     var body: some View {
@@ -961,7 +971,7 @@ struct MountContainerUsageRow: View {
         guard !container.networks.isEmpty else {
             return "No network"
         }
-        return container.networks[0].address.replacingOccurrences(of: "/24", with: "")
+        return container.networks[0].address.strippingCIDRSuffix
     }
 
     var body: some View {

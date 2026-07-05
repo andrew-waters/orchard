@@ -351,6 +351,9 @@ struct MenuBarView: View {
     }
 
     private func startRefreshTimer() {
+        // Invalidate any existing timer first so a re-entrant `.task` can't strand a duplicate
+        // running alongside the new one and double the background polling.
+        refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
                 await systemService.checkSystemStatus()

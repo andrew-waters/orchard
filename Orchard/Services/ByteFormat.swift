@@ -23,10 +23,4 @@ enum ByteFormat {
     static func memory(_ bytes: Int) -> String {
         memory(Int64(bytes))
     }
-
-    /// A per-second throughput rate on the same 1024 base, e.g. "1.2 MB/s". Negative inputs
-    /// (shouldn't occur — rates are clamped at the source) render as zero.
-    static func rate(_ bytesPerSecond: Double) -> String {
-        memory(Int64(max(0, bytesPerSecond))) + "/s"
-    }
 }
