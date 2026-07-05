@@ -48,6 +48,12 @@ struct OrchardApp: App {
                 .frame(width: 18, height: 18)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+                .injectServices(services)
+                .environmentObject(updater)
+        }
     }
 }
 
