@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A redesigned menu-bar panel: CPU and memory usage rings across all running containers, a per-container list with start/stop controls, and hover-to-reveal history panels (per container, and system-wide) showing the last hour of CPU and memory.
 
 ### Changed
+- Redesigned the container detail view into a single scrolling page (no more Overview/Environment/Mounts/Logs tabs): the resource metrics now show as CPU, Memory, Network, and Disk panels pairing current values with their graph, with mounts and network info alongside them. Logs and Edit Configuration moved into the header.
+- Copy controls across the app now read "Copy" and confirm with "Copied" instead of an icon.
 - Ongoing performance and maintainability improvements to the app's internals — views now refresh only when the data they display actually changes.
 - Refactored the internals: the monolithic container service was split into focused per-domain services with each view observing only what it needs, the Run and Edit container forms now share one implementation, and a UI smoke-test harness was added. No user-facing behaviour change.
 

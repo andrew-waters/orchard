@@ -24,16 +24,9 @@ struct RegistriesDetailView: View {
                                     
                                     Spacer()
                                     
-                                    Button(action: {
-                                        let pasteboard = NSPasteboard.general
-                                        pasteboard.clearContents()
-                                        pasteboard.setString("pbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin", forType: .string)
-                                    }) {
-                                        SwiftUI.Image(systemName: "doc.on.clipboard")
-                                            .font(.caption)
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .help("Copy command to clipboard")
+                                    CopyButton(
+                                        text: "pbpaste | container registry login REGISTRY_URL --username YOUR_USERNAME --password-stdin",
+                                        label: "Copy command to clipboard")
                                 }
                             }
                         }

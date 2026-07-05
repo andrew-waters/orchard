@@ -641,6 +641,8 @@ struct CursorModifier: ViewModifier {
     }
 }
 
+/// The app-wide copy control: the word "Copy" in blue, becoming "Copied" in green for two
+/// seconds after a click.
 struct CopyButton: View {
     let text: String
     let label: String
@@ -657,11 +659,10 @@ struct CopyButton: View {
                 showingFeedback = false
             }
         } label: {
-            SwiftUI.Image(systemName: showingFeedback ? "checkmark" : "doc.on.doc")
+            Text(showingFeedback ? "Copied" : "Copy")
                 .font(.caption)
-                .foregroundColor(showingFeedback ? .white : .secondary)
-                .background(showingFeedback ? Color.green : Color.clear)
-                .clipShape(Circle())
+                .fontWeight(.medium)
+                .foregroundColor(showingFeedback ? .green : .blue)
         }
         .buttonStyle(.plain)
         .help(label)

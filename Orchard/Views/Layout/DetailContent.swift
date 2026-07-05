@@ -82,10 +82,6 @@ struct DetailContentView: View {
                 if selectedContainer == container.configuration.id {
                     ContainerDetailView(
                         container: container,
-                        initialSelectedTab: lastSelectedContainerTab,
-                        onTabChanged: { newTab in
-                            lastSelectedContainerTab = newTab
-                        },
                         selectedTabBinding: $selectedTabBinding,
                         selectedNetwork: $selectedNetworkBinding
                     )

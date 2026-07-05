@@ -131,79 +131,202 @@ func chartPoints(from samples: [StatsSample], windowSeconds: Double, gapThreshol
 /// The four stacked metric charts (CPU / Memory / Network / Disk) for a sample series.
 /// Shared by the per-container overview and the system dashboard; they differ only in the
 /// CPU y-scale (fixed 0…100 for one container, auto for summed totals).
-struct StatsChartsGrid: View {
-    let samples: [StatsSample]
-    let memoryLimitBytes: Int
-    let windowSeconds: Double
-    /// Fixed CPU y-domain; nil auto-scales (system totals exceed 100%).
-    var cpuDomain: ClosedRange<Double>? = 0...100
+/// A gap wider than this means sampling paused or the container restarted — break the line.
+/// Based on the idle cadence and scaled to the window so downsampled long views don't read
+/// every (naturally wide) step as a gap.
+func statsGapThreshold(windowSeconds: Double) -> Double {
+    let expectedSpacing = windowSeconds / Double(chartPointTarget)
+    return max(StatsService.idleInterval * 2.5, expectedSpacing * 2.5)
+}
 
-    private var gapThreshold: Double {
-        // Idle cadence is the coarsest normal spacing; also scaled to the window so a
-        // downsampled long view doesn't read every (naturally wide) step as a gap.
-        let expectedSpacing = windowSeconds / Double(chartPointTarget)
-        return max(StatsService.idleInterval * 2.5, expectedSpacing * 2.5)
+private func autoUpper(_ series: [SeriesPoint]) -> Double {
+    max((series.map(\.y).max() ?? 0) * 1.2, 1)
+}
+
+// Per-metric chart builders, so the container overview and system dashboard render identical
+// charts while composing their own detail columns around them.
+
+func cpuChart(_ points: [ChartPoint], windowSeconds: Double, cpuDomain: ClosedRange<Double>?) -> MetricChart {
+    let series = points.map { SeriesPoint(x: $0.secondsAgo, y: $0.cpuPercent, series: "cpu\($0.segment)", label: "CPU") }
+    return MetricChart(series: series, windowSeconds: windowSeconds,
+                       yDomain: cpuDomain ?? 0...autoUpper(series), palette: [("CPU", .blue)], unit: "%")
+}
+
+func memoryChart(_ points: [ChartPoint], windowSeconds: Double, memoryLimitBytes: Int) -> MetricChart {
+    let series = points.map { SeriesPoint(x: $0.secondsAgo, y: $0.memoryMB, series: "mem\($0.segment)", label: "Memory") }
+    let limitMB = Double(memoryLimitBytes) / 1_048_576
+    let maxMem = series.map(\.y).max() ?? 0
+    let upper = limitMB > 0 ? max(limitMB, maxMem) * 1.05 : max(maxMem * 1.2, 1)
+    return MetricChart(series: series, windowSeconds: windowSeconds, yDomain: 0...upper,
+                       palette: [("Memory", .purple)], unit: "MB",
+                       fill: true, ruleY: limitMB > 0 ? limitMB : nil, ruleLabel: "Limit")
+}
+
+/// Symmetric domain for a mirrored (in above / out below) chart.
+private func mirroredDomain(_ series: [SeriesPoint]) -> ClosedRange<Double> {
+    let maxAbs = max((series.map { abs($0.y) }.max() ?? 0) * 1.2, 1)
+    return -maxAbs...maxAbs
+}
+
+func networkChart(_ points: [ChartPoint], windowSeconds: Double) -> MetricChart {
+    // Rx above the axis, Tx below — in MB/s.
+    let series = points.flatMap {
+        [SeriesPoint(x: $0.secondsAgo, y: $0.netRxKBs / 1024, series: "rx\($0.segment)", label: "Rx"),
+         SeriesPoint(x: $0.secondsAgo, y: -$0.netTxKBs / 1024, series: "tx\($0.segment)", label: "Tx")]
+    }
+    return MetricChart(series: series, windowSeconds: windowSeconds, yDomain: mirroredDomain(series),
+                       palette: [("Rx", .green), ("Tx", .orange)], unit: "MB/s", mirrored: true)
+}
+
+func diskChart(_ points: [ChartPoint], windowSeconds: Double) -> MetricChart {
+    // Read above the axis, Write below.
+    let series = points.flatMap {
+        [SeriesPoint(x: $0.secondsAgo, y: $0.blockReadKBs, series: "read\($0.segment)", label: "Read"),
+         SeriesPoint(x: $0.secondsAgo, y: -$0.blockWriteKBs, series: "write\($0.segment)", label: "Write")]
+    }
+    return MetricChart(series: series, windowSeconds: windowSeconds, yDomain: mirroredDomain(series),
+                       palette: [("Read", .teal), ("Write", .pink)], unit: "KB/s", mirrored: true)
+}
+
+/// Shared style for the primary stat values, so every metric reads the same.
+extension View {
+    func metricValueText() -> some View {
+        font(.subheadline).fontWeight(.semibold).fontDesign(.monospaced)
     }
 
-    private var points: [ChartPoint] {
-        chartPoints(from: samples, windowSeconds: windowSeconds, gapThreshold: gapThreshold)
+    /// Standard inset "well" used to box each section on the detail page. Uses a translucent
+    /// tint plus a hairline border so it stays distinct from the pane background in both
+    /// light and dark, regardless of what that background happens to be.
+    func well() -> some View {
+        padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
+    }
+}
+
+/// Left detail cell: a capacity bar directly under the header, then a big primary value and
+/// an optional caption.
+struct MetricValueDetail: View {
+    let primary: String
+    var secondary: String? = nil
+    var percent: Double? = nil
+    var tint: Color = .blue
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let percent { ProgressView(value: min(1, max(0, percent / 100))).tint(tint) }
+            Text(primary).metricValueText()
+            if let secondary {
+                Text(secondary).font(.caption).foregroundColor(.secondary).fontDesign(.monospaced)
+            }
+        }
+    }
+}
+
+/// Left detail cell: two color-dotted values (e.g. Rx/Tx or Read/Write) and, when current
+/// rates are supplied, a center-split directional bar (left = inbound/top, right = outbound/bottom).
+struct MetricPairDetail: View {
+    let top: String
+    let topColor: Color
+    let bottom: String
+    let bottomColor: Color
+    var topRate: Double? = nil
+    var bottomRate: Double? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if topRate != nil || bottomRate != nil {
+                DirectionalBar(leftValue: topRate ?? 0, rightValue: bottomRate ?? 0,
+                               leftColor: topColor, rightColor: bottomColor)
+            }
+            HStack(spacing: 16) {
+                value(top, topColor)
+                value(bottom, bottomColor)
+            }
+        }
+    }
+
+    private func value(_ text: String, _ color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(text).metricValueText()
+        }
+    }
+}
+
+/// A center-origin activity bar: fills leftward for the inbound value and rightward for the
+/// outbound value, each normalized to the larger of the two so the busier direction fills its
+/// half. A center tick marks zero activity.
+struct DirectionalBar: View {
+    let leftValue: Double
+    let rightValue: Double
+    let leftColor: Color
+    let rightColor: Color
+
+    var body: some View {
+        Canvas { context, size in
+            let mid = size.width / 2
+            let height = size.height
+            let maxValue = max(leftValue, rightValue, 0.0001)
+
+            context.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: height)),
+                         with: .color(Color(NSColor.tertiaryLabelColor).opacity(0.3)))
+
+            let leftWidth = CGFloat(min(1, max(0, leftValue) / maxValue)) * mid
+            if leftWidth > 0 {
+                context.fill(Path(CGRect(x: mid - leftWidth, y: 0, width: leftWidth, height: height)),
+                             with: .color(leftColor))
+            }
+            let rightWidth = CGFloat(min(1, max(0, rightValue) / maxValue)) * mid
+            if rightWidth > 0 {
+                context.fill(Path(CGRect(x: mid, y: 0, width: rightWidth, height: height)),
+                             with: .color(rightColor))
+            }
+
+            var center = Path()
+            center.move(to: CGPoint(x: mid, y: 0))
+            center.addLine(to: CGPoint(x: mid, y: height))
+            context.stroke(center, with: .color(Color(NSColor.separatorColor)), lineWidth: 1)
+        }
+        .frame(height: 8)
+        .clipShape(Capsule())
+    }
+}
+
+/// One master–detail metric row: a header, a details column (≈1/3) beside its graph (≈2/3),
+/// and an optional footer rendered directly beneath the graph (e.g. mounts, network config).
+struct MetricRow<Detail: View, ChartContent: View, Footer: View>: View {
+    let title: String
+    let detail: Detail
+    let chart: ChartContent
+    let footer: Footer
+
+    init(_ title: String,
+         @ViewBuilder detail: () -> Detail,
+         @ViewBuilder chart: () -> ChartContent,
+         @ViewBuilder footer: () -> Footer = { EmptyView() }) {
+        self.title = title
+        self.detail = detail()
+        self.chart = chart()
+        self.footer = footer()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            chartSection("CPU", unit: "%") {
-                let pts = points.map { SeriesPoint(x: $0.secondsAgo, y: $0.cpuPercent, series: "cpu\($0.segment)", label: "CPU") }
-                MetricChart(series: pts, windowSeconds: windowSeconds,
-                            yDomain: cpuDomain ?? 0...autoUpper(pts), palette: [("CPU", .blue)], unit: "%")
-            }
-
-            chartSection("Memory", unit: "MB") {
-                let mem = points.map { SeriesPoint(x: $0.secondsAgo, y: $0.memoryMB, series: "mem\($0.segment)", label: "Memory") }
-                let limitMB = Double(memoryLimitBytes) / 1_048_576
-                let maxMem = mem.map(\.y).max() ?? 0
-                let upper = limitMB > 0 ? max(limitMB, maxMem) * 1.05 : max(maxMem * 1.2, 1)
-                MetricChart(series: mem, windowSeconds: windowSeconds, yDomain: 0...upper,
-                            palette: [("Memory", .purple)], unit: "MB",
-                            fill: true, ruleY: limitMB > 0 ? limitMB : nil, ruleLabel: "Limit")
-            }
-
-            chartSection("Network", unit: "KB/s") {
-                let net = points.flatMap {
-                    [SeriesPoint(x: $0.secondsAgo, y: $0.netRxKBs, series: "rx\($0.segment)", label: "Rx"),
-                     SeriesPoint(x: $0.secondsAgo, y: $0.netTxKBs, series: "tx\($0.segment)", label: "Tx")]
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased()).font(.headline).foregroundColor(.primary)
+            HStack(alignment: .top, spacing: 16) {
+                detail
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
+                VStack(alignment: .leading, spacing: 12) {
+                    chart
+                    footer
                 }
-                MetricChart(series: net, windowSeconds: windowSeconds, yDomain: 0...autoUpper(net),
-                            palette: [("Rx", .green), ("Tx", .orange)], unit: "KB/s")
-            }
-
-            chartSection("Disk", unit: "KB/s") {
-                let disk = points.flatMap {
-                    [SeriesPoint(x: $0.secondsAgo, y: $0.blockReadKBs, series: "read\($0.segment)", label: "Read"),
-                     SeriesPoint(x: $0.secondsAgo, y: $0.blockWriteKBs, series: "write\($0.segment)", label: "Write")]
-                }
-                MetricChart(series: disk, windowSeconds: windowSeconds, yDomain: 0...autoUpper(disk),
-                            palette: [("Read", .teal), ("Write", .pink)], unit: "KB/s")
+                .frame(maxWidth: .infinity)
             }
         }
-    }
-
-    private func autoUpper(_ series: [SeriesPoint]) -> Double {
-        max((series.map(\.y).max() ?? 0) * 1.2, 1)
-    }
-
-    @ViewBuilder
-    private func chartSection<Content: View>(_ title: String, unit: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(title).font(.subheadline).fontWeight(.medium)
-                Text(unit).font(.caption).foregroundColor(.secondary)
-            }
-            content()
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(8)
+        .well()
     }
 }
 
@@ -243,6 +366,9 @@ struct MetricChart: View {
     var fill: Bool = false
     var ruleY: Double? = nil
     var ruleLabel: String = ""
+    /// Mirror mode: the second series is plotted negative (below the axis). Labels/tooltips
+    /// show absolute values and a zero baseline is drawn.
+    var mirrored: Bool = false
 
     @State private var selectedX: Double?
 
@@ -253,7 +379,8 @@ struct MetricChart: View {
     }
 
     private func format(_ value: Double) -> String {
-        let number = value >= 100 ? String(format: "%.0f", value) : String(format: "%.1f", value)
+        let magnitude = mirrored ? abs(value) : value
+        let number = magnitude >= 100 ? String(format: "%.0f", magnitude) : String(format: "%.1f", magnitude)
         return unit.isEmpty ? number : "\(number) \(unit)"
     }
 
@@ -282,6 +409,12 @@ struct MetricChart: View {
                 LineMark(x: .value("Time", p.x), y: .value("Value", p.y), series: .value("Series", p.series))
                     .foregroundStyle(by: .value("Metric", p.label))
                     .interpolationMethod(.monotone)
+            }
+
+            if mirrored {
+                RuleMark(y: .value("Zero", 0))
+                    .lineStyle(StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(.secondary)
             }
 
             if let ruleY {
@@ -323,6 +456,17 @@ struct MetricChart: View {
                 }
             }
         }
+        .chartYAxis {
+            AxisMarks { value in
+                AxisGridLine()
+                AxisTick()
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text(yAxisLabel(v))
+                    }
+                }
+            }
+        }
         .frame(height: 140)
     }
 
@@ -346,6 +490,13 @@ struct MetricChart: View {
         }
         .padding(6)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    // Absolute magnitude for mirrored charts; one decimal when the range is small (e.g. MB/s).
+    private func yAxisLabel(_ v: Double) -> String {
+        let magnitude = mirrored ? abs(v) : v
+        let span = yDomain.upperBound - yDomain.lowerBound
+        return span < 20 ? String(format: "%.1f", magnitude) : "\(Int(magnitude))"
     }
 
     // Adaptive axis: minute ticks for short windows, hour ticks for the day view.

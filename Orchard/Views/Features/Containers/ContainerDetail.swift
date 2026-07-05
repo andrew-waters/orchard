@@ -5,193 +5,56 @@ import SwiftUI
 
 struct ContainerDetailView: View {
     let container: Container
-    let initialSelectedTab: String
-    let onTabChanged: (String) -> Void
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var statsService: StatsService
-    @State private var selectedTab: ContainerTab = .overview
-    @State private var showEditConfiguration = false
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedNetwork: String?
-
-    enum ContainerTab: String, CaseIterable {
-        case overview = "Overview"
-        case environment = "Environment"
-        case mounts = "Mounts"
-        case logs = "Logs"
-
-        var systemImage: String {
-            switch self {
-            case .overview:
-                return "info.circle"
-            case .environment:
-                return "gearshape"
-            case .mounts:
-                return "externaldrive"
-            case .logs:
-                return "doc.text"
-            }
-        }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ContainerDetailHeader(container: container)
-            tabPickerSection
-            tabContentSection
+            Divider()
+            content
         }
         .onAppear {
-            selectedTab = tabFromString(initialSelectedTab)
-            // The detail view is a stats consumer: the service samples at 2s while it's
-            // shown, so history accumulates for the charts regardless of the active tab.
+            // The detail view is a stats consumer: the service samples while it's shown, so
+            // history accumulates for the charts.
             Task { await statsService.load(showLoading: true) }
             statsService.beginSampling()
         }
         .onDisappear {
             statsService.endSampling()
         }
-        .sheet(isPresented: $showEditConfiguration) {
-            EditContainerView(container: container)
-        }
     }
 
-    private var tabPickerSection: some View {
-        VStack(spacing: 0) {
-            HStack {
-                ForEach(ContainerTab.allCases, id: \.self) { tab in
-                    tabButton(for: tab)
-                }
-                Spacer()
-
-                // Edit Configuration button - only for stopped containers
-                if container.status.lowercased() != "running" {
-                    Button(action: {
-                        showEditConfiguration = true
-                    }) {
-                        HStack(spacing: 6) {
-                            SwiftUI.Image(systemName: "pencil.circle")
-                            Text("Edit Configuration")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-
-            Divider()
-        }
-    }
-
-    private func tabButton(for tab: ContainerTab) -> some View {
-        Button(action: {
-            selectedTab = tab
-            onTabChanged(tab.rawValue)
-        }) {
-            HStack {
-                SwiftUI.Image(systemName: tab.systemImage)
-                Text(tab.rawValue)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                selectedTab == tab ? Color.accentColor.opacity(0.2) : Color.clear
-            )
-            .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
-            .cornerRadius(6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var tabContentSection: some View {
-        VStack {
-            switch selectedTab {
-            case .overview:
-                containerOverviewTab
-            case .environment:
-                containerEnvironmentTab
-            case .mounts:
-                containerMountsTab
-            case .logs:
-                LogsView(containerId: container.configuration.id)
-            }
-        }
-    }
-
-    private var containerOverviewTab: some View {
+    // One scrolling page — the former Overview, Environment and Mounts tabs merged.
+    private var content: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Container statistics: current-value cards + live charts.
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Statistics")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    ContainerStatsPanel(container: container)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Divider()
-
-                // Overview and Image side by side
-                HStack(alignment: .top, spacing: 20) {
-                    containerOverviewSection(container: container)
-                    containerImageSection(container: container)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 16) {
+                    containerOverviewSection(container: container).well()
+                    containerImageSection(container: container).well()
                 }
 
-                Divider()
+                containerNetworkSection(container: container).well()
 
-                // Network section
-                containerNetworkSection(container: container)
-
-                Divider()
-
-                // Resources and Process side by side
-                HStack(alignment: .top, spacing: 20) {
-                    containerResourcesSection(container: container)
-                    containerProcessSection(container: container)
+                HStack(alignment: .top, spacing: 16) {
+                    containerResourcesSection(container: container).well()
+                    containerProcessSection(container: container).well()
                 }
 
-                Divider()
+                containerEnvironmentSection(container: container).well()
+                containerLabelsSection(container: container).well()
 
-
+                // Stats master–detail; mounts sit beneath the disk stats.
+                ContainerStatsPanel(container: container)
 
                 Spacer(minLength: 20)
             }
             .padding()
         }
     }
-
-    private var containerEnvironmentTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                containerEnvironmentSection(container: container)
-
-                Divider()
-
-                containerLabelsSection(container: container)
-
-                Spacer(minLength: 20)
-            }
-            .padding()
-        }
-    }
-
-    private var containerMountsTab: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                containerMountsSection(container: container)
-            }
-            .padding()
-        }
-    }
-
-
 
     // MARK: - Detail Sections
 
@@ -252,19 +115,19 @@ struct ContainerDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // Network config, rendered beneath the Network graph (its header comes from the row).
     private func containerNetworkSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Network")
-                .font(.headline)
-                .foregroundColor(.primary)
+            Text("Network").font(.headline).foregroundColor(.primary)
 
             if !container.networks.isEmpty {
                 ForEach(container.networks, id: \.hostname) { network in
-                    let addressValue = network.address.replacingOccurrences(of: "/24", with: "")
+                    let cleanHostname = network.hostname.hasSuffix(".") ? String(network.hostname.dropLast()) : network.hostname
+                    CopyableInfoRow(label: "Hostname", value: cleanHostname, copyValue: cleanHostname)
                     CopyableInfoRow(
                         label: "Address",
                         value: network.address,
-                        copyValue: addressValue
+                        copyValue: network.address.replacingOccurrences(of: "/24", with: "")
                     )
                     InfoRow(label: "Gateway", value: network.gateway)
                     ClickableInfoRow(
@@ -275,26 +138,11 @@ struct ContainerDetailView: View {
                             selectedNetwork = network.network
                         }
                     )
-                    if network.hostname != container.configuration.hostname {
-                        let cleanHostname = network.hostname.hasSuffix(".") ? String(network.hostname.dropLast()) : network.hostname
-                        ClickableInfoRow(
-                            label: "Hostname",
-                            value: cleanHostname,
-                            onTap: {
-                                if let url = URL(string: "http://\(cleanHostname)") {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            }
-                        )
-                    }
-
-                    // Show domain under hostname if available
                     if let domain = container.configuration.dns.domain {
                         ClickableInfoRow(
                             label: "Domain",
                             value: domain,
                             onTap: {
-                                // Post notification to navigate to DNS domain
                                 NotificationCenter.default.post(
                                     name: NSNotification.Name("NavigateToDNSDomain"),
                                     object: domain
@@ -304,63 +152,38 @@ struct ContainerDetailView: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Published Ports")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-
-                    if !container.configuration.publishedPorts.isEmpty {
+                if !container.configuration.publishedPorts.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Published Ports").font(.subheadline).fontWeight(.medium).foregroundColor(.primary)
                         ForEach(container.configuration.publishedPorts, id: \.containerPort) { port in
                             let portSpec = port.hostAddress != nil ?
                                 "\(port.hostAddress!):\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)" :
                                 "\(port.hostPort):\(port.containerPort)/\(port.transportProtocol)"
-
-                            CopyableInfoRow(
-                                label: "Port",
-                                value: portSpec,
-                                copyValue: portSpec
-                            )
+                            CopyableInfoRow(label: "Port", value: portSpec, copyValue: portSpec)
                         }
-                    } else {
-                        InfoRow(label: "Port", value: "None configured")
                     }
                 }
 
-                // DNS Configuration
                 if !container.configuration.dns.nameservers.isEmpty
-                    || !container.configuration.dns.searchDomains.isEmpty
-                {
+                    || !container.configuration.dns.searchDomains.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("DNS Configuration")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-
+                        Text("DNS Configuration").font(.subheadline).fontWeight(.medium).foregroundColor(.primary)
                         if !container.configuration.dns.nameservers.isEmpty {
-                            InfoRow(
-                                label: "Nameservers",
-                                value: container.configuration.dns.nameservers.joined(
-                                    separator: ", "))
+                            InfoRow(label: "Nameservers", value: container.configuration.dns.nameservers.joined(separator: ", "))
                         }
                         if !container.configuration.dns.searchDomains.isEmpty {
-                            InfoRow(
-                                label: "Search Domains",
-                                value: container.configuration.dns.searchDomains.joined(
-                                    separator: ", "))
+                            InfoRow(label: "Search Domains", value: container.configuration.dns.searchDomains.joined(separator: ", "))
                         }
                         if !container.configuration.dns.options.isEmpty {
-                            InfoRow(
-                                label: "Options",
-                                value: container.configuration.dns.options.joined(separator: ", "))
+                            InfoRow(label: "Options", value: container.configuration.dns.options.joined(separator: ", "))
                         }
                     }
                 }
             } else {
-                Text("No network configuration")
-                    .foregroundColor(.secondary)
-                    .italic()
+                Text("No network configuration").foregroundColor(.secondary).italic()
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func containerResourcesSection(container: Container) -> some View {
@@ -370,10 +193,7 @@ struct ContainerDetailView: View {
                 .foregroundColor(.primary)
 
             VStack(alignment: .leading, spacing: 8) {
-                InfoRow(label: "CPUs", value: "\(container.configuration.resources.cpus)")
-                InfoRow(
-                    label: "Memory",
-                    value: ByteFormat.string(container.configuration.resources.memoryInBytes))
+                // CPU/memory allocation now live in the stats rows above; only Rosetta here.
                 InfoRow(
                     label: "Rosetta",
                     value: container.configuration.rosetta ? "Enabled" : "Disabled")
@@ -431,70 +251,6 @@ struct ContainerDetailView: View {
         }
     }
 
-    private func containerMountsSection(container: Container) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Mounts")
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            if !container.configuration.mounts.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(container.configuration.mounts.enumerated()), id: \.offset) {
-                        index, mount in
-                        Button(action: {
-                            // Navigate to mount details
-                            let mountId = "\(mount.source)->\(mount.destination)"
-                            NotificationCenter.default.post(
-                                name: NSNotification.Name("NavigateToMount"),
-                                object: mountId
-                            )
-                        }) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("Mount \(index + 1)")
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-
-                                    Spacer()
-
-                                    SwiftUI.Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-
-                                InfoRow(label: "Source", value: mount.source)
-                                InfoRow(label: "Destination", value: mount.destination)
-
-                                if mount.type.virtiofs != nil {
-                                    InfoRow(label: "Type", value: "VirtioFS")
-                                } else if mount.type.tmpfs != nil {
-                                    InfoRow(label: "Type", value: "tmpfs")
-                                } else {
-                                    InfoRow(label: "Type", value: "Unknown")
-                                }
-
-                                if !mount.options.isEmpty {
-                                    InfoRow(
-                                        label: "Options", value: mount.options.joined(separator: ", "))
-                                }
-                            }
-                            .padding(12)
-                            .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
-                            .cornerRadius(8)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("View mount details")
-                    }
-                }
-            } else {
-                Text("No mounts")
-                    .foregroundColor(.secondary)
-                    .italic()
-            }
-        }
-    }
-
     private func containerLabelsSection(container: Container) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Labels")
@@ -511,10 +267,6 @@ struct ContainerDetailView: View {
         }
     }
 
-    // Helper function to convert string to enum
-    private func tabFromString(_ tabString: String) -> ContainerTab {
-        return ContainerTab.allCases.first { $0.rawValue == tabString } ?? .overview
-    }
 }
 
 // MARK: - Environment Variables Table

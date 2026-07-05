@@ -5,6 +5,8 @@ struct ContainerDetailHeader: View {
     let container: Container
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
+    @Environment(\.openWindow) private var openWindow
+    @State private var showEditConfiguration = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var isStarting = false
@@ -115,7 +117,17 @@ struct ContainerDetailHeader: View {
                         .buttonStyle(BorderedButtonStyle())
                         .disabled(isDeleting)
                     }
+
+                    Button("Edit Configuration") {
+                        showEditConfiguration = true
+                    }
+                    .buttonStyle(BorderedButtonStyle())
                 }
+
+                Button("Logs") {
+                    openWindow(id: "logs")
+                }
+                .buttonStyle(BorderedButtonStyle())
             }
         }
         .padding(.horizontal, 16)
@@ -128,6 +140,9 @@ struct ContainerDetailHeader: View {
             }
         } message: {
             Text("Are you sure you want to delete '\(containerName)'? This action cannot be undone.")
+        }
+        .sheet(isPresented: $showEditConfiguration) {
+            EditContainerView(container: container)
         }
         .onChange(of: container.status) { oldStatus, newStatus in
             // Clear the "recently stopped" flag when container is truly ready
