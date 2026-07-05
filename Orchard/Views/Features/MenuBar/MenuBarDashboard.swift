@@ -123,13 +123,13 @@ struct MenuBarView: View {
             // Hovering anywhere in the top card pops out combined system CPU + memory history.
             .contentShape(Rectangle())
             .onHover { hoveringTop = $0 }
-            .popover(isPresented: hoverBinding, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            .popover(isPresented: $hoveringTop, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
                 ResourceHistoryPanel(
                     name: "System",
                     cpuValues: metricHistory(cpu: true),
                     memValues: metricHistory(cpu: false),
                     cpuNow: cpuCenter,
-                    memNow: ByteCountFormatter.string(fromByteCount: Int64(memoryUsed), countStyle: .memory)
+                    memNow: ByteFormat.memory(memoryUsed)
                 )
             }
 
@@ -210,7 +210,7 @@ struct MenuBarView: View {
             Spacer(minLength: 8)
 
             if row.isRunning {
-                Text(ByteCountFormatter.string(fromByteCount: Int64(row.memoryBytes), countStyle: .memory))
+                Text(ByteFormat.memory(row.memoryBytes))
                     .font(.caption).fontDesign(.monospaced).foregroundColor(.secondary)
                 Text(String(format: "%.0f%%", row.cpuPercent))
                     .font(.caption).fontDesign(.monospaced).foregroundColor(.secondary)
@@ -229,7 +229,7 @@ struct MenuBarView: View {
                 cpuValues: containerHistory(id: row.id, cpu: true),
                 memValues: containerHistory(id: row.id, cpu: false),
                 cpuNow: String(format: "%.1f%%", row.cpuPercent),
-                memNow: ByteCountFormatter.string(fromByteCount: Int64(row.memoryBytes), countStyle: .memory)
+                memNow: ByteFormat.memory(row.memoryBytes)
             )
         }
         .contextMenu { rowMenu(row) }
@@ -281,10 +281,6 @@ struct MenuBarView: View {
             .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
     }
 
-    private var hoverBinding: Binding<Bool> {
-        Binding(get: { hoveringTop }, set: { hoveringTop = $0 })
-    }
-
     private func containerHoverBinding(_ id: String) -> Binding<Bool> {
         Binding(get: { hoveredContainer == id }, set: { if !$0 && hoveredContainer == id { hoveredContainer = nil } })
     }
@@ -297,6 +293,14 @@ struct MenuBarView: View {
         }
     }
 
+    /// Thin a bar series to at most `maxCount` points by even stride, so an hour of samples
+    /// stays cheap to draw. Shared by the container and system history panels.
+    private func thinned(_ values: [Double], to maxCount: Int = 120) -> [Double] {
+        guard values.count > maxCount else { return values }
+        let step = Int((Double(values.count) / Double(maxCount)).rounded(.up))
+        return values.enumerated().compactMap { $0.offset % step == 0 ? $0.element : nil }
+    }
+
     /// One container's own last-hour history for a metric: CPU% as sampled, memory as a
     /// percentage of its limit. Capped to ~120 bars.
     private func containerHistory(id: String, cpu: Bool) -> [Double] {
@@ -305,55 +309,45 @@ struct MenuBarView: View {
         guard let newest = samples.last?.timestamp else { return [] }
         let cutoff = newest.addingTimeInterval(-windowSeconds)
 
-        var series = samples.filter { $0.timestamp >= cutoff }.map { sample -> Double in
-            if cpu { return sample.cpuPercent }
-            return sample.memoryLimitBytes > 0 ? Double(sample.memoryBytes) / Double(sample.memoryLimitBytes) * 100 : 0
-        }
-        if series.count > 120 {
-            let step = Int((Double(series.count) / 120).rounded(.up))
-            series = series.enumerated().compactMap { $0.offset % step == 0 ? $0.element : nil }
-        }
-        return series
+        let series = samples.filter { $0.timestamp >= cutoff }.map { cpu ? $0.cpuPercent : $0.memoryPercent }
+        return thinned(series)
     }
 
-    /// Recent normalized system history for a metric over the last hour, matching the
-    /// ring's meaning: CPU is busy-cores ÷ total-cores, memory is used ÷ total-limit, each
-    /// as 0…100 per tick. Capped to ~120 bars for the panel.
+    /// Recent normalized system history for a metric over the last hour, matching the ring's
+    /// meaning: memory is used ÷ total-limit, CPU is busy-cores ÷ total-cores, each as 0…100
+    /// per tick. Capped to ~120 bars for the panel.
     private func metricHistory(cpu: Bool) -> [Double] {
         let windowSeconds: TimeInterval = 3600
         let running = containerListService.containers.filter { $0.status.lowercased() == "running" }
+        let series = running.map { statsService.history.samples(for: StatsKey(id: $0.configuration.id)) }
 
-        let newest = running
-            .compactMap { statsService.history.samples(for: StatsKey(id: $0.configuration.id)).last?.timestamp }
-            .max()
-        guard let newest else { return [] }
+        guard let newest = series.compactMap({ $0.last?.timestamp }).max() else { return [] }
         let cutoff = newest.addingTimeInterval(-windowSeconds)
+        let windowed = series.map { $0.filter { $0.timestamp >= cutoff } }
 
-        var numerator: [Date: Double] = [:]
-        var denominator: [Date: Double] = [:]
-        for container in running {
-            let cores = Double(container.configuration.resources.cpus)
-            for sample in statsService.history.samples(for: StatsKey(id: container.configuration.id)) where sample.timestamp >= cutoff {
-                if cpu {
-                    numerator[sample.timestamp, default: 0] += sample.cpuPercent / 100 * cores
-                    denominator[sample.timestamp, default: 0] += cores
-                } else {
-                    numerator[sample.timestamp, default: 0] += Double(sample.memoryBytes)
-                    denominator[sample.timestamp, default: 0] += Double(sample.memoryLimitBytes)
-                }
-            }
+        if !cpu {
+            // Memory utilisation is summed-usage ÷ summed-limit per tick — exactly what
+            // `aggregate` produces via `memoryPercent`, so reuse it rather than re-folding.
+            return thinned(aggregate(windowed).map(\.memoryPercent))
         }
 
-        var series = numerator.keys.sorted().map { time -> Double in
+        // CPU is core-weighted (busy-cores ÷ total-cores). `aggregate` sums each container's
+        // already-normalized cpuPercent and doesn't carry core counts, so it can't express
+        // this ratio — fold it here with the per-container weights the ring uses.
+        var numerator: [Date: Double] = [:]
+        var denominator: [Date: Double] = [:]
+        for (container, samples) in zip(running, windowed) {
+            let cores = Double(container.configuration.resources.cpus)
+            for sample in samples {
+                numerator[sample.timestamp, default: 0] += sample.cpuPercent / 100 * cores
+                denominator[sample.timestamp, default: 0] += cores
+            }
+        }
+        let values = numerator.keys.sorted().map { time -> Double in
             let denom = denominator[time] ?? 0
             return denom > 0 ? (numerator[time]! / denom * 100) : 0
         }
-        // Thin to ~120 bars so the panel stays cheap over a full hour.
-        if series.count > 120 {
-            let step = Int((Double(series.count) / 120).rounded(.up))
-            series = series.enumerated().compactMap { $0.offset % step == 0 ? $0.element : nil }
-        }
-        return series
+        return thinned(values)
     }
 
     private func startRefreshTimer() {
