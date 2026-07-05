@@ -58,58 +58,49 @@ func parseDNSDomains(json output: String, defaultDomain: String?) -> [DNSDomain]
 
 // MARK: - System properties
 
+/// Parses `container system property list --format=json`, which emits a JSON array of
+/// `{id, type, value, description}` objects. `type` is "Bool" or "String"; `value` is a
+/// JSON bool, string, number, or null (null → the `*undefined*` sentinel).
 func parseSystemProperties(json output: String) -> [SystemProperty] {
     guard let data = output.data(using: .utf8),
-          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+          let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
         return []
     }
 
-    var properties: [SystemProperty] = []
-
+    // Legacy id aliases, kept in case older daemons emit the pre-rename ids.
     let idMappings: [String: String] = [
         "build.image": "image.builder",
         "vminit.image": "image.init",
     ]
 
-    func flatten(_ dict: [String: Any], prefix: String = "") {
-        for (key, value) in dict {
-            let dotKey = prefix.isEmpty ? key : "\(prefix).\(key)"
-            if let nestedDict = value as? [String: Any] {
-                flatten(nestedDict, prefix: dotKey)
-            } else {
-                let propertyId = idMappings[dotKey] ?? dotKey
-                let valueString: String
-                let type: SystemProperty.PropertyType
+    return array.compactMap { entry in
+        guard let rawId = entry["id"] as? String else { return nil }
+        let propertyId = idMappings[rawId] ?? rawId
 
-                if value is NSNull {
-                    valueString = "*undefined*"
-                    type = .string
-                } else if let boolValue = value as? Bool {
-                    valueString = boolValue ? "true" : "false"
-                    type = .bool
-                } else if let stringValue = value as? String {
-                    valueString = stringValue
-                    type = .string
-                } else if let numberValue = value as? NSNumber {
-                    valueString = numberValue.stringValue
-                    type = .string
-                } else {
-                    valueString = String(describing: value)
-                    type = .string
-                }
+        let type = (entry["type"] as? String)
+            .flatMap(SystemProperty.PropertyType.init(rawValue:)) ?? .string
 
-                properties.append(SystemProperty(
-                    id: propertyId,
-                    type: type,
-                    value: valueString,
-                    description: ""
-                ))
-            }
+        let rawValue = entry["value"]
+        let valueString: String
+        if rawValue == nil || rawValue is NSNull {
+            valueString = "*undefined*"
+        } else if type == .bool, let boolValue = rawValue as? Bool {
+            valueString = boolValue ? "true" : "false"
+        } else if let stringValue = rawValue as? String {
+            valueString = stringValue
+        } else if let numberValue = rawValue as? NSNumber {
+            valueString = numberValue.stringValue
+        } else {
+            valueString = String(describing: rawValue!)
         }
-    }
 
-    flatten(json)
-    return properties
+        return SystemProperty(
+            id: propertyId,
+            type: type,
+            value: valueString,
+            description: entry["description"] as? String ?? ""
+        )
+    }
 }
 
 // MARK: - Docker Hub search

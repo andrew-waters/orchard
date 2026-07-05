@@ -66,29 +66,38 @@ func dnsDomainsMalformed() {
 
 // MARK: - parseSystemProperties
 
-@Test("System properties: flattens nesting, remaps ids, and types bool/null")
+@Test("System properties: decodes the array format, typing bool/string and null")
 func systemPropertiesParsed() {
+    // Shape matches `container system property list --format=json`: an array of
+    // {id, type, value, description}, with value as a JSON bool, string, or null.
     let json = """
-    {
-      "build": { "image": "ghcr.io/example/builder:latest" },
-      "dns": { "domain": "test" },
-      "kernel": { "binary": null },
-      "network": { "enabled": true }
-    }
+    [
+      { "id": "build.rosetta", "type": "Bool", "value": true, "description": "Use Rosetta." },
+      { "id": "dns.domain", "type": "String", "value": "test", "description": "Local DNS domain." },
+      { "id": "build.cpus", "type": "String", "value": null, "description": "Builder CPUs." },
+      { "id": "image.builder", "type": "String", "value": "ghcr.io/example/builder:latest", "description": "" }
+    ]
     """
     let props = parseSystemProperties(json: json)
     func prop(_ id: String) -> SystemProperty? { props.first { $0.id == id } }
 
-    // build.image is remapped to image.builder
-    #expect(prop("image.builder")?.value == "ghcr.io/example/builder:latest")
-    #expect(prop("build.image") == nil)
-    // nested string key is flattened with a dotted path
+    // A JSON bool typed as .bool
+    #expect(prop("build.rosetta")?.type == .bool)
+    #expect(prop("build.rosetta")?.value == "true")
+    // A plain string value
     #expect(prop("dns.domain")?.value == "test")
     // null becomes the *undefined* sentinel
-    #expect(prop("kernel.binary")?.value == "*undefined*")
-    // bool is typed as .bool
-    #expect(prop("network.enabled")?.type == .bool)
-    #expect(prop("network.enabled")?.value == "true")
+    #expect(prop("build.cpus")?.value == "*undefined*")
+    #expect(prop("build.cpus")?.isUndefined == true)
+    // description carries through
+    #expect(prop("dns.domain")?.description == "Local DNS domain.")
+    #expect(prop("image.builder")?.value == "ghcr.io/example/builder:latest")
+}
+
+@Test("System properties: malformed / non-array JSON yields an empty list, not a crash")
+func systemPropertiesMalformed() {
+    #expect(parseSystemProperties(json: "not json").isEmpty)
+    #expect(parseSystemProperties(json: "{}").isEmpty)
 }
 
 // MARK: - parseDockerHubSearch
