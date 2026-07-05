@@ -274,6 +274,16 @@ jobs:
           echo "Generated appcast:"; cat _site/appcast.xml
           echo "generated=true" >> "$GITHUB_OUTPUT"
 
+      # Hand the freshly-generated appcast to the deploy-pages job as a run-scoped artifact.
+      # deploy-pages prefers this over re-reading gh-pages, so the published site can't capture
+      # a pre-push state of the branch (the read-after-write race that shipped a stale appcast).
+      - name: Upload appcast for the Pages deploy
+        if: steps.appcast.outputs.generated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast
+          path: _site/appcast.xml
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
