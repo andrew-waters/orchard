@@ -94,7 +94,7 @@ struct SidebarView: View {
                         selectedNetwork = networkService.networks.first?.id
                     }
                 }
-            case .registries, .systemLogs, .stats, .configuration:
+            case .registries, .systemLogs, .dashboard, .configuration:
                 // No selection state for these tabs
                 break
             }
@@ -168,7 +168,7 @@ struct SidebarView: View {
                     registriesView
                 case .systemLogs:
                     systemLogsView
-                case .stats:
+                case .dashboard:
                     statsView
                 case .configuration:
                     VStack {
@@ -191,7 +191,7 @@ struct SidebarView: View {
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .stats, .configuration:
+            case .registries, .systemLogs, .dashboard, .configuration:
                 break
             }
         }

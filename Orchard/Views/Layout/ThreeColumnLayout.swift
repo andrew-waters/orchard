@@ -43,7 +43,7 @@ struct ThreeColumnLayout: View {
         switch selectedTab {
         case .containers, .images, .mounts, .dns, .networks:
             return true
-        case .registries, .systemLogs, .stats, .configuration:
+        case .registries, .systemLogs, .dashboard, .configuration:
             return false
         }
     }
@@ -338,7 +338,7 @@ struct TabColumnView: View {
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .stats, .configuration:
+            case .registries, .systemLogs, .dashboard, .configuration:
                 break
             }
         }
@@ -349,6 +349,11 @@ struct TabColumnView: View {
 
    private var sidebarList: some View {
        List {
+           // Dashboard sits at the very top.
+           Section {
+               sidebarRow(for: .dashboard)
+           }
+
            // Main sections
            Section {
                sidebarRow(for: .containers)
@@ -380,7 +385,6 @@ struct TabColumnView: View {
 
            // System section
            Section {
-               sidebarRow(for: .stats)
                sidebarRow(for: .configuration)
            } header: {
                HStack {
@@ -464,7 +468,7 @@ struct TabColumnView: View {
             if selectedNetwork == nil && !networkService.networks.isEmpty {
                 selectedNetwork = networkService.networks.first?.id
             }
-        case .registries, .systemLogs, .stats, .configuration:
+        case .registries, .systemLogs, .dashboard, .configuration:
             // Clear all selections for tabs without second columns
             selectedContainer = nil
             selectedImage = nil
@@ -480,7 +484,7 @@ struct TabColumnView: View {
             switch tab {
             case .containers, .images, .mounts, .dns, .networks:
                 self.listFocusedTab = tab
-            case .registries, .systemLogs, .stats, .configuration:
+            case .registries, .systemLogs, .dashboard, .configuration:
                 self.listFocusedTab = nil
             }
         }
@@ -498,7 +502,7 @@ struct TabColumnView: View {
             return dnsService.dnsDomains.count
         case .networks:
             return networkService.networks.count
-        case .registries, .systemLogs, .stats, .configuration:
+        case .registries, .systemLogs, .dashboard, .configuration:
             return 0
         }
     }
@@ -582,7 +586,7 @@ struct ListColumnView: View {
                     title: "System Logs",
                     subtitle: "Coming Soon"
                 )
-            case .stats:
+            case .dashboard:
                 EmptyStateView(
                     title: "Container Stats",
                     subtitle: "Real-time container statistics"

@@ -60,8 +60,8 @@ struct DetailContentView: View {
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .stats:
-            StatsView(
+        case .dashboard:
+            DashboardView(
                 selectedTab: $selectedTabBinding,
                 selectedContainer: $selectedContainerBinding
             )

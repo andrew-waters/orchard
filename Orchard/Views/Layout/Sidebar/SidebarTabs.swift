@@ -48,7 +48,7 @@ struct SidebarTabs: View {
                             if selectedNetwork == nil, let firstNetwork = networkService.networks.first {
                                 selectedNetwork = firstNetwork.id
                             }
-                        case .registries, .systemLogs, .stats, .configuration:
+                        case .registries, .systemLogs, .dashboard, .configuration:
                             // Clear all selections for tabs without second columns
                             selectedContainer = nil
                             selectedImage = nil
@@ -67,7 +67,7 @@ struct SidebarTabs: View {
                             switch tab {
                             case .containers, .images, .mounts, .dns, .networks:
                                 self.listFocusedTab = tab
-                            case .registries, .systemLogs, .stats, .configuration:
+                            case .registries, .systemLogs, .dashboard, .configuration:
                                 self.listFocusedTab = nil
                             }
                         }
@@ -124,7 +124,7 @@ struct SidebarTabs: View {
             return dnsService.dnsDomains.count
         case .networks:
             return networkService.networks.count
-        case .registries, .systemLogs, .stats, .configuration:
+        case .registries, .systemLogs, .dashboard, .configuration:
             return nil
         }
     }

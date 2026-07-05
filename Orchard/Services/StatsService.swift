@@ -184,14 +184,14 @@ final class StatsService: ObservableObject {
         containerStats = results
         isStatsLoading = false
         // Alert only when every running container failed (results empty) AND the load was
-        // user-initiated — the background poll stays silent; StatsView shows a passive panel.
+        // user-initiated — the background poll stays silent; DashboardView shows a passive panel.
         if showLoading && !runningIds.isEmpty && results.isEmpty {
             alertCenter.error("Unable to read container stats. Check that the container service is running.")
         }
     }
 
     /// Whether the stats page should show its passive "unavailable" panel: there are
-    /// running containers but no stats came back. Drives non-modal UI in StatsView.
+    /// running containers but no stats came back. Drives non-modal UI in DashboardView.
     var statsUnavailable: Bool {
         !containerList.containers.filter { $0.status == "running" }.isEmpty && containerStats.isEmpty
     }
