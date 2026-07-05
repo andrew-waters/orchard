@@ -39,16 +39,18 @@ struct TimelinePoint {
 }
 
 /// Pure: clip timestamps to the window and assign each visible sample its seconds-ago and
-/// gap segment. Segments are computed over the *visible* samples so a window-dropped head
-/// never leaves a false leading gap.
-func buildTimeline(_ timestamps: [Date], windowSeconds: Double, gapThreshold: Double) -> [TimelinePoint] {
-    guard let newest = timestamps.last else { return [] }
+/// gap segment. Age is measured from wall-clock `now` (not the newest sample) so stale or
+/// stopped data draws where it actually falls on the axis — a stopped container's last point
+/// sits back from the "now" edge and reads as a gap, rather than masquerading as current.
+/// Segments are computed over the *visible* samples so a window-dropped head never leaves a
+/// false leading gap.
+func buildTimeline(_ timestamps: [Date], now: Date, windowSeconds: Double, gapThreshold: Double) -> [TimelinePoint] {
     var result: [TimelinePoint] = []
     var segment = 0
     var previousVisible: Date?
     for (i, ts) in timestamps.enumerated() {
-        let age = newest.timeIntervalSince(ts)
-        guard age <= windowSeconds else { continue }
+        let age = now.timeIntervalSince(ts)
+        guard age >= 0, age <= windowSeconds else { continue }
         if let previous = previousVisible, ts.timeIntervalSince(previous) > gapThreshold {
             segment += 1
         }
@@ -108,12 +110,11 @@ struct ChartPoint {
 
 /// Pure: window-clip, downsample, and position a sample series for charting. Works for a
 /// single container's history or an aggregated system-wide series (both are `[StatsSample]`).
-func chartPoints(from samples: [StatsSample], windowSeconds: Double, gapThreshold: Double) -> [ChartPoint] {
-    guard let newest = samples.last else { return [] }
-    let visible = samples.filter { newest.timestamp.timeIntervalSince($0.timestamp) <= windowSeconds }
+func chartPoints(from samples: [StatsSample], now: Date, windowSeconds: Double, gapThreshold: Double) -> [ChartPoint] {
+    let visible = samples.filter { now.timeIntervalSince($0.timestamp) <= windowSeconds }
     let reduced = downsample(visible, to: chartPointTarget)
 
-    return buildTimeline(reduced.map(\.timestamp), windowSeconds: windowSeconds, gapThreshold: gapThreshold).map { tp in
+    return buildTimeline(reduced.map(\.timestamp), now: now, windowSeconds: windowSeconds, gapThreshold: gapThreshold).map { tp in
         let s = reduced[tp.index]
         return ChartPoint(
             secondsAgo: tp.secondsAgo,

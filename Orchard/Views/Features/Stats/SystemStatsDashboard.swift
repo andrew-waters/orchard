@@ -15,20 +15,22 @@ struct SystemStatsDashboard: View {
             .reduce(0) { $0 + $1.configuration.resources.cpus }
     }
 
-    /// Aggregate only the samples within the selected window — keeps the summation cheap
-    /// even when 24h of per-container history is retained.
-    private var aggregates: [StatsSample] {
+    /// Aggregate only the samples within the selected window, measured back from wall-clock
+    /// now (not the newest sample) so a window with only stale data collapses to empty rather
+    /// than summing hours-old readings as current. Keeps the summation cheap even when 24h of
+    /// per-container history is retained.
+    private func aggregates(now: Date) -> [StatsSample] {
         let histories = statsService.history.allSamples()
-        guard let newest = histories.compactMap({ $0.last?.timestamp }).max() else { return [] }
-        let cutoff = newest.addingTimeInterval(-window.seconds)
+        let cutoff = now.addingTimeInterval(-window.seconds)
         let windowed = histories.map { $0.filter { $0.timestamp >= cutoff } }
         return aggregate(windowed)
     }
 
     var body: some View {
-        let series = aggregates
+        let now = Date()
+        let series = aggregates(now: now)
         if series.count >= 2, let latest = series.last {
-            let points = chartPoints(from: series, windowSeconds: window.seconds,
+            let points = chartPoints(from: series, now: now, windowSeconds: window.seconds,
                                      gapThreshold: statsGapThreshold(windowSeconds: window.seconds))
             VStack(alignment: .leading, spacing: 12) {
                 HStack {

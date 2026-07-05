@@ -43,14 +43,23 @@ final class StatsService: ObservableObject {
     private var previousRaw: [String: (stats: ContainerStats, at: ContinuousClock.Instant)] = [:]
     private var samplingTimer: Timer?
     private var currentInterval: TimeInterval = 0
-    /// Ref-count of on-screen stats consumers (container overview). While ≥1 we sample at
-    /// the fast cadence; otherwise the slow background cadence (once activated).
+    /// Ref-count of on-screen stats consumers in a main-window view (Dashboard, container
+    /// overview). Subject to occlusion — a minimized window's `onAppear`-registered consumer
+    /// isn't really watching, so these only drive sampling while the window is visible.
     private var samplingConsumers = 0
+    /// Whether the menu-bar panel is open. Its own visibility signal: the status item doesn't
+    /// contribute to `NSApplication.occlusionState`, so an open panel keeps sampling alive on
+    /// its own even when the main window is hidden.
+    private var menuBarOpen = false
     /// Set by `activate()` — until then, sampling only runs while a consumer is on screen.
     private var backgroundSamplingEnabled = false
     /// Whether any app window is on screen. Background sampling pauses while fully hidden
-    /// or minimized; an explicit on-screen consumer still samples regardless.
+    /// or minimized.
     private var appVisible = true
+
+    /// Whether the app has a surface actually presenting stats: a visible main window or the
+    /// open menu-bar panel. Sampling pauses entirely when neither is true.
+    private var effectivelyVisible: Bool { appVisible || menuBarOpen }
     private var ticksSinceSave = 0
 
     /// Fast cadence while a stats view is visible — smooth charts.
@@ -66,13 +75,18 @@ final class StatsService: ObservableObject {
         guard !backgroundSamplingEnabled else { return }
         backgroundSamplingEnabled = true
 
-        let restored = persistence.load()
-        history.replaceAll(restored)
-        for (key, samples) in restored where key.host == StatsKey.localHost {
-            if let last = samples.last { latestSamples[key.id] = last }
-        }
-
+        // Start sampling immediately — don't block the first frame on disk I/O.
         reconfigureSampler()
+
+        // Load persisted history off the main actor, then merge it into whatever the live
+        // sampler has already recorded. `latestSamples` is deliberately NOT seeded: restored
+        // samples can be up to 24h old and must never render as a live "current" reading —
+        // the table/rings stay in their "--"/"Collecting…" state until the first fresh tick.
+        let persistence = self.persistence
+        Task { [weak self] in
+            let restored = await Task.detached { persistence.load() }.value
+            self?.history.mergeRestored(restored)
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
@@ -105,15 +119,36 @@ final class StatsService: ObservableObject {
         reconfigureSampler()
     }
 
+    /// Call when the menu-bar panel opens — its own visibility signal (the status item isn't
+    /// in `occlusionState`), so an open panel samples at the fast cadence regardless of the
+    /// main window. Idempotent so an out-of-order open/close pair can't strand the state.
+    func beginMenuBarSampling() {
+        guard !menuBarOpen else { return }
+        menuBarOpen = true
+        reconfigureSampler()
+    }
+
+    /// Call when the menu-bar panel closes.
+    func endMenuBarSampling() {
+        guard menuBarOpen else { return }
+        menuBarOpen = false
+        reconfigureSampler()
+    }
+
     /// Pick the cadence for the current state and (re)schedule the timer only if it changed.
+    /// Visibility gates everything: a hidden app (no visible window, no open menu-bar panel)
+    /// pauses even if a stats view is still `onAppear`-registered, because SwiftUI doesn't
+    /// fire `onDisappear` on minimize so `samplingConsumers` alone can't tell watched from hidden.
     private func reconfigureSampler() {
         let desired: TimeInterval?
-        if samplingConsumers > 0 {
-            desired = Self.samplingInterval          // someone's actively looking → always sample
-        } else if backgroundSamplingEnabled && appVisible {
+        if !effectivelyVisible {
+            desired = nil                            // nothing on screen → pause
+        } else if samplingConsumers > 0 || menuBarOpen {
+            desired = Self.samplingInterval          // a visible consumer is actively looking
+        } else if backgroundSamplingEnabled {
             desired = Self.idleInterval              // background only while a window is on screen
         } else {
-            desired = nil                            // hidden and nobody looking → pause
+            desired = nil                            // not activated and nobody looking → pause
         }
 
         guard desired != currentInterval else { return }
@@ -223,5 +258,13 @@ final class StatsService: ObservableObject {
         previousRaw = previousRaw.filter { live.contains($0.key) }
         samples = samples.filter { live.contains($0.key) }
         latestSamples = samples
+
+        // Evict whole series for containers that have been gone longer than the retention
+        // window. Their buffers never get a fresh write, so per-write time-pruning never
+        // touches them — without this they'd persist (and re-serialize) in memory forever.
+        // Recently-stopped containers stay until their newest sample ages out, so they can
+        // still be charted.
+        let liveKeys = Set(reads.map { StatsKey(id: $0.id) })
+        history.evictSeries(olderThan: wallNow.addingTimeInterval(-history.retention), keeping: liveKeys)
     }
 }

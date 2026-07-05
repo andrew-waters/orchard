@@ -20,7 +20,7 @@ struct ContainerStatsPanel: View {
         currentStats?.memoryLimitBytes ?? currentSample?.memoryLimitBytes ?? 0
     }
     private var points: [ChartPoint] {
-        chartPoints(from: history, windowSeconds: window.seconds, gapThreshold: statsGapThreshold(windowSeconds: window.seconds))
+        chartPoints(from: history, now: Date(), windowSeconds: window.seconds, gapThreshold: statsGapThreshold(windowSeconds: window.seconds))
     }
 
     var body: some View {

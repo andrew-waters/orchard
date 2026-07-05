@@ -134,9 +134,13 @@ final class StatsHistoryStore {
     func record(_ sample: StatsSample, for key: StatsKey) {
         var buffer = buffers[key] ?? []
         buffer.append(sample)
-        // Prune anything older than the retention window relative to the newest sample.
+        // Prune from the head only: samples arrive in chronological order, so everything older
+        // than the retention window is a contiguous prefix — a linear scan to the first kept
+        // sample beats re-scanning the whole buffer each tick.
         let cutoff = sample.timestamp.addingTimeInterval(-retention)
-        buffer.removeAll { $0.timestamp < cutoff }
+        if let firstKept = buffer.firstIndex(where: { $0.timestamp >= cutoff }), firstKept > 0 {
+            buffer.removeFirst(firstKept)
+        }
         if buffer.count > capacity {
             buffer.removeFirst(buffer.count - capacity)
         }
@@ -165,6 +169,33 @@ final class StatsHistoryStore {
     /// Replace all in-memory history — used to seed from disk on launch.
     func replaceAll(_ snapshot: [StatsKey: [StatsSample]]) {
         buffers = snapshot
+    }
+
+    /// Merge restored-from-disk history into the live store. Because the sampler starts before
+    /// the (off-main) load finishes, a key may already have fresh samples: for those, splice in
+    /// only the strictly-older restored samples ahead of what's live so nothing is clobbered or
+    /// reordered. Keys with no live samples yet are taken wholesale.
+    func mergeRestored(_ restored: [StatsKey: [StatsSample]]) {
+        for (key, samples) in restored {
+            guard let earliestLive = buffers[key]?.first?.timestamp else {
+                buffers[key] = samples
+                continue
+            }
+            let older = samples.filter { $0.timestamp < earliestLive }
+            if !older.isEmpty { buffers[key] = older + buffers[key]! }
+        }
+    }
+
+    /// Drop entire series whose newest sample predates `cutoff` and whose key isn't currently
+    /// live — evicts dead containers' buffers so they stop consuming memory and re-serializing.
+    func evictSeries(olderThan cutoff: Date, keeping liveKeys: Set<StatsKey>) {
+        for (key, buffer) in buffers where !liveKeys.contains(key) {
+            if let newest = buffer.last?.timestamp, newest < cutoff {
+                buffers[key] = nil
+            } else if buffer.isEmpty {
+                buffers[key] = nil
+            }
+        }
     }
 
     func clear(for key: StatsKey) {

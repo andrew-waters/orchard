@@ -177,18 +177,23 @@ struct MenuBarView: View {
         .padding(12)
         .frame(width: 320)
         .task {
+            // Register sampling/refresh synchronously at the start of the task — before any
+            // await — so a panel that's closed before these loads finish can't have its
+            // `.onDisappear` teardown run first and strand the sampler pinned on. An open
+            // panel is its own visibility signal, so history keeps filling while it's shown.
+            statsService.beginMenuBarSampling()
+            startRefreshTimer()
+
             await systemService.checkSystemStatus()
             await containerListService.loadContainers(showLoading: true)
             await builderService.loadBuilders()
             await dnsService.load(showLoading: true)
             await networkService.load(showLoading: true)
             await systemService.loadSystemDiskUsage(showLoading: false)
-            startRefreshTimer()
-            statsService.beginSampling()
         }
         .onDisappear {
             stopRefreshTimer()
-            statsService.endSampling()
+            statsService.endMenuBarSampling()
         }
     }
 

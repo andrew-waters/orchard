@@ -191,6 +191,43 @@ func storeClear() {
     #expect(store.latest(for: StatsKey(id: "never")) == nil)
 }
 
+@Test("evictSeries drops a stopped container's series once its newest sample ages past the cutoff, keeping live and recently-stopped ones")
+func storeEvictSeries() {
+    let store = StatsHistoryStore()
+    let stopped = StatsKey(id: "stopped")     // last write long ago
+    let recent = StatsKey(id: "recent")       // stopped but still within the window
+    let live = StatsKey(id: "live")           // still running
+
+    store.record(sampleAt(-100), for: stopped)
+    store.record(sampleAt(3000), for: recent)
+    store.record(sampleAt(3500), for: live)
+
+    // "now" is t0+3600 with a 1h retention window → cutoff at t0.
+    let cutoff = t0.addingTimeInterval(3600 - 3600)
+    store.evictSeries(olderThan: cutoff, keeping: [live])
+
+    #expect(store.samples(for: stopped).isEmpty)   // newest sample is >1h old, not live → evicted
+    #expect(store.samples(for: recent).count == 1) // 600s old → still chartable
+    #expect(store.samples(for: live).count == 1)   // live key is always kept
+}
+
+@Test("mergeRestored splices strictly-older restored samples ahead of live ones without clobbering")
+func storeMergeRestored() {
+    let store = StatsHistoryStore()
+    let key = StatsKey(id: "c1")
+    store.record(sampleAt(100, cpu: 5), for: key)   // a live sample recorded before load finished
+
+    // Restored history: one older sample (kept) and one at/after the live one (dropped as dup).
+    store.mergeRestored([key: [sampleAt(0, cpu: 1), sampleAt(100, cpu: 99)]])
+
+    #expect(store.samples(for: key).map(\.cpuPercent) == [1, 5])   // older spliced in, live intact
+
+    // A key with no live samples is taken wholesale.
+    let fresh = StatsKey(id: "c2")
+    store.mergeRestored([fresh: [sampleAt(0, cpu: 7), sampleAt(2, cpu: 8)]])
+    #expect(store.samples(for: fresh).map(\.cpuPercent) == [7, 8])
+}
+
 // MARK: - Chart point building (windowing + gap segmentation)
 
 private func sampleAt(_ offsetSeconds: Double, cpu: Double = 0) -> StatsSample {
@@ -205,21 +242,37 @@ private func sampleAt(_ offsetSeconds: Double, cpu: Double = 0) -> StatsSample {
 func chartPointsSegmentAcrossGap() {
     // Three 2s ticks, a 30s pause (view hidden), then two more ticks.
     let samples = [0, 2, 4, 34, 36].map { sampleAt(Double($0)) }
-    let points = chartPoints(from: samples, windowSeconds: 300, gapThreshold: 5)
+    // Anchor "now" at the newest sample: this asserts the segmentation/positioning logic
+    // independent of stale-gap handling (covered separately below).
+    let points = chartPoints(from: samples, now: samples.last!.timestamp, windowSeconds: 300, gapThreshold: 5)
 
     #expect(points.map(\.segment) == [0, 0, 0, 1, 1])   // line breaks at the gap
-    #expect(points.first?.secondsAgo == -36)            // oldest, relative to newest
-    #expect(points.last?.secondsAgo == 0)               // newest is "now"
+    #expect(points.first?.secondsAgo == -36)            // oldest, relative to now
+    #expect(points.last?.secondsAgo == 0)               // newest lands exactly at "now"
 }
 
 @Test("buildPoints drops samples older than the visible window")
 func chartPointsWindowing() {
-    // Newest at 400s; window 300s keeps only samples within 300s of it.
+    // "now" at 400s; window 300s keeps only samples within 300s of it.
     let samples = [0, 100, 400].map { sampleAt(Double($0)) }
-    let points = chartPoints(from: samples, windowSeconds: 300, gapThreshold: 5)
+    let points = chartPoints(from: samples, now: t0.addingTimeInterval(400), windowSeconds: 300, gapThreshold: 5)
 
     #expect(points.count == 2)                          // the 0s sample (400s old) is dropped
     #expect(points.first?.secondsAgo == -300)
+}
+
+@Test("Stale data anchors to wall-clock now: the newest sample sits back from the now edge, and data older than the window falls off")
+func chartPointsAnchoredToWallClock() {
+    // Samples stop at t0+40; the view renders 100s later (container stopped / app resumed).
+    let samples = [0, 20, 40].map { sampleAt(Double($0)) }
+    let now = t0.addingTimeInterval(140)
+    let points = chartPoints(from: samples, now: now, windowSeconds: 120, gapThreshold: 5)
+
+    // The 0s sample is 140s old → outside the 120s window → dropped.
+    #expect(points.count == 2)
+    // The newest sample is 100s old, so it draws at -100 (a gap to the right), not at 0.
+    #expect(points.last?.secondsAgo == -100)
+    #expect(points.allSatisfy { $0.secondsAgo < 0 })   // nothing masquerades as "now"
 }
 
 // MARK: - Downsampling
