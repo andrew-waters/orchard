@@ -127,6 +127,63 @@ func memoryPercentUnbounded() {
     #expect(sample.memoryPercent == 0.0)
 }
 
+// MARK: - Real `container stats` fixtures (S0)
+//
+// Captured 2026-07-05 from `container stats --no-stream --format json` (container CLI 0.12.3):
+// three reads ~2s apart of `nginx` (4-core allocation) under a curl load loop, plus `traefik`
+// (1-core) which stayed completely idle across all three. These are the raw cumulative counters
+// the SDK feeds `ContainerStats` verbatim — CPU in microseconds, everything else in bytes — so a
+// test against them fails if that unit assumption is ever wrong, instead of silently mis-scaling
+// every chart. The synthetic tests above prove the arithmetic; these anchor it to real output.
+private enum StatsFixtures {
+    // nginx, cumulative:
+    static let nginx1 = read(id: "nginx", cpuUsec: 143_260, mem: 20_426_752, memLimit: 1_073_741_824,
+                             blkR: 14_172_160, blkW: 4_096, rx: 529_057, tx: 346_564, pids: 6)
+    static let nginx2 = read(id: "nginx", cpuUsec: 318_754, mem: 20_283_392, memLimit: 1_073_741_824,
+                             blkR: 14_172_160, blkW: 4_096, rx: 790_468, tx: 1_048_708, pids: 6)
+    static let nginx3 = read(id: "nginx", cpuUsec: 499_663, mem: 20_312_064, memLimit: 1_073_741_824,
+                             blkR: 14_172_160, blkW: 4_096, rx: 1_059_301, tx: 1_771_460, pids: 6)
+    // traefik, cumulative — identical across all three reads (idle):
+    static let traefikIdle = read(id: "traefik", cpuUsec: 9_342_069, mem: 114_044_928, memLimit: 268_435_456,
+                                  blkR: 96_849_920, blkW: 0, rx: 5_490_959, tx: 10_557_048, pids: 8)
+}
+
+@Test("Real nginx reads: microsecond CPU + byte counters produce plausible, exact derived values over a 2s tick")
+func realBusyContainerSample() {
+    // nginx is a 4-core allocation; the sampler's nominal cadence is 2s.
+    let sample = computeSample(prev: StatsFixtures.nginx1, curr: StatsFixtures.nginx2,
+                               at: t0, elapsed: .seconds(2), cpuCount: 4)
+
+    // Δcpu = 175_494 µs over 2s on 4 cores → (0.175494 / 2) / 4 × 100 = ~2.19%. If the field were
+    // nanoseconds this would round to ~0.00%; if milliseconds it would peg at 100%. So this range
+    // pins the microsecond unit specifically.
+    #expect(abs(sample.cpuPercent - 2.1937) < 0.01)
+    #expect(sample.cpuPercent > 0.5 && sample.cpuPercent < 20)
+
+    #expect(sample.networkRxPerSec == Double(790_468 - 529_057) / 2)   // 130_705.5 B/s
+    #expect(sample.networkTxPerSec == Double(1_048_708 - 346_564) / 2) // 351_072 B/s
+    #expect(sample.blockReadPerSec == 0)                               // unchanged counter
+    #expect(sample.blockWritePerSec == 0)
+    #expect(sample.memoryBytes == 20_283_392)                          // passed through, in bytes
+
+    // Memory in bytes: 20_283_392 B ≈ 19.3 MiB, matching the CLI's "MiB" column (not KiB/GiB).
+    #expect(abs(Double(sample.memoryBytes) / 1_048_576 - 19.3) < 0.5)
+}
+
+@Test("Real idle container (traefik, unchanged counters) yields zero CPU and zero rates")
+func realIdleContainerSample() {
+    let sample = computeSample(prev: StatsFixtures.traefikIdle, curr: StatsFixtures.traefikIdle,
+                               at: t0, elapsed: .seconds(2), cpuCount: 1)
+
+    #expect(sample.cpuPercent == 0)
+    #expect(sample.networkRxPerSec == 0)
+    #expect(sample.networkTxPerSec == 0)
+    #expect(sample.blockReadPerSec == 0)
+    #expect(sample.blockWritePerSec == 0)
+    // 114_044_928 B ≈ 108.76 MiB — exactly the CLI's reported "108.76 MiB", confirming bytes.
+    #expect(abs(Double(sample.memoryBytes) / 1_048_576 - 108.76) < 0.01)
+}
+
 // MARK: - StatsHistoryStore
 
 private func sample(cpu: Double) -> StatsSample {
