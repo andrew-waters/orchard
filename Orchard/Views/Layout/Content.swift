@@ -27,7 +27,6 @@ struct ContentView: View {
     @State private var lastSelectedNetwork: String?
 
     // Last selected tabs for each section
-    @State private var lastSelectedContainerTab: String = "overview"
     @State private var lastSelectedImageTab: String = "overview"
     @State private var lastSelectedMountTab: String = "overview"
 
@@ -73,7 +72,6 @@ struct ContentView: View {
                     lastSelectedMount: $lastSelectedMount,
                     lastSelectedDNSDomain: $lastSelectedDNSDomain,
                     lastSelectedNetwork: $lastSelectedNetwork,
-                    lastSelectedContainerTab: $lastSelectedContainerTab,
                     lastSelectedImageTab: $lastSelectedImageTab,
                     lastSelectedMountTab: $lastSelectedMountTab,
                     searchText: $searchText,

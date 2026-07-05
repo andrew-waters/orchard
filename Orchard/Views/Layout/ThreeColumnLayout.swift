@@ -23,7 +23,6 @@ struct ThreeColumnLayout: View {
     @Binding var lastSelectedMount: String?
     @Binding var lastSelectedDNSDomain: String?
     @Binding var lastSelectedNetwork: String?
-    @Binding var lastSelectedContainerTab: String
     @Binding var lastSelectedImageTab: String
     @Binding var lastSelectedMountTab: String
     @Binding var searchText: String
@@ -259,7 +258,6 @@ struct ThreeColumnLayout: View {
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
                     isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
-                    lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedContainersBinding: $selectedContainers,
@@ -293,7 +291,6 @@ struct ThreeColumnLayout: View {
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
                     isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
-                    lastSelectedContainerTab: $lastSelectedContainerTab,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedContainersBinding: $selectedContainers,
@@ -615,7 +612,6 @@ struct DetailColumnView: View {
     let selectedDNSDomain: String?
     let selectedNetwork: String?
     let isInIntentionalConfigurationMode: Bool
-    @Binding var lastSelectedContainerTab: String
     @Binding var lastSelectedImageTab: String
     @Binding var lastSelectedMountTab: String
     @Binding var selectedTabBinding: TabSelection
@@ -636,7 +632,6 @@ struct DetailColumnView: View {
                 selectedDNSDomain: selectedDNSDomain,
                 selectedNetwork: selectedNetwork,
                 isInIntentionalConfigurationMode: isInIntentionalConfigurationMode,
-                lastSelectedContainerTab: $lastSelectedContainerTab,
                 selectedTabBinding: $selectedTabBinding,
                 selectedContainerBinding: $selectedContainerBinding,
                 selectedContainersBinding: $selectedContainersLocal,
