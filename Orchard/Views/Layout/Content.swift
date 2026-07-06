@@ -18,8 +18,10 @@ struct ContentView: View {
     @State private var selectedMounts: Set<String> = []
     @State private var selectedDNSDomain: String?
     @State private var selectedDNSDomains: Set<String> = []
+    @State private var pendingDNSSelection: String?
     @State private var selectedNetwork: String?
     @State private var selectedNetworks: Set<String> = []
+    @State private var pendingNetworkSelection: String?
 
     // Last selected items to restore state
     @State private var lastSelectedContainer: String?
@@ -135,7 +137,13 @@ struct ContentView: View {
                 }
             }
             .onChange(of: dnsService.dnsDomains) { oldDomains, newDomains in
-                if selectedDNSDomain == nil && !newDomains.isEmpty && selectedTab == .dns {
+                if let pending = pendingDNSSelection, newDomains.contains(where: { $0.domain == pending }) {
+                    selectedDNSDomain = pending
+                    selectedDNSDomains = [pending]
+                    lastSelectedDNSDomain = pending
+                    listFocusedTab = .dns
+                    pendingDNSSelection = nil
+                } else if selectedDNSDomain == nil && !newDomains.isEmpty && selectedTab == .dns {
                     selectedDNSDomain = newDomains[0].domain
                     selectedDNSDomains = [newDomains[0].domain]
                 }
@@ -146,7 +154,13 @@ struct ContentView: View {
                 }
             }
             .onChange(of: networkService.networks) { oldNetworks, newNetworks in
-                if selectedNetwork == nil && !newNetworks.isEmpty && selectedTab == .networks {
+                if let pending = pendingNetworkSelection, newNetworks.contains(where: { $0.id == pending }) {
+                    selectedNetwork = pending
+                    selectedNetworks = [pending]
+                    lastSelectedNetwork = pending
+                    listFocusedTab = .networks
+                    pendingNetworkSelection = nil
+                } else if selectedNetwork == nil && !newNetworks.isEmpty && selectedTab == .networks {
                     selectedNetwork = newNetworks[0].id
                     selectedNetworks = [newNetworks[0].id]
                 }
@@ -293,11 +307,12 @@ struct ContentView: View {
                         await dnsService.load(showLoading: false)
                         await MainActor.run {
                             if dnsService.dnsDomains.contains(where: { $0.domain == domainName }) {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    selectedDNSDomain = domainName
-                                    lastSelectedDNSDomain = domainName
-                                    listFocusedTab = .dns
-                                }
+                                selectedDNSDomain = domainName
+                                selectedDNSDomains = [domainName]
+                                lastSelectedDNSDomain = domainName
+                                listFocusedTab = .dns
+                            } else {
+                                pendingDNSSelection = domainName
                             }
                         }
                     }
@@ -312,11 +327,12 @@ struct ContentView: View {
                         await networkService.load(showLoading: false)
                         await MainActor.run {
                             if networkService.networks.contains(where: { $0.id == networkId }) {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    selectedNetwork = networkId
-                                    lastSelectedNetwork = networkId
-                                    listFocusedTab = .networks
-                                }
+                                selectedNetwork = networkId
+                                selectedNetworks = [networkId]
+                                lastSelectedNetwork = networkId
+                                listFocusedTab = .networks
+                            } else {
+                                pendingNetworkSelection = networkId
                             }
                         }
                     }
@@ -353,11 +369,6 @@ struct ContentView: View {
 
         await dnsService.load(showLoading: true)
         await networkService.load(showLoading: true)
-
-        // Check for updates on startup
-        if false {
-            
-        }
     }
 
     private func startRefreshTimer() {
@@ -369,10 +380,6 @@ struct ContentView: View {
                 await builderService.loadBuilders()
                 await dnsService.load(showLoading: false)
                 await networkService.load(showLoading: false)
-
-                if false {
-                    
-                }
             }
         }
     }

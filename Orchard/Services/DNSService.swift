@@ -136,10 +136,9 @@ final class DNSService: ObservableObject {
         
         let script = """
         for d in "$@"; do
-            if "$0" system dns delete "$d" >/dev/null 2>&1; then
-                echo "SUCCESS"
-            else
-                echo "FAILED"
+            err=$("$0" system dns delete "$d" 2>&1 >/dev/null)
+            if [ $? -ne 0 ]; then
+                echo "FAILED|$d|$err"
             fi
         done
         """
@@ -148,26 +147,27 @@ final class DNSService: ObservableObject {
             let arguments = ["-c", script, settings.safeContainerBinaryPath()] + domains
             let result = try await runner.runWithSudo(program: "/bin/sh", arguments: arguments)
             
-            var deletedCount = 0
-            var failedCount = 0
-            
+            var failedDetails = [String]()
             let lines = (result.stdout ?? "").components(separatedBy: .newlines).filter { !$0.isEmpty }
-            if lines.count == domains.count {
-                for line in lines {
-                    if line == "SUCCESS" { deletedCount += 1 }
-                    else { failedCount += 1 }
+            
+            for line in lines {
+                if line.hasPrefix("FAILED|") {
+                    let parts = line.split(separator: "|", maxSplits: 2)
+                    if parts.count == 3 {
+                        failedDetails.append("\(parts[1]): \(parts[2])")
+                    }
                 }
-            } else {
-                failedCount = domains.count
             }
             
             await load()
-            if failedCount > 0 {
-                alertCenter.error("Failed to delete \(failedCount) DNS domain(s)")
+            if !failedDetails.isEmpty {
+                alertCenter.error("Failed to delete domains:\n" + failedDetails.joined(separator: "\n"))
+            } else if result.failed {
+                alertCenter.error(result.stderr ?? "Failed to delete DNS domains")
             }
         } catch {
             await load()
-            alertCenter.error("Failed to delete \(domains.count) DNS domain(s)")
+            alertCenter.error("Failed to delete DNS domains: \(error.localizedDescription)")
         }
     }
 }
