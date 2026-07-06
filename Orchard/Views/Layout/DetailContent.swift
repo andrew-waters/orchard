@@ -7,12 +7,20 @@ struct DetailContentView: View {
     let selectedContainer: String?
     let selectedContainers: Set<String>
     let selectedImage: String?
+    let selectedImages: Set<String>
     let selectedMount: String?
+    let selectedMounts: Set<String>
     let selectedDNSDomain: String?
+    let selectedDNSDomains: Set<String>
     let selectedNetwork: String?
+    let selectedNetworks: Set<String>
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
     @Binding var selectedContainersBinding: Set<String>
+    @Binding var selectedImagesBinding: Set<String>
+    @Binding var selectedMountsBinding: Set<String>
+    @Binding var selectedDNSDomainsBinding: Set<String>
+    @Binding var selectedNetworksBinding: Set<String>
     @Binding var selectedNetworkBinding: String?
 
     var body: some View {
@@ -88,7 +96,14 @@ struct DetailContentView: View {
 
     @ViewBuilder
     private var imageDetailView: some View {
-        ForEach(imageService.images, id: \.reference) { image in
+        
+        if selectedImages.count > 1 {
+            MultiImageCardsView(
+                imageIds: selectedImages,
+                selectedImagesBinding: $selectedImagesBinding
+            )
+        } else {
+            ForEach(imageService.images, id: \.reference) { image in
             if selectedImage == image.reference {
                 ContainerImageDetailView(
                     image: image,
@@ -97,11 +112,19 @@ struct DetailContentView: View {
                 )
             }
         }
+        }
     }
 
     @ViewBuilder
     private var mountDetailView: some View {
-        ForEach(containerListService.allMounts, id: \.id) { mount in
+        
+        if selectedMounts.count > 1 {
+            MultiMountCardsView(
+                mountIds: selectedMounts,
+                selectedMountsBinding: $selectedMountsBinding
+            )
+        } else {
+            ForEach(containerListService.allMounts, id: \.id) { mount in
             if selectedMount == mount.id {
                 MountDetailView(
                     mount: mount,
@@ -109,6 +132,7 @@ struct DetailContentView: View {
                     selectedContainer: $selectedContainerBinding
                 )
             }
+        }
         }
     }
 }

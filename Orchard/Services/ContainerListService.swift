@@ -439,4 +439,77 @@ final class ContainerListService: ObservableObject {
             return false
         }
     }
+
+    func deleteMounts(_ mounts: [ContainerMount]) async {
+        var deletedCount = 0
+        var failedCount = 0
+        for mount in mounts {
+            for containerId in mount.containerIds {
+                guard let container = containers.first(where: { $0.configuration.id == containerId }) else { continue }
+                
+                let oldConfig = container.configuration
+                let updatedMounts = oldConfig.mounts.filter { m in
+                    !(m.source == mount.mount.source && m.destination == mount.mount.destination)
+                }
+                
+                var envVars: [ContainerRunConfig.EnvironmentVariable] = []
+                for env in oldConfig.initProcess.environment {
+                    let parts = env.split(separator: "=", maxSplits: 1)
+                    if parts.count == 2 {
+                        envVars.append(.init(key: String(parts[0]), value: String(parts[1])))
+                    }
+                }
+                
+                var portMappings: [ContainerRunConfig.PortMapping] = []
+                for port in oldConfig.publishedPorts {
+                    portMappings.append(.init(
+                        hostPort: "\(port.hostPort)",
+                        containerPort: "\(port.containerPort)",
+                        transportProtocol: port.transportProtocol
+                    ))
+                }
+                
+                var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
+                for m in updatedMounts {
+                    let isReadonly = m.options.contains("ro")
+                    volumeMappings.append(.init(
+                        hostPath: m.source,
+                        containerPath: m.destination,
+                        readonly: isReadonly
+                    ))
+                }
+                
+                let runConfig = ContainerRunConfig(
+                    name: oldConfig.id,
+                    image: oldConfig.image.reference,
+                    detached: true,
+                    removeAfterStop: false,
+                    environmentVariables: envVars,
+                    portMappings: portMappings,
+                    volumeMappings: volumeMappings,
+                    workingDirectory: oldConfig.initProcess.workingDirectory,
+                    commandOverride: oldConfig.initProcess.arguments.joined(separator: " "),
+                    dnsDomain: oldConfig.dns.domain ?? "",
+                    network: container.networks.first?.network ?? ""
+                )
+                
+                do {
+                    try await backend.deleteContainer(id: containerId, force: true)
+                    let started = await runContainer(config: runConfig)
+                    if started {
+                        deletedCount += 1
+                    } else {
+                        failedCount += 1
+                    }
+                } catch {
+                    failedCount += 1
+                }
+            }
+        }
+        await loadContainers(showLoading: false)
+        if failedCount > 0 {
+            alertCenter.error("Failed to remove mount(s) from \(failedCount) container(s)")
+        }
+    }
+
 }

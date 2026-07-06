@@ -126,4 +126,27 @@ final class DNSService: ObservableObject {
             alertCenter.error("Failed to set default DNS domain: \(error.localizedDescription)")
         }
     }
+    func deleteDNSDomains(_ domains: [String]) async {
+        var deletedCount = 0
+        var failedCount = 0
+        for domain in domains {
+            do {
+                let result = try await runner.runWithSudo(
+                    program: settings.safeContainerBinaryPath(),
+                    arguments: ["system", "dns", "delete", domain])
+                if !result.failed {
+                    deletedCount += 1
+                } else {
+                    failedCount += 1
+                }
+            } catch {
+                failedCount += 1
+            }
+        }
+        await load()
+        if failedCount > 0 {
+            alertCenter.error("Failed to delete \(failedCount) DNS domain(s)")
+        }
+    }
+
 }
