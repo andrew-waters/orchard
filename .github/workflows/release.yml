@@ -50,6 +50,12 @@ jobs:
   build:
     needs: test
     runs-on: macos-15
+    # gh-pages HEAD after the appcast push — handed to the Pages deploy as its build
+    # version. It's a fresh orphan-branch commit, so it's always distinct from ci.yml's
+    # main-branch deploy of the same release commit, which is what stops the release
+    # deploy from no-opping over ci's earlier one (see pages.yml).
+    outputs:
+      ghpages_sha: ${{ steps.ghpages_sha.outputs.sha }}
 
     steps:
       - uses: actions/checkout@v4
@@ -349,6 +355,17 @@ jobs:
           publish_dir: ./_site
           keep_files: true
 
+      # Capture the commit the appcast push just created on gh-pages. The Pages deploy
+      # uses it as the build version so this release's deploy differs from ci.yml's
+      # earlier deploy of the same release commit and actually serves the fresh appcast.
+      - name: Capture gh-pages commit for the Pages deploy
+        id: ghpages_sha
+        if: steps.appcast.outputs.generated == 'true'
+        run: |
+          SHA=$(git ls-remote "${{ github.server_url }}/${{ github.repository }}" refs/heads/gh-pages | cut -f1)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "gh-pages HEAD: $SHA"
+
   # Publish the site (with the freshly-persisted appcast) via GitHub Actions Pages.
   deploy-pages:
     needs: build
@@ -357,3 +374,7 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/pages.yml
+    # Empty when no appcast was generated (e.g. workflow_dispatch without a tag); pages.yml
+    # then falls back to github.sha.
+    with:
+      build_version: ${{ needs.build.outputs.ghpages_sha }}

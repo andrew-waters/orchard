@@ -14,6 +14,17 @@ on:
       - "site/**"
       - ".github/workflows/pages.yml"
   workflow_call:
+    inputs:
+      build_version:
+        description: >-
+          Commit SHA to publish as the Pages build version. Must be a real
+          commit SHA — the Pages API 404s on anything else. Callers pass a
+          distinct real SHA (e.g. release.yml's gh-pages appcast commit) so a
+          same-source-commit redeploy isn't treated as a no-op. Defaults to the
+          triggering commit when omitted.
+        type: string
+        required: false
+        default: ""
   workflow_dispatch:
 
 permissions:
@@ -96,22 +107,22 @@ jobs:
       # actions/deploy-pages@v4, because that action hardcodes pages_build_version to
       # GITHUB_SHA (its src/internal/context.js). GitHub Pages treats a deployment whose
       # build version equals the currently-live one as a no-op: it reports success but
-      # never swaps the served content. Our release flow always collides — the "Bump
-      # version" commit's ci.yml run deploys that SHA first, then release.yml deploys the
-      # *same* SHA (carrying the fresh appcast) minutes later and silently no-ops. Nothing
-      # can override GITHUB_SHA via `env:` (the runner ignores writes to GITHUB_*), so we
-      # pass our own per-run-unique build version here. Retries once, matching the
-      # transient-failure handling this step used to have — and now fails loudly on an
-      # unrecoverable error rather than silently serving stale content.
+      # never swaps the served content. Our release flow collides — the "Bump version"
+      # commit's ci.yml run deploys that SHA first, then release.yml deploys the *same*
+      # SHA (carrying the fresh appcast) minutes later and would silently no-op. So callers
+      # can override the build version via the build_version input.
+      #
+      # The build version MUST be a real commit SHA: despite the REST docs calling it "a
+      # unique string", the backend 404s on anything else (actions/deploy-pages#383).
+      # release.yml passes its fresh gh-pages appcast commit SHA — distinct from ci's
+      # main-branch SHA — so both deploys take effect. Every other path defaults to the
+      # triggering commit, exactly what deploy-pages sent before.
       - name: Deploy to GitHub Pages
         id: deploy
         uses: actions/github-script@v7
         env:
           ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
-          # Unique per workflow run (and per "re-run failed jobs" attempt), so no two
-          # deployments ever share a build version — this is what stops the release
-          # deploy from no-opping over ci's earlier one.
-          BUILD_VERSION: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          BUILD_VERSION: ${{ inputs.build_version || github.sha }}
         with:
           script: |
             const artifactId = Number(process.env.ARTIFACT_ID);
