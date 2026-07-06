@@ -143,7 +143,7 @@ struct ContentView: View {
                     lastSelectedDNSDomain = pending
                     listFocusedTab = .dns
                     pendingDNSSelection = nil
-                } else if selectedDNSDomain == nil && !newDomains.isEmpty && selectedTab == .dns {
+                } else if selectedDNSDomain == nil && pendingDNSSelection == nil && !newDomains.isEmpty && selectedTab == .dns {
                     selectedDNSDomain = newDomains[0].domain
                     selectedDNSDomains = [newDomains[0].domain]
                 }
@@ -160,7 +160,7 @@ struct ContentView: View {
                     lastSelectedNetwork = pending
                     listFocusedTab = .networks
                     pendingNetworkSelection = nil
-                } else if selectedNetwork == nil && !newNetworks.isEmpty && selectedTab == .networks {
+                } else if selectedNetwork == nil && pendingNetworkSelection == nil && !newNetworks.isEmpty && selectedTab == .networks {
                     selectedNetwork = newNetworks[0].id
                     selectedNetworks = [newNetworks[0].id]
                 }
@@ -302,19 +302,17 @@ struct ContentView: View {
                 NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToDNSDomain"))
             ) { notification in
                 if let domainName = notification.object as? String {
+                    pendingDNSSelection = domainName
                     selectedTab = TabSelection.dns
+                    if dnsService.dnsDomains.contains(where: { $0.domain == domainName }) {
+                        selectedDNSDomain = domainName
+                        selectedDNSDomains = [domainName]
+                        lastSelectedDNSDomain = domainName
+                        listFocusedTab = .dns
+                        pendingDNSSelection = nil
+                    }
                     Task {
                         await dnsService.load(showLoading: false)
-                        await MainActor.run {
-                            if dnsService.dnsDomains.contains(where: { $0.domain == domainName }) {
-                                selectedDNSDomain = domainName
-                                selectedDNSDomains = [domainName]
-                                lastSelectedDNSDomain = domainName
-                                listFocusedTab = .dns
-                            } else {
-                                pendingDNSSelection = domainName
-                            }
-                        }
                     }
                 }
             }
@@ -322,19 +320,17 @@ struct ContentView: View {
                 NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToNetwork"))
             ) { notification in
                 if let networkId = notification.object as? String {
+                    pendingNetworkSelection = networkId
                     selectedTab = TabSelection.networks
+                    if networkService.networks.contains(where: { $0.id == networkId }) {
+                        selectedNetwork = networkId
+                        selectedNetworks = [networkId]
+                        lastSelectedNetwork = networkId
+                        listFocusedTab = .networks
+                        pendingNetworkSelection = nil
+                    }
                     Task {
                         await networkService.load(showLoading: false)
-                        await MainActor.run {
-                            if networkService.networks.contains(where: { $0.id == networkId }) {
-                                selectedNetwork = networkId
-                                selectedNetworks = [networkId]
-                                lastSelectedNetwork = networkId
-                                listFocusedTab = .networks
-                            } else {
-                                pendingNetworkSelection = networkId
-                            }
-                        }
                     }
                 }
             }
