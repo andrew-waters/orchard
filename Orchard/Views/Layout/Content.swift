@@ -45,7 +45,6 @@ struct ContentView: View {
     @FocusState private var listFocusedTab: TabSelection?
 
     @State private var showingItemNavigatorPopover = false
-    @State private var isInIntentionalConfigurationMode = false
 
     @Environment(\.openWindow) private var openWindow
 
@@ -103,7 +102,7 @@ struct ContentView: View {
     private func applyServiceSyncHandlers(to view: some View) -> some View {
         view
             .onChange(of: containerListService.containers) { oldContainers, newContainers in
-                if selectedContainer == nil && !newContainers.isEmpty && !isInIntentionalConfigurationMode {
+                if selectedContainer == nil && !newContainers.isEmpty && selectedTab == .containers {
                     selectedContainer = newContainers[0].configuration.id
                     selectedContainers = [newContainers[0].configuration.id]
                 }
@@ -114,7 +113,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: imageService.images) { oldImages, newImages in
-                if selectedImage == nil && !newImages.isEmpty && !isInIntentionalConfigurationMode {
+                if selectedImage == nil && !newImages.isEmpty && selectedTab == .images {
                     selectedImage = newImages[0].reference
                     selectedImages = [newImages[0].reference]
                 }
@@ -125,7 +124,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: containerListService.allMounts) { oldMounts, newMounts in
-                if selectedMount == nil && !newMounts.isEmpty && !isInIntentionalConfigurationMode {
+                if selectedMount == nil && !newMounts.isEmpty && selectedTab == .mounts {
                     selectedMount = newMounts[0].id
                     selectedMounts = [newMounts[0].id]
                 }
@@ -136,7 +135,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: dnsService.dnsDomains) { oldDomains, newDomains in
-                if selectedDNSDomain == nil && !newDomains.isEmpty && !isInIntentionalConfigurationMode {
+                if selectedDNSDomain == nil && !newDomains.isEmpty && selectedTab == .dns {
                     selectedDNSDomain = newDomains[0].domain
                     selectedDNSDomains = [newDomains[0].domain]
                 }
@@ -147,7 +146,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: networkService.networks) { oldNetworks, newNetworks in
-                if selectedNetwork == nil && !newNetworks.isEmpty && !isInIntentionalConfigurationMode {
+                if selectedNetwork == nil && !newNetworks.isEmpty && selectedTab == .networks {
                     selectedNetwork = newNetworks[0].id
                     selectedNetworks = [newNetworks[0].id]
                 }

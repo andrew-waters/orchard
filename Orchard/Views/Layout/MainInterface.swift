@@ -37,16 +37,14 @@ struct MainInterfaceView: View {
         // Check if we're in configuration mode (no selections)
         let isConfigurationMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
 
-        if isConfigurationMode {
-            return "Configuration"
-        }
+
 
         switch selectedTab {
         case .containers:
             if let selectedContainer = selectedContainer {
                 return selectedContainer
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .images:
             if let selectedImage = selectedImage {
                 // Extract image name from reference for cleaner display
@@ -56,23 +54,23 @@ struct MainInterfaceView: View {
                 }
                 return selectedImage
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .mounts:
             if let selectedMount = selectedMount,
                let mount = containerListService.allMounts.first(where: { $0.id == selectedMount }) {
                 return URL(fileURLWithPath: mount.mount.source).lastPathComponent
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .dns:
             if let selectedDNSDomain = selectedDNSDomain {
                 return selectedDNSDomain
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .networks:
             if let selectedNetwork = selectedNetwork {
                 return selectedNetwork
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .registries:
             return ""
         case .systemLogs:

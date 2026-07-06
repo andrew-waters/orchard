@@ -63,7 +63,7 @@ struct DNSListView: View {
             ForEach(dnsService.dnsDomains) { domain in
                 let targetDomains: [String] = {
                     if selectedDNSDomains.count > 1 && selectedDNSDomains.contains(domain.domain) {
-                        return Array(selectedDNSDomains)
+                        return selectedDNSDomains.sorted()
                     }
                     return [domain.domain]
                 }()

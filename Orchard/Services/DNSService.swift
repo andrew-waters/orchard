@@ -83,6 +83,11 @@ final class DNSService: ObservableObject {
     }
 
     func delete(_ domain: String) async {
+        if defaultDomain() == domain {
+            alertCenter.error("Cannot delete the default DNS domain.")
+            return
+        }
+
         do {
             let result = try await runner.runWithSudo(
                 program: settings.safeContainerBinaryPath(),
@@ -127,26 +132,42 @@ final class DNSService: ObservableObject {
         }
     }
     func deleteDNSDomains(_ domains: [String]) async {
-        var deletedCount = 0
-        var failedCount = 0
-        for domain in domains {
-            do {
-                let result = try await runner.runWithSudo(
-                    program: settings.safeContainerBinaryPath(),
-                    arguments: ["system", "dns", "delete", domain])
-                if !result.failed {
-                    deletedCount += 1
-                } else {
-                    failedCount += 1
+        guard !domains.isEmpty else { return }
+        
+        let script = """
+        for d in "$@"; do
+            if "$0" system dns delete "$d" >/dev/null 2>&1; then
+                echo "SUCCESS"
+            else
+                echo "FAILED"
+            fi
+        done
+        """
+        
+        do {
+            let arguments = ["-c", script, settings.safeContainerBinaryPath()] + domains
+            let result = try await runner.runWithSudo(program: "/bin/sh", arguments: arguments)
+            
+            var deletedCount = 0
+            var failedCount = 0
+            
+            let lines = (result.stdout ?? "").components(separatedBy: .newlines).filter { !$0.isEmpty }
+            if lines.count == domains.count {
+                for line in lines {
+                    if line == "SUCCESS" { deletedCount += 1 }
+                    else { failedCount += 1 }
                 }
-            } catch {
-                failedCount += 1
+            } else {
+                failedCount = domains.count
             }
-        }
-        await load()
-        if failedCount > 0 {
-            alertCenter.error("Failed to delete \(failedCount) DNS domain(s)")
+            
+            await load()
+            if failedCount > 0 {
+                alertCenter.error("Failed to delete \(failedCount) DNS domain(s)")
+            }
+        } catch {
+            await load()
+            alertCenter.error("Failed to delete \(domains.count) DNS domain(s)")
         }
     }
-
 }

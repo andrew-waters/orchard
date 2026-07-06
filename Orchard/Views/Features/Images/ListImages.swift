@@ -78,9 +78,7 @@ struct ImagesListView: View {
             Divider()
 
             Button(multiple ? "Remove \(targetIds.count) Images" : "Remove Image", role: .destructive) {
-                Task {
-                    await imageService.deleteImages(targetIds)
-                }
+                confirmImagesDeletion(references: targetIds)
             }
         }
         .tag(image.reference)
@@ -160,5 +158,19 @@ struct ImagesListView: View {
     private func selectAllImages() {
         let orderedIds = filteredImages.map { $0.reference }
         selectedImages = Set(orderedIds)
+    }
+
+    private func confirmImagesDeletion(references: [String]) {
+        let alert = NSAlert()
+        alert.messageText = references.count > 1 ? "Delete Images" : "Delete Image"
+        let refsList = references.joined(separator: ", ")
+        alert.informativeText = "Are you sure you want to delete \(references.count > 1 ? "\(references.count) images (\(refsList))" : "'\(references[0])'")?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await imageService.deleteImages(references) }
+        }
     }
 }

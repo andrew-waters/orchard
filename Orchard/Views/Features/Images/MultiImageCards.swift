@@ -127,7 +127,16 @@ private struct ImageSummaryCard: View {
 
                 Button("Remove") {
                     let ref = image.reference
-                    Task { await imageService.deleteImages([ref]) }
+                    let alert = NSAlert()
+                    alert.messageText = "Delete Image"
+                    alert.informativeText = "Are you sure you want to delete '\(ref)'?"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "Delete")
+                    alert.addButton(withTitle: "Cancel")
+                    
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        Task { await imageService.deleteImages([ref]) }
+                    }
                 }
                 .foregroundColor(.red)
 
