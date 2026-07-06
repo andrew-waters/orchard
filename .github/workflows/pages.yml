@@ -87,22 +87,93 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
+        id: upload
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
-      # Retry once: GitHub's Pages deployment API intermittently returns
-      # "Deployment failed, try again later" for a single attempt. A retry after a short
-      # pause clears the vast majority of those transient failures.
+      # We call the Pages deployments REST API directly instead of using
+      # actions/deploy-pages@v4, because that action hardcodes pages_build_version to
+      # GITHUB_SHA (its src/internal/context.js). GitHub Pages treats a deployment whose
+      # build version equals the currently-live one as a no-op: it reports success but
+      # never swaps the served content. Our release flow always collides — the "Bump
+      # version" commit's ci.yml run deploys that SHA first, then release.yml deploys the
+      # *same* SHA (carrying the fresh appcast) minutes later and silently no-ops. Nothing
+      # can override GITHUB_SHA via `env:` (the runner ignores writes to GITHUB_*), so we
+      # pass our own per-run-unique build version here. Retries once, matching the
+      # transient-failure handling this step used to have — and now fails loudly on an
+      # unrecoverable error rather than silently serving stale content.
       - name: Deploy to GitHub Pages
         id: deploy
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+          # Unique per workflow run (and per "re-run failed jobs" attempt), so no two
+          # deployments ever share a build version — this is what stops the release
+          # deploy from no-opping over ci's earlier one.
+          BUILD_VERSION: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        with:
+          script: |
+            const artifactId = Number(process.env.ARTIFACT_ID);
+            const buildVersion = process.env.BUILD_VERSION;
+            const { owner, repo } = context.repo;
+            const TERMINAL_FAILURES = [
+              'deployment_failed',
+              'deployment_content_failed',
+              'deployment_cancelled',
+              'deployment_lost',
+            ];
 
-      - name: Wait before retry
-        if: steps.deploy.outcome == 'failure'
-        run: sleep 20
+            async function deployOnce() {
+              const idToken = await core.getIDToken();
+              const created = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+                owner,
+                repo,
+                artifact_id: artifactId,
+                pages_build_version: buildVersion,
+                oidc_token: idToken,
+              });
+              const deploymentId =
+                created.data.id || created.data.status_url?.split('/').pop() || buildVersion;
+              core.info(`Created deployment ${deploymentId} (build version ${buildVersion})`);
+              if (created.data.page_url) {
+                core.setOutput('page_url', created.data.page_url);
+              }
 
-      - name: Deploy to GitHub Pages (retry)
-        if: steps.deploy.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+              // Poll until the deployment reaches a terminal state (10 min ceiling).
+              // Tolerate a few consecutive transient status-query errors before giving
+              // up (as deploy-pages does) — one flaky GET shouldn't abandon an otherwise
+              // healthy deployment.
+              let consecutiveErrors = 0;
+              for (let i = 0; i < 120; i++) {
+                await new Promise(r => setTimeout(r, 5000));
+                let data;
+                try {
+                  ({ data } = await github.request(
+                    'GET /repos/{owner}/{repo}/pages/deployments/{deploymentId}',
+                    { owner, repo, deploymentId }
+                  ));
+                  consecutiveErrors = 0;
+                } catch (error) {
+                  if (++consecutiveErrors > 10) throw error;
+                  core.warning(`Status query failed (${error.message}); ${consecutiveErrors} in a row, still polling…`);
+                  continue;
+                }
+                core.info(`Deployment status: ${data.status}`);
+                if (data.status === 'succeed') return;
+                if (TERMINAL_FAILURES.includes(data.status)) {
+                  throw new Error(`Deployment reached terminal failure state: ${data.status}`);
+                }
+              }
+              throw new Error('Timed out waiting for the Pages deployment to succeed');
+            }
+
+            // Retry once: the Pages deployment API intermittently returns a transient
+            // failure that clears on a second attempt after a short pause.
+            try {
+              await deployOnce();
+            } catch (error) {
+              core.warning(`Deploy attempt failed (${error.message}); retrying once in 20s…`);
+              await new Promise(r => setTimeout(r, 20000));
+              await deployOnce();
+            }

@@ -292,6 +292,39 @@ jobs:
             Orchard-${{ steps.version.outputs.version }}.dmg
             Orchard-${{ steps.version.outputs.version }}.dmg.sha256
 
+      # Assemble the release body, using this version's CHANGELOG section as the "Changes"
+      # section. Falls back to the generic line if the section is missing.
+      - name: Build release notes
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          NOTES=$(python3 .github/scripts/changelog_to_html.py --markdown "$VERSION" CHANGELOG.md || true)
+          if [[ -z "$NOTES" ]]; then
+            NOTES="See the commit history for detailed changes in this release."
+          fi
+
+          {
+            echo "## Orchard v${VERSION}"
+            echo
+            echo "### Installation"
+            echo "1. Download the DMG file below"
+            echo "2. Open the DMG and drag Orchard.app to your Applications folder"
+            echo "3. Launch Orchard from Applications"
+            echo
+            echo "### Changes"
+            printf '%s\n' "$NOTES"
+            echo
+            echo "### Checksums"
+            echo "- **SHA256**: See the \`.sha256\` file for verification"
+            echo
+            echo "### System Requirements"
+            echo "- macOS 26 (Tahoe)"
+            echo "- [Apple Container](https://github.com/apple/container) installed"
+          } > release-notes.md
+
+          echo "Assembled release notes:"; cat release-notes.md
+
       - name: Create Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
@@ -299,23 +332,7 @@ jobs:
           files: |
             Orchard-${{ steps.version.outputs.version }}.dmg
             Orchard-${{ steps.version.outputs.version }}.dmg.sha256
-          body: |
-            ## Orchard v${{ steps.version.outputs.version }}
-
-            ### Installation
-            1. Download the DMG file below
-            2. Open the DMG and drag Orchard.app to your Applications folder
-            3. Launch Orchard from Applications
-
-            ### Changes
-            See the commit history for detailed changes in this release.
-
-            ### Checksums
-            - **SHA256**: See the `.sha256` file for verification
-
-            ### System Requirements
-            - macOS 26 (Tahoe)
-            - [Apple Container](https://github.com/apple/container) installed
+          body_path: release-notes.md
           draft: false
           prerelease: false
         env:

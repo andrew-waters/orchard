@@ -1,15 +1,38 @@
 #!/usr/bin/env python3
-"""Emit the CHANGELOG section for a version as minimal HTML for Sparkle release notes.
+"""Emit the CHANGELOG section for a version for release notes.
 
-Usage: changelog_to_html.py <version> [changelog_path]
+Usage: changelog_to_html.py [--markdown] <version> [changelog_path]
 
-Prints the HTML for the `## [<version>]` section (headings, bullet lists, links,
-bold, inline code) to stdout. Prints nothing and exits 0 if the section is absent,
-so the release workflow can fall back to a plain link.
+Default: prints the HTML for the `## [<version>]` section (headings, bullet lists,
+links, bold, inline code) — used inline in the Sparkle appcast.
+With --markdown: prints the section body verbatim as markdown (heading line excluded)
+— used as the GitHub release body. Either way, prints nothing and exits 0 if the
+section is absent, so callers can fall back to a plain link.
 """
+from __future__ import annotations
+
 import sys
 import re
 import html
+
+
+def extract_section(version: str, path: str) -> list[str] | None:
+    """Return the lines of the `## [<version>]` section body, or None if absent.
+
+    Excludes the version heading itself and stops at the next `## ` header.
+    """
+    lines = open(path, encoding="utf-8").read().splitlines()
+    target = re.compile(r"^## \[" + re.escape(version) + r"\]")
+    start = next((i + 1 for i, ln in enumerate(lines) if target.match(ln)), None)
+    if start is None:
+        return None
+
+    section = []
+    for ln in lines[start:]:
+        if ln.startswith("## "):  # next version header
+            break
+        section.append(ln)
+    return section
 
 
 def inline(text: str) -> str:
@@ -22,22 +45,24 @@ def inline(text: str) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
+    args = sys.argv[1:]
+    markdown = False
+    if args and args[0] == "--markdown":
+        markdown = True
+        args = args[1:]
+    if not args:
         return
-    version = sys.argv[1]
-    path = sys.argv[2] if len(sys.argv) > 2 else "CHANGELOG.md"
+    version = args[0]
+    path = args[1] if len(args) > 1 else "CHANGELOG.md"
 
-    lines = open(path, encoding="utf-8").read().splitlines()
-    target = re.compile(r"^## \[" + re.escape(version) + r"\]")
-    start = next((i + 1 for i, ln in enumerate(lines) if target.match(ln)), None)
-    if start is None:
+    section = extract_section(version, path)
+    if section is None:
         return  # no section → caller falls back
 
-    section = []
-    for ln in lines[start:]:
-        if ln.startswith("## "):  # next version header
-            break
-        section.append(ln)
+    if markdown:
+        # Emit the section body verbatim, trimmed of leading/trailing blank lines.
+        print("\n".join(section).strip())
+        return
 
     out: list[str] = []
     in_list = False
