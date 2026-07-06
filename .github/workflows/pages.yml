@@ -124,7 +124,7 @@ jobs:
               'deployment_lost',
             ];
 
-            async function deployOnce() {
+            async function createDeployment() {
               const idToken = await core.getIDToken();
               const created = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
                 owner,
@@ -139,7 +139,10 @@ jobs:
               if (created.data.page_url) {
                 core.setOutput('page_url', created.data.page_url);
               }
+              return deploymentId;
+            }
 
+            async function pollUntilDone(deploymentId) {
               // Poll until the deployment reaches a terminal state (10 min ceiling).
               // Tolerate a few consecutive transient status-query errors before giving
               // up (as deploy-pages does) — one flaky GET shouldn't abandon an otherwise
@@ -168,12 +171,17 @@ jobs:
               throw new Error('Timed out waiting for the Pages deployment to succeed');
             }
 
-            // Retry once: the Pages deployment API intermittently returns a transient
-            // failure that clears on a second attempt after a short pause.
+            // Retry only the *create*: the Pages API intermittently returns a transient
+            // "try again later" at creation, which clears on a second attempt. We never
+            // re-POST after a deployment exists — that would duplicate an in-flight
+            // deploy or re-use its build version — so once created we only poll, and a
+            // poll-phase failure surfaces honestly rather than being masked by a retry.
+            let deploymentId;
             try {
-              await deployOnce();
+              deploymentId = await createDeployment();
             } catch (error) {
-              core.warning(`Deploy attempt failed (${error.message}); retrying once in 20s…`);
+              core.warning(`Create failed (${error.message}); retrying once in 20s…`);
               await new Promise(r => setTimeout(r, 20000));
-              await deployOnce();
+              deploymentId = await createDeployment();
             }
+            await pollUntilDone(deploymentId);
