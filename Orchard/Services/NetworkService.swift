@@ -47,7 +47,7 @@ final class NetworkService: ObservableObject {
                 }
             }
 
-            try await backend.createNetwork(name: name, labels: labelDict)
+            try await backend.createNetwork(name: name, subnet: subnet, labels: labelDict)
             await load()
             return true
         } catch {

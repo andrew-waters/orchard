@@ -69,7 +69,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
 
     private var _pulledReferences: [String] = []
     private var _deletedImageReferences: [String] = []
-    private var _createdNetworks: [(name: String, labels: [String: String])] = []
+    private var _createdNetworks: [(name: String, subnet: String?, labels: [String: String])] = []
     private var _deletedNetworkIds: [String] = []
     private var _createdSpecs: [ContainerCreateSpec] = []
     private var _deletedContainers: [(id: String, force: Bool)] = []
@@ -151,7 +151,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     // Recorded calls — read by tests.
     var pulledReferences: [String] { lock.withLock { _pulledReferences } }
     var deletedImageReferences: [String] { lock.withLock { _deletedImageReferences } }
-    var createdNetworks: [(name: String, labels: [String: String])] { lock.withLock { _createdNetworks } }
+    var createdNetworks: [(name: String, subnet: String?, labels: [String: String])] { lock.withLock { _createdNetworks } }
     var deletedNetworkIds: [String] { lock.withLock { _deletedNetworkIds } }
     var createdSpecs: [ContainerCreateSpec] { lock.withLock { _createdSpecs } }
     var deletedContainers: [(id: String, force: Bool)] { lock.withLock { _deletedContainers } }
@@ -204,9 +204,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         if let listNetworksError { throw listNetworksError }
         return networks
     }
-    func createNetwork(name: String, labels: [String: String]) async throws {
+    func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {
         if let createNetworkError { throw createNetworkError }
-        lock.withLock { _createdNetworks.append((name: name, labels: labels)) }
+        lock.withLock { _createdNetworks.append((name: name, subnet: subnet, labels: labels)) }
     }
     func deleteNetwork(id: String) async throws {
         if let deleteNetworkError { throw deleteNetworkError }

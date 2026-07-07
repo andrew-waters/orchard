@@ -75,7 +75,7 @@ protocol ContainerBackend: Sendable {
     func deleteImage(reference: String) async throws
     func inspectImage(reference: String) async throws -> ImageInspection
     func listNetworks() async throws -> [ContainerNetwork]
-    func createNetwork(name: String, labels: [String: String]) async throws
+    func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws
     func deleteNetwork(id: String) async throws
     func ping() async throws -> SystemHealthInfo
     func diskUsage() async throws -> SystemDiskUsage
@@ -275,10 +275,12 @@ struct LiveContainerBackend: ContainerBackend {
         return resources.map { mapNetworkResource($0) }
     }
 
-    func createNetwork(name: String, labels: [String: String]) async throws {
+    func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {
+        let ipv4Subnet = try subnet.flatMap { $0.isEmpty ? nil : try CIDRv4($0) }
         let config = try NetworkConfiguration(
             name: name,
             mode: .nat,
+            ipv4Subnet: ipv4Subnet,
             labels: try ResourceLabels(labels),
             plugin: "container-network-vmnet"
         )

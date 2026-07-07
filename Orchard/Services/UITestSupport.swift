@@ -95,7 +95,7 @@ struct UITestBackend: ContainerBackend {
                           config: NetworkConfig(labels: [:], id: UITestSeed.networkID),
                           status: NetworkStatus(gateway: "192.168.64.1", address: "192.168.64.0/24"))]
     }
-    func createNetwork(name: String, labels: [String: String]) async throws {}
+    func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {}
     func deleteNetwork(id: String) async throws {}
     func ping() async throws -> SystemHealthInfo { SystemHealthInfo(apiServerVersion: "1.0.0") }
     func diskUsage() async throws -> SystemDiskUsage {
