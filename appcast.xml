@@ -3,11 +3,11 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.1.0</title>
-      <sparkle:version>40</sparkle:version>
-      <sparkle:shortVersionString>2.1.0</sparkle:shortVersionString>
+      <title>Version 2.1.1</title>
+      <sparkle:version>41</sparkle:version>
+      <sparkle:shortVersionString>2.1.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.0</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.1</link>
       <description><![CDATA[
 <h3>Changed</h3>
 <ul>
@@ -19,8 +19,8 @@
 <li>The System pane in Settings no longer stays stuck on &quot;Loading…&quot;. container 1.0 changed <code>system property list --format=json</code> from a flat array to a nested object keyed by category, which the parser didn&#x27;t recognise, so every daemon property read as missing.</li>
 </ul>
 ]]></description>
-      <pubDate>Tue, 07 Jul 2026 10:58:54 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.0/Orchard-2.1.0.dmg" type="application/octet-stream" sparkle:edSignature="Og3onY+tU0yLsSR8QWSq4bSKFYezd5YDRtCOUXVZChu1VERSr9orUEJS5iw8ndHGzDbngMU6OFW2i8gy0WIXDA==" length="27639238" />
+      <pubDate>Tue, 07 Jul 2026 19:01:17 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.1/Orchard-2.1.1.dmg" type="application/octet-stream" sparkle:edSignature="RX3UQrvrMPolERy5+3xo5I/RM4kD7R9d/1Fsxp8xgosnGT3nWXAO3m4D6pg0tisEzLm8ygQzhs0zoWCm/9ujCg==" length="28034646" />
     </item>
   </channel>
 </rss>
