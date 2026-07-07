@@ -211,3 +211,76 @@ func processArgsOverrideOnly() {
 func processArgsEmpty() {
     #expect(resolveProcessArguments(imageEntrypoint: nil, imageCmd: nil, override: []).isEmpty)
 }
+
+// MARK: - MachineBackingContainer.isMachine
+
+@Test("Machine filter: the plugin=machine label marks a machine backing container")
+func machineFilterMatchesRealLabel() {
+    // Captured verbatim in the M0 spike from `container inspect` of a machine's backing container.
+    #expect(MachineBackingContainer.isMachine(labels: ["com.apple.container.plugin": "machine"]))
+}
+
+@Test("Machine filter: a container with no labels is not a machine")
+func machineFilterEmptyLabels() {
+    #expect(!MachineBackingContainer.isMachine(labels: [:]))
+}
+
+@Test("Machine filter: the plugin key with a non-machine value is not a machine")
+func machineFilterOtherPluginValue() {
+    #expect(!MachineBackingContainer.isMachine(labels: ["com.apple.container.plugin": "builder"]))
+}
+
+@Test("Machine filter: unrelated labels are not a machine")
+func machineFilterUnrelatedLabels() {
+    #expect(!MachineBackingContainer.isMachine(labels: ["com.example.team": "platform"]))
+}
+
+// MARK: - MachineImageAdvisor.likelyLacksInit
+
+@Test("Init advisor: common base/app images are flagged as init-less (with registry/org/tag)")
+func initAdvisorFlagsInitlessImages() {
+    #expect(MachineImageAdvisor.likelyLacksInit("ubuntu"))
+    #expect(MachineImageAdvisor.likelyLacksInit("ubuntu:24.04"))
+    #expect(MachineImageAdvisor.likelyLacksInit("docker.io/library/ubuntu:24.04"))
+    #expect(MachineImageAdvisor.likelyLacksInit("alpine:3.22"))
+    #expect(MachineImageAdvisor.likelyLacksInit("nginx@sha256:abc"))
+}
+
+@Test("Init advisor: images mentioning init/systemd are not flagged")
+func initAdvisorAllowsInitImages() {
+    #expect(!MachineImageAdvisor.likelyLacksInit("geerlingguy/docker-ubuntu2204-ansible"))
+    #expect(!MachineImageAdvisor.likelyLacksInit("redhat/ubi9-init"))
+    #expect(!MachineImageAdvisor.likelyLacksInit("jrei/systemd-ubuntu"))
+}
+
+@Test("Init advisor: an empty or unknown image is not flagged (no false alarm)")
+func initAdvisorEmptyAndUnknown() {
+    #expect(!MachineImageAdvisor.likelyLacksInit(""))
+    #expect(!MachineImageAdvisor.likelyLacksInit("mycorp/custom-appliance:1.0"))
+}
+
+// MARK: - MachineImageAdvisor.logsIndicateMissingInit
+
+@Test("Stop diagnosis: the /sbin/init not-found line is recognized (captured from a real machine)")
+func stopDiagnosisInitNotFound() {
+    let lines = [
+        "[  OK  ] Reached target Basic System.",
+        "/sbin.machine/init: 74: exec: /sbin/init: not found",
+    ]
+    #expect(MachineImageAdvisor.logsIndicateMissingInit(lines))
+}
+
+@Test("Stop diagnosis: the openrc-missing line is recognized (alpine case)")
+func stopDiagnosisOpenrcMissing() {
+    #expect(MachineImageAdvisor.logsIndicateMissingInit(["can't run '/sbin/openrc': No such file or directory"]))
+}
+
+@Test("Stop diagnosis: healthy systemd boot logs are not flagged")
+func stopDiagnosisHealthyBoot() {
+    let lines = [
+        "systemd 249.11 running in system mode",
+        "[  OK  ] Reached target Multi-User System.",
+        "[  OK  ] Reached target Graphical Interface.",
+    ]
+    #expect(!MachineImageAdvisor.logsIndicateMissingInit(lines))
+}
