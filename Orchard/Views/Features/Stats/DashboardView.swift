@@ -28,6 +28,29 @@ struct DashboardView: View {
         return result
     }
 
+    /// Recent per-metric history per machine id for the machine table's row sparklines.
+    private var machineSparklines: [String: RowSparklines] {
+        var result: [String: RowSparklines] = [:]
+        for stats in statsService.machineStats {
+            let samples = statsService.machineHistory(stats.id).suffix(60)
+            result[stats.id] = RowSparklines(
+                cpu: samples.map(\.cpuPercent),
+                memory: samples.map(\.memoryPercent),
+                network: samples.map { ($0.networkRxPerSec + $0.networkTxPerSec) / 1024 },
+                disk: samples.map { ($0.blockReadPerSec + $0.blockWritePerSec) / 1024 }
+            )
+        }
+        return result
+    }
+
+    /// Latest derived sample per machine id (re-keyed from the namespaced sampling key), so
+    /// the shared stats table can read machine CPU% the same way it reads containers'.
+    private var machineLatestSamples: [String: StatsSample] {
+        Dictionary(uniqueKeysWithValues: statsService.machineStats.compactMap { stats in
+            statsService.machineSample(stats.id).map { (stats.id, $0) }
+        })
+    }
+
     private var emptyMessage: String {
         if statsService.isStatsLoading {
             return "Loading container statistics..."
@@ -99,6 +122,30 @@ struct DashboardView: View {
                         emptyStateMessage: emptyMessage,
                         showContainerColumn: true
                     )
+
+                    // Machine Utilisation (only when machines are reporting stats)
+                    if !statsService.machineStats.isEmpty {
+                        Text("Machine Utilisation")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        StatsTableView(
+                            containerStats: statsService.machineStats,
+                            latestSamples: machineLatestSamples,
+                            sparklines: machineSparklines,
+                            selectedTab: $selectedTab,
+                            selectedContainer: $selectedContainer,
+                            emptyStateMessage: "",
+                            showContainerColumn: true,
+                            nameColumnTitle: "Machine",
+                            rowIcon: "desktopcomputer",
+                            rowIconColor: .blue,
+                            onSelectRow: { id in
+                                NotificationCenter.default.post(
+                                    name: NSNotification.Name("NavigateToMachine"), object: id)
+                            }
+                        )
+                    }
                 }
                 .padding(16)
             }

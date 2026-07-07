@@ -22,6 +22,12 @@ struct StatsTableView: View {
     @Binding var selectedContainer: String?
     let emptyStateMessage: String
     let showContainerColumn: Bool
+    /// Row identity presentation + navigation, so the same table serves containers and machines.
+    var nameColumnTitle: String = "Container"
+    var rowIcon: String = "cube"
+    var rowIconColor: Color = .green
+    /// Invoked when a row's name is clicked. Defaults to selecting the container.
+    var onSelectRow: ((String) -> Void)? = nil
 
     @AppStorage("statsSortColumn") private var sortColumn: StatsSortColumn = .container
     @AppStorage("statsSortAscending") private var sortAscending: Bool = true
@@ -120,7 +126,7 @@ struct StatsTableView: View {
                 // Header
                 HStack(spacing: 0) {
                     if showContainerColumn {
-                        columnHeader("Container", column: .container, alignment: .leading)
+                        columnHeader(nameColumnTitle, column: .container, alignment: .leading)
                         columnHeader("CPU", column: .cpu, width: 120)
                         columnHeader("Memory", column: .memory, width: 150)
                         columnHeader("Network I/O", column: .network, width: 150)
@@ -146,14 +152,18 @@ struct StatsTableView: View {
                 ForEach(sortedStats, id: \.id) { stats in
                     HStack(spacing: 0) {
                         if showContainerColumn {
-                            // Container name (clickable)
+                            // Resource name (clickable)
                             Button(action: {
-                                selectedTab = .containers
-                                selectedContainer = stats.id
+                                if let onSelectRow {
+                                    onSelectRow(stats.id)
+                                } else {
+                                    selectedTab = .containers
+                                    selectedContainer = stats.id
+                                }
                             }) {
                                 HStack {
-                                    SwiftUI.Image(systemName: "cube")
-                                        .foregroundStyle(.green)
+                                    SwiftUI.Image(systemName: rowIcon)
+                                        .foregroundStyle(rowIconColor)
                                     Text(stats.id)
                                         .foregroundStyle(.blue)
                                 }
