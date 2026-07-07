@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Container Machines · Orchard</title>
+  <meta name="description" content="Manage Apple container machines (persistent, stateful Linux VMs) from Orchard: create, configure, run, and monitor them natively over XPC. What they are, how to use them, and the pitfalls to avoid." />
+  <meta property="og:title" content="Container Machines · Orchard" />
+  <meta property="og:description" content="Create, configure, run and monitor Apple container machines from a native macOS app." />
+  <meta property="og:image" content="assets/machine.png" />
+  <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+  <style>
+    :root {
+      --accent: #4a97ff;
+      --accent-dark: #2f80ed;
+      --green: #34c759;
+      --amber: #f5a623;
+      --navy: #0e2138;
+      --bg: #0b1626;
+      --bg-soft: #0f1d33;
+      --ink: #e7edf6;
+      --muted: #9fb0c9;
+      --line: rgba(255,255,255,.10);
+      --card: #12233c;
+      --radius: 12px;
+      --maxw: 1040px;
+      --docw: 760px;
+    }
+    [data-theme="light"] {
+      --accent: #2f80ed;
+      --accent-dark: #2668c9;
+      --bg: #ffffff;
+      --bg-soft: #f7f8fa;
+      --ink: #1d2127;
+      --muted: #626975;
+      --line: #e6e8eb;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      transition: background .2s ease, color .2s ease;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; display: block; }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--navy);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { height: 30px; width: auto; display: block; }
+    .nav-links { display: flex; align-items: center; }
+    .nav-links a { color: #c3cfe2; margin-left: 24px; font-size: 15px; font-weight: 500; }
+    .nav-links a:hover { color: #fff; text-decoration: none; }
+    .nav-links a.current { color: #fff; }
+    .theme-btn { margin-left: 24px; background: transparent; border: 0; color: #c3cfe2; font-size: 17px; cursor: pointer; line-height: 1; padding: 4px; }
+    .theme-btn:hover { color: #fff; }
+
+    .hero { padding: 64px 0 48px; text-align: center; background: var(--navy); color: #eef3fb; }
+    .hero .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 13px; font-weight: 600; color: #7fb0ff; margin: 0 0 12px; }
+    .hero h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; color: #fff; }
+    .hero p.sub { font-size: clamp(16px, 2.4vw, 19px); color: #a9b7d0; max-width: 640px; margin: 0 auto; }
+    .hero .pill { display: inline-block; margin-top: 22px; padding: 6px 14px; border-radius: 999px; background: rgba(74,151,255,.15); color: #9cc4ff; font-size: 13px; font-weight: 600; }
+    .shot { margin: 40px auto 0; max-width: 900px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 50px -25px rgba(0,0,0,.45); }
+
+    section { padding: 56px 0; }
+    section.alt { background: var(--bg-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+    .doc { max-width: var(--docw); margin: 0 auto; }
+    .doc h2 { font-size: clamp(22px, 3vw, 28px); letter-spacing: -.02em; margin: 0 0 14px; }
+    .doc h3 { font-size: 19px; margin: 34px 0 8px; }
+    .doc p { color: var(--ink); margin: 0 0 16px; }
+    .doc ul { color: var(--ink); margin: 0 0 16px; padding-left: 22px; }
+    .doc li { margin: 6px 0; }
+    .doc strong { font-weight: 650; }
+    .doc code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: rgba(127,150,190,.16); padding: 1px 6px; border-radius: 5px; }
+    .doc .muted { color: var(--muted); }
+
+    pre { background: #0f1115; color: #e8eaed; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13.5px; line-height: 1.5; margin: 0 0 18px; border: 1px solid rgba(255,255,255,.06); }
+    pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin: 8px 0 4px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+    .card h3 { margin: 0 0 6px; font-size: 16px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+    .callout { border-radius: var(--radius); padding: 16px 18px; margin: 0 0 18px; border: 1px solid var(--line); border-left-width: 4px; background: var(--card); }
+    .callout h4 { margin: 0 0 6px; font-size: 15px; }
+    .callout p { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
+    .callout p:last-child { margin-bottom: 0; }
+    .callout.warn { border-left-color: var(--amber); }
+    .callout.warn h4 { color: var(--amber); }
+    .callout.info { border-left-color: var(--accent); }
+    .callout.info h4 { color: var(--accent); }
+    .callout.tip { border-left-color: var(--green); }
+    .callout.tip h4 { color: var(--green); }
+
+    .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+    .steps > li { position: relative; padding-left: 44px; margin: 0 0 20px; }
+    .steps > li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: -2px; width: 28px; height: 28px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .steps h3 { margin: 2px 0 6px; font-size: 17px; }
+    .steps p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    footer { padding: 40px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .foot a { color: var(--muted); margin-left: 18px; }
+    .foot a:hover { color: var(--accent); }
+  </style>
+</head>
+<body id="top">
+  <header>
+    <div class="wrap nav">
+      <a href="index.html" aria-label="Orchard"><img class="logo" src="logo.svg" alt="Orchard" /></a>
+      <nav class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#install">Install</a>
+        <a href="machines.html" class="current">Machines</a>
+        <a href="https://github.com/andrew-waters/orchard">GitHub</a>
+        <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow">Guide</p>
+        <h1>Container Machines</h1>
+        <p class="sub">Create, configure, run and monitor Apple container machines (persistent Linux VMs) from Orchard, natively over XPC. No shelling out to the CLI.</p>
+        <span class="pill">Requires Apple <code>container</code> 1.0+ · macOS 26 · Apple silicon</span>
+        <div class="shot"><img src="assets/machine.png" alt="Managing a container machine in Orchard, with live resource usage" /></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap doc">
+        <h2>What is a container machine?</h2>
+        <p>A container machine is a <strong>persistent, stateful Linux VM</strong>: “fast and lightweight like a container, persistent like a virtual machine.” Unlike a container, it boots the image's <strong>init system</strong> (systemd or openrc) as PID&nbsp;1, so long-running services survive. Changes persist across stop/start; deleting a machine removes its storage.</p>
+        <p>Your macOS user, UID/GID and home directory are mapped in automatically (via virtiofs, with passwordless sudo), so it feels like a local Linux box. Under the hood a machine <em>is</em> a container tagged with a special label, so Orchard hides those backing containers from the normal container list to keep it uncluttered.</p>
+        <p class="muted">Orchard talks to the machine service directly through Apple's <code>MachineAPIClient</code> XPC surface (the same API the <code>container</code> CLI uses) rather than shelling out.</p>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap doc">
+        <h2>What Orchard does</h2>
+        <div class="grid">
+          <div class="card"><h3>Create &amp; configure</h3><p>Pick an image, set CPUs, memory, home-mount mode, nested virtualization and an optional custom kernel.</p></div>
+          <div class="card"><h3>Lifecycle</h3><p>Start, stop, delete and set-default, with clear in-progress feedback for each action.</p></div>
+          <div class="card"><h3>Edit &amp; restart</h3><p>Change a machine's resources and apply them with a one-click stop, apply and restart.</p></div>
+          <div class="card"><h3>Logs</h3><p>Stream a machine's output and boot logs in the same multi-pane viewer as containers.</p></div>
+          <div class="card"><h3>Resource usage</h3><p>Live CPU, memory, network and disk, in the machine's detail view and on the dashboard.</p></div>
+          <div class="card"><h3>Guardrails</h3><p>Warns before creating from an image with no init system, and explains a machine that stopped because of it.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap doc">
+        <h2>Getting started</h2>
+
+        <div class="callout warn">
+          <h4>⚠ Pick an image with an init system first</h4>
+          <p>This is the single most common gotcha. A machine boots the image's <code>/sbin/init</code> (systemd or openrc). <strong>Stock images (<code>ubuntu</code>, <code>alpine</code>, <code>nginx</code>, most base images) have no init</strong>, so the machine boots and then immediately stops.</p>
+          <p>Use an image built to run an init system. A known-good option on Apple silicon:</p>
+          <pre><code>geerlingguy/docker-ubuntu2204-ansible:latest</code></pre>
+          <p><code>redhat/ubi9-init</code> is a lighter, non-Ubuntu alternative. Orchard shows a warning in the create form when the image you enter looks like it lacks an init system.</p>
+        </div>
+
+        <ol class="steps">
+          <li>
+            <h3>Open the Machines section</h3>
+            <p>Select <strong>Machines</strong> in the sidebar. If your <code>container</code> install predates machine support, the section shows an explanatory empty state instead.</p>
+          </li>
+          <li>
+            <h3>Create a machine</h3>
+            <p>Click <strong>+</strong> (or “Create Machine”). Enter an init-capable image and a name, then set CPUs and memory with the steppers; both default to about half of your host. Choose a home-mount mode, and optionally enable nested virtualization or a custom kernel. It boots by default.</p>
+          </li>
+          <li>
+            <h3>Use it</h3>
+            <p>The detail view shows its state, IP, image, resources and mapped user. Start/stop/delete/set-default from the header, watch resource usage below, and open <strong>Logs</strong> for the output and boot streams.</p>
+          </li>
+          <li>
+            <h3>Reconfigure when needed</h3>
+            <p><strong>Edit Configuration</strong> changes CPUs, memory, home-mount, virtualization or kernel. These only take effect on the next boot, so for a running machine choose <strong>Apply &amp; Restart</strong> to apply them in one step.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap doc">
+        <h2>Pitfalls &amp; things to know</h2>
+
+        <div class="callout warn">
+          <h4>The image must have an init system</h4>
+          <p>If a machine shows <em>stopped</em> right after you create it, the image almost certainly has no <code>/sbin/init</code>. The boot log shows <code>exec: /sbin/init: not found</code> and the process exits with status 127. Orchard surfaces this as “Stopped: the image has no init system.” Recreate from an init-enabled image (see above).</p>
+        </div>
+
+        <div class="callout warn">
+          <h4>“Read/Write” home mount exposes your home directory</h4>
+          <p>By default the machine gets <strong>read/write</strong> access to your macOS home directory. That's convenient, but it means anything running in the machine can modify your files. Choose <strong>Read-Only</strong> or <strong>None</strong> when you don't need it.</p>
+        </div>
+
+        <div class="callout info">
+          <h4>Config changes need a restart</h4>
+          <p>Apple's runtime only applies CPU/memory/home-mount/kernel changes on the next boot. Editing a <em>running</em> machine won't change it live, so use <strong>Apply &amp; Restart</strong>, or stop and start it yourself.</p>
+        </div>
+
+        <div class="callout info">
+          <h4>Memory defaults to half your host RAM</h4>
+          <p>A new machine reserves roughly half your system memory unless you lower it. It's easy to over-allocate if you run several, so the create form shows your host totals to help you size sensibly.</p>
+        </div>
+
+        <div class="callout warn">
+          <h4>Delete removes persistent storage</h4>
+          <p>Deleting a machine permanently removes its disk. Orchard asks for confirmation, but there's no undo, and snapshots aren't part of the runtime.</p>
+        </div>
+
+        <div class="callout tip">
+          <h4>It's a young feature</h4>
+          <p>Container machines are new in Apple's <code>container</code> 1.0. Some rough edges are upstream (e.g. amd64 machines and DNS can be flaky). Orchard surfaces failures rather than hiding them, and routes machine issues to its diagnostics.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap doc">
+        <h2>Requirements</h2>
+        <ul>
+          <li>Apple <code>container</code> <strong>1.0 or later</strong> (the machine API server ships with it).</li>
+          <li><strong>macOS 26 (Tahoe)</strong> on <strong>Apple silicon</strong>, the same floor Orchard already requires.</li>
+          <li>Nested virtualization additionally needs an <strong>Apple silicon M3 or later</strong> chip, macOS 15+, and a kernel with <code>CONFIG_KVM</code>.</li>
+        </ul>
+        <p class="muted">Machines don't do host port forwarding, so reach a service on its machine IP, shown in the detail view.</p>
+        <p><a href="index.html">← Back to Orchard</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div>© Orchard · MIT licensed · a native GUI for Apple Containers</div>
+      <div>
+        <a href="https://github.com/andrew-waters/orchard">GitHub</a>
+        <a href="https://github.com/andrew-waters/orchard/releases">Releases</a>
+        <a href="https://github.com/andrew-waters/orchard/issues">Issues</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var btn = document.getElementById('theme-toggle');
+      function theme() { return root.getAttribute('data-theme') || 'dark'; }
+      function render() { btn.textContent = theme() === 'dark' ? '☀︎' : '☾'; }
+      render();
+      btn.addEventListener('click', function () {
+        var next = theme() === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        render();
+      });
+    })();
+  </script>
+</body>
+</html>
