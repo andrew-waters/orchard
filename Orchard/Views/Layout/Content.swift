@@ -10,6 +10,7 @@ struct ContentView: View {
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var machineService: MachineService
+    @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var alertCenter: AlertCenter
     @State private var selectedTab: TabSelection = .dashboard
     @State private var selectedContainer: String?
@@ -292,6 +293,7 @@ struct ContentView: View {
         await dnsService.load(showLoading: true)
         await networkService.load(showLoading: true)
         await machineService.load(showLoading: true)
+        await modelService.load(showLoading: true)
     }
 
     private func startRefreshTimer() {
@@ -304,6 +306,7 @@ struct ContentView: View {
                 await dnsService.load(showLoading: false)
                 await networkService.load(showLoading: false)
                 await machineService.load(showLoading: false)
+                await modelService.load(showLoading: false)
             }
         }
     }

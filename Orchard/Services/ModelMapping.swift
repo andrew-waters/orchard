@@ -211,6 +211,7 @@ func mapNetworkResource(_ resource: NetworkResource) -> ContainerNetwork {
         status: Orchard.NetworkStatus(
             gateway: "\(resource.status.ipv4Gateway)",
             address: "\(resource.status.ipv4Subnet)"
-        )
+        ),
+        isHostOnly: resource.configuration.mode == .hostOnly
     )
 }

@@ -44,7 +44,7 @@ struct ThreeColumnLayout: View {
         switch selectedTab {
         case .containers, .images, .mounts, .machines, .dns, .networks:
             return true
-        case .registries, .systemLogs, .dashboard:
+        case .registries, .systemLogs, .dashboard, .models:
             return false
         }
     }
@@ -324,6 +324,7 @@ struct TabColumnView: View {
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var machineService: MachineService
+    @EnvironmentObject var modelService: ModelService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
@@ -350,7 +351,7 @@ struct TabColumnView: View {
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .dashboard:
+            case .registries, .systemLogs, .dashboard, .models:
                 break
             }
         }
@@ -373,6 +374,19 @@ struct TabColumnView: View {
            } header: {
                HStack {
                    Text("Compute")
+                       .font(.system(size: 12, weight: .regular))
+                       .foregroundColor(.secondary.opacity(0.5))
+                   Spacer()
+               }
+               .padding(.leading, 16)
+           }
+
+           // AI: local model providers and the container↔model bridge.
+           Section {
+               sidebarRow(for: .models)
+           } header: {
+               HStack {
+                   Text("AI")
                        .font(.system(size: 12, weight: .regular))
                        .foregroundColor(.secondary.opacity(0.5))
                    Spacer()
@@ -477,7 +491,7 @@ struct TabColumnView: View {
             if selectedNetwork == nil && !networkService.networks.isEmpty {
                 selectedNetwork = networkService.networks.first?.id
             }
-        case .registries, .systemLogs, .dashboard:
+        case .registries, .systemLogs, .dashboard, .models:
             // Clear all selections for tabs without second columns
             selectedContainer = nil
             selectedImage = nil
@@ -494,7 +508,7 @@ struct TabColumnView: View {
             switch tab {
             case .containers, .images, .mounts, .machines, .dns, .networks:
                 self.listFocusedTab = tab
-            case .registries, .systemLogs, .dashboard:
+            case .registries, .systemLogs, .dashboard, .models:
                 self.listFocusedTab = nil
             }
         }
@@ -510,6 +524,8 @@ struct TabColumnView: View {
             return containerListService.allMounts.count
         case .machines:
             return machineService.machines.count
+        case .models:
+            return modelService.providers.count
         case .dns:
             return dnsService.dnsDomains.count
         case .networks:
@@ -614,6 +630,9 @@ struct ListColumnView: View {
                     title: "Container Stats",
                     subtitle: "Real-time container statistics"
                 )
+            case .models:
+                // Models render as a single detail page (no middle column); unreachable here.
+                EmptyView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

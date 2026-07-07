@@ -72,6 +72,8 @@ struct MainInterfaceView: View {
             return ""
         case .dashboard:
             return ""
+        case .models:
+            return ""
         }
     }
 

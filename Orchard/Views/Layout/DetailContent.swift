@@ -72,6 +72,8 @@ struct DetailContentView: View {
                 selectedTab: $selectedTabBinding,
                 selectedContainer: $selectedContainerBinding
             )
+        case .models:
+            ModelsView()
         }
     }
 
