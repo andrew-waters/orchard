@@ -58,7 +58,7 @@ struct ItemNavigatorPopover: View {
                     dnsPopoverItems
                 case .networks:
                     networkPopoverItems
-                case .machines, .registries, .systemLogs, .dashboard:
+                case .machines, .registries, .systemLogs, .dashboard, .models:
                     EmptyView()
                 }
             }

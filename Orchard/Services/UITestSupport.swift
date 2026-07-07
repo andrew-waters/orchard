@@ -140,6 +140,14 @@ struct UITestMachineBackend: MachineBackend {
     func machineLogs(id: String) async throws -> [FileHandle] { [] }
 }
 
+/// A `ModelBackend` returning a single fixed provider. Debug-only; activated solely by the
+/// launch argument, so the model-bridge UI renders in the smoke suite without a live server.
+struct UITestModelBackend: ModelBackend {
+    func detectProviders() async -> [ModelProvider] {
+        [ModelProvider(kind: .mlxServer, port: 8080, api: .openAI, models: ["mlx-community/Llama-3.2-1B-Instruct-4bit"])]
+    }
+}
+
 /// A `CommandRunner` returning benign output so CLI-backed views (builders/DNS/properties)
 /// degrade quietly rather than shelling out during UI tests.
 struct UITestCommandRunner: CommandRunner {

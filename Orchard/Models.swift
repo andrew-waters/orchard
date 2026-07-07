@@ -289,6 +289,76 @@ struct MachineUserSetup: Codable, Equatable {
     let gid: Int
 }
 
+// MARK: - Local model providers (the container↔model bridge)
+
+/// The wire API a model provider speaks. Decides which environment variables a container
+/// needs so an in-container client reaches the host provider.
+enum ModelAPIStyle: String, Codable, Sendable {
+    case openAI
+    case ollama
+}
+
+/// A local inference provider discovered running on the host — Ollama, LM Studio, an MLX
+/// server, and so on. Orchard *manages and bridges* providers; it does not run inference
+/// itself. Detected read-only in this first slice.
+struct ModelProvider: Identifiable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable, CaseIterable {
+        case ollama
+        case lmStudio
+        case mlxServer
+        case custom
+
+        var displayName: String {
+            switch self {
+            case .ollama: return "Ollama"
+            case .lmStudio: return "LM Studio"
+            case .mlxServer: return "MLX Server"
+            case .custom: return "Custom"
+            }
+        }
+    }
+
+    let kind: Kind
+    /// The loopback port the provider listens on, as seen from the host.
+    let port: UInt16
+    /// The wire API the provider speaks.
+    let api: ModelAPIStyle
+    /// Model identifiers the provider advertises, when it exposes a listing endpoint.
+    var models: [String]
+
+    /// Stable across refreshes: a provider is identified by its kind and port.
+    var id: String { "\(kind.rawValue):\(port)" }
+
+    /// The base URL reachable *from the host* (e.g. `http://127.0.0.1:11434`). Distinct
+    /// from the container-reachable URL, which goes through the network gateway — see
+    /// `ModelBridge`.
+    var hostBaseURL: String { "http://127.0.0.1:\(port)" }
+}
+
+/// A model server Orchard started and supervises (as opposed to a `ModelProvider`, which is
+/// any server merely detected running). Carries the config it was launched with plus its
+/// live lifecycle state.
+struct ManagedModelServer: Identifiable, Equatable, Sendable {
+    enum Status: String, Sendable {
+        case running
+        case failed
+    }
+
+    /// Stable identity: one server per model+port. Also the log-file key.
+    let id: String
+    let model: String
+    let host: String
+    let port: UInt16
+    var status: Status
+    /// Absolute path to the captured stdout/stderr log.
+    let logPath: String
+
+    /// mlx_lm.server speaks the OpenAI wire API.
+    var api: ModelAPIStyle { .openAI }
+    /// Whether the server is bound to all interfaces, so containers can reach it.
+    var reachableFromContainers: Bool { host == "0.0.0.0" }
+}
+
 struct PublishedPort: Codable, Equatable {
     let hostPort: Int
     let containerPort: Int
@@ -603,12 +673,18 @@ struct ContainerNetwork: Codable, Equatable, Identifiable {
     let state: String
     let config: NetworkConfig
     let status: NetworkStatus
+    /// True for a host-only (`--internal`) network: reachable from the host but with no
+    /// internet egress. This is the sandbox-network property the model bridge relies on —
+    /// a container on it can reach a host model server yet cannot phone home. Defaults to
+    /// false so it's absent-safe for older data and test fixtures.
+    var isHostOnly: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
         case state
         case config
         case status
+        case isHostOnly
     }
 }
 

@@ -71,6 +71,8 @@ extension View {
             .environmentObject(s.systemService)
             .environmentObject(s.containerListService)
             .environmentObject(s.machineService)
+            .environmentObject(s.modelService)
+            .environmentObject(s.modelServerService)
     }
 }
 

@@ -385,6 +385,64 @@ func makeMachine(
 /// A `MachineBackend` whose behaviour is configured per test. Lifecycle calls mutate the
 /// stored machines (boot→running, stop→stopped, delete→removed, setDefault→flips the badge)
 /// so a subsequent `listMachines()` reflects the transition, matching the live daemon.
+/// Records detection calls and returns a configurable provider list. Detection never
+/// throws, so this mock stays simple — no error injection.
+final class MockModelBackend: ModelBackend, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _providers: [ModelProvider]
+    private var _detectCount = 0
+
+    init(providers: [ModelProvider] = []) {
+        self._providers = providers
+    }
+
+    var providers: [ModelProvider] {
+        get { lock.withLock { _providers } }
+        set { lock.withLock { _providers = newValue } }
+    }
+    var detectCount: Int { lock.withLock { _detectCount } }
+
+    func detectProviders() async -> [ModelProvider] {
+        lock.withLock {
+            _detectCount += 1
+            return _providers
+        }
+    }
+}
+
+/// A fake supervised process: records `terminate()` and lets a test drive the exit.
+final class MockServerProcess: ServerProcess, @unchecked Sendable {
+    var terminationHandler: ((Int32) -> Void)?
+    private(set) var terminated = false
+
+    func terminate() { terminated = true }
+
+    /// Drive the process to exit with `code`, invoking the handler synchronously (call on
+    /// the main actor in tests, mirroring `LiveServerProcess`'s main-thread delivery).
+    func simulateExit(_ code: Int32) { terminationHandler?(code) }
+}
+
+/// A `ModelServerEngine` that records launches and hands back `MockServerProcess`es. No real
+/// processes; `binaryPath` controls whether the engine reports as available.
+final class MockModelServerEngine: ModelServerEngine, @unchecked Sendable {
+    var binaryPath: String?
+    var launchError: Error?
+    private(set) var launched: [(model: String, host: String, port: UInt16)] = []
+    private(set) var processes: [MockServerProcess] = []
+
+    init(binaryPath: String? = "/usr/bin/mlx_lm.server") { self.binaryPath = binaryPath }
+
+    func locateBinary() -> String? { binaryPath }
+
+    func launch(model: String, host: String, port: UInt16, logURL: URL) throws -> ServerProcess {
+        if let launchError { throw launchError }
+        launched.append((model, host, port))
+        let process = MockServerProcess()
+        processes.append(process)
+        return process
+    }
+}
+
 final class MockMachineBackend: MachineBackend, @unchecked Sendable {
     private let lock = NSLock()
 
