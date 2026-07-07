@@ -54,11 +54,12 @@ func networkCreateParsesLabels() async {
     let backend = MockContainerBackend()
     let (service, alert) = makeNetworkService(backend)
 
-    let ok = await service.create(name: "app-net", labels: ["env=prod", "bare", "team=b=c"])
+    let ok = await service.create(name: "app-net", subnet: "192.168.1.0/24", labels: ["env=prod", "bare", "team=b=c"])
 
     #expect(ok == true)
     let recorded = backend.createdNetworks.first
     #expect(recorded?.name == "app-net")
+    #expect(recorded?.subnet == "192.168.1.0/24")  // threaded through, not dropped
     #expect(recorded?.labels == ["env": "prod", "bare": "", "team": "b=c"])  // maxSplits: 1
     #expect(alert.current == nil)
 }
