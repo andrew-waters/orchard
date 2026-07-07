@@ -9,6 +9,7 @@ struct ContentView: View {
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var builderService: BuilderService
     @EnvironmentObject var statsService: StatsService
+    @EnvironmentObject var alertCenter: AlertCenter
     @State private var selectedTab: TabSelection = .containers
     @State private var selectedContainer: String?
     @State private var selectedContainers: Set<String> = []
@@ -342,6 +343,18 @@ struct ContentView: View {
                 to: applyServiceSyncHandlers(to: baseView)
             )
         )
+        .alert(
+            "Something Went Wrong",
+            isPresented: Binding(
+                get: { alertCenter.current != nil },
+                set: { presented in if !presented { alertCenter.dismiss() } }
+            ),
+            presenting: alertCenter.current
+        ) { _ in
+            Button("OK", role: .cancel) { alertCenter.dismiss() }
+        } message: { alert in
+            Text(alert.message)
+        }
         .onAppear {
             // Default tab is already set to containers
         }
