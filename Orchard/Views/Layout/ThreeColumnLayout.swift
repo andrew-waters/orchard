@@ -366,14 +366,13 @@ struct TabColumnView: View {
                sidebarRow(for: .dashboard)
            }
 
-           // Main sections
+           // Compute: the two runtime primitives, side by side.
            Section {
                sidebarRow(for: .containers)
-               sidebarRow(for: .images)
-               sidebarRow(for: .mounts)
+               sidebarRow(for: .machines)
            } header: {
                HStack {
-                   Text("Containers")
+                   Text("Compute")
                        .font(.system(size: 12, weight: .regular))
                        .foregroundColor(.secondary.opacity(0.5))
                    Spacer()
@@ -381,12 +380,13 @@ struct TabColumnView: View {
                .padding(.leading, 16)
            }
 
-           // Machines section
+           // Resources: the artifacts those runtimes consume.
            Section {
-               sidebarRow(for: .machines)
+               sidebarRow(for: .images)
+               sidebarRow(for: .mounts)
            } header: {
                HStack {
-                   Text("Machines")
+                   Text("Resources")
                        .font(.system(size: 12, weight: .regular))
                        .foregroundColor(.secondary.opacity(0.5))
                    Spacer()
