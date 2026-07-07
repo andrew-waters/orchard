@@ -23,6 +23,7 @@ Hundreds of installations and starred by engineers from Apple, Microsoft, Red Ha
 
 ---
 
+- [Container Machines](#container-machines)
 - [Benefits of Apple Containers](#benefits-of-apple-containers)
 - [Orchard Features](#orchard-features)
 - [How Orchard compares](#how-orchard-compares)
@@ -38,6 +39,20 @@ Hundreds of installations and starred by engineers from Apple, Microsoft, Red Ha
 
 ![Orchard container detail - CPU, memory, network, and disk over time](assets/overview.png)
 
+## Container Machines
+
+Orchard manages Apple **container machines** natively: persistent, stateful Linux VMs you can create, configure, run and monitor without leaving the app or dropping to the CLI.
+
+![Container machine detail with live resource usage](assets/machine.png)
+
+- Create machines from any init-capable image, with CPU, memory, home-mount, nested-virtualization and custom-kernel options
+- Start, stop, set-default and delete, plus a one-click stop / apply / restart configuration editor
+- Live CPU, memory, network and disk usage, in the machine view and on the dashboard
+- Output and boot logs in the same multi-pane log viewer as containers
+- Guardrails that warn before creating from an image with no init system, and explain a machine that stopped because of it
+
+Machines are driven over Apple's native XPC API (`MachineAPIClient`), not by shelling out. See the [Container Machines guide](https://orchard.andon.dev/machines.html) for a full walkthrough and the pitfalls to avoid.
+
 ## Benefits of Apple Containers
 
 - Native support, incredible performance and the engineering resources to make it work.
@@ -47,6 +62,7 @@ Hundreds of installations and starred by engineers from Apple, Microsoft, Red Ha
 
 ## Orchard Features
 
+- Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
 - Container management: create, start, stop, force stop, delete
 - Image management: pull, delete, search Docker Hub
 - Network and DNS domain management
@@ -86,6 +102,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 | Purpose-built for `apple/container` | ✅ | ➖ <sup>1</sup> | ✅ |
 | Native macOS app | ✅ <sup>2</sup> | ❌ <sup>3</sup> | ❌ |
 | Native XPC integration (no CLI shelling) | ✅ | ❌ <sup>4</sup> | ✅ |
+| Container machines (native XPC) | ✅ | ❌ | ✅ |
 | Signed & notarized | ✅ | ✅ | ✅ |
 | Multi-pane log viewer | ✅ | ➖ | ➖ <sup>5</sup> |
 | Live container stats (CPU/mem/net/disk) | ✅ | ✅ | ➖ |
