@@ -21,13 +21,14 @@ final class AppServices: ObservableObject {
     let dnsService: DNSService
     let systemService: SystemService
     let containerListService: ContainerListService
+    let machineService: MachineService
 
     /// The services for app launch: normally the live backend, or (Debug + launch arg) an
     /// in-memory stub seeded with fixtures for the XCUITest smoke suite.
     static func forLaunch() -> AppServices {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(uiTestMockBackendArgument) {
-            return AppServices(backend: UITestBackend(), runner: UITestCommandRunner())
+            return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), runner: UITestCommandRunner())
         }
         #endif
         let services = AppServices()
@@ -38,6 +39,7 @@ final class AppServices: ObservableObject {
 
     init(
         backend: ContainerBackend = LiveContainerBackend(),
+        machineBackend: MachineBackend = LiveMachineBackend(),
         runner: CommandRunner = SystemCommandRunner(),
         defaults: UserDefaults = .standard
     ) {
@@ -61,8 +63,18 @@ final class AppServices: ObservableObject {
         self.containerListService = containerListService
         let statsService = StatsService(backend: backend, alertCenter: alertCenter, containerList: containerListService)
         self.statsService = statsService
+        self.machineService = MachineService(backend: machineBackend, alertCenter: alertCenter)
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
+        // Stats samples running machines through their backing container (re-keyed to the
+        // stable machine id). Supplied lazily so the sampler always sees the current machines.
+        statsService.machineStatTargets = { [weak machineService] in
+            (machineService?.machines ?? [])
+                .filter { $0.isRunning }
+                .compactMap { machine in
+                    machine.containerId.map { (machineId: machine.id, backingId: $0, cpus: machine.cpus) }
+                }
+        }
         // DNS ↔ System: the default domain is a system property.
         dnsService.refreshSystemProperties = { [weak systemService] in await systemService?.loadSystemProperties(showLoading: false) }
         dnsService.defaultDomain = { [weak systemService] in

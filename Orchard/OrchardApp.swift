@@ -30,8 +30,8 @@ struct OrchardApp: App {
 
 
 
-        WindowGroup(id: "logs", for: String.self) { $containerId in
-            MultiLogView(initialContainerId: containerId)
+        WindowGroup(id: "logs", for: LogTarget.self) { $target in
+            MultiLogView(initialTarget: target)
                 .injectServices(services)
         }
         .defaultSize(width: 900, height: 600)
@@ -70,6 +70,7 @@ extension View {
             .environmentObject(s.dnsService)
             .environmentObject(s.systemService)
             .environmentObject(s.containerListService)
+            .environmentObject(s.machineService)
     }
 }
 

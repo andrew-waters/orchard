@@ -325,3 +325,196 @@ func makeService(
 func ephemeralDefaults() -> UserDefaults {
     UserDefaults(suiteName: "OrchardTests-\(UUID().uuidString)")!
 }
+
+// MARK: - Machine mocks
+
+extension Machine {
+    /// Test-only copy with selected fields overridden. Used by `MockMachineBackend` to model
+    /// lifecycle transitions and by tests to build fixtures without repeating every field.
+    func copy(status: String? = nil, isDefault: Bool? = nil) -> Machine {
+        Machine(
+            id: id,
+            status: status ?? self.status,
+            isDefault: isDefault ?? self.isDefault,
+            cpus: cpus,
+            memoryBytes: memoryBytes,
+            diskSizeBytes: diskSizeBytes,
+            homeMount: homeMount,
+            virtualization: virtualization,
+            kernelPath: kernelPath,
+            imageReference: imageReference,
+            platform: platform,
+            ipAddress: ipAddress,
+            containerId: containerId,
+            createdDate: createdDate,
+            startedDate: startedDate,
+            initialized: initialized,
+            userSetup: userSetup
+        )
+    }
+}
+
+/// Build a `Machine` for tests. Defaults mirror the M0 alpine capture (4cpu/4G, rw home).
+func makeMachine(
+    id: String,
+    status: String = "running",
+    isDefault: Bool = false,
+    ipAddress: String? = "192.168.66.7"
+) -> Machine {
+    Machine(
+        id: id,
+        status: status,
+        isDefault: isDefault,
+        cpus: 4,
+        memoryBytes: 4_294_967_296,
+        diskSizeBytes: 78_659_584,
+        homeMount: "rw",
+        virtualization: false,
+        kernelPath: nil,
+        imageReference: "docker.io/library/alpine:3.22",
+        platform: Platform(os: "linux", architecture: "arm64", variant: nil),
+        ipAddress: status == "running" ? ipAddress : nil,
+        containerId: status == "running" ? "\(id)-13ab40" : nil,
+        createdDate: Date(timeIntervalSince1970: 1_751_888_675),
+        startedDate: status == "running" ? Date(timeIntervalSince1970: 1_751_888_677) : nil,
+        initialized: true,
+        userSetup: MachineUserSetup(username: "aw", uid: 501, gid: 20)
+    )
+}
+
+/// A `MachineBackend` whose behaviour is configured per test. Lifecycle calls mutate the
+/// stored machines (boot→running, stop→stopped, delete→removed, setDefault→flips the badge)
+/// so a subsequent `listMachines()` reflects the transition, matching the live daemon.
+final class MockMachineBackend: MachineBackend, @unchecked Sendable {
+    private let lock = NSLock()
+
+    private var _machines: [Machine] = []
+    private var _listError: Error?
+    private var _bootError: Error?
+    private var _stopError: Error?
+    private var _deleteError: Error?
+    private var _setDefaultError: Error?
+    private var _logsError: Error?
+    private var _logs: [FileHandle] = []
+
+    private var _bootedIds: [String] = []
+    private var _stoppedIds: [String] = []
+    private var _deletedIds: [String] = []
+    private var _setDefaultIds: [String] = []
+    private var _createdSpecs: [MachineCreateSpec] = []
+    private var _createError: Error?
+    private var _setConfigCalls: [(id: String, config: MachineConfigSpec)] = []
+    private var _setConfigError: Error?
+
+    var machines: [Machine] {
+        get { lock.withLock { _machines } }
+        set { lock.withLock { _machines = newValue } }
+    }
+    var listError: Error? {
+        get { lock.withLock { _listError } }
+        set { lock.withLock { _listError = newValue } }
+    }
+    var bootError: Error? {
+        get { lock.withLock { _bootError } }
+        set { lock.withLock { _bootError = newValue } }
+    }
+    var stopError: Error? {
+        get { lock.withLock { _stopError } }
+        set { lock.withLock { _stopError = newValue } }
+    }
+    var deleteError: Error? {
+        get { lock.withLock { _deleteError } }
+        set { lock.withLock { _deleteError = newValue } }
+    }
+    var setDefaultError: Error? {
+        get { lock.withLock { _setDefaultError } }
+        set { lock.withLock { _setDefaultError = newValue } }
+    }
+    var logsError: Error? {
+        get { lock.withLock { _logsError } }
+        set { lock.withLock { _logsError = newValue } }
+    }
+    var logs: [FileHandle] {
+        get { lock.withLock { _logs } }
+        set { lock.withLock { _logs = newValue } }
+    }
+
+    var createError: Error? {
+        get { lock.withLock { _createError } }
+        set { lock.withLock { _createError = newValue } }
+    }
+    var setConfigError: Error? {
+        get { lock.withLock { _setConfigError } }
+        set { lock.withLock { _setConfigError = newValue } }
+    }
+
+    var bootedIds: [String] { lock.withLock { _bootedIds } }
+    var setConfigCalls: [(id: String, config: MachineConfigSpec)] { lock.withLock { _setConfigCalls } }
+    var stoppedIds: [String] { lock.withLock { _stoppedIds } }
+    var deletedIds: [String] { lock.withLock { _deletedIds } }
+    var setDefaultIds: [String] { lock.withLock { _setDefaultIds } }
+    var createdSpecs: [MachineCreateSpec] { lock.withLock { _createdSpecs } }
+
+    func listMachines() async throws -> [Machine] {
+        if let error = listError { throw error }
+        return machines
+    }
+
+    func inspectMachine(id: String) async throws -> Machine {
+        if let error = listError { throw error }
+        guard let machine = machines.first(where: { $0.id == id }) else {
+            throw OrchardError.generic("machine \(id) not found")
+        }
+        return machine
+    }
+
+    func createMachine(_ spec: MachineCreateSpec) async throws {
+        if let error = createError { throw error }
+        lock.withLock {
+            _createdSpecs.append(spec)
+            _machines.append(makeMachine(id: spec.name, status: spec.noBoot ? "stopped" : "running", isDefault: spec.setDefault))
+        }
+    }
+
+    func setMachineConfig(id: String, config: MachineConfigSpec) async throws {
+        if let error = setConfigError { throw error }
+        lock.withLock { _setConfigCalls.append((id: id, config: config)) }
+    }
+
+    func bootMachine(id: String) async throws {
+        if let error = bootError { throw error }
+        lock.withLock {
+            _bootedIds.append(id)
+            _machines = _machines.map { $0.id == id ? $0.copy(status: "running") : $0 }
+        }
+    }
+
+    func stopMachine(id: String) async throws {
+        if let error = stopError { throw error }
+        lock.withLock {
+            _stoppedIds.append(id)
+            _machines = _machines.map { $0.id == id ? $0.copy(status: "stopped") : $0 }
+        }
+    }
+
+    func deleteMachine(id: String) async throws {
+        if let error = deleteError { throw error }
+        lock.withLock {
+            _deletedIds.append(id)
+            _machines.removeAll { $0.id == id }
+        }
+    }
+
+    func setDefaultMachine(id: String) async throws {
+        if let error = setDefaultError { throw error }
+        lock.withLock {
+            _setDefaultIds.append(id)
+            _machines = _machines.map { $0.copy(isDefault: $0.id == id) }
+        }
+    }
+
+    func machineLogs(id: String) async throws -> [FileHandle] {
+        if let error = logsError { throw error }
+        return logs
+    }
+}

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AAAA0000000000000000AA03 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA02 /* Sparkle */; };
 		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
+		C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5D2F86944400E6D0B2 /* MachineAPIClient */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */,
+				C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */,
 				AAAA0000000000000000AA03 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -120,6 +122,7 @@
 			name = Orchard;
 			packageProductDependencies = (
 				C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */,
+				C201AD5D2F86944400E6D0B2 /* MachineAPIClient */,
 				AAAA0000000000000000AA02 /* Sparkle */,
 			);
 			productName = Orchard;
@@ -634,6 +637,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerAPIClient;
+		};
+		C201AD5D2F86944400E6D0B2 /* MachineAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
+			productName = MachineAPIClient;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

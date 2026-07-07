@@ -14,6 +14,7 @@ enum UITestSeed {
     static let stoppedContainerID = "uitest-db"
     static let imageReference = "docker.io/library/uitest-nginx:latest"
     static let networkID = "uitest-net"
+    static let machineID = "uitest-machine"
 }
 
 #if DEBUG
@@ -101,6 +102,42 @@ struct UITestBackend: ContainerBackend {
     func diskUsage() async throws -> SystemDiskUsage {
         throw OrchardError.generic("disk usage unavailable in UI-test mode")
     }
+}
+
+/// A `MachineBackend` returning a single fixed machine. Debug-only; activated solely by the
+/// launch argument, so the Machines section renders in the smoke suite without a live daemon.
+struct UITestMachineBackend: MachineBackend {
+    private func machine(id: String, status: String) -> Machine {
+        Machine(
+            id: id,
+            status: status,
+            isDefault: true,
+            cpus: 4,
+            memoryBytes: 4_294_967_296,
+            diskSizeBytes: 78_659_584,
+            homeMount: "rw",
+            virtualization: false,
+            kernelPath: nil,
+            imageReference: "docker.io/library/alpine:3.22",
+            platform: Platform(os: "linux", architecture: "arm64", variant: nil),
+            ipAddress: status == "running" ? "192.168.66.7" : nil,
+            containerId: status == "running" ? "\(id)-13ab40" : nil,
+            createdDate: Date(timeIntervalSince1970: 1_751_888_675),
+            startedDate: status == "running" ? Date(timeIntervalSince1970: 1_751_888_677) : nil,
+            initialized: true,
+            userSetup: MachineUserSetup(username: "uitest", uid: 501, gid: 20)
+        )
+    }
+
+    func listMachines() async throws -> [Machine] { [machine(id: UITestSeed.machineID, status: "running")] }
+    func inspectMachine(id: String) async throws -> Machine { machine(id: id, status: "running") }
+    func createMachine(_ spec: MachineCreateSpec) async throws {}
+    func setMachineConfig(id: String, config: MachineConfigSpec) async throws {}
+    func bootMachine(id: String) async throws {}
+    func stopMachine(id: String) async throws {}
+    func deleteMachine(id: String) async throws {}
+    func setDefaultMachine(id: String) async throws {}
+    func machineLogs(id: String) async throws -> [FileHandle] { [] }
 }
 
 /// A `CommandRunner` returning benign output so CLI-backed views (builders/DNS/properties)

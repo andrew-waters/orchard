@@ -250,6 +250,45 @@ struct Platform: Codable, Equatable {
     }
 }
 
+// MARK: - Machine Models
+
+/// A container machine — a persistent, stateful lightweight Linux VM — expressed entirely
+/// in app-owned types so the machine XPC client's model types never leak past the backend.
+///
+/// `isDefault` is resolved by `MachineService` from the machine API's separate `getDefault()`
+/// call; the snapshot itself does not carry it. `ipAddress`, `containerId`, and `startedDate`
+/// are only populated while a machine is running (verified in the M0 spike).
+struct Machine: Codable, Equatable, Identifiable {
+    let id: String
+    let status: String
+    let isDefault: Bool
+    let cpus: Int
+    let memoryBytes: Int
+    let diskSizeBytes: Int?
+    /// Home directory mount mode: `rw`, `ro`, or `none`.
+    let homeMount: String
+    let virtualization: Bool
+    let kernelPath: String?
+    let imageReference: String
+    let platform: Platform
+    let ipAddress: String?
+    let containerId: String?
+    let createdDate: Date?
+    let startedDate: Date?
+    let initialized: Bool
+    let userSetup: MachineUserSetup?
+
+    var isRunning: Bool { status == "running" }
+    var isStopped: Bool { status == "stopped" }
+}
+
+/// The host user mapped into a machine at first-boot provisioning.
+struct MachineUserSetup: Codable, Equatable {
+    let username: String
+    let uid: Int
+    let gid: Int
+}
+
 struct PublishedPort: Codable, Equatable {
     let hostPort: Int
     let containerPort: Int
@@ -682,6 +721,22 @@ struct ContainerStats: Codable, Equatable, Identifiable {
         case networkRxBytes
         case networkTxBytes
         case numProcesses
+    }
+
+    /// A copy with a different id. Used to re-key a machine's backing-container stats onto the
+    /// stable machine id, so history survives the backing container id changing across reboots.
+    func with(id newId: String) -> ContainerStats {
+        ContainerStats(
+            id: newId,
+            cpuUsageUsec: cpuUsageUsec,
+            memoryUsageBytes: memoryUsageBytes,
+            memoryLimitBytes: memoryLimitBytes,
+            blockReadBytes: blockReadBytes,
+            blockWriteBytes: blockWriteBytes,
+            networkRxBytes: networkRxBytes,
+            networkTxBytes: networkTxBytes,
+            numProcesses: numProcesses
+        )
     }
 }
 
