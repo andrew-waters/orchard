@@ -39,8 +39,6 @@ struct MachineConfigSpec: Sendable {
 /// The container-machine runtime surface, expressed entirely in app domain models. Mocks
 /// conforming to this need no client-package imports. Mirrors `ContainerBackend`'s design
 /// rule: no package types cross this boundary.
-///
-/// Scoped to M2 (read-only + lifecycle). Create/configure (M3) are intentionally absent.
 protocol MachineBackend: Sendable {
     func listMachines() async throws -> [Machine]
     func inspectMachine(id: String) async throws -> Machine
@@ -98,7 +96,9 @@ struct LiveMachineBackend: MachineBackend {
                 "cpus": spec.cpus.map { "\($0)" },
                 "memory": spec.memoryGiB.map { "\($0)G" },
                 "home-mount": spec.homeMount,
-                "virtualization": spec.virtualization ? "true" : nil,
+                // Emit explicitly (not nil) so unchecking nested virtualization disables it
+                // rather than falling back to the system default.
+                "virtualization": spec.virtualization ? "true" : "false",
                 "kernel": spec.kernelPath,
             ].compactMapValues { $0 })
 

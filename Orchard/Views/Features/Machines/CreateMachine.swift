@@ -22,18 +22,6 @@ struct CreateMachineView: View {
     @State private var boot: Bool = true
     @State private var validationError: String?
 
-    enum MachineHomeMount: String, CaseIterable, Identifiable {
-        case rw, ro, none
-        var id: String { rawValue }
-        var label: String {
-            switch self {
-            case .rw: return "Read/Write"
-            case .ro: return "Read-Only"
-            case .none: return "None"
-            }
-        }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             header

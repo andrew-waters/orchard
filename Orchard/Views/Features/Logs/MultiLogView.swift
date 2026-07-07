@@ -320,6 +320,7 @@ struct LogPaneView: View {
     private func fetchLogs() async {
         guard !isPaused else { return }
         guard let target = selectedTarget else { return }
+        let wantsBoot = showBootLog
 
         if logLines.isEmpty {
             await MainActor.run { isLoading = true }
@@ -335,6 +336,9 @@ struct LogPaneView: View {
             }
 
             await MainActor.run {
+                // Drop the result if the pane switched target/stream while this fetch was in
+                // flight, so a slow fetch can't overwrite the current selection's logs.
+                guard target == selectedTarget, wantsBoot == showBootLog else { return }
                 logLines = lines
                 isLoading = false
             }

@@ -71,6 +71,9 @@ struct MachineDetailView: View {
         }
         let stdio = (try? await machineService.fetchLogs(id: machine.id)) ?? []
         let boot = (try? await machineService.fetchLogs(id: machine.id, boot: true)) ?? []
+        // The `.task(id:)` is cancelled when the machine/status changes; don't let a stale
+        // in-flight check overwrite the banner for the newer state.
+        guard !Task.isCancelled else { return }
         stoppedForMissingInit = MachineImageAdvisor.logsIndicateMissingInit(stdio + boot)
     }
 

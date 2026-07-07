@@ -10,7 +10,7 @@ struct EditMachineView: View {
 
     @State private var cpus: Int
     @State private var memoryGiB: Int
-    @State private var homeMount: CreateMachineView.MachineHomeMount
+    @State private var homeMount: MachineHomeMount
     @State private var virtualization: Bool
     @State private var kernelPath: String
     @State private var validationError: String?
@@ -26,7 +26,7 @@ struct EditMachineView: View {
         self.machine = machine
         _cpus = State(initialValue: machine.cpus)
         _memoryGiB = State(initialValue: max(1, machine.memoryBytes / 1_073_741_824))
-        _homeMount = State(initialValue: CreateMachineView.MachineHomeMount(rawValue: machine.homeMount) ?? .rw)
+        _homeMount = State(initialValue: MachineHomeMount(rawValue: machine.homeMount) ?? .rw)
         _virtualization = State(initialValue: machine.virtualization)
         _kernelPath = State(initialValue: machine.kernelPath ?? "")
     }
@@ -48,7 +48,7 @@ struct EditMachineView: View {
 
                     field(title: "Home Directory Mount") {
                         Picker("", selection: $homeMount) {
-                            ForEach(CreateMachineView.MachineHomeMount.allCases) { Text($0.label).tag($0) }
+                            ForEach(MachineHomeMount.allCases) { Text($0.label).tag($0) }
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
