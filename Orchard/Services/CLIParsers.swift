@@ -58,49 +58,90 @@ func parseDNSDomains(json output: String, defaultDomain: String?) -> [DNSDomain]
 
 // MARK: - System properties
 
-/// Parses `container system property list --format=json`, which emits a JSON array of
-/// `{id, type, value, description}` objects. `type` is "Bool" or "String"; `value` is a
-/// JSON bool, string, number, or null (null → the `*undefined*` sentinel).
+/// Legacy id aliases, mapping the daemon's category keys to the ids the app looks up.
+private let systemPropertyIDAliases: [String: String] = [
+    "build.image": "image.builder",
+    "vminit.image": "image.init",
+]
+
+/// Parses `container system property list --format=json`. As of container 1.0 the daemon
+/// emits a nested object keyed by category (`{"build": {"rosetta": true, …}, …}`); pre-1.0
+/// daemons emitted a flat array of `{id, type, value, description}`. Both are handled.
 func parseSystemProperties(json output: String) -> [SystemProperty] {
     guard let data = output.data(using: .utf8),
-          let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+          let root = try? JSONSerialization.jsonObject(with: data) else {
         return []
     }
 
-    // Legacy id aliases, kept in case older daemons emit the pre-rename ids.
-    let idMappings: [String: String] = [
-        "build.image": "image.builder",
-        "vminit.image": "image.init",
-    ]
-
-    return array.compactMap { entry in
-        guard let rawId = entry["id"] as? String else { return nil }
-        let propertyId = idMappings[rawId] ?? rawId
-
-        let type = (entry["type"] as? String)
-            .flatMap(SystemProperty.PropertyType.init(rawValue:)) ?? .string
-
-        let rawValue = entry["value"]
-        let valueString: String
-        if rawValue == nil || rawValue is NSNull {
-            valueString = "*undefined*"
-        } else if type == .bool, let boolValue = rawValue as? Bool {
-            valueString = boolValue ? "true" : "false"
-        } else if let stringValue = rawValue as? String {
-            valueString = stringValue
-        } else if let numberValue = rawValue as? NSNumber {
-            valueString = numberValue.stringValue
-        } else {
-            valueString = String(describing: rawValue!)
+    // container 1.0+: nested `{category: {key: value}}` object. Checked before the array
+    // form because a JSON array does not cast to a dictionary.
+    if let categories = root as? [String: Any] {
+        return categories.flatMap { category, value -> [SystemProperty] in
+            guard let fields = value as? [String: Any] else { return [] }
+            return fields.map { key, raw in
+                let rawId = "\(category).\(key)"
+                let (type, valueString) = normalizeSystemPropertyValue(raw)
+                return SystemProperty(
+                    id: systemPropertyIDAliases[rawId] ?? rawId,
+                    type: type,
+                    value: valueString,
+                    description: ""
+                )
+            }
         }
-
-        return SystemProperty(
-            id: propertyId,
-            type: type,
-            value: valueString,
-            description: entry["description"] as? String ?? ""
-        )
     }
+
+    // Pre-1.0: flat array of `{id, type, value, description}` objects.
+    if let array = root as? [[String: Any]] {
+        return array.compactMap { entry in
+            guard let rawId = entry["id"] as? String else { return nil }
+            let type = (entry["type"] as? String)
+                .flatMap(SystemProperty.PropertyType.init(rawValue:)) ?? .string
+
+            let rawValue = entry["value"]
+            let valueString: String
+            if rawValue == nil || rawValue is NSNull {
+                valueString = "*undefined*"
+            } else if type == .bool, let boolValue = rawValue as? Bool {
+                valueString = boolValue ? "true" : "false"
+            } else if let stringValue = rawValue as? String {
+                valueString = stringValue
+            } else if let numberValue = rawValue as? NSNumber {
+                valueString = numberValue.stringValue
+            } else {
+                valueString = String(describing: rawValue!)
+            }
+
+            return SystemProperty(
+                id: systemPropertyIDAliases[rawId] ?? rawId,
+                type: type,
+                value: valueString,
+                description: entry["description"] as? String ?? ""
+            )
+        }
+    }
+
+    return []
+}
+
+/// Classifies a raw JSON scalar from the nested property object as a bool or string and
+/// renders it to the app's string form. JSON booleans bridge to `NSNumber` (`CFBoolean`),
+/// so they are distinguished from numbers by CoreFoundation type rather than `as? Bool`,
+/// which also matches 0/1 integers.
+private func normalizeSystemPropertyValue(_ raw: Any) -> (SystemProperty.PropertyType, String) {
+    if raw is NSNull {
+        return (.string, "*undefined*")
+    }
+    if let string = raw as? String {
+        return (.string, string)
+    }
+    if let number = raw as? NSNumber {
+        if CFGetTypeID(number) == CFBooleanGetTypeID() {
+            return (.bool, number.boolValue ? "true" : "false")
+        }
+        return (.string, number.stringValue)
+    }
+    return (.string, String(describing: raw))
 }
 
 // MARK: - Docker Hub search

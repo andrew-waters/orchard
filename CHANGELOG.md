@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Stop, force-stop, and remove container actions work again on container 1.0.0 and later. Orchard was still linking the pre-1.0 client, so these commands silently failed against a 1.x daemon and the container never stopped ([#54](https://github.com/andrew-waters/orchard/issues/54)).
+- The System pane in Settings no longer stays stuck on "Loading…". container 1.0 changed `system property list --format=json` from a flat array to a nested object keyed by category, which the parser didn't recognise, so every daemon property read as missing.
 
 ## [1.12.7] - 2026-07-05
 

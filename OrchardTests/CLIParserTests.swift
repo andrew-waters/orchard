@@ -94,10 +94,44 @@ func systemPropertiesParsed() {
     #expect(prop("image.builder")?.value == "ghcr.io/example/builder:latest")
 }
 
-@Test("System properties: malformed / non-array JSON yields an empty list, not a crash")
+@Test("System properties: decodes the container 1.0+ nested-object format")
+func systemPropertiesNestedObject() {
+    // Shape matches `container system property list --format=json` on container 1.0+:
+    // a nested object keyed by category, with no per-property type/description.
+    let json = """
+    {
+      "build": { "cpus": 2, "image": "ghcr.io/example/builder:0.12.0", "rosetta": true },
+      "dns": {},
+      "kernel": { "binaryPath": "opt/kata/vmlinux", "url": "https://example.com/kernel.tar" },
+      "registry": { "domain": "docker.io" },
+      "vminit": { "image": "ghcr.io/example/vminit:0.35.0" }
+    }
+    """
+    let props = parseSystemProperties(json: json)
+    func prop(_ id: String) -> SystemProperty? { props.first { $0.id == id } }
+
+    // JSON booleans are typed .bool (and not confused with numbers).
+    #expect(prop("build.rosetta")?.type == .bool)
+    #expect(prop("build.rosetta")?.value == "true")
+    // Numbers render as strings, typed .string.
+    #expect(prop("build.cpus")?.type == .string)
+    #expect(prop("build.cpus")?.value == "2")
+    // Category keys flatten to dotted ids the panes look up.
+    #expect(prop("kernel.binaryPath")?.value == "opt/kata/vmlinux")
+    #expect(prop("registry.domain")?.value == "docker.io")
+    // Legacy category keys remap to the ids the app expects.
+    #expect(prop("image.builder")?.value == "ghcr.io/example/builder:0.12.0")
+    #expect(prop("image.init")?.value == "ghcr.io/example/vminit:0.35.0")
+    #expect(prop("build.image") == nil)
+    // An empty category contributes nothing.
+    #expect(prop("dns.domain") == nil)
+}
+
+@Test("System properties: malformed / empty JSON yields an empty list, not a crash")
 func systemPropertiesMalformed() {
     #expect(parseSystemProperties(json: "not json").isEmpty)
     #expect(parseSystemProperties(json: "{}").isEmpty)
+    #expect(parseSystemProperties(json: "[]").isEmpty)
 }
 
 @Test("System properties: skips entries without an id and remaps legacy aliases")
