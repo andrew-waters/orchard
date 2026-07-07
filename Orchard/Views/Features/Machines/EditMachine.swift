@@ -26,6 +26,7 @@ struct EditMachineView: View {
         self.machine = machine
         _cpus = State(initialValue: machine.cpus)
         _memoryGiB = State(initialValue: max(1, machine.memoryBytes / 1_073_741_824))
+        // `homeMount` is always ro/rw/none from the runtime, so the `.rw` fallback is unreachable.
         _homeMount = State(initialValue: MachineHomeMount(rawValue: machine.homeMount) ?? .rw)
         _virtualization = State(initialValue: machine.virtualization)
         _kernelPath = State(initialValue: machine.kernelPath ?? "")
