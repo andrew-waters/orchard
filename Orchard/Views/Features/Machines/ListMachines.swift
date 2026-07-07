@@ -50,7 +50,7 @@ struct MachinesListView: View {
 
     private var emptyStateView: some View {
         VStack {
-            SwiftUI.Image(systemName: "desktopcomputer")
+            SwiftUI.Image(systemName: "cpu")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
@@ -128,7 +128,7 @@ struct MachinesListView: View {
         var body: some View {
             let primary = machine.isDefault ? "\(machine.id)  ★" : machine.id
             ListItemRow(
-                icon: "desktopcomputer",
+                icon: "cpu",
                 iconColor: machine.isRunning ? .green : .secondary,
                 primaryText: primary,
                 secondaryLeftText: machine.status.capitalized,

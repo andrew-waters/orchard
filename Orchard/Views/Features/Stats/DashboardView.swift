@@ -138,7 +138,7 @@ struct DashboardView: View {
                             emptyStateMessage: "",
                             showContainerColumn: true,
                             nameColumnTitle: "Machine",
-                            rowIcon: "desktopcomputer",
+                            rowIcon: "cpu",
                             rowIconColor: .blue,
                             onSelectRow: { id in
                                 NotificationCenter.default.post(

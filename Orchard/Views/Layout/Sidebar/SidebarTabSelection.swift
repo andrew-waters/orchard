@@ -20,7 +20,7 @@ enum TabSelection: String, CaseIterable {
         case .mounts:
             return "externaldrive"
         case .machines:
-            return "desktopcomputer"
+            return "cpu"
         case .dns:
             return "network"
         case .networks:
