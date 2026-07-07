@@ -8,6 +8,7 @@ struct DetailContentView: View {
     let selectedContainers: Set<String>
     let selectedImage: String?
     let selectedMount: String?
+    let selectedMachine: String?
     let selectedDNSDomain: String?
     let selectedNetwork: String?
     @Binding var selectedTabBinding: TabSelection
@@ -23,6 +24,14 @@ struct DetailContentView: View {
             imageDetailView
         case .mounts:
             mountDetailView
+        case .machines:
+            if let selectedMachine = selectedMachine {
+                MachineDetailView(machineId: selectedMachine)
+            } else {
+                Text("Select a machine")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         case .dns:
             if let selectedDNSDomain = selectedDNSDomain {
                 DNSDetailView(

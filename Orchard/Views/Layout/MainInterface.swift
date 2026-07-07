@@ -7,11 +7,13 @@ struct MainInterfaceView: View {
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
+    @Binding var selectedMachine: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
+    @Binding var lastSelectedMachine: String?
     @Binding var lastSelectedDNSDomain: String?
     @Binding var lastSelectedNetwork: String?
     @Binding var lastSelectedImageTab: String
@@ -23,6 +25,7 @@ struct MainInterfaceView: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
+    @Binding var showAddMachineSheet: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let windowTitle: String
@@ -61,6 +64,8 @@ struct MainInterfaceView: View {
                 return selectedNetwork
             }
             return ""
+        case .machines:
+            return selectedMachine ?? ""
         case .registries:
             return ""
         case .systemLogs:
@@ -89,11 +94,13 @@ struct MainInterfaceView: View {
             selectedContainers: $selectedContainers,
             selectedImage: $selectedImage,
             selectedMount: $selectedMount,
+            selectedMachine: $selectedMachine,
             selectedDNSDomain: $selectedDNSDomain,
             selectedNetwork: $selectedNetwork,
             lastSelectedContainer: $lastSelectedContainer,
             lastSelectedImage: $lastSelectedImage,
             lastSelectedMount: $lastSelectedMount,
+            lastSelectedMachine: $lastSelectedMachine,
             lastSelectedDNSDomain: $lastSelectedDNSDomain,
             lastSelectedNetwork: $lastSelectedNetwork,
             lastSelectedImageTab: $lastSelectedImageTab,
@@ -105,6 +112,7 @@ struct MainInterfaceView: View {
             showImageSearch: $showImageSearch,
             showAddDNSDomainSheet: $showAddDNSDomainSheet,
             showAddNetworkSheet: $showAddNetworkSheet,
+            showAddMachineSheet: $showAddMachineSheet,
             showingItemNavigatorPopover: $showingItemNavigatorPopover,
             listFocusedTab: _listFocusedTab,
             windowTitle: windowTitle

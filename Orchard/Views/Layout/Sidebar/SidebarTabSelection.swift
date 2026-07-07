@@ -4,6 +4,7 @@ enum TabSelection: String, CaseIterable {
     case containers = "containers"
     case images = "images"
     case mounts = "mounts"
+    case machines = "machines"
     case dns = "dns"
     case networks = "networks"
     case registries = "registries"
@@ -18,6 +19,8 @@ enum TabSelection: String, CaseIterable {
             return "cube.transparent"
         case .mounts:
             return "externaldrive"
+        case .machines:
+            return "desktopcomputer"
         case .dns:
             return "network"
         case .networks:
@@ -39,6 +42,8 @@ enum TabSelection: String, CaseIterable {
             return "Images"
         case .mounts:
             return "Mounts"
+        case .machines:
+            return "Machines"
         case .dns:
             return "DNS"
         case .networks:

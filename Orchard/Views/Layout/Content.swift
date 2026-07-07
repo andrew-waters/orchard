@@ -9,12 +9,14 @@ struct ContentView: View {
     @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var machineService: MachineService
     @EnvironmentObject var alertCenter: AlertCenter
     @State private var selectedTab: TabSelection = .dashboard
     @State private var selectedContainer: String?
     @State private var selectedContainers: Set<String> = []
     @State private var selectedImage: String?
     @State private var selectedMount: String?
+    @State private var selectedMachine: String?
     @State private var selectedDNSDomain: String?
     @State private var selectedNetwork: String?
 
@@ -22,6 +24,7 @@ struct ContentView: View {
     @State private var lastSelectedContainer: String?
     @State private var lastSelectedImage: String?
     @State private var lastSelectedMount: String?
+    @State private var lastSelectedMachine: String?
     @State private var lastSelectedDNSDomain: String?
     @State private var lastSelectedNetwork: String?
 
@@ -36,6 +39,7 @@ struct ContentView: View {
     @State private var showImageSearch: Bool = false
     @State private var showAddDNSDomainSheet: Bool = false
     @State private var showAddNetworkSheet: Bool = false
+    @State private var showAddMachineSheet: Bool = false
 
     @State private var refreshTimer: Timer?
 
@@ -63,11 +67,13 @@ struct ContentView: View {
                     selectedContainers: $selectedContainers,
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
+                    selectedMachine: $selectedMachine,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     lastSelectedContainer: $lastSelectedContainer,
                     lastSelectedImage: $lastSelectedImage,
                     lastSelectedMount: $lastSelectedMount,
+                    lastSelectedMachine: $lastSelectedMachine,
                     lastSelectedDNSDomain: $lastSelectedDNSDomain,
                     lastSelectedNetwork: $lastSelectedNetwork,
                     lastSelectedImageTab: $lastSelectedImageTab,
@@ -79,6 +85,7 @@ struct ContentView: View {
                     showImageSearch: $showImageSearch,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     showAddNetworkSheet: $showAddNetworkSheet,
+                    showAddMachineSheet: $showAddMachineSheet,
                     showingItemNavigatorPopover: $showingItemNavigatorPopover,
                     listFocusedTab: _listFocusedTab,
                     windowTitle: "Orchard"
@@ -90,6 +97,12 @@ struct ContentView: View {
                 }
             }
         }
+        // Pin an explicit ideal size so the window opens at 1200×800 instead of sizing to the
+        // content's (tall) ideal height, which otherwise overflows the screen. `.topLeading`
+        // keeps the content anchored — a default (centre-aligned) fill frame shifts it.
+        .frame(minWidth: 900, idealWidth: 1200, maxWidth: .infinity,
+               minHeight: 550, idealHeight: 800, maxHeight: .infinity,
+               alignment: .topLeading)
         .alert(
             "Something Went Wrong",
             isPresented: Binding(
@@ -156,6 +169,14 @@ struct ContentView: View {
                 selectedNetwork = newNetworks[0].id
             }
         }
+        .onChange(of: machineService.machines) { _, newMachines in
+            // Auto-select first machine when machines load; prune a stale selection.
+            if selectedMachine == nil && !newMachines.isEmpty {
+                selectedMachine = newMachines[0].id
+            } else if let current = selectedMachine, !newMachines.contains(where: { $0.id == current }) {
+                selectedMachine = newMachines.first?.id
+            }
+        }
         .task {
             await performInitialLoad()
             startRefreshTimer()
@@ -213,6 +234,25 @@ struct ContentView: View {
             }
         }
         .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToMachine"))
+        ) { notification in
+            if let machineId = notification.object as? String {
+                selectedTab = TabSelection.machines
+                Task {
+                    await machineService.load(showLoading: false)
+                    await MainActor.run {
+                        if machineService.machines.contains(where: { $0.id == machineId }) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                selectedMachine = machineId
+                                lastSelectedMachine = machineId
+                                listFocusedTab = .machines
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .onReceive(
             NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToNetwork"))
         ) { notification in
             if let networkId = notification.object as? String {
@@ -251,6 +291,7 @@ struct ContentView: View {
 
         await dnsService.load(showLoading: true)
         await networkService.load(showLoading: true)
+        await machineService.load(showLoading: true)
     }
 
     private func startRefreshTimer() {
@@ -262,6 +303,7 @@ struct ContentView: View {
                 await builderService.loadBuilders()
                 await dnsService.load(showLoading: false)
                 await networkService.load(showLoading: false)
+                await machineService.load(showLoading: false)
             }
         }
     }

@@ -6,6 +6,7 @@ struct ThreeColumnLayout: View {
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var machineService: MachineService
     @AppStorage("containerSortBy") private var containerSortBy: ContainerSortOption = .name
     @AppStorage("containerSortAscending") private var containerSortAscending: Bool = true
     @AppStorage("containerRunningFirst") private var containerRunningFirst: Bool = true
@@ -16,11 +17,13 @@ struct ThreeColumnLayout: View {
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
+    @Binding var selectedMachine: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
+    @Binding var lastSelectedMachine: String?
     @Binding var lastSelectedDNSDomain: String?
     @Binding var lastSelectedNetwork: String?
     @Binding var lastSelectedImageTab: String
@@ -32,13 +35,14 @@ struct ThreeColumnLayout: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
+    @Binding var showAddMachineSheet: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let windowTitle: String
 
     private var needsMiddleColumn: Bool {
         switch selectedTab {
-        case .containers, .images, .mounts, .dns, .networks:
+        case .containers, .images, .mounts, .machines, .dns, .networks:
             return true
         case .registries, .systemLogs, .dashboard:
             return false
@@ -54,6 +58,7 @@ struct ThreeColumnLayout: View {
                     selectedContainer: $selectedContainer,
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
+                    selectedMachine: $selectedMachine,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     listFocusedTab: $listFocusedTab
@@ -210,6 +215,14 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Add Network")
+                                } else if selectedTab == .machines {
+                                    Button(action: { showAddMachineSheet = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Create Machine")
                                 }
                             }
                         }
@@ -224,11 +237,13 @@ struct ThreeColumnLayout: View {
                         selectedContainers: $selectedContainers,
                         selectedImage: $selectedImage,
                         selectedMount: $selectedMount,
+                        selectedMachine: $selectedMachine,
                         selectedDNSDomain: $selectedDNSDomain,
                         selectedNetwork: $selectedNetwork,
                         lastSelectedContainer: lastSelectedContainer,
                         lastSelectedImage: lastSelectedImage,
                         lastSelectedMount: lastSelectedMount,
+                        lastSelectedMachine: lastSelectedMachine,
                         lastSelectedDNSDomain: lastSelectedDNSDomain,
                         lastSelectedNetwork: lastSelectedNetwork,
                         searchText: $searchText,
@@ -238,6 +253,7 @@ struct ThreeColumnLayout: View {
                         showImageSearch: $showImageSearch,
                         showAddDNSDomainSheet: $showAddDNSDomainSheet,
                         showAddNetworkSheet: $showAddNetworkSheet,
+                        showAddMachineSheet: $showAddMachineSheet,
                         listFocusedTab: _listFocusedTab
                     )
                 }
@@ -251,6 +267,7 @@ struct ThreeColumnLayout: View {
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
                     selectedMount: selectedMount,
+                    selectedMachine: selectedMachine,
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
                     selectedTabBinding: $selectedTab,
@@ -268,6 +285,7 @@ struct ThreeColumnLayout: View {
                     selectedContainer: $selectedContainer,
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
+                    selectedMachine: $selectedMachine,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     listFocusedTab: $listFocusedTab
@@ -281,6 +299,7 @@ struct ThreeColumnLayout: View {
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
                     selectedMount: selectedMount,
+                    selectedMachine: selectedMachine,
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
                     selectedTabBinding: $selectedTab,
@@ -304,10 +323,12 @@ struct TabColumnView: View {
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var machineService: MachineService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
+    @Binding var selectedMachine: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @FocusState.Binding var listFocusedTab: TabSelection?
@@ -325,7 +346,7 @@ struct TabColumnView: View {
         .onAppear {
             // Set initial focus when view appears
             switch selectedTab {
-            case .containers, .images, .mounts, .dns, .networks:
+            case .containers, .images, .mounts, .machines, .dns, .networks:
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
@@ -353,6 +374,19 @@ struct TabColumnView: View {
            } header: {
                HStack {
                    Text("Containers")
+                       .font(.system(size: 12, weight: .regular))
+                       .foregroundColor(.secondary.opacity(0.5))
+                   Spacer()
+               }
+               .padding(.leading, 16)
+           }
+
+           // Machines section
+           Section {
+               sidebarRow(for: .machines)
+           } header: {
+               HStack {
+                   Text("Machines")
                        .font(.system(size: 12, weight: .regular))
                        .foregroundColor(.secondary.opacity(0.5))
                    Spacer()
@@ -431,6 +465,10 @@ struct TabColumnView: View {
             if selectedMount == nil && !containerListService.allMounts.isEmpty {
                 selectedMount = containerListService.allMounts.first?.id
             }
+        case .machines:
+            if selectedMachine == nil && !machineService.machines.isEmpty {
+                selectedMachine = machineService.machines.first?.id
+            }
         case .dns:
             if selectedDNSDomain == nil && !dnsService.dnsDomains.isEmpty {
                 selectedDNSDomain = dnsService.dnsDomains.first?.domain
@@ -444,6 +482,7 @@ struct TabColumnView: View {
             selectedContainer = nil
             selectedImage = nil
             selectedMount = nil
+            selectedMachine = nil
             selectedDNSDomain = nil
             selectedNetwork = nil
             break
@@ -453,7 +492,7 @@ struct TabColumnView: View {
         listFocusedTab = nil
         DispatchQueue.main.async {
             switch tab {
-            case .containers, .images, .mounts, .dns, .networks:
+            case .containers, .images, .mounts, .machines, .dns, .networks:
                 self.listFocusedTab = tab
             case .registries, .systemLogs, .dashboard:
                 self.listFocusedTab = nil
@@ -469,6 +508,8 @@ struct TabColumnView: View {
             return imageService.images.count
         case .mounts:
             return containerListService.allMounts.count
+        case .machines:
+            return machineService.machines.count
         case .dns:
             return dnsService.dnsDomains.count
         case .networks:
@@ -486,11 +527,13 @@ struct ListColumnView: View {
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
+    @Binding var selectedMachine: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     let lastSelectedContainer: String?
     let lastSelectedImage: String?
     let lastSelectedMount: String?
+    let lastSelectedMachine: String?
     let lastSelectedDNSDomain: String?
     let lastSelectedNetwork: String?
     @Binding var searchText: String
@@ -500,6 +543,7 @@ struct ListColumnView: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
+    @Binding var showAddMachineSheet: Bool
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -531,6 +575,14 @@ struct ListColumnView: View {
                     lastSelectedMount: .constant(lastSelectedMount),
                     searchText: $searchText,
                     showOnlyMountsInUse: $showOnlyMountsInUse,
+                    listFocusedTab: _listFocusedTab
+                )
+            case .machines:
+                MachinesListView(
+                    selectedMachine: $selectedMachine,
+                    lastSelectedMachine: .constant(lastSelectedMachine),
+                    searchText: $searchText,
+                    showAddMachineSheet: $showAddMachineSheet,
                     listFocusedTab: _listFocusedTab
                 )
             case .dns:
@@ -575,6 +627,7 @@ struct DetailColumnView: View {
     let selectedContainer: String?
     let selectedImage: String?
     let selectedMount: String?
+    let selectedMachine: String?
     let selectedDNSDomain: String?
     let selectedNetwork: String?
     @Binding var lastSelectedImageTab: String
@@ -594,6 +647,7 @@ struct DetailColumnView: View {
                 selectedContainers: selectedContainersLocal,
                 selectedImage: selectedImage,
                 selectedMount: selectedMount,
+                selectedMachine: selectedMachine,
                 selectedDNSDomain: selectedDNSDomain,
                 selectedNetwork: selectedNetwork,
                 selectedTabBinding: $selectedTabBinding,
