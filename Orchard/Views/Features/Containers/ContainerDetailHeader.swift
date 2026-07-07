@@ -135,7 +135,7 @@ struct ContainerDetailHeader: View {
                 }
 
                 Button("Logs") {
-                    openWindow(id: "logs", value: container.configuration.id)
+                    openWindow(id: "logs", value: LogTarget.container(container.configuration.id))
                 }
                 .buttonStyle(BorderedButtonStyle())
             }

@@ -83,7 +83,7 @@ struct ContainersListView: View {
 
         if !multiple {
             Button("View in Log Viewer") {
-                openWindow(id: "logs", value: targetIds.first ?? "")
+                openWindow(id: "logs", value: LogTarget.container(targetIds.first ?? ""))
             }
         }
 
