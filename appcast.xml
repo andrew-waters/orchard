@@ -3,28 +3,24 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 1.12.7</title>
-      <sparkle:version>39</sparkle:version>
-      <sparkle:shortVersionString>1.12.7</sparkle:shortVersionString>
+      <title>Version 2.1.0</title>
+      <sparkle:version>40</sparkle:version>
+      <sparkle:shortVersionString>2.1.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v1.12.7</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.0</link>
       <description><![CDATA[
-<h3>Added</h3>
-<ul>
-<li>App preferences now live in a native Settings window (⌘,), split into a <strong>General</strong> pane (terminal application, container-binary path, default DNS domain, and software updates) and a <strong>System</strong> pane showing the read-only <code>container</code> daemon properties (Rosetta, image builder/init, kernel, registry).</li>
-</ul>
 <h3>Changed</h3>
 <ul>
-<li>Configuration moved out of the sidebar into the Settings window (⌘,); the sidebar no longer has a Configuration tab.</li>
+<li>Updated for Apple&#x27;s <code>container</code> 1.1.0. Orchard now builds against the 1.1.0 client libraries (previously 0.12.3), which had many breaking API changes across the 1.0 release; container 1.0.0 or later is now required.</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>Daemon system properties no longer stay stuck on &quot;Loading…&quot; and the default DNS domain shows its current value again - <code>container system property list</code> now returns a JSON array, which the parser didn&#x27;t recognise, so it read no values at all.</li>
-<li>The sidebar no longer stays greyed-out after you open and dismiss a right-click menu on a container.</li>
+<li>Stop, force-stop, and remove container actions work again on container 1.0.0 and later. Orchard was still linking the pre-1.0 client, so these commands silently failed against a 1.x daemon and the container never stopped (<a href="https://github.com/andrew-waters/orchard/issues/54">#54</a>).</li>
+<li>The System pane in Settings no longer stays stuck on &quot;Loading…&quot;. container 1.0 changed <code>system property list --format=json</code> from a flat array to a nested object keyed by category, which the parser didn&#x27;t recognise, so every daemon property read as missing.</li>
 </ul>
 ]]></description>
-      <pubDate>Sun, 05 Jul 2026 16:58:15 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v1.12.7/Orchard-1.12.7.dmg" type="application/octet-stream" sparkle:edSignature="By5jV3pMGoBSWTvnFQtG5i4784h+9bbQvgZy2eP2cDZyMT9oNTMmEpQE/aRdWznm5nuQe5y7o+o0d8Opu+svBQ==" length="27190217" />
+      <pubDate>Tue, 07 Jul 2026 10:58:54 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.0/Orchard-2.1.0.dmg" type="application/octet-stream" sparkle:edSignature="Og3onY+tU0yLsSR8QWSq4bSKFYezd5YDRtCOUXVZChu1VERSr9orUEJS5iw8ndHGzDbngMU6OFW2i8gy0WIXDA==" length="27639238" />
     </item>
   </channel>
 </rss>
