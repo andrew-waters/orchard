@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-07-07
+
+### Added
+- **Container machines**: create, configure, run and monitor Apple container machines (persistent Linux VMs) directly in Orchard, over the native XPC API rather than shelling out to the CLI. A new **Machines** section in the sidebar lists your machines with state, IP address and a default badge, and the detail view shows the full configuration plus live CPU, memory, network and disk usage.
+- Create machines from an image with configurable CPUs, memory (defaulting to about half your host RAM), home-directory mount mode (read/write, read-only, or none), nested virtualization, and an optional custom kernel.
+- Machine lifecycle controls - start, stop, set-default, and delete - each with clear in-progress feedback.
+- Edit a machine's configuration with a one-click stop, apply and restart, since Apple's runtime only applies CPU/memory/home-mount/kernel changes on the next boot.
+- Machine output and boot logs stream in the same multi-pane log viewer as containers, and running machines appear in a **Machine Utilisation** table on the Dashboard.
+- Init-system guardrails for the most common machine pitfall: a warning before creating from an image that has no init system, and a clear "the image has no init system" explanation when a machine boots and immediately stops because it lacks `/sbin/init`.
+
+### Changed
+- Reorganised the sidebar into **Compute** (Containers, Machines), **Resources** (Images, Mounts) and **Networking** (DNS, Networks), with Machines a first-class peer of Containers.
+
+### Fixed
+- Container machines' backing containers no longer appear as unexplained entries in the container list - they're now filtered out, matching the `container` CLI.
+
 ## [2.1.1] - 2026-07-07
 
 ### Changed
