@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Updated for Apple's `container` 1.1.0. Orchard now builds against the 1.1.0 client libraries (previously 0.12.3), which had many breaking API changes across the 1.0 release; container 1.0.0 or later is now required.
+
+### Fixed
+- Stop, force-stop, and remove container actions work again on container 1.0.0 and later. Orchard was still linking the pre-1.0 client, so these commands silently failed against a 1.x daemon and the container never stopped ([#54](https://github.com/andrew-waters/orchard/issues/54)).
+
 ## [1.12.7] - 2026-07-05
 
 ### Added

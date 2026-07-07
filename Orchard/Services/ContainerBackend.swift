@@ -3,6 +3,7 @@ import ContainerAPIClient
 import ContainerResource
 import ContainerizationOCI
 import ContainerizationExtras
+import ContainerPersistence
 
 // MARK: - Boundary value types
 
@@ -85,6 +86,13 @@ protocol ContainerBackend: Sendable {
 /// `ContainerBackend` backed by the real XPC client, translating client model types to
 /// and from the app's domain models.
 struct LiveContainerBackend: ContainerBackend {
+    /// The persisted system configuration (registry, DNS, scheme, …) that image
+    /// operations require as of container 1.1.0. Loaded from the same TOML layers the
+    /// `container` CLI reads, so pulls resolve identically to the command line.
+    private func loadContainerSystemConfig() async throws -> ContainerSystemConfig {
+        try await ConfigurationLoader.load()
+    }
+
     func listContainers() async throws -> [Container] {
         let snapshots = try await ContainerClient().list()
         return snapshots.map { mapContainer($0) }
@@ -95,7 +103,9 @@ struct LiveContainerBackend: ContainerBackend {
     }
 
     func killContainer(id: String, signal: Int32) async throws {
-        try await ContainerClient().kill(id: id, signal: signal)
+        // As of container 1.1.0 the client takes the signal as a name/number string;
+        // Signal(_:) on the server parses the numeric form.
+        try await ContainerClient().kill(id: id, signal: String(signal))
     }
 
     func deleteContainer(id: String, force: Bool) async throws {
@@ -133,7 +143,7 @@ struct LiveContainerBackend: ContainerBackend {
         var ports: [PublishPort] = []
         for pm in spec.publishedPorts {
             let proto = PublishProtocol(pm.transportProtocol) ?? .tcp
-            ports.append(PublishPort(
+            ports.append(try PublishPort(
                 hostAddress: try IPAddress("0.0.0.0"),
                 hostPort: pm.hostPort,
                 containerPort: pm.containerPort,
@@ -153,7 +163,8 @@ struct LiveContainerBackend: ContainerBackend {
         }()
 
         // Fetch/unpack the image and read its OCI config.
-        let image = try await ClientImage.fetch(reference: spec.imageRef)
+        let systemConfig = try await loadContainerSystemConfig()
+        let image = try await ClientImage.fetch(reference: spec.imageRef, containerSystemConfig: systemConfig)
         let platform = ContainerizationOCI.Platform.current
         try await image.getCreateSnapshot(platform: platform)
         let kernel = try await ClientKernel.getDefaultKernel(for: .current)
@@ -217,7 +228,7 @@ struct LiveContainerBackend: ContainerBackend {
     }
 
     func pullImage(reference: String) async throws {
-        _ = try await ClientImage.pull(reference: reference)
+        _ = try await ClientImage.pull(reference: reference, containerSystemConfig: try await loadContainerSystemConfig())
     }
 
     func deleteImage(reference: String) async throws {
@@ -225,15 +236,20 @@ struct LiveContainerBackend: ContainerBackend {
     }
 
     func inspectImage(reference: String) async throws -> ImageInspection {
-        let image = try await ClientImage.get(reference: reference)
-        let detail = try await image.details()
+        // container 1.1.0 removed ClientImage.details(); rebuild the inspection from the
+        // OCI index (per-platform manifests) and each platform's config blob.
+        let image = try await ClientImage.get(reference: reference, containerSystemConfig: try await loadContainerSystemConfig())
+        let index = try await image.index()
 
         var variants: [ImageInspection.Variant] = []
-        for v in detail.variants {
-            let config = v.config.config
+        for manifest in index.manifests {
+            guard let platform = manifest.platform else { continue }
+            // Config blobs for non-local architectures may be absent; skip config
+            // details rather than failing the whole inspection.
+            let config = (try? await image.config(for: platform))?.config
             variants.append(ImageInspection.Variant(
-                platform: "\(v.platform.os)/\(v.platform.architecture)",
-                size: v.size,
+                platform: "\(platform.os)/\(platform.architecture)",
+                size: manifest.size,
                 entrypoint: config?.entrypoint,
                 cmd: config?.cmd,
                 env: config?.env,
@@ -244,26 +260,27 @@ struct LiveContainerBackend: ContainerBackend {
             ))
         }
 
+        let descriptor = image.descriptor
         return ImageInspection(
-            name: detail.name,
-            digest: "\(detail.index.digest)",
-            mediaType: detail.index.mediaType,
-            size: detail.index.size,
+            name: image.reference,
+            digest: "\(descriptor.digest)",
+            mediaType: descriptor.mediaType,
+            size: descriptor.size,
             variants: variants
         )
     }
 
     func listNetworks() async throws -> [ContainerNetwork] {
-        let states = try await NetworkClient().list()
-        return states.map { mapNetworkState($0) }
+        let resources = try await NetworkClient().list()
+        return resources.map { mapNetworkResource($0) }
     }
 
     func createNetwork(name: String, labels: [String: String]) async throws {
         let config = try NetworkConfiguration(
-            id: name,
+            name: name,
             mode: .nat,
             labels: try ResourceLabels(labels),
-            pluginInfo: NetworkPluginInfo(plugin: "container-network-vmnet")
+            plugin: "container-network-vmnet"
         )
         _ = try await NetworkClient().create(configuration: config)
     }

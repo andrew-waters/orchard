@@ -619,7 +619,7 @@
 			repositoryURL = "https://github.com/apple/container.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.12.3;
+				minimumVersion = 1.1.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
