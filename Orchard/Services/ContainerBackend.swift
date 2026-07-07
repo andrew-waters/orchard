@@ -57,6 +57,25 @@ func resolveProcessArguments(imageEntrypoint: [String]?, imageCmd: [String]?, ov
     return processArgs
 }
 
+// MARK: - Machine backing-container filtering
+
+/// A container machine is, under the hood, a container tagged with this label
+/// (`com.apple.container.plugin` = `machine`). The raw list API returns these backing
+/// containers; the `container` CLI hides them client-side and so does Orchard, keeping
+/// them out of the container list where their actions would be meaningless.
+///
+/// The key mirrors upstream `ResourceLabelKeys.plugin`; it is inlined here so the
+/// predicate stays free of package types and unit-testable in isolation.
+enum MachineBackingContainer {
+    static let pluginLabelKey = "com.apple.container.plugin"
+    static let machinePluginValue = "machine"
+
+    /// True when a container's labels mark it as the backing container of a machine.
+    static func isMachine(labels: [String: String]) -> Bool {
+        labels[pluginLabelKey] == machinePluginValue
+    }
+}
+
 // MARK: - Backend protocol
 
 /// The container runtime surface, expressed entirely in app domain models. Mocks
@@ -95,7 +114,9 @@ struct LiveContainerBackend: ContainerBackend {
 
     func listContainers() async throws -> [Container] {
         let snapshots = try await ContainerClient().list()
-        return snapshots.map { mapContainer($0) }
+        return snapshots
+            .filter { !MachineBackingContainer.isMachine(labels: $0.configuration.labels) }
+            .map { mapContainer($0) }
     }
 
     func stopContainer(id: String) async throws {
