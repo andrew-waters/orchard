@@ -3,24 +3,32 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.1.1</title>
-      <sparkle:version>41</sparkle:version>
-      <sparkle:shortVersionString>2.1.1</sparkle:shortVersionString>
+      <title>Version 2.1.2</title>
+      <sparkle:version>42</sparkle:version>
+      <sparkle:shortVersionString>2.1.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.1</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.2</link>
       <description><![CDATA[
+<h3>Added</h3>
+<ul>
+<li><strong>Container machines</strong>: create, configure, run and monitor Apple container machines (persistent Linux VMs) directly in Orchard, over the native XPC API rather than shelling out to the CLI. A new <strong>Machines</strong> section in the sidebar lists your machines with state, IP address and a default badge, and the detail view shows the full configuration plus live CPU, memory, network and disk usage.</li>
+<li>Create machines from an image with configurable CPUs, memory (defaulting to about half your host RAM), home-directory mount mode (read/write, read-only, or none), nested virtualization, and an optional custom kernel.</li>
+<li>Machine lifecycle controls - start, stop, set-default, and delete - each with clear in-progress feedback.</li>
+<li>Edit a machine&#x27;s configuration with a one-click stop, apply and restart, since Apple&#x27;s runtime only applies CPU/memory/home-mount/kernel changes on the next boot.</li>
+<li>Machine output and boot logs stream in the same multi-pane log viewer as containers, and running machines appear in a <strong>Machine Utilisation</strong> table on the Dashboard.</li>
+<li>Init-system guardrails for the most common machine pitfall: a warning before creating from an image that has no init system, and a clear &quot;the image has no init system&quot; explanation when a machine boots and immediately stops because it lacks <code>/sbin/init</code>.</li>
+</ul>
 <h3>Changed</h3>
 <ul>
-<li>Updated for Apple&#x27;s <code>container</code> 1.1.0. Orchard now builds against the 1.1.0 client libraries (previously 0.12.3), which had many breaking API changes across the 1.0 release; container 1.0.0 or later is now required.</li>
+<li>Reorganised the sidebar into <strong>Compute</strong> (Containers, Machines), <strong>Resources</strong> (Images, Mounts) and <strong>Networking</strong> (DNS, Networks), with Machines a first-class peer of Containers.</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>Stop, force-stop, and remove container actions work again on container 1.0.0 and later. Orchard was still linking the pre-1.0 client, so these commands silently failed against a 1.x daemon and the container never stopped (<a href="https://github.com/andrew-waters/orchard/issues/54">#54</a>).</li>
-<li>The System pane in Settings no longer stays stuck on &quot;Loading…&quot;. container 1.0 changed <code>system property list --format=json</code> from a flat array to a nested object keyed by category, which the parser didn&#x27;t recognise, so every daemon property read as missing.</li>
+<li>Container machines&#x27; backing containers no longer appear as unexplained entries in the container list - they&#x27;re now filtered out, matching the <code>container</code> CLI.</li>
 </ul>
 ]]></description>
-      <pubDate>Tue, 07 Jul 2026 19:01:17 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.1/Orchard-2.1.1.dmg" type="application/octet-stream" sparkle:edSignature="RX3UQrvrMPolERy5+3xo5I/RM4kD7R9d/1Fsxp8xgosnGT3nWXAO3m4D6pg0tisEzLm8ygQzhs0zoWCm/9ujCg==" length="28034646" />
+      <pubDate>Tue, 07 Jul 2026 19:46:09 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.2/Orchard-2.1.2.dmg" type="application/octet-stream" sparkle:edSignature="CpvMmsefUCrwQXSxATmiUn+c0XQ6ZMayjA0ivfeFTVV0Uiccro2kj3tOI/d8zS2xUAHRka6AFgSX/PN5PZ2GCg==" length="28037111" />
     </item>
   </channel>
 </rss>
