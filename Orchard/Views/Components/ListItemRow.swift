@@ -49,7 +49,7 @@ struct ListItemRow: View {
                         SwiftUI.Image(systemName: "shield.lefthalf.filled")
                             .font(.system(size: 11))
                             .foregroundColor(.accentColor)
-                            .help("Sandbox — wired to a local model")
+                            .help("Sandbox - wired to a local model")
                     }
                 }
 

@@ -383,7 +383,7 @@ struct TabColumnView: View {
                sidebarRow(for: .dashboard)
            }
 
-           // Compute: the runtime primitives — containers, machines, and sandboxes
+           // Compute: the runtime primitives - containers, machines, and sandboxes
            // (containers wired to a local model).
            Section {
                sidebarRow(for: .containers)

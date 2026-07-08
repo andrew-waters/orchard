@@ -6,7 +6,7 @@ enum AppInfo {
     static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
 }
 
-/// Constructs and wires the per-domain services and owns their lifetime. Not a facade —
+/// Constructs and wires the per-domain services and owns their lifetime. Not a facade - 
 /// views observe the individual services directly; this only holds them and the
 /// cross-service callbacks that were previously set up in `ContainerService.init`.
 @MainActor

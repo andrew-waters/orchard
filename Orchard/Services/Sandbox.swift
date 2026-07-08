@@ -1,6 +1,6 @@
 import Foundation
 
-/// How Orchard recognises a "sandbox": a workload wired to a local model. Two signals — an
+/// How Orchard recognises a "sandbox": a workload wired to a local model. Two signals - an
 /// explicit label Orchard stamps on the containers it runs against a model, and an env-var
 /// heuristic that also catches sandboxes wired up elsewhere. Pure and package-free so the
 /// detection logic unit-tests in isolation.
@@ -18,7 +18,7 @@ enum SandboxMarker {
         labels[sandboxLabelKey] == "true"
     }
 
-    /// The model endpoint a workload targets — from its label first, else its env. nil when
+    /// The model endpoint a workload targets - from its label first, else its env. nil when
     /// there is no signal at all.
     static func modelEndpoint(labels: [String: String], environment: [String]) -> String? {
         if let fromLabel = labels[endpointLabelKey], !fromLabel.isEmpty { return fromLabel }
@@ -38,7 +38,7 @@ enum SandboxMarker {
     }
 }
 
-/// A workload recognised as a sandbox — a derived view over a container (or, later, a
+/// A workload recognised as a sandbox - a derived view over a container (or, later, a
 /// machine), not a new backend resource.
 struct Sandbox: Identifiable, Equatable {
     enum Kind: Equatable {
@@ -97,7 +97,7 @@ extension Container {
         SandboxMarker.modelEndpoint(labels: configuration.labels, environment: configuration.initProcess.environment)
     }
 
-    /// Whether this container is a sandbox — explicitly marked by Orchard or carrying a
+    /// Whether this container is a sandbox - explicitly marked by Orchard or carrying a
     /// model-endpoint env var. Lets the container views flag it, since a sandbox shows in
     /// both the Containers and Sandboxes lists.
     var isSandbox: Bool {

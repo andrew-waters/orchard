@@ -5,14 +5,14 @@ import Foundation
 /// A long-running child process Orchard supervises. Abstracted so the service can be tested
 /// without spawning real processes (`Process` waits for exit; a model server never exits on
 /// its own). `terminationHandler` fires with the exit code when the process ends, on an
-/// arbitrary thread — callers hop to their actor.
+/// arbitrary thread - callers hop to their actor.
 protocol ServerProcess: AnyObject {
     var terminationHandler: ((Int32) -> Void)? { get set }
     func terminate()
 }
 
 /// `ServerProcess` backed by a real `Process`, streaming stdout+stderr to a log file. Using
-/// a file (not a `Pipe`) avoids the drain-or-deadlock dance `CommandRunner` needs — but it
+/// a file (not a `Pipe`) avoids the drain-or-deadlock dance `CommandRunner` needs - but it
 /// also means we never call `waitUntilExit`, so the server runs detached until stopped.
 final class LiveServerProcess: ServerProcess {
     private let process: Process
@@ -58,7 +58,7 @@ enum ModelServerEngineError: LocalizedError {
 /// `ModelServerEngine` for Apple's `mlx_lm.server` (OpenAI-compatible, runs inference on the
 /// Apple GPU). Located via the stable path `uv tool install mlx-lm` creates.
 struct MLXServerEngine: ModelServerEngine {
-    /// The launch argument vector — pure, so it is unit-tested directly.
+    /// The launch argument vector - pure, so it is unit-tested directly.
     static func launchArguments(model: String, host: String, port: UInt16) -> [String] {
         ["--model", model, "--host", host, "--port", String(port)]
     }

@@ -7,7 +7,7 @@ import Foundation
 /// isolation.
 ///
 /// Load-bearing fact, verified against `container` 1.1.0: a workload's default route is
-/// its network's vmnet gateway, and the host is reachable at that gateway address — *if*
+/// its network's vmnet gateway, and the host is reachable at that gateway address - *if*
 /// the server binds all interfaces (`0.0.0.0`). A loopback-only (`127.0.0.1`) server is
 /// refused from inside a container. So the bridge address is the network gateway, and it
 /// is the provider's responsibility to actually listen on `0.0.0.0`.
@@ -45,7 +45,7 @@ enum ModelBridge {
 // MARK: - Backend protocol
 
 /// The local-model discovery surface. Read-only in this slice: detect providers running on
-/// the host and list the models they advertise. Mirrors `ContainerBackend`'s rule —
+/// the host and list the models they advertise. Mirrors `ContainerBackend`'s rule - 
 /// app-owned types only, so mocks need no package imports.
 protocol ModelBackend: Sendable {
     /// Probe the host for running model providers and return those that responded.
@@ -72,7 +72,7 @@ struct LiveModelBackend: ModelBackend {
         let listPath: String
     }
 
-    /// ⚠ Ports are conventional defaults — revisit if they prove unreliable in the field.
+    /// ⚠ Ports are conventional defaults - revisit if they prove unreliable in the field.
     static let candidates: [Candidate] = [
         Candidate(kind: .ollama, port: 11434, api: .ollama, listPath: "/api/tags"),
         Candidate(kind: .lmStudio, port: 1234, api: .openAI, listPath: "/v1/models"),

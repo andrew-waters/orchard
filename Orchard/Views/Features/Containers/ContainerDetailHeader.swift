@@ -15,7 +15,7 @@ struct ContainerDetailHeader: View {
     @State private var showSandboxInfo = false
 
     /// Shield badge shown when the container is a sandbox (wired to a local model). Tapping
-    /// it explains what that means and shows the endpoint — since a sandbox appears in both
+    /// it explains what that means and shows the endpoint - since a sandbox appears in both
     /// the Containers and Local AI → Sandboxes lists.
     private var sandboxBadge: some View {
         Button(action: { showSandboxInfo.toggle() }) {
@@ -23,7 +23,7 @@ struct ContainerDetailHeader: View {
                 .foregroundColor(.accentColor)
         }
         .buttonStyle(.plain)
-        .help("Sandbox — wired to a local model")
+        .help("Sandbox - wired to a local model")
         .popover(isPresented: $showSandboxInfo) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
@@ -214,7 +214,7 @@ struct ContainerDetailHeader: View {
             }
         }
         .onChange(of: recoveryFailed) { _, failed in
-            // Recovery failed for this container — clear our transient state flags.
+            // Recovery failed for this container - clear our transient state flags.
             if failed {
                 wasRunningBeforeStop = false
                 isStarting = false
@@ -224,7 +224,7 @@ struct ContainerDetailHeader: View {
         }
     }
 
-    /// Whether this container's automatic recovery failed — persistent state, so the
+    /// Whether this container's automatic recovery failed - persistent state, so the
     /// affordance survives the alert being dismissed or replaced.
     private var recoveryFailed: Bool {
         containerListService.recoveryFailedContainerIDs.contains(container.configuration.id)

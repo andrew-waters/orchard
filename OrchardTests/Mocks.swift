@@ -3,7 +3,7 @@ import Foundation
 
 struct NotConfigured: Error {}
 
-/// An error carrying `message` as its `localizedDescription` — for driving classified
+/// An error carrying `message` as its `localizedDescription` - for driving classified
 /// error paths (e.g. OrchardError.classifyStartError matches on the message text).
 func makeError(_ message: String) -> NSError {
     NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
@@ -11,7 +11,7 @@ func makeError(_ message: String) -> NSError {
 
 // The mocks are `@unchecked Sendable` and their methods run off the main actor (nonisolated
 // async protocol requirements), so fire-and-forget service Tasks can touch their state
-// concurrently. All mutable state is therefore guarded by an `NSLock` — config via get/set
+// concurrently. All mutable state is therefore guarded by an `NSLock` - config via get/set
 // accessors, recorded calls/counters via a locked mutation inside each method with a
 // get-only accessor for tests. Recorded arrays append on SUCCESS only (throw first), so a
 // failed operation never looks like it happened.
@@ -76,7 +76,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _bootstrapAndStartCount = 0
     private var _listContainersCount = 0
 
-    // Configuration — set by tests.
+    // Configuration - set by tests.
     var containers: [Container] {
         get { lock.withLock { _containers } }
         set { lock.withLock { _containers = newValue } }
@@ -148,7 +148,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         set { lock.withLock { _statsHandler = newValue } }
     }
 
-    // Recorded calls — read by tests.
+    // Recorded calls - read by tests.
     var pulledReferences: [String] { lock.withLock { _pulledReferences } }
     var deletedImageReferences: [String] { lock.withLock { _deletedImageReferences } }
     var createdNetworks: [(name: String, subnet: String?, labels: [String: String])] { lock.withLock { _createdNetworks } }
@@ -174,7 +174,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         lock.withLock { _deletedContainers.append((id: id, force: force)) }
     }
     func bootstrapAndStart(id: String) async throws {
-        // Counts every attempt (including failed ones) — increment before the handler throws.
+        // Counts every attempt (including failed ones) - increment before the handler throws.
         let attempt = lock.withLock { () -> Int in _bootstrapAndStartCount += 1; return _bootstrapAndStartCount }
         try bootstrapAndStartHandler?(attempt)
     }
@@ -386,7 +386,7 @@ func makeMachine(
 /// stored machines (boot→running, stop→stopped, delete→removed, setDefault→flips the badge)
 /// so a subsequent `listMachines()` reflects the transition, matching the live daemon.
 /// Records detection calls and returns a configurable provider list. Detection never
-/// throws, so this mock stays simple — no error injection.
+/// throws, so this mock stays simple - no error injection.
 final class MockModelBackend: ModelBackend, @unchecked Sendable {
     private let lock = NSLock()
     private var _providers: [ModelProvider]

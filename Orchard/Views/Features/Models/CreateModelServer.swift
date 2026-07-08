@@ -38,7 +38,7 @@ struct CreateModelServerView: View {
                     .font(.subheadline)
                 Text(allowContainers
                      ? "Bound to all interfaces, so containers can reach it over their network gateway."
-                     : "Bound to 127.0.0.1 — reachable only from this Mac, not from containers.")
+                     : "Bound to 127.0.0.1 - reachable only from this Mac, not from containers.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

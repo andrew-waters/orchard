@@ -36,7 +36,7 @@ struct ContainerCreateSpec: Sendable {
     let dnsDomain: String
     let networkName: String
     let autoRemove: Bool
-    /// Key/value labels stamped on the container at creation — e.g. the sandbox marker
+    /// Key/value labels stamped on the container at creation - e.g. the sandbox marker
     /// that lets the Sandboxes view recognise a container Orchard wired to a model.
     var labels: [String: String] = [:]
 }

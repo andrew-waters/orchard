@@ -2,7 +2,7 @@ import Foundation
 
 /// Owns discovered local-model providers and bridges them to containers. Read-only in this
 /// first slice: detect providers on the refresh tick and expose them for the
-/// container-create bridge. Follows the per-domain service template — `@Published` state
+/// container-create bridge. Follows the per-domain service template - `@Published` state
 /// and a `load()` the refresh loop calls. Detection never alerts: a missing provider is a
 /// normal, expected state, not an error.
 @MainActor

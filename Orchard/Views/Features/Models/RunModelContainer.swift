@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Create a sandbox: a container wired to a local model. Reachable two ways — from a model's
+/// Create a sandbox: a container wired to a local model. Reachable two ways - from a model's
 /// detail (with that model preselected) or from the Sandboxes tab's New Sandbox button (pick
 /// any running model). Picks the network (surfacing its egress), injects the bridge env vars,
 /// stamps the sandbox label, and explains the isolation live against the chosen network.
@@ -147,7 +147,7 @@ struct RunModelContainerView: View {
             Picker("Network", selection: $networkID) {
                 Text("Default").tag("")
                 ForEach(networkService.networks, id: \.id) { network in
-                    Text(network.isHostOnly ? "\(network.id) — isolated" : network.id).tag(network.id)
+                    Text(network.isHostOnly ? "\(network.id) - isolated" : network.id).tag(network.id)
                 }
             }
             .pickerStyle(.menu)
@@ -191,11 +191,11 @@ struct RunModelContainerView: View {
             }
 
             if hostOnly {
-                Text("This is a host-only network. The container can reach the model over the network gateway but has no route to the internet — nothing to phone home to, no credential to leak.")
+                Text("This is a host-only network. The container can reach the model over the network gateway but has no route to the internet - nothing to phone home to, no credential to leak.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                Text("This network allows internet access, so the container can reach both the model and the internet. For a sandbox with no egress, use a host-only network — create one with:")
+                Text("This network allows internet access, so the container can reach both the model and the internet. For a sandbox with no egress, use a host-only network - create one with:")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Text("container network create --internal <name>")
@@ -204,7 +204,7 @@ struct RunModelContainerView: View {
             }
 
             Divider()
-            Text("Isolation comes from Apple's per-container VM boundary plus the network you choose — Orchard adds none of its own. The model server must be bound to 0.0.0.0 for the container to reach it.")
+            Text("Isolation comes from Apple's per-container VM boundary plus the network you choose - Orchard adds none of its own. The model server must be bound to 0.0.0.0 for the container to reach it.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }

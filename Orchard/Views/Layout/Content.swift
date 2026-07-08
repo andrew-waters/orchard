@@ -104,7 +104,7 @@ struct ContentView: View {
         }
         // Pin an explicit ideal size so the window opens at 1200×800 instead of sizing to the
         // content's (tall) ideal height, which otherwise overflows the screen. `.topLeading`
-        // keeps the content anchored — a default (centre-aligned) fill frame shifts it.
+        // keeps the content anchored - a default (centre-aligned) fill frame shifts it.
         .frame(minWidth: 900, idealWidth: 1200, maxWidth: .infinity,
                minHeight: 550, idealHeight: 800, maxHeight: .infinity,
                alignment: .topLeading)
@@ -150,7 +150,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedContainer) { _, newValue in
-            // External navigation (e.g. NavigateToContainer, tab switching) drives primary —
+            // External navigation (e.g. NavigateToContainer, tab switching) drives primary - 
             // mirror into the set when the set wouldn't already cover this state.
             if let id = newValue {
                 if !selectedContainers.contains(id) {

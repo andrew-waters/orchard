@@ -1,7 +1,7 @@
 import Foundation
 
 /// Launch argument that makes the app wire its services to an in-memory stub backend seeded
-/// with fixtures — so the XCUITest smoke suite runs without a real `container` daemon.
+/// with fixtures - so the XCUITest smoke suite runs without a real `container` daemon.
 let uiTestMockBackendArgument = "--uitest-mock-backend"
 
 /// Launch argument that makes the stub fail `stopContainer`, so the smoke suite can exercise

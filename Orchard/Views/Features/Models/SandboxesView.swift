@@ -85,7 +85,7 @@ struct SandboxesListView: View {
     }
 }
 
-/// Third column: detail for the selected sandbox — endpoint, isolation, and the
+/// Third column: detail for the selected sandbox - endpoint, isolation, and the
 /// agent-runner controls (chat, terminal, kill switch).
 struct SandboxDetailView: View {
     @EnvironmentObject var containerListService: ContainerListService

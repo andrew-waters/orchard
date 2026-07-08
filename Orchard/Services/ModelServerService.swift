@@ -2,7 +2,7 @@ import Foundation
 
 /// Owns the model servers Orchard has started and supervises their processes. Complements
 /// `ModelService` (which only *detects* running servers): this one *runs* them. Follows the
-/// house service template — `@Published` state, `AlertCenter` for user-facing failures.
+/// house service template - `@Published` state, `AlertCenter` for user-facing failures.
 ///
 /// A managed server never exits on its own, so lifecycle is driven by the process's
 /// termination handler: a user Stop is expected (remove quietly); any other exit is a crash
@@ -82,7 +82,7 @@ final class ModelServerService: ObservableObject {
         if wasIntentional {
             servers.removeAll { $0.id == id }
         } else if let index = servers.firstIndex(where: { $0.id == id }) {
-            // Unexpected exit — keep it visible as failed so the user can read its log.
+            // Unexpected exit - keep it visible as failed so the user can read its log.
             servers[index].status = .failed
             alertCenter.error("Model server \(servers[index].model) stopped unexpectedly (exit \(code)). Check its log.")
         }

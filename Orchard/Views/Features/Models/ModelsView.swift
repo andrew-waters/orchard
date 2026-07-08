@@ -104,7 +104,7 @@ struct ModelsListView: View {
     }
 }
 
-/// Third column: detail for the selected server or detected provider — endpoints, models,
+/// Third column: detail for the selected server or detected provider - endpoints, models,
 /// and lifecycle/test actions.
 struct ModelDetailView: View {
     @EnvironmentObject var modelService: ModelService
@@ -166,7 +166,7 @@ struct ModelDetailView: View {
             if server.reachableFromContainers, let url = containerURL(port: server.port, api: server.api) {
                 labeledRow("From containers", url)
             } else if !server.reachableFromContainers {
-                Text("Loopback-only — bound to 127.0.0.1, so containers can't reach it.")
+                Text("Loopback-only - bound to 127.0.0.1, so containers can't reach it.")
                     .font(.caption).foregroundColor(.secondary)
             }
 

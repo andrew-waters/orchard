@@ -252,7 +252,7 @@ struct Platform: Codable, Equatable {
 
 // MARK: - Machine Models
 
-/// A container machine — a persistent, stateful lightweight Linux VM — expressed entirely
+/// A container machine - a persistent, stateful lightweight Linux VM - expressed entirely
 /// in app-owned types so the machine XPC client's model types never leak past the backend.
 ///
 /// `isDefault` is resolved by `MachineService` from the machine API's separate `getDefault()`
@@ -310,7 +310,7 @@ struct ChatMessage: Identifiable, Equatable, Sendable {
     var content: String
 }
 
-/// A local inference provider discovered running on the host — Ollama, LM Studio, an MLX
+/// A local inference provider discovered running on the host - Ollama, LM Studio, an MLX
 /// server, and so on. Orchard *manages and bridges* providers; it does not run inference
 /// itself. Detected read-only in this first slice.
 struct ModelProvider: Identifiable, Equatable, Sendable {
@@ -342,7 +342,7 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
     var id: String { "\(kind.rawValue):\(port)" }
 
     /// The base URL reachable *from the host* (e.g. `http://127.0.0.1:11434`). Distinct
-    /// from the container-reachable URL, which goes through the network gateway — see
+    /// from the container-reachable URL, which goes through the network gateway - see
     /// `ModelBridge`.
     var hostBaseURL: String { "http://127.0.0.1:\(port)" }
 }
@@ -686,7 +686,7 @@ struct ContainerNetwork: Codable, Equatable, Identifiable {
     let config: NetworkConfig
     let status: NetworkStatus
     /// True for a host-only (`--internal`) network: reachable from the host but with no
-    /// internet egress. This is the sandbox-network property the model bridge relies on —
+    /// internet egress. This is the sandbox-network property the model bridge relies on - 
     /// a container on it can reach a host model server yet cannot phone home. Defaults to
     /// false so it's absent-safe for older data and test fixtures.
     var isHostOnly: Bool = false
@@ -876,7 +876,7 @@ struct DiskUsageSection: Codable, Equatable {
 
 extension String {
     /// A network address with any CIDR suffix removed, e.g. "10.0.0.2/24" → "10.0.0.2".
-    /// Generic over the prefix length — the previous hard-coded "/24" strip left "/16", "/8",
+    /// Generic over the prefix length - the previous hard-coded "/24" strip left "/16", "/8",
     /// etc. attached to copied addresses.
     var strippingCIDRSuffix: String {
         guard let slash = firstIndex(of: "/") else { return self }

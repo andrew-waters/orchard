@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A lightweight chat session against a model server — send a message, keep the history, and
+/// A lightweight chat session against a model server - send a message, keep the history, and
 /// carry it forward so the model has context. Talks to the provider on the host (127.0.0.1),
 /// the same endpoint detection uses. Intentionally a PoC: no streaming, no persistence.
 struct TestModelPromptView: View {

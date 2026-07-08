@@ -24,7 +24,7 @@ struct ContainerConfigForm: View {
 
     @State private var selectedTab: ConfigTab = .basic
     /// The detected model provider the user chose to bridge into this container, by
-    /// `ModelProvider.id`. Empty means "none" — the bridge section is opt-in.
+    /// `ModelProvider.id`. Empty means "none" - the bridge section is opt-in.
     @State private var bridgeProviderID: String = ""
 
     enum ConfigTab: String, CaseIterable {
@@ -328,7 +328,7 @@ struct ContainerConfigForm: View {
 
     /// Lets the user wire this new container to a model server running on the host. The
     /// endpoint is computed from the target network's gateway (how a container reaches the
-    /// host) and injected as standard client env vars. Opt-in and additive — it only
+    /// host) and injected as standard client env vars. Opt-in and additive - it only
     /// appends to the environment when the user asks.
     @ViewBuilder
     private var modelBridgeSection: some View {
@@ -339,7 +339,7 @@ struct ContainerConfigForm: View {
                     .font(.headline)
             }
 
-            Text("Wire this container to an AI model server running on your Mac. The container reaches it over its network gateway — no host networking to hand-configure.")
+            Text("Wire this container to an AI model server running on your Mac. The container reaches it over its network gateway - no host networking to hand-configure.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
