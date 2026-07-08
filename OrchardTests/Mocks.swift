@@ -402,10 +402,23 @@ final class MockModelBackend: ModelBackend, @unchecked Sendable {
     }
     var detectCount: Int { lock.withLock { _detectCount } }
 
+    /// Canned reply for `complete`; set to control the tester's output in tests.
+    var completion: String = "mock reply"
+    var completeError: Error?
+    private(set) var completeMessageCounts: [Int] = []
+
     func detectProviders() async -> [ModelProvider] {
         lock.withLock {
             _detectCount += 1
             return _providers
+        }
+    }
+
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
+        try lock.withLock {
+            completeMessageCounts.append(messages.count)
+            if let completeError { throw completeError }
+            return completion
         }
     }
 }

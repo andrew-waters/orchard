@@ -55,3 +55,24 @@ func parseGarbage() {
     #expect(LiveModelBackend.parseModels(Data("not json".utf8), api: .openAI).isEmpty)
     #expect(LiveModelBackend.parseModels(Data("{}".utf8), api: .ollama).isEmpty)
 }
+
+// MARK: - parseCompletion
+
+@Test("Completion parse: OpenAI response yields the assistant message content")
+func parseCompletionOpenAI() throws {
+    let json = Data(#"{"choices":[{"message":{"role":"assistant","content":"hello there"}}]}"#.utf8)
+    #expect(try LiveModelBackend.parseCompletion(json, api: .openAI) == "hello there")
+}
+
+@Test("Completion parse: Ollama response yields the message content")
+func parseCompletionOllama() throws {
+    let json = Data(#"{"message":{"role":"assistant","content":"hi from ollama"}}"#.utf8)
+    #expect(try LiveModelBackend.parseCompletion(json, api: .ollama) == "hi from ollama")
+}
+
+@Test("Completion parse: an unexpected shape throws rather than returning empty")
+func parseCompletionBadShape() {
+    #expect(throws: (any Error).self) {
+        try LiveModelBackend.parseCompletion(Data("{}".utf8), api: .openAI)
+    }
+}
