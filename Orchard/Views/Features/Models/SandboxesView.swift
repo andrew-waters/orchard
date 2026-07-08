@@ -1,6 +1,6 @@
 import SwiftUI
 
-// The "Local AI → Sandboxes" domain, in the app's three-column shape: a list of sandbox
+// The Sandboxes domain (under Compute), in the app's three-column shape: a list of sandbox
 // containers (middle column) and a detail pane for the selected one (third column). A
 // sandbox is a derived view over a container wired to a local model.
 

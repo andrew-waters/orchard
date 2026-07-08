@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// The "Local AI → Models" domain, in the app's three-column shape: a list of servers
+// The AI Models domain (under Resources), in the app's three-column shape: a list of servers
 // (middle column) and a detail pane for the selected one (third column).
 
 /// Middle column: managed servers Orchard runs plus other detected providers, with a
@@ -97,6 +97,9 @@ struct ModelsListView: View {
                     .foregroundColor(.secondary)
                     .textSelection(.enabled)
                     .padding(.top, 4)
+                Link("Setup & troubleshooting guide", destination: URL(string: "https://orchard.andon.dev/ai.html")!)
+                    .font(.caption2)
+                    .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -214,6 +217,9 @@ struct ModelDetailView: View {
             labeledRow("On this Mac", provider.hostBaseURL)
             if let url = containerURL(port: provider.port, api: provider.api) {
                 labeledRow("From containers", url)
+                Text("Reachable from containers only if this server is bound to 0.0.0.0 (some default to 127.0.0.1).")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
 
             if provider.models.isEmpty {

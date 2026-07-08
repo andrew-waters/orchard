@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// Owns the model servers Orchard has started and supervises their processes. Complements
 /// `ModelService` (which only *detects* running servers): this one *runs* them. Follows the
@@ -24,6 +25,23 @@ final class ModelServerService: ObservableObject {
         self.engine = engine
         self.alertCenter = alertCenter
         self.engineAvailable = engine.locateBinary() != nil
+
+        // Managed servers are child processes that outlive Orchard if left alone (macOS
+        // doesn't reap them with the parent). Terminate them when the app quits so we don't
+        // leak multi-GB inference processes. Best-effort: not delivered on a force-quit.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.stopAll() }
+        }
+    }
+
+    /// Terminate every managed server. Called on app termination; also usable directly.
+    func stopAll() {
+        for (id, process) in processes {
+            stopping.insert(id)
+            process.terminate()
+        }
     }
 
     /// Ports currently bound by managed servers, so the detected-provider list can hide the

@@ -153,7 +153,7 @@
     <section class="hero">
       <div class="wrap">
         <h1>The native GUI for<br />Apple Containers</h1>
-        <p class="sub">Orchard is a native macOS app for managing containers with Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling - a fast, focused desktop experience that complements the CLI.</p>
+        <p class="sub">Orchard is a native macOS app for Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling - manage containers and machines, bridge local AI models into them, and run agents in isolated sandboxes, all without dropping to the CLI.</p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/andrew-waters/orchard/releases/latest">Download for macOS</a>
           <a class="btn btn-ghost" href="https://github.com/andrew-waters/orchard">View on GitHub</a>
@@ -194,6 +194,18 @@
           <img class="zoomable" src="assets/dashboard.png" alt="System dashboard in Orchard" />
         </div>
         <div class="feature-row">
+          <div class="feature-text"><h3>Glance from the menu bar</h3><p>CPU and memory rings across running containers, per-container start/stop controls, and one-click access back to the app.</p></div>
+          <img class="zoomable" src="assets/menubar.png" alt="Menu bar panel in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Bridge local models into containers</h3><p>Discover MLX, Ollama and LM Studio servers on your Mac - or run your own - and see the endpoint containers use to reach them. Inference stays on the Apple GPU. <a href="ai.html">Learn more →</a></p></div>
+          <img class="zoomable" src="assets/ai-models.png" alt="The AI Models view in Orchard: a detected MLX server with its on-Mac and container-reachable endpoints" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Run agents in isolated sandboxes</h3><p>A sandbox is a container wired to a local model on a host-only network: it can reach the model but not the internet, with a local endpoint instead of an API key - and a kill-switch when you're done.</p></div>
+          <img class="zoomable" src="assets/sandbox.png" alt="A sandboxed agent in Orchard with the Isolated badge, model endpoint, and chat, terminal and stop controls" />
+        </div>
+        <div class="feature-row">
           <div class="feature-text"><h3>Search and pull images</h3><p>Browse Docker Hub, inspect image metadata, and pull without memorising CLI flags.</p></div>
           <img class="zoomable" src="assets/images.png" alt="Image management in Orchard" />
         </div>
@@ -212,10 +224,6 @@
         <div class="feature-row">
           <div class="feature-text"><h3>Track every mount</h3><p>See which host paths and volumes each container mounts, and jump straight to them in Finder.</p></div>
           <img class="zoomable" src="assets/mounts.png" alt="Mount management in Orchard" />
-        </div>
-        <div class="feature-row">
-          <div class="feature-text"><h3>Glance from the menu bar</h3><p>CPU and memory rings across running containers, per-container start/stop controls, and one-click access back to the app.</p></div>
-          <img class="zoomable" src="assets/menubar.png" alt="Menu bar panel in Orchard" />
         </div>
       </div>
     </section>
