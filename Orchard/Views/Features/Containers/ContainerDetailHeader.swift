@@ -16,7 +16,7 @@ struct ContainerDetailHeader: View {
 
     /// Shield badge shown when the container is a sandbox (wired to a local model). Tapping
     /// it explains what that means and shows the endpoint - since a sandbox appears in both
-    /// the Containers and Local AI → Sandboxes lists.
+    /// the Containers and Sandboxes lists.
     private var sandboxBadge: some View {
         Button(action: { showSandboxInfo.toggle() }) {
             SwiftUI.Image(systemName: "shield.lefthalf.filled")
@@ -32,7 +32,7 @@ struct ContainerDetailHeader: View {
                     Text("Sandbox")
                         .font(.headline)
                 }
-                Text("This container is wired to a local model. It also appears in Local AI → Sandboxes.")
+                Text("This container is wired to a local model. It also appears under Compute → Sandboxes.")
                     .font(.callout)
                     .foregroundColor(.secondary)
                 if let endpoint = container.sandboxEndpoint {

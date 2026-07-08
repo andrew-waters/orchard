@@ -7,7 +7,7 @@
   <meta name="description" content="Run local MLX models on your Mac and wire them into containers from Orchard. What MLX is, how the container↔model bridge works, how isolation and sandboxes fit together, and a runnable quick start." />
   <meta property="og:title" content="Local AI & Sandboxes · Orchard" />
   <meta property="og:description" content="Run local MLX models and bridge them into isolated containers, from a native macOS app." />
-  <meta property="og:image" content="assets/banner.png" />
+  <meta property="og:image" content="assets/sandbox.png" />
   <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
   <style>
     :root {
@@ -166,6 +166,8 @@
         <p>Apple's <code>container</code> runs each workload in its own lightweight Linux VM. That's great for isolation, but those guests have <strong>no GPU access</strong> - so model inference has to run on the host. Meanwhile every developer building an AI app or agent on this stack ends up hand-wiring the plumbing between a container and a model server on their Mac.</p>
         <p>Orchard owns both sides of that seam. It manages <strong>local model servers</strong> on the host, and <strong>bridges</strong> them into containers with one click - the same idea as Docker's Model Runner, but native to Apple silicon and using <strong>MLX</strong> instead of llama.cpp.</p>
 
+        <div class="shot"><img src="assets/ai-models.png" alt="The AI Models view in Orchard: a detected MLX server with its on-Mac endpoint, its container-reachable endpoint, and the model it serves" /></div>
+
         <h3>What's MLX?</h3>
         <p><a href="https://github.com/ml-explore/mlx">MLX</a> is Apple's open-source array framework for machine learning on Apple silicon. <a href="https://github.com/ml-explore/mlx-lm"><code>mlx-lm</code></a> builds an LLM server on top of it - <code>mlx_lm.server</code> - that runs inference on the Apple GPU (Metal) and exposes an <strong>OpenAI-compatible</strong> HTTP API. It's fast on a Mac, needs no Docker, and the models are ordinary Hugging Face repos. Orchard <em>manages</em> that server; it does not embed an inference engine of its own.</p>
 
@@ -245,6 +247,8 @@
         </figure>
 
         <p>Orchard reads each network's egress mode and shows it honestly: sandboxes are badged <strong>Isolated</strong> (host-only) or <strong>Egress open</strong> (NAT). The isolation is provided by <code>container</code>'s VM boundary and your network choice - <strong>Orchard adds none of its own</strong>, and never claims to. Because a sandbox is also a container, it appears in both the <strong>Sandboxes</strong> and <strong>Containers</strong> lists, flagged with a shield in the latter.</p>
+
+        <div class="shot"><img src="assets/sandbox.png" alt="A sandboxed agent in Orchard: the Isolated badge, its model endpoint, and chat, terminal and stop controls - with a note that the container can reach the model but has no internet access" /></div>
 
         <div class="callout tip">
           <h4>Why bother, vs. running the agent on the host?</h4>

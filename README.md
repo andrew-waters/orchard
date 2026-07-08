@@ -15,7 +15,7 @@ brew install orchard
 
 ---
 
-Orchard is a native (Swift) macOS application for managing containers using Apple's [container](https://github.com/apple/container) tooling.
+Orchard is a native (Swift) macOS application for managing containers, machines and local AI models using Apple's [container](https://github.com/apple/container) tooling.
 
 It gives you a desktop experience that complements the `container` command-line interface.
 
@@ -23,6 +23,7 @@ Hundreds of installations and starred by engineers from Apple, Microsoft, Red Ha
 
 ---
 
+- [Local AI & Sandboxes](#local-ai--sandboxes)
 - [Container Machines](#container-machines)
 - [Benefits of Apple Containers](#benefits-of-apple-containers)
 - [Orchard Features](#orchard-features)
@@ -38,6 +39,19 @@ Hundreds of installations and starred by engineers from Apple, Microsoft, Red Ha
 - [License](#license)
 
 ![Orchard container detail - CPU, memory, network, and disk over time](assets/overview.png)
+
+## Local AI & Sandboxes
+
+Orchard wires **local MLX models** into Apple containers. Inference runs on your Mac's GPU (container VMs have no GPU access) and containers reach it with no hand-configured networking.
+
+![A sandboxed agent in Orchard - Isolated badge, model endpoint, and chat, terminal and stop controls](assets/sandbox.png)
+
+- Discover model servers already on your Mac (Ollama, LM Studio, MLX servers), or start and stop `mlx_lm.server` instances from the app - with process supervision, crash surfacing and logs
+- The container↔model bridge: Orchard computes the container-reachable endpoint from the network gateway and injects `OPENAI_BASE_URL` at create time, so containerised apps just use the OpenAI SDK
+- **Sandboxes**: a first-class view of containers wired to a local model - isolation badge (host-only vs internet-open), chat and terminal access, and a kill-switch. Run an agent behind a hypervisor boundary with a local endpoint instead of an API key it could leak
+- An in-app chat tester to verify any model server without leaving the app
+
+See the [Local AI guide](https://orchard.andon.dev/ai.html) for a full walkthrough and a runnable quick start.
 
 ## Container Machines
 
@@ -62,6 +76,7 @@ Machines are driven over Apple's native XPC API (`MachineAPIClient`), not by she
 
 ## Orchard Features
 
+- Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
 - Container management: create, start, stop, force stop, delete
 - Image management: pull, delete, search Docker Hub
@@ -103,6 +118,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 | Native macOS app | ✅ <sup>2</sup> | ❌ <sup>3</sup> | ❌ |
 | Native XPC integration (no CLI shelling) | ✅ | ❌ <sup>4</sup> | ✅ |
 | Container machines (native XPC) | ✅ | ❌ | ✅ |
+| Local AI models & agent sandboxes | ✅ | ❌ | ❌ |
 | Signed & notarized | ✅ | ✅ | ✅ |
 | Multi-pane log viewer | ✅ | ➖ | ➖ <sup>5</sup> |
 | Live container stats (CPU/mem/net/disk) | ✅ | ✅ | ➖ |

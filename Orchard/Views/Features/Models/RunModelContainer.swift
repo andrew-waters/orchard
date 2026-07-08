@@ -123,7 +123,7 @@ struct RunModelContainerView: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
             if targets.isEmpty {
-                Text("No model servers running. Start one in Local AI → Models first.")
+                Text("No model servers running. Start one in Resources → AI Models first.")
                     .font(.caption)
                     .foregroundColor(.orange)
             } else {
