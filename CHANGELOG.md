@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Local AI models (MLX)**: a new **AI Models** section discovers model servers running on your Mac (Ollama, LM Studio, and MLX servers), and can start and stop your own `mlx_lm.server` instances - pick a model and port, choose whether to bind `0.0.0.0` so containers can reach it, with child-process supervision, crash surfacing and log access.
+- **The container↔model bridge**: wire a container to a host model in one step. Orchard computes the container-reachable endpoint from the network gateway and injects `OPENAI_BASE_URL` at create time - so a containerised app or agent talks to a local model with no hand-configured host networking. Inference runs on the Apple GPU on the host (Virtualization.framework guests have no GPU access).
+- **Sandboxes**: a first-class view of containers wired to a local model, recognised by a label Orchard stamps or by a model-endpoint environment variable. Each sandbox shows its model endpoint, an isolation badge (host-only/no-egress vs internet-open), and agent-runner controls - chat, terminal, and a stop kill-switch. Create one from the **New Sandbox** button or from a model's detail.
+- **In-app chat tester**: hold a short conversation with any model server from the AI Models view - no terminal or container needed - to check it's working.
+- Sandbox containers are flagged with a shield badge (and an explanatory popover) in the Containers list and detail, since a sandbox appears in both places.
+- A new [Local AI guide](https://orchard.andon.dev/ai.html) on the site covering MLX, the bridge, isolation, and a runnable quick start.
+
+### Changed
+- Reorganised the sidebar so **Sandboxes** joins Containers and Machines under **Compute**, and **AI Models** sits under **Resources** alongside Images and Mounts.
+
 ## [2.1.2] - 2026-07-07
 
 ### Added

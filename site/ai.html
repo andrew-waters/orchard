@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local AI &amp; Sandboxes · Orchard</title>
+  <meta name="description" content="Run local MLX models on your Mac and wire them into containers from Orchard. What MLX is, how the container↔model bridge works, how isolation and sandboxes fit together, and a runnable quick start." />
+  <meta property="og:title" content="Local AI & Sandboxes · Orchard" />
+  <meta property="og:description" content="Run local MLX models and bridge them into isolated containers, from a native macOS app." />
+  <meta property="og:image" content="assets/banner.png" />
+  <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+  <style>
+    :root {
+      --accent: #4a97ff;
+      --accent-dark: #2f80ed;
+      --green: #34c759;
+      --amber: #f5a623;
+      --navy: #0e2138;
+      --bg: #0b1626;
+      --bg-soft: #0f1d33;
+      --ink: #e7edf6;
+      --muted: #9fb0c9;
+      --line: rgba(255,255,255,.10);
+      --card: #12233c;
+      --radius: 12px;
+      --maxw: 1040px;
+      --docw: 760px;
+    }
+    [data-theme="light"] {
+      --accent: #2f80ed;
+      --accent-dark: #2668c9;
+      --bg: #ffffff;
+      --bg-soft: #f7f8fa;
+      --ink: #1d2127;
+      --muted: #626975;
+      --line: #e6e8eb;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      transition: background .2s ease, color .2s ease;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; display: block; }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--navy);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { height: 30px; width: auto; display: block; }
+    .nav-links { display: flex; align-items: center; }
+    .nav-links a { color: #c3cfe2; margin-left: 24px; font-size: 15px; font-weight: 500; }
+    .nav-links a:hover { color: #fff; text-decoration: none; }
+    .nav-links a.current { color: #fff; }
+    .theme-btn { margin-left: 24px; background: transparent; border: 0; color: #c3cfe2; font-size: 17px; cursor: pointer; line-height: 1; padding: 4px; }
+    .theme-btn:hover { color: #fff; }
+
+    .hero { padding: 64px 0 48px; text-align: center; background: var(--navy); color: #eef3fb; }
+    .hero .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 13px; font-weight: 600; color: #7fb0ff; margin: 0 0 12px; }
+    .hero h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; color: #fff; }
+    .hero p.sub { font-size: clamp(16px, 2.4vw, 19px); color: #a9b7d0; max-width: 660px; margin: 0 auto; }
+    .hero .pill { display: inline-block; margin-top: 22px; padding: 6px 14px; border-radius: 999px; background: rgba(74,151,255,.15); color: #9cc4ff; font-size: 13px; font-weight: 600; }
+
+    section { padding: 56px 0; }
+    section.alt { background: var(--bg-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+    .doc { max-width: var(--docw); margin: 0 auto; }
+    .doc h2 { font-size: clamp(22px, 3vw, 28px); letter-spacing: -.02em; margin: 0 0 14px; }
+    .doc h3 { font-size: 19px; margin: 34px 0 8px; }
+    .doc p { color: var(--ink); margin: 0 0 16px; }
+    .doc ul { color: var(--ink); margin: 0 0 16px; padding-left: 22px; }
+    .doc li { margin: 6px 0; }
+    .doc strong { font-weight: 650; }
+    .doc code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: rgba(127,150,190,.16); padding: 1px 6px; border-radius: 5px; }
+    .doc .muted { color: var(--muted); }
+
+    pre { background: #0f1115; color: #e8eaed; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13.5px; line-height: 1.5; margin: 0 0 18px; border: 1px solid rgba(255,255,255,.06); }
+    pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin: 8px 0 4px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+    .card h3 { margin: 0 0 6px; font-size: 16px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+    .callout { border-radius: var(--radius); padding: 16px 18px; margin: 0 0 18px; border: 1px solid var(--line); border-left-width: 4px; background: var(--card); }
+    .callout h4 { margin: 0 0 6px; font-size: 15px; }
+    .callout p { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
+    .callout p:last-child { margin-bottom: 0; }
+    .callout.warn { border-left-color: var(--amber); }
+    .callout.warn h4 { color: var(--amber); }
+    .callout.info { border-left-color: var(--accent); }
+    .callout.info h4 { color: var(--accent); }
+    .callout.tip { border-left-color: var(--green); }
+    .callout.tip h4 { color: var(--green); }
+
+    .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+    .steps > li { position: relative; padding-left: 44px; margin: 0 0 22px; }
+    .steps > li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: -2px; width: 28px; height: 28px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .steps h3 { margin: 2px 0 6px; font-size: 17px; }
+    .steps p { margin: 0 0 10px; color: var(--muted); font-size: 15px; }
+
+    /* Diagrams */
+    figure.diagram { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 18px 14px; margin: 6px 0 20px; overflow-x: auto; }
+    figure.diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+    figure.diagram figcaption { color: var(--muted); font-size: 13px; text-align: center; margin-top: 12px; }
+    .d-host { fill: none; stroke: var(--line); stroke-width: 1.5; }
+    .d-box { fill: var(--bg-soft); stroke: var(--accent); stroke-width: 1.5; }
+    .d-box-soft { fill: var(--bg-soft); stroke: var(--line); stroke-width: 1.5; }
+    .d-title { fill: var(--ink); font: 600 14px -apple-system, BlinkMacSystemFont, sans-serif; }
+    .d-mono { fill: var(--ink); font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .d-mut { fill: var(--muted); font: 12px -apple-system, BlinkMacSystemFont, sans-serif; }
+    .d-flow { stroke: var(--accent); stroke-width: 2; fill: none; }
+    .d-ok { stroke: var(--green); stroke-width: 2; fill: none; }
+    .d-block { stroke: var(--amber); stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+    .d-ok-t { fill: var(--green); font: 600 12px -apple-system, sans-serif; }
+    .d-block-t { fill: var(--amber); font: 600 12px -apple-system, sans-serif; }
+    .d-arrow { fill: var(--accent); }
+    .d-arrow-ok { fill: var(--green); }
+    .d-arrow-block { fill: var(--amber); }
+
+    footer { padding: 40px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .foot a { color: var(--muted); margin-left: 18px; }
+    .foot a:hover { color: var(--accent); }
+  </style>
+</head>
+<body id="top">
+  <header>
+    <div class="wrap nav">
+      <a href="index.html" aria-label="Orchard"><img class="logo" src="logo.svg" alt="Orchard" /></a>
+      <nav class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#install">Install</a>
+        <a href="machines.html">Machines</a>
+        <a href="ai.html" class="current">Local AI</a>
+        <a href="https://github.com/andrew-waters/orchard">GitHub</a>
+        <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow">Guide</p>
+        <h1>Local AI &amp; Sandboxes</h1>
+        <p class="sub">Run local models on Apple silicon with MLX, and wire them into containers from Orchard - with a real, honest isolation story. Model Runner for the Apple-native stack.</p>
+        <span class="pill">Requires Apple <code>container</code> 1.1+ · macOS 26 · Apple silicon · MLX</span>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap doc">
+        <h2>What this is</h2>
+        <p>Apple's <code>container</code> runs each workload in its own lightweight Linux VM. That's great for isolation, but those guests have <strong>no GPU access</strong> - so model inference has to run on the host. Meanwhile every developer building an AI app or agent on this stack ends up hand-wiring the plumbing between a container and a model server on their Mac.</p>
+        <p>Orchard owns both sides of that seam. It manages <strong>local model servers</strong> on the host, and <strong>bridges</strong> them into containers with one click - the same idea as Docker's Model Runner, but native to Apple silicon and using <strong>MLX</strong> instead of llama.cpp.</p>
+
+        <h3>What's MLX?</h3>
+        <p><a href="https://github.com/ml-explore/mlx">MLX</a> is Apple's open-source array framework for machine learning on Apple silicon. <a href="https://github.com/ml-explore/mlx-lm"><code>mlx-lm</code></a> builds an LLM server on top of it - <code>mlx_lm.server</code> - that runs inference on the Apple GPU (Metal) and exposes an <strong>OpenAI-compatible</strong> HTTP API. It's fast on a Mac, needs no Docker, and the models are ordinary Hugging Face repos. Orchard <em>manages</em> that server; it does not embed an inference engine of its own.</p>
+
+        <div class="callout info">
+          <h4>Manage the resource, don't become the client</h4>
+          <p>Orchard is infrastructure: it discovers, runs and bridges models. It isn't a chat playground or a fine-tuning tool - the built-in prompt tester exists only to confirm a server works.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap doc">
+        <h2>How the bridge works</h2>
+        <p>A container reaches the host over its network's <strong>gateway</strong> - the default route inside the VM. So if a model server is bound to <code>0.0.0.0</code> (all interfaces), the container can reach it at <code>http://&lt;gateway&gt;:&lt;port&gt;</code>. Orchard computes that address from the container's network and injects it as <code>OPENAI_BASE_URL</code> at create time. Nothing to hand-configure.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 760 250" role="img" aria-label="A container reaches a host-bound MLX server over the network gateway.">
+            <defs>
+              <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="d-arrow"/></marker>
+            </defs>
+            <!-- container -->
+            <rect x="20" y="58" width="270" height="134" rx="12" class="d-box"/>
+            <text x="40" y="88" class="d-title">Container · Linux VM</text>
+            <text x="40" y="116" class="d-mono">OPENAI_BASE_URL =</text>
+            <text x="40" y="136" class="d-mono">http://192.168.66.1:8080/v1</text>
+            <text x="40" y="166" class="d-mut">No GPU in the guest</text>
+            <!-- host -->
+            <rect x="468" y="26" width="272" height="198" rx="12" class="d-host"/>
+            <text x="488" y="52" class="d-title">macOS host</text>
+            <rect x="488" y="66" width="232" height="62" rx="9" class="d-box"/>
+            <text x="504" y="92" class="d-mono">mlx_lm.server :8080</text>
+            <text x="504" y="113" class="d-mut">bound 0.0.0.0</text>
+            <rect x="488" y="144" width="232" height="54" rx="9" class="d-box-soft"/>
+            <text x="504" y="176" class="d-mono">Apple GPU · Metal</text>
+            <!-- flow -->
+            <path d="M290,126 L462,126" class="d-flow" marker-end="url(#ah)"/>
+            <text x="376" y="114" text-anchor="middle" class="d-mut">gateway → :8080</text>
+          </svg>
+          <figcaption>Inference runs on the host GPU; the container talks to it over the vmnet gateway.</figcaption>
+        </figure>
+
+        <p class="muted">A server bound to <code>127.0.0.1</code> is reachable only from your Mac, not from containers. That bind address is the whole exposure control - Orchard sets it when it launches a managed server, and lets you choose it in the New Server form.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap doc">
+        <h2>Isolation &amp; sandboxes</h2>
+        <p>A <strong>sandbox</strong> is just a container wired to a local model. What makes it interesting is combining the bridge with a <strong>host-only network</strong> (<code>container network create --internal</code>): a container on such a network has <strong>no route to the internet</strong>, yet can still reach the host model over the gateway. That's the shape an agent-runner wants - free local tokens, and nothing to phone home to or leak.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 240" role="img" aria-label="On a host-only network a sandbox reaches the model but not the internet.">
+            <defs>
+              <marker id="ah-ok" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="d-arrow-ok"/></marker>
+              <marker id="ah-block" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="d-arrow-block"/></marker>
+            </defs>
+            <!-- sandbox -->
+            <rect x="24" y="78" width="268" height="92" rx="12" class="d-box"/>
+            <text x="44" y="108" class="d-title">Sandbox container</text>
+            <text x="44" y="132" class="d-mut">host-only network · no egress</text>
+            <text x="44" y="152" class="d-mono">OPENAI_BASE_URL set</text>
+            <!-- model -->
+            <rect x="472" y="28" width="216" height="70" rx="11" class="d-box"/>
+            <text x="492" y="56" class="d-title">Host model :8080</text>
+            <text x="492" y="78" class="d-mut">Apple GPU</text>
+            <!-- internet -->
+            <rect x="472" y="150" width="216" height="66" rx="11" class="d-box-soft"/>
+            <text x="492" y="182" class="d-title">Internet</text>
+            <text x="492" y="203" class="d-mut">unreachable</text>
+            <!-- flows -->
+            <path d="M292,110 C380,100 410,80 468,66" class="d-ok" marker-end="url(#ah-ok)"/>
+            <text x="330" y="86" class="d-ok-t">✓ reaches the model</text>
+            <path d="M292,140 C380,150 410,168 468,182" class="d-block" marker-end="url(#ah-block)"/>
+            <text x="330" y="176" class="d-block-t">✗ no internet</text>
+          </svg>
+          <figcaption>Isolation comes from Apple's per-container VM boundary plus the network you choose.</figcaption>
+        </figure>
+
+        <p>Orchard reads each network's egress mode and shows it honestly: sandboxes are badged <strong>Isolated</strong> (host-only) or <strong>Egress open</strong> (NAT). The isolation is provided by <code>container</code>'s VM boundary and your network choice - <strong>Orchard adds none of its own</strong>, and never claims to. Because a sandbox is also a container, it appears in both the <strong>Sandboxes</strong> and <strong>Containers</strong> lists, flagged with a shield in the latter.</p>
+
+        <div class="callout tip">
+          <h4>Why bother, vs. running the agent on the host?</h4>
+          <p>The container is a hypervisor-isolated box with no internet and no credentials. The agent's only "endpoint" is an unauthenticated localhost-gateway URL to a model that costs nothing to run - so a compromised agent has little to exfiltrate and nowhere to send it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap doc">
+        <h2>What Orchard does</h2>
+        <div class="grid">
+          <div class="card"><h3>AI Models</h3><p>Discovers model servers running on your Mac - Ollama, LM Studio, MLX - and lists them with their endpoints and models.</p></div>
+          <div class="card"><h3>Run your own server</h3><p>Start and stop <code>mlx_lm.server</code> instances: pick a model and port, choose the bind address, with supervision, crash surfacing and logs.</p></div>
+          <div class="card"><h3>The bridge</h3><p>Inject a container-reachable <code>OPENAI_BASE_URL</code> into a container at create time, computed from the network gateway.</p></div>
+          <div class="card"><h3>Sandboxes</h3><p>A dedicated view of containers wired to a model, with the endpoint, an isolation badge, and chat / terminal / stop controls.</p></div>
+          <div class="card"><h3>Chat tester</h3><p>Hold a short conversation with any server from the app - no terminal, no container - to confirm it works.</p></div>
+          <div class="card"><h3>Honest isolation</h3><p>Reads each network's egress mode and labels sandboxes Isolated or Egress-open, without overstating what's guaranteed.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap doc">
+        <h2>Quick start</h2>
+        <p>End to end: install MLX, start a server, create an isolated sandbox, and talk to the model from inside it. About ten minutes, most of it a model download.</p>
+
+        <ol class="steps">
+          <li>
+            <h3>Install MLX (<code>mlx_lm.server</code>)</h3>
+            <p>Orchard runs an existing <code>mlx_lm.server</code> binary; it doesn't bundle one. Install it with <a href="https://docs.astral.sh/uv/">uv</a>, which puts it on a stable path:</p>
+            <pre><code>brew install uv
+uv tool install mlx-lm</code></pre>
+            <p>Orchard looks for <code>~/.local/bin/mlx_lm.server</code>. If it's missing, the AI Models section shows install guidance instead of a broken button.</p>
+          </li>
+          <li>
+            <h3>Start a server</h3>
+            <p>In Orchard, open <strong>AI Models</strong> under <em>Resources</em> and click <strong>+</strong>. Enter a Hugging Face MLX model - a small one to start, e.g. <code>mlx-community/Llama-3.2-1B-Instruct-4bit</code> - a port (8080), and leave <strong>“Allow containers to reach it (bind 0.0.0.0)”</strong> on. It downloads on first start, then runs on the GPU. Use <strong>Chat…</strong> to confirm it answers.</p>
+          </li>
+          <li>
+            <h3>Create an isolated network</h3>
+            <p>For a no-egress sandbox you need a host-only network. Orchard detects and labels these; create one from the CLI (in-app creation is on the roadmap):</p>
+            <pre><code>container network create --internal sandbox-net</code></pre>
+          </li>
+          <li>
+            <h3>Create a sandbox</h3>
+            <p>Open <strong>Sandboxes</strong> under <em>Compute</em> and click <strong>+ New Sandbox</strong>. Pick your model, an image (<code>alpine:latest</code> is fine), and choose <strong>sandbox-net</strong> as the network - the panel confirms <em>Isolated: no internet access</em> and shows the exact endpoint it will inject. Create it.</p>
+          </li>
+          <li>
+            <h3>Talk to the model from inside</h3>
+            <p>Select the sandbox and <strong>Open Terminal</strong>, then call the injected endpoint. It works even though the container has no internet:</p>
+            <pre><code># inside the container - $OPENAI_BASE_URL is already set
+wget -qO- --header="Content-Type: application/json" \
+  --post-data='{"model":"mlx-community/Llama-3.2-1B-Instruct-4bit",
+    "messages":[{"role":"user","content":"Say hello in 5 words"}],
+    "max_tokens":40}' \
+  "$OPENAI_BASE_URL/chat/completions"
+
+# and confirm there's no egress:
+wget -qO- --timeout=4 http://1.1.1.1/ || echo "no internet - as intended"</code></pre>
+          </li>
+        </ol>
+
+        <div class="callout warn">
+          <h4>Troubleshooting: MLX moves fast</h4>
+          <p>MLX and its Python dependencies drift quickly, and versions can fall out of step - a model may fail to load with a <code>transformers</code> registration error or a <code>no Stream(gpu, …)</code> runtime error. If that happens, pin a known-good set:</p>
+          <pre><code>printf 'transformers==4.57.6\n' &gt; mlx-overrides.txt
+uv tool install 'mlx-lm==0.31.3' --override mlx-overrides.txt --force</code></pre>
+          <p class="muted">These exact versions were verified together (mlx-lm 0.31.3, mlx 0.32.0, transformers 4.57.6). Newer combinations may work without the pin.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap doc">
+        <h2>Pitfalls &amp; things to know</h2>
+
+        <div class="callout warn">
+          <h4>Bind <code>0.0.0.0</code>, or containers can't reach it</h4>
+          <p>A server on <code>127.0.0.1</code> is reachable only from your Mac. Orchard's <strong>New Server</strong> form binds all interfaces by default for this reason. Note that a <code>0.0.0.0</code> server is reachable by <em>every</em> container on <em>every</em> network - pair it with a host-only network for a real sandbox.</p>
+        </div>
+
+        <div class="callout info">
+          <h4>Isolation is Apple's, not Orchard's</h4>
+          <p>The security boundary is <code>container</code>'s per-workload VM plus the network you pick. Orchard surfaces the egress mode and injects the endpoint; it doesn't add isolation of its own, and the UI won't claim it does.</p>
+        </div>
+
+        <div class="callout info">
+          <h4>Detected vs. managed providers</h4>
+          <p>Orchard fully manages the <code>mlx_lm.server</code> instances it starts (stop, logs, lifecycle). Servers it merely detects - Ollama, LM Studio, an MLX server you launched yourself - are read-only: it lists them and bridges them, but doesn't control their lifecycle.</p>
+        </div>
+
+        <div class="callout warn">
+          <h4>Models are large</h4>
+          <p>MLX models are multi-GB downloads cached under <code>~/.cache/huggingface</code>. Start with a small 4-bit model and watch your disk.</p>
+        </div>
+
+        <div class="callout tip">
+          <h4>Any OpenAI-compatible client works</h4>
+          <p>The bridge injects <code>OPENAI_BASE_URL</code>, so anything speaking the OpenAI API - SDKs, agents, <code>curl</code> - works inside the container with no extra wiring. Ollama-style providers get <code>OLLAMA_HOST</code> instead.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap doc">
+        <h2>Requirements</h2>
+        <ul>
+          <li>Apple <code>container</code> <strong>1.1 or later</strong>, on <strong>macOS 26</strong> and <strong>Apple silicon</strong>.</li>
+          <li><strong>MLX</strong> via <code>mlx_lm.server</code> for managed servers (<code>uv tool install mlx-lm</code>). Detected providers (Ollama, LM Studio) work without it.</li>
+          <li>A <strong>host-only network</strong> (<code>--internal</code>) for a no-egress sandbox; a normal NAT network works too, but the container keeps internet access.</li>
+        </ul>
+        <p><a href="index.html">← Back to Orchard</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div>© Orchard · MIT licensed · a native GUI for Apple Containers</div>
+      <div>
+        <a href="https://github.com/andrew-waters/orchard">GitHub</a>
+        <a href="https://github.com/andrew-waters/orchard/releases">Releases</a>
+        <a href="https://github.com/andrew-waters/orchard/issues">Issues</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var btn = document.getElementById('theme-toggle');
+      function theme() { return root.getAttribute('data-theme') || 'dark'; }
+      function render() { btn.textContent = theme() === 'dark' ? '☀︎' : '☾'; }
+      render();
+      btn.addEventListener('click', function () {
+        var next = theme() === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        render();
+      });
+    })();
+  </script>
+</body>
+</html>
