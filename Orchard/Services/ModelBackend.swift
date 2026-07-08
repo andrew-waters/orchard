@@ -51,6 +51,11 @@ protocol ModelBackend: Sendable {
     /// Probe the host for running model providers and return those that responded.
     /// Best-effort: never throws, since a missing provider is a normal state.
     func detectProviders() async -> [ModelProvider]
+
+    /// Send a chat conversation to a provider on the host (`127.0.0.1:port`) and return the
+    /// assistant's reply. `messages` is the full history so the model has context. Used by
+    /// the in-app tester; throws on transport or HTTP errors so the UI can surface them.
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String
 }
 
 // MARK: - Live implementation
@@ -109,6 +114,66 @@ struct LiveModelBackend: ModelBackend {
             api: candidate.api,
             models: parseModels(data, api: candidate.api)
         )
+    }
+
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
+        let root = "http://127.0.0.1:\(port)"
+        let wireMessages = messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+        let path: String
+        let body: [String: Any]
+        switch api {
+        case .openAI:
+            path = "/v1/chat/completions"
+            body = [
+                "model": model,
+                "messages": wireMessages,
+                "max_tokens": 512,
+                "temperature": 0.7,
+            ]
+        case .ollama:
+            path = "/api/chat"
+            body = [
+                "model": model,
+                "messages": wireMessages,
+                "stream": false,
+            ]
+        }
+
+        guard let url = URL(string: root + path) else {
+            throw OrchardError.generic("Invalid model endpoint.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 120
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw OrchardError.generic("No response from the model server.")
+        }
+        guard http.statusCode == 200 else {
+            let detail = String(data: data, encoding: .utf8).map { String($0.prefix(300)) } ?? ""
+            throw OrchardError.generic("Model server returned HTTP \(http.statusCode). \(detail)")
+        }
+        return try Self.parseCompletion(data, api: api)
+    }
+
+    /// Extract the assistant's reply text from a chat-completion response.
+    static func parseCompletion(_ data: Data, api: ModelAPIStyle) throws -> String {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw OrchardError.generic("Could not read the model server's response.")
+        }
+        switch api {
+        case .openAI:
+            let choices = obj["choices"] as? [[String: Any]]
+            let message = choices?.first?["message"] as? [String: Any]
+            if let content = message?["content"] as? String { return content }
+        case .ollama:
+            let message = obj["message"] as? [String: Any]
+            if let content = message?["content"] as? String { return content }
+        }
+        throw OrchardError.generic("The model server returned an unexpected response shape.")
     }
 
     /// Extract model ids from a provider's listing response. Both shapes are flat JSON.

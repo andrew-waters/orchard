@@ -298,6 +298,18 @@ enum ModelAPIStyle: String, Codable, Sendable {
     case ollama
 }
 
+/// One turn in a chat conversation, in the shape the OpenAI/Ollama chat APIs expect.
+struct ChatMessage: Identifiable, Equatable, Sendable {
+    enum Role: String, Sendable {
+        case user
+        case assistant
+    }
+
+    let id = UUID()
+    let role: Role
+    var content: String
+}
+
 /// A local inference provider discovered running on the host — Ollama, LM Studio, an MLX
 /// server, and so on. Orchard *manages and bridges* providers; it does not run inference
 /// itself. Detected read-only in this first slice.

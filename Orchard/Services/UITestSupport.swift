@@ -146,6 +146,10 @@ struct UITestModelBackend: ModelBackend {
     func detectProviders() async -> [ModelProvider] {
         [ModelProvider(kind: .mlxServer, port: 8080, api: .openAI, models: ["mlx-community/Llama-3.2-1B-Instruct-4bit"])]
     }
+
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
+        "This is a canned UI-test reply to: \(messages.last?.content ?? "")"
+    }
 }
 
 /// A `CommandRunner` returning benign output so CLI-backed views (builders/DNS/properties)

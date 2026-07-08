@@ -11,6 +11,7 @@ struct ModelsView: View {
 
     @State private var showCreateSheet = false
     @State private var runTarget: RunTarget?
+    @State private var testTarget: TestTarget?
 
     /// A model to launch a container against; drives the run sheet.
     private struct RunTarget: Identifiable {
@@ -18,6 +19,15 @@ struct ModelsView: View {
         let name: String
         let port: UInt16
         let api: ModelAPIStyle
+    }
+
+    /// A model to send an ad-hoc prompt to; drives the test sheet.
+    private struct TestTarget: Identifiable {
+        let id = UUID()
+        let name: String
+        let port: UInt16
+        let api: ModelAPIStyle
+        let model: String
     }
 
     /// Detected providers minus the ones our managed servers already account for (a managed
@@ -69,6 +79,9 @@ struct ModelsView: View {
         }
         .sheet(item: $runTarget) { target in
             RunModelContainerView(providerName: target.name, port: target.port, api: target.api)
+        }
+        .sheet(item: $testTarget) { target in
+            TestModelPromptView(providerName: target.name, port: target.port, api: target.api, model: target.model)
         }
     }
 
@@ -158,6 +171,9 @@ struct ModelsView: View {
 
             HStack(spacing: 8) {
                 if server.status == .running {
+                    Button(action: { testTarget = TestTarget(name: server.model, port: server.port, api: server.api, model: server.model) }) {
+                        Label("Chat…", systemImage: "text.bubble")
+                    }
                     Button(action: { runTarget = RunTarget(name: server.model, port: server.port, api: server.api) }) {
                         Label("Run container…", systemImage: "play.circle")
                     }
@@ -216,8 +232,13 @@ struct ModelsView: View {
                 .padding(.top, 2)
             }
 
-            Button(action: { runTarget = RunTarget(name: provider.kind.displayName, port: provider.port, api: provider.api) }) {
-                Label("Run container…", systemImage: "play.circle")
+            HStack(spacing: 8) {
+                Button(action: { testTarget = TestTarget(name: provider.kind.displayName, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
+                    Label("Chat…", systemImage: "text.bubble")
+                }
+                Button(action: { runTarget = RunTarget(name: provider.kind.displayName, port: provider.port, api: provider.api) }) {
+                    Label("Run container…", systemImage: "play.circle")
+                }
             }
             .font(.subheadline)
             .padding(.top, 2)

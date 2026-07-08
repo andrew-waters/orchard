@@ -25,6 +25,12 @@ final class ModelService: ObservableObject {
         self.isLoading = false
     }
 
+    /// Send a chat conversation to a provider running on the host and return its reply.
+    /// Surfaces transport/HTTP errors to the caller (the tester shows them inline).
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
+        try await backend.complete(port: port, api: api, model: model, messages: messages)
+    }
+
     /// The environment-variable pairs to inject so a container attached to `network`
     /// reaches `provider` on the host. Returns nil when the network has no usable gateway
     /// (the container would have no route to the host).
