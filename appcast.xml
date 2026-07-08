@@ -3,32 +3,28 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.1.2</title>
-      <sparkle:version>42</sparkle:version>
-      <sparkle:shortVersionString>2.1.2</sparkle:shortVersionString>
+      <title>Version 2.1.3</title>
+      <sparkle:version>43</sparkle:version>
+      <sparkle:shortVersionString>2.1.3</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.2</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.3</link>
       <description><![CDATA[
 <h3>Added</h3>
 <ul>
-<li><strong>Container machines</strong>: create, configure, run and monitor Apple container machines (persistent Linux VMs) directly in Orchard, over the native XPC API rather than shelling out to the CLI. A new <strong>Machines</strong> section in the sidebar lists your machines with state, IP address and a default badge, and the detail view shows the full configuration plus live CPU, memory, network and disk usage.</li>
-<li>Create machines from an image with configurable CPUs, memory (defaulting to about half your host RAM), home-directory mount mode (read/write, read-only, or none), nested virtualization, and an optional custom kernel.</li>
-<li>Machine lifecycle controls - start, stop, set-default, and delete - each with clear in-progress feedback.</li>
-<li>Edit a machine&#x27;s configuration with a one-click stop, apply and restart, since Apple&#x27;s runtime only applies CPU/memory/home-mount/kernel changes on the next boot.</li>
-<li>Machine output and boot logs stream in the same multi-pane log viewer as containers, and running machines appear in a <strong>Machine Utilisation</strong> table on the Dashboard.</li>
-<li>Init-system guardrails for the most common machine pitfall: a warning before creating from an image that has no init system, and a clear &quot;the image has no init system&quot; explanation when a machine boots and immediately stops because it lacks <code>/sbin/init</code>.</li>
+<li><strong>Local AI models (MLX)</strong>: a new <strong>AI Models</strong> section discovers model servers running on your Mac (Ollama, LM Studio, and MLX servers), and can start and stop your own <code>mlx_lm.server</code> instances - pick a model and port, choose whether to bind <code>0.0.0.0</code> so containers can reach it, with child-process supervision, crash surfacing and log access.</li>
+<li><strong>The container↔model bridge</strong>: wire a container to a host model in one step. Orchard computes the container-reachable endpoint from the network gateway and injects <code>OPENAI_BASE_URL</code> at create time - so a containerised app or agent talks to a local model with no hand-configured host networking. Inference runs on the Apple GPU on the host (Virtualization.framework guests have no GPU access).</li>
+<li><strong>Sandboxes</strong>: a first-class view of containers wired to a local model, recognised by a label Orchard stamps or by a model-endpoint environment variable. Each sandbox shows its model endpoint, an isolation badge (host-only/no-egress vs internet-open), and agent-runner controls - chat, terminal, and a stop kill-switch. Create one from the <strong>New Sandbox</strong> button or from a model&#x27;s detail.</li>
+<li><strong>In-app chat tester</strong>: hold a short conversation with any model server from the AI Models view - no terminal or container needed - to check it&#x27;s working.</li>
+<li>Sandbox containers are flagged with a shield badge (and an explanatory popover) in the Containers list and detail, since a sandbox appears in both places.</li>
+<li>A new <a href="https://orchard.andon.dev/ai.html">Local AI guide</a> on the site covering MLX, the bridge, isolation, and a runnable quick start.</li>
 </ul>
 <h3>Changed</h3>
 <ul>
-<li>Reorganised the sidebar into <strong>Compute</strong> (Containers, Machines), <strong>Resources</strong> (Images, Mounts) and <strong>Networking</strong> (DNS, Networks), with Machines a first-class peer of Containers.</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Container machines&#x27; backing containers no longer appear as unexplained entries in the container list - they&#x27;re now filtered out, matching the <code>container</code> CLI.</li>
+<li>Reorganised the sidebar so <strong>Sandboxes</strong> joins Containers and Machines under <strong>Compute</strong>, and <strong>AI Models</strong> sits under <strong>Resources</strong> alongside Images and Mounts.</li>
 </ul>
 ]]></description>
-      <pubDate>Tue, 07 Jul 2026 19:46:09 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.2/Orchard-2.1.2.dmg" type="application/octet-stream" sparkle:edSignature="CpvMmsefUCrwQXSxATmiUn+c0XQ6ZMayjA0ivfeFTVV0Uiccro2kj3tOI/d8zS2xUAHRka6AFgSX/PN5PZ2GCg==" length="28037111" />
+      <pubDate>Wed, 08 Jul 2026 09:42:43 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.3/Orchard-2.1.3.dmg" type="application/octet-stream" sparkle:edSignature="QwzcQJDrmeomLmqYMluvYv/36WmYiOu3rps9OOVyc4hnS1Wo2VGlAVfQVghPiwRUbFAPa1OjjUmW7b+Uj0Q6Dg==" length="28364085" />
     </item>
   </channel>
 </rss>
