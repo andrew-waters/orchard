@@ -266,10 +266,12 @@ struct RunModelContainerView: View {
 
         isRunning = true
         Task {
-            await containerListService.runContainer(config: config)
+            let ok = await containerListService.runContainer(config: config)
             await MainActor.run {
                 isRunning = false
-                dismiss()
+                // runContainer surfaces its own error; keep the sheet open on failure so the
+                // user can retry.
+                if ok { dismiss() }
             }
         }
     }

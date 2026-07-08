@@ -36,6 +36,23 @@ enum SandboxMarker {
     static func labels(endpoint: String) -> [String: String] {
         [sandboxLabelKey: "true", endpointLabelKey: endpoint]
     }
+
+    /// The chat API style Orchard can actually drive for this workload, or nil when its
+    /// endpoint speaks an API the tester doesn't (e.g. Anthropic, which is a recognised
+    /// sandbox signal but not an OpenAI/Ollama chat shape). A label-stamped endpoint is
+    /// always OpenAI-style, since that's the only kind Orchard stamps.
+    static func chatAPIStyle(labels: [String: String], environment: [String]) -> ModelAPIStyle? {
+        if labels[endpointLabelKey] != nil { return .openAI }
+        for entry in environment {
+            guard let eq = entry.firstIndex(of: "=") else { continue }
+            switch String(entry[..<eq]) {
+            case "OPENAI_BASE_URL": return .openAI
+            case "OLLAMA_HOST": return .ollama
+            default: continue
+            }
+        }
+        return nil
+    }
 }
 
 /// A workload recognised as a sandbox - a derived view over a container (or, later, a
@@ -57,6 +74,8 @@ struct Sandbox: Identifiable, Equatable {
     let kind: Kind
     let source: Source
     let modelEndpoint: String?
+    /// The chat API the tester can drive, or nil when the endpoint isn't OpenAI/Ollama.
+    let chatAPI: ModelAPIStyle?
     let isRunning: Bool
     /// True when the workload is on a host-only (no-egress) network.
     let isIsolated: Bool
@@ -77,6 +96,7 @@ struct Sandbox: Identifiable, Equatable {
             kind: .container,
             source: hasLabel ? .managed : .detected,
             modelEndpoint: endpoint,
+            chatAPI: SandboxMarker.chatAPIStyle(labels: labels, environment: environment),
             isRunning: container.status.lowercased() == "running",
             isIsolated: hostOnlyNetworks.contains(networkName)
         )

@@ -72,7 +72,8 @@ struct CreateModelServerView: View {
     private func startServer() {
         guard let portValue = UInt16(port) else { return }
         let host = allowContainers ? "0.0.0.0" : "127.0.0.1"
-        if modelServerService.start(model: model, host: host, port: portValue) {
+        // On failure the service surfaces an alert; keep the sheet open so the user can retry.
+        if modelServerService.start(model: model.trimmingCharacters(in: .whitespacesAndNewlines), host: host, port: portValue) {
             dismiss()
         }
     }

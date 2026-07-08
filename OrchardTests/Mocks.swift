@@ -402,10 +402,22 @@ final class MockModelBackend: ModelBackend, @unchecked Sendable {
     }
     var detectCount: Int { lock.withLock { _detectCount } }
 
-    /// Canned reply for `complete`; set to control the tester's output in tests.
-    var completion: String = "mock reply"
-    var completeError: Error?
-    private(set) var completeMessageCounts: [Int] = []
+    /// Canned reply for `complete`; set to control the tester's output in tests. Guarded by
+    /// the same lock as the rest of the mock, since `complete` is async and may run off the
+    /// main actor.
+    private var _completion = "mock reply"
+    private var _completeError: Error?
+    private var _completeMessageCounts: [Int] = []
+
+    var completion: String {
+        get { lock.withLock { _completion } }
+        set { lock.withLock { _completion = newValue } }
+    }
+    var completeError: Error? {
+        get { lock.withLock { _completeError } }
+        set { lock.withLock { _completeError = newValue } }
+    }
+    var completeMessageCounts: [Int] { lock.withLock { _completeMessageCounts } }
 
     func detectProviders() async -> [ModelProvider] {
         lock.withLock {
@@ -416,9 +428,9 @@ final class MockModelBackend: ModelBackend, @unchecked Sendable {
 
     func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
         try lock.withLock {
-            completeMessageCounts.append(messages.count)
-            if let completeError { throw completeError }
-            return completion
+            _completeMessageCounts.append(messages.count)
+            if let _completeError { throw _completeError }
+            return _completion
         }
     }
 }

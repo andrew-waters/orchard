@@ -10,6 +10,7 @@ struct SandboxesListView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var networkService: NetworkService
     @Binding var selectedSandbox: String?
+    @FocusState var listFocusedTab: TabSelection?
 
     @State private var showNewSandbox = false
 
@@ -49,6 +50,7 @@ struct SandboxesListView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .focused($listFocusedTab, equals: .sandboxes)
             }
         }
         .task { await networkService.load(showLoading: false) }
@@ -186,10 +188,12 @@ struct SandboxDetailView: View {
     }
 
     private func chatTargetFor(_ sandbox: Sandbox) -> ChatTarget? {
+        // Only offer chat for endpoints the tester speaks (OpenAI/Ollama); Anthropic-style
+        // sandboxes are recognised but not chattable here.
         guard let endpoint = sandbox.modelEndpoint,
+              let api = sandbox.chatAPI,
               let url = URL(string: endpoint),
               let port = url.port, port > 0, port <= 65535 else { return nil }
-        let api: ModelAPIStyle = endpoint.contains("/v1") ? .openAI : .ollama
         return ChatTarget(name: sandbox.name, port: UInt16(port), api: api)
     }
 }
