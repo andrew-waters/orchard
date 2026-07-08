@@ -1,161 +1,163 @@
 import SwiftUI
 import AppKit
 
-/// The "AI" section's landing page. Shows the model servers Orchard manages (with start/stop
-/// lifecycle) and any other servers merely detected running on the host, plus how a container
-/// reaches each one.
-struct ModelsView: View {
+// The "Local AI → Models" domain, in the app's three-column shape: a list of servers
+// (middle column) and a detail pane for the selected one (third column).
+
+/// Middle column: managed servers Orchard runs plus other detected providers, with a
+/// New Server action.
+struct ModelsListView: View {
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var modelServerService: ModelServerService
-    @EnvironmentObject var networkService: NetworkService
+    @Binding var selectedModel: String?
 
     @State private var showCreateSheet = false
-    @State private var runTarget: RunTarget?
-    @State private var testTarget: TestTarget?
 
-    /// A model to launch a container against; drives the run sheet.
-    private struct RunTarget: Identifiable {
-        let id = UUID()
-        let name: String
-        let port: UInt16
-        let api: ModelAPIStyle
-    }
-
-    /// A model to send an ad-hoc prompt to; drives the test sheet.
-    private struct TestTarget: Identifiable {
-        let id = UUID()
-        let name: String
-        let port: UInt16
-        let api: ModelAPIStyle
-        let model: String
-    }
-
-    /// Detected providers minus the ones our managed servers already account for (a managed
-    /// server also answers detection on its port; showing both would double-count it).
-    private var detectedProviders: [ModelProvider] {
+    /// Detected providers minus the ports our managed servers already answer on.
+    private var detected: [ModelProvider] {
         modelService.providers.filter { !modelServerService.managedPorts.contains($0.port) }
     }
 
     private var isEmpty: Bool {
-        modelServerService.servers.isEmpty && detectedProviders.isEmpty
+        modelServerService.servers.isEmpty && detected.isEmpty
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header
-
-                if !modelServerService.engineAvailable {
-                    engineGuidance
+        VStack(spacing: 0) {
+            HStack {
+                Text("Local Models")
+                    .font(.headline)
+                Spacer()
+                Button(action: { showCreateSheet = true }) {
+                    SwiftUI.Image(systemName: "plus")
                 }
+                .buttonStyle(.borderless)
+                .disabled(!modelServerService.engineAvailable)
+                .help(modelServerService.engineAvailable ? "Start a new model server" : "mlx_lm.server is not installed")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
 
-                if !modelServerService.servers.isEmpty {
-                    sectionLabel("Managed by Orchard")
-                    ForEach(modelServerService.servers) { server in
-                        managedServerCard(server)
+            if isEmpty {
+                emptyState
+            } else {
+                List(selection: $selectedModel) {
+                    if !modelServerService.servers.isEmpty {
+                        Section("Managed by Orchard") {
+                            ForEach(modelServerService.servers) { server in
+                                ListItemRow(
+                                    icon: "cpu",
+                                    iconColor: server.status == .running ? .green : .red,
+                                    primaryText: server.model,
+                                    secondaryLeftText: "port \(String(server.port))",
+                                    isSelected: selectedModel == server.id
+                                )
+                                .tag(server.id)
+                            }
+                        }
+                    }
+                    if !detected.isEmpty {
+                        Section("Detected") {
+                            ForEach(detected) { provider in
+                                ListItemRow(
+                                    icon: "cpu",
+                                    iconColor: .secondary,
+                                    primaryText: provider.kind.displayName,
+                                    secondaryLeftText: "port \(String(provider.port))",
+                                    isSelected: selectedModel == provider.id
+                                )
+                                .tag(provider.id)
+                            }
+                        }
                     }
                 }
-
-                if !detectedProviders.isEmpty {
-                    sectionLabel("Detected")
-                    ForEach(detectedProviders) { provider in
-                        detectedProviderCard(provider)
-                    }
-                }
-
-                if isEmpty {
-                    emptyState
-                }
+                .listStyle(.sidebar)
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .task {
-            await networkService.load(showLoading: false)
-            await modelService.load(showLoading: false)
-        }
-        .sheet(isPresented: $showCreateSheet) {
-            CreateModelServerView()
-        }
-        .sheet(item: $runTarget) { target in
-            RunModelContainerView(providerName: target.name, port: target.port, api: target.api)
-        }
-        .sheet(item: $testTarget) { target in
-            TestModelPromptView(providerName: target.name, port: target.port, api: target.api, model: target.model)
-        }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    SwiftUI.Image(systemName: "sparkles")
-                    Text("Local Models")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                }
-                Text("AI model servers running on your Mac. Bridge any of them into a container from the container's Environment tab.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            Button(action: { showCreateSheet = true }) {
-                Label("New Server", systemImage: "plus")
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!modelServerService.engineAvailable)
-            .help(modelServerService.engineAvailable ? "Start a new model server" : "mlx_lm.server is not installed")
-        }
-    }
-
-    private var engineGuidance: some View {
-        HStack(alignment: .top, spacing: 10) {
-            SwiftUI.Image(systemName: "exclamationmark.triangle")
-                .foregroundColor(.orange)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Server engine not installed")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text("Install mlx_lm.server to start servers from Orchard:  uv tool install mlx-lm")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .textSelection(.enabled)
-            }
-            Spacer()
-        }
-        .padding(12)
-        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .task { await modelService.load(showLoading: false) }
+        .sheet(isPresented: $showCreateSheet) { CreateModelServerView() }
     }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
             SwiftUI.Image(systemName: "sparkles")
-                .font(.system(size: 40))
+                .font(.system(size: 34))
                 .foregroundColor(.secondary)
             Text("No model servers yet")
-                .font(.headline)
-            Text("Start one with New Server, or launch Ollama / LM Studio and it will be detected here automatically.")
                 .font(.subheadline)
+                .fontWeight(.medium)
+            Text("Start one with the + button, or launch Ollama / LM Studio and it will be detected here.")
+                .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 440)
+                .padding(.horizontal)
+            if !modelServerService.engineAvailable {
+                Text("uv tool install mlx-lm")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+                    .padding(.top, 4)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+}
+
+/// Third column: detail for the selected server or detected provider — endpoints, models,
+/// and lifecycle/test actions.
+struct ModelDetailView: View {
+    @EnvironmentObject var modelService: ModelService
+    @EnvironmentObject var modelServerService: ModelServerService
+    @EnvironmentObject var networkService: NetworkService
+    let selectedModel: String?
+
+    @State private var runTarget: RunTarget?
+    @State private var testTarget: TestTarget?
+
+    private struct RunTarget: Identifiable {
+        let id = UUID(); let name: String; let port: UInt16; let api: ModelAPIStyle
+    }
+    private struct TestTarget: Identifiable {
+        let id = UUID(); let name: String; let port: UInt16; let api: ModelAPIStyle; let model: String
     }
 
-    // MARK: - Cards
+    private var server: ManagedModelServer? {
+        modelServerService.servers.first { $0.id == selectedModel }
+    }
+    private var provider: ModelProvider? {
+        modelService.providers.first { $0.id == selectedModel }
+    }
 
-    private func managedServerCard(_ server: ManagedModelServer) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    var body: some View {
+        Group {
+            if let server {
+                ScrollView { managedDetail(server).padding(20) }
+            } else if let provider {
+                ScrollView { detectedDetail(provider).padding(20) }
+            } else {
+                Text("Select a model")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task { await networkService.load(showLoading: false) }
+        .sheet(item: $runTarget) { t in
+            RunModelContainerView(providerName: t.name, port: t.port, api: t.api)
+        }
+        .sheet(item: $testTarget) { t in
+            TestModelPromptView(providerName: t.name, port: t.port, api: t.api, model: t.model)
+        }
+    }
+
+    // MARK: - Managed
+
+    private func managedDetail(_ server: ManagedModelServer) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
-                statusDot(server.status)
-                Text(server.model)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                Circle().fill(server.status == .running ? Color.green : Color.red).frame(width: 9, height: 9)
+                Text(server.model).font(.title3).fontWeight(.semibold)
+                    .lineLimit(1).truncationMode(.middle)
                 Spacer()
                 portBadge(server.port)
             }
@@ -165,12 +167,11 @@ struct ModelsView: View {
                 labeledRow("From containers", url)
             } else if !server.reachableFromContainers {
                 Text("Loopback-only — bound to 127.0.0.1, so containers can't reach it.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption).foregroundColor(.secondary)
             }
 
-            HStack(spacing: 8) {
-                if server.status == .running {
+            if server.status == .running {
+                HStack(spacing: 8) {
                     Button(action: { testTarget = TestTarget(name: server.model, port: server.port, api: server.api, model: server.model) }) {
                         Label("Chat…", systemImage: "text.bubble")
                     }
@@ -178,6 +179,10 @@ struct ModelsView: View {
                         Label("Run container…", systemImage: "play.circle")
                     }
                 }
+                .font(.subheadline)
+            }
+
+            HStack(spacing: 8) {
                 Button(role: .destructive, action: { modelServerService.stop(server.id) }) {
                     Label("Stop", systemImage: "stop.fill")
                 }
@@ -185,25 +190,23 @@ struct ModelsView: View {
                     Label("Show Log", systemImage: "doc.text")
                 }
                 if server.status == .failed {
-                    Text("Stopped unexpectedly")
-                        .font(.caption)
-                        .foregroundColor(.red)
+                    Text("Stopped unexpectedly").font(.caption).foregroundColor(.red)
                 }
             }
             .font(.subheadline)
-            .padding(.top, 2)
+
+            Spacer()
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
     }
 
-    private func detectedProviderCard(_ provider: ModelProvider) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    // MARK: - Detected
+
+    private func detectedDetail(_ provider: ModelProvider) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 SwiftUI.Image(systemName: "cpu")
-                Text(provider.kind.displayName)
-                    .font(.headline)
+                Text(provider.kind.displayName).font(.title3).fontWeight(.semibold)
                 Spacer()
                 portBadge(provider.port)
             }
@@ -214,22 +217,14 @@ struct ModelsView: View {
             }
 
             if provider.models.isEmpty {
-                Text("No models reported")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 2)
+                Text("No models reported").font(.caption).foregroundColor(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Models (\(provider.models.count))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Text("Models (\(provider.models.count))").font(.caption).foregroundColor(.secondary)
                     ForEach(provider.models, id: \.self) { model in
-                        Text(model)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
+                        Text(model).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     }
                 }
-                .padding(.top, 2)
             }
 
             HStack(spacing: 8) {
@@ -241,51 +236,29 @@ struct ModelsView: View {
                 }
             }
             .font(.subheadline)
-            .padding(.top, 2)
+
+            Spacer()
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
     }
 
     // MARK: - Bits
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 12, weight: .regular))
-            .foregroundColor(.secondary.opacity(0.6))
-    }
-
-    private func statusDot(_ status: ManagedModelServer.Status) -> some View {
-        Circle()
-            .fill(status == .running ? Color.green : Color.red)
-            .frame(width: 8, height: 8)
-    }
-
     private func portBadge(_ port: UInt16) -> some View {
         Text("port \(String(port))")
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
+            .font(.caption).foregroundColor(.secondary)
+            .padding(.horizontal, 8).padding(.vertical, 2)
             .background(Color.secondary.opacity(0.12), in: Capsule())
     }
 
     private func labeledRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .frame(width: 120, alignment: .leading)
-            Text(value)
-                .font(.system(.caption, design: .monospaced))
-                .textSelection(.enabled)
+            Text(label).font(.caption).foregroundColor(.secondary).frame(width: 120, alignment: .leading)
+            Text(value).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
             Spacer()
         }
     }
 
-    /// The container-reachable base URL for something on `port`, via the default network's
-    /// gateway.
     private func containerURL(port: UInt16, api: ModelAPIStyle) -> String? {
         guard let gateway = networkService.networks.first(where: { $0.id == "default" })?.status.gateway,
               !gateway.isEmpty else { return nil }

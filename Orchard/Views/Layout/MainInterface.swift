@@ -8,6 +8,8 @@ struct MainInterfaceView: View {
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedMachine: String?
+    @Binding var selectedModel: String?
+    @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @Binding var lastSelectedContainer: String?
@@ -74,6 +76,8 @@ struct MainInterfaceView: View {
             return ""
         case .models:
             return ""
+        case .sandboxes:
+            return ""
         }
     }
 
@@ -97,6 +101,8 @@ struct MainInterfaceView: View {
             selectedImage: $selectedImage,
             selectedMount: $selectedMount,
             selectedMachine: $selectedMachine,
+            selectedModel: $selectedModel,
+            selectedSandbox: $selectedSandbox,
             selectedDNSDomain: $selectedDNSDomain,
             selectedNetwork: $selectedNetwork,
             lastSelectedContainer: $lastSelectedContainer,

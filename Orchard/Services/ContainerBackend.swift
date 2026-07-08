@@ -36,6 +36,9 @@ struct ContainerCreateSpec: Sendable {
     let dnsDomain: String
     let networkName: String
     let autoRemove: Bool
+    /// Key/value labels stamped on the container at creation — e.g. the sandbox marker
+    /// that lets the Sandboxes view recognise a container Orchard wired to a model.
+    var labels: [String: String] = [:]
 }
 
 /// Combine an image's entrypoint and cmd with a user command override into the final
@@ -224,6 +227,7 @@ struct LiveContainerBackend: ContainerBackend {
         containerConfig.mounts = mounts
         containerConfig.publishedPorts = ports
         containerConfig.dns = dns
+        containerConfig.labels = spec.labels
 
         let builtinNetworkId = try await NetworkClient().builtin?.id
         let networkId = spec.networkName.isEmpty ? (builtinNetworkId ?? NetworkClient.defaultNetworkName) : spec.networkName

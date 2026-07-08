@@ -18,6 +18,8 @@ struct ThreeColumnLayout: View {
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedMachine: String?
+    @Binding var selectedModel: String?
+    @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @Binding var lastSelectedContainer: String?
@@ -42,9 +44,9 @@ struct ThreeColumnLayout: View {
 
     private var needsMiddleColumn: Bool {
         switch selectedTab {
-        case .containers, .images, .mounts, .machines, .dns, .networks:
+        case .containers, .images, .mounts, .machines, .models, .sandboxes, .dns, .networks:
             return true
-        case .registries, .systemLogs, .dashboard, .models:
+        case .registries, .systemLogs, .dashboard:
             return false
         }
     }
@@ -59,6 +61,8 @@ struct ThreeColumnLayout: View {
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
                     selectedMachine: $selectedMachine,
+                    selectedModel: $selectedModel,
+                    selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     listFocusedTab: $listFocusedTab
@@ -70,7 +74,8 @@ struct ThreeColumnLayout: View {
                     // Translucent header like Mail with search
                     VStack(spacing: 8) {
                         // Search and filters
-                        if selectedTab != .registries && selectedTab != .systemLogs {
+                        if selectedTab != .registries && selectedTab != .systemLogs
+                            && selectedTab != .models && selectedTab != .sandboxes {
                             HStack(spacing: 8) {
                                 HStack(spacing: 6) {
                                     SwiftUI.Image(systemName: "magnifyingglass")
@@ -238,6 +243,8 @@ struct ThreeColumnLayout: View {
                         selectedImage: $selectedImage,
                         selectedMount: $selectedMount,
                         selectedMachine: $selectedMachine,
+                        selectedModel: $selectedModel,
+                        selectedSandbox: $selectedSandbox,
                         selectedDNSDomain: $selectedDNSDomain,
                         selectedNetwork: $selectedNetwork,
                         lastSelectedContainer: lastSelectedContainer,
@@ -268,6 +275,8 @@ struct ThreeColumnLayout: View {
                     selectedImage: selectedImage,
                     selectedMount: selectedMount,
                     selectedMachine: selectedMachine,
+                    selectedModel: selectedModel,
+                    selectedSandbox: selectedSandbox,
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
                     selectedTabBinding: $selectedTab,
@@ -286,6 +295,8 @@ struct ThreeColumnLayout: View {
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
                     selectedMachine: $selectedMachine,
+                    selectedModel: $selectedModel,
+                    selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     listFocusedTab: $listFocusedTab
@@ -300,6 +311,8 @@ struct ThreeColumnLayout: View {
                     selectedImage: selectedImage,
                     selectedMount: selectedMount,
                     selectedMachine: selectedMachine,
+                    selectedModel: selectedModel,
+                    selectedSandbox: selectedSandbox,
                     selectedDNSDomain: selectedDNSDomain,
                     selectedNetwork: selectedNetwork,
                     selectedTabBinding: $selectedTab,
@@ -325,11 +338,14 @@ struct TabColumnView: View {
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var machineService: MachineService
     @EnvironmentObject var modelService: ModelService
+    @EnvironmentObject var modelServerService: ModelServerService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedMachine: String?
+    @Binding var selectedModel: String?
+    @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     @FocusState.Binding var listFocusedTab: TabSelection?
@@ -347,11 +363,11 @@ struct TabColumnView: View {
         .onAppear {
             // Set initial focus when view appears
             switch selectedTab {
-            case .containers, .images, .mounts, .machines, .dns, .networks:
+            case .containers, .images, .mounts, .machines, .models, .sandboxes, .dns, .networks:
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
-            case .registries, .systemLogs, .dashboard, .models:
+            case .registries, .systemLogs, .dashboard:
                 break
             }
         }
@@ -381,12 +397,13 @@ struct TabColumnView: View {
                .padding(.leading, 16)
            }
 
-           // AI: local model providers and the container↔model bridge.
+           // AI: local model providers, the container↔model bridge, and sandboxes.
            Section {
                sidebarRow(for: .models)
+               sidebarRow(for: .sandboxes)
            } header: {
                HStack {
-                   Text("AI")
+                   Text("Local AI")
                        .font(.system(size: 12, weight: .regular))
                        .foregroundColor(.secondary.opacity(0.5))
                    Spacer()
@@ -491,7 +508,15 @@ struct TabColumnView: View {
             if selectedNetwork == nil && !networkService.networks.isEmpty {
                 selectedNetwork = networkService.networks.first?.id
             }
-        case .registries, .systemLogs, .dashboard, .models:
+        case .models:
+            if selectedModel == nil {
+                selectedModel = firstModelID()
+            }
+        case .sandboxes:
+            if selectedSandbox == nil {
+                selectedSandbox = detectSandboxes(containers: containerListService.containers, networks: networkService.networks).first?.id
+            }
+        case .registries, .systemLogs, .dashboard:
             // Clear all selections for tabs without second columns
             selectedContainer = nil
             selectedImage = nil
@@ -506,12 +531,20 @@ struct TabColumnView: View {
         listFocusedTab = nil
         DispatchQueue.main.async {
             switch tab {
-            case .containers, .images, .mounts, .machines, .dns, .networks:
+            case .containers, .images, .mounts, .machines, .models, .sandboxes, .dns, .networks:
                 self.listFocusedTab = tab
-            case .registries, .systemLogs, .dashboard, .models:
+            case .registries, .systemLogs, .dashboard:
                 self.listFocusedTab = nil
             }
         }
+    }
+
+    /// The first model row's id (managed servers first, then detected providers), for
+    /// auto-selecting when the Models tab is opened.
+    private func firstModelID() -> String? {
+        if let server = modelServerService.servers.first { return server.id }
+        let managedPorts = modelServerService.managedPorts
+        return modelService.providers.first { !managedPorts.contains($0.port) }?.id
     }
 
     private func getTabCount(for tab: TabSelection) -> Int {
@@ -525,7 +558,10 @@ struct TabColumnView: View {
         case .machines:
             return machineService.machines.count
         case .models:
-            return modelService.providers.count
+            return modelServerService.servers.count
+                + modelService.providers.filter { !modelServerService.managedPorts.contains($0.port) }.count
+        case .sandboxes:
+            return detectSandboxes(containers: containerListService.containers, networks: networkService.networks).count
         case .dns:
             return dnsService.dnsDomains.count
         case .networks:
@@ -544,6 +580,8 @@ struct ListColumnView: View {
     @Binding var selectedImage: String?
     @Binding var selectedMount: String?
     @Binding var selectedMachine: String?
+    @Binding var selectedModel: String?
+    @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedNetwork: String?
     let lastSelectedContainer: String?
@@ -631,8 +669,9 @@ struct ListColumnView: View {
                     subtitle: "Real-time container statistics"
                 )
             case .models:
-                // Models render as a single detail page (no middle column); unreachable here.
-                EmptyView()
+                ModelsListView(selectedModel: $selectedModel)
+            case .sandboxes:
+                SandboxesListView(selectedSandbox: $selectedSandbox)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -667,6 +706,8 @@ struct DetailColumnView: View {
                 selectedImage: selectedImage,
                 selectedMount: selectedMount,
                 selectedMachine: selectedMachine,
+                selectedModel: nil,
+                selectedSandbox: nil,
                 selectedDNSDomain: selectedDNSDomain,
                 selectedNetwork: selectedNetwork,
                 selectedTabBinding: $selectedTabBinding,

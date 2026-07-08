@@ -9,6 +9,8 @@ struct DetailContentView: View {
     let selectedImage: String?
     let selectedMount: String?
     let selectedMachine: String?
+    let selectedModel: String?
+    let selectedSandbox: String?
     let selectedDNSDomain: String?
     let selectedNetwork: String?
     @Binding var selectedTabBinding: TabSelection
@@ -73,7 +75,9 @@ struct DetailContentView: View {
                 selectedContainer: $selectedContainerBinding
             )
         case .models:
-            ModelsView()
+            ModelDetailView(selectedModel: selectedModel)
+        case .sandboxes:
+            SandboxDetailView(selectedSandbox: selectedSandbox)
         }
     }
 

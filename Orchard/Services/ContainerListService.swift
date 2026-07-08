@@ -427,7 +427,8 @@ final class ContainerListService: ObservableObject {
                 publishedPorts: ports,
                 dnsDomain: config.dnsDomain,
                 networkName: config.network,
-                autoRemove: config.removeAfterStop
+                autoRemove: config.removeAfterStop,
+                labels: config.labels
             )
             try await backend.createContainer(spec)
 

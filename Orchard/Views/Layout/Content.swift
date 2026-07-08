@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var selectedImage: String?
     @State private var selectedMount: String?
     @State private var selectedMachine: String?
+    @State private var selectedModel: String?
+    @State private var selectedSandbox: String?
     @State private var selectedDNSDomain: String?
     @State private var selectedNetwork: String?
 
@@ -69,6 +71,8 @@ struct ContentView: View {
                     selectedImage: $selectedImage,
                     selectedMount: $selectedMount,
                     selectedMachine: $selectedMachine,
+                    selectedModel: $selectedModel,
+                    selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
                     selectedNetwork: $selectedNetwork,
                     lastSelectedContainer: $lastSelectedContainer,

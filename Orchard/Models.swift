@@ -734,6 +734,8 @@ struct ContainerRunConfig: Equatable {
     var commandOverride: String = ""
     var dnsDomain: String = ""
     var network: String = ""
+    /// Labels to stamp on the container at creation (e.g. the sandbox marker).
+    var labels: [String: String] = [:]
 
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()

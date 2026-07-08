@@ -203,7 +203,8 @@ struct RunModelContainerView: View {
             name: name.trimmingCharacters(in: .whitespaces),
             image: image.trimmingCharacters(in: .whitespaces),
             environmentVariables: env,
-            network: networkID
+            network: networkID,
+            labels: SandboxMarker.labels(endpoint: baseURL)
         )
 
         isRunning = true
