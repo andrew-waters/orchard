@@ -383,10 +383,12 @@ struct TabColumnView: View {
                sidebarRow(for: .dashboard)
            }
 
-           // Compute: the two runtime primitives, side by side.
+           // Compute: the runtime primitives — containers, machines, and sandboxes
+           // (containers wired to a local model).
            Section {
                sidebarRow(for: .containers)
                sidebarRow(for: .machines)
+               sidebarRow(for: .sandboxes)
            } header: {
                HStack {
                    Text("Compute")
@@ -397,22 +399,9 @@ struct TabColumnView: View {
                .padding(.leading, 16)
            }
 
-           // AI: local model providers, the container↔model bridge, and sandboxes.
+           // Resources: the artifacts those runtimes consume, including local AI models.
            Section {
                sidebarRow(for: .models)
-               sidebarRow(for: .sandboxes)
-           } header: {
-               HStack {
-                   Text("Local AI")
-                       .font(.system(size: 12, weight: .regular))
-                       .foregroundColor(.secondary.opacity(0.5))
-                   Spacer()
-               }
-               .padding(.leading, 16)
-           }
-
-           // Resources: the artifacts those runtimes consume.
-           Section {
                sidebarRow(for: .images)
                sidebarRow(for: .mounts)
            } header: {

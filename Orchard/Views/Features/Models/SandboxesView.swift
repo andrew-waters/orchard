@@ -11,6 +11,8 @@ struct SandboxesListView: View {
     @EnvironmentObject var networkService: NetworkService
     @Binding var selectedSandbox: String?
 
+    @State private var showNewSandbox = false
+
     private var sandboxes: [Sandbox] {
         detectSandboxes(containers: containerListService.containers, networks: networkService.networks)
     }
@@ -22,6 +24,11 @@ struct SandboxesListView: View {
             HStack {
                 Text("Sandboxes").font(.headline)
                 Spacer()
+                Button(action: { showNewSandbox = true }) {
+                    SwiftUI.Image(systemName: "plus")
+                }
+                .buttonStyle(.borderless)
+                .help("Create a new sandbox")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -45,6 +52,7 @@ struct SandboxesListView: View {
             }
         }
         .task { await networkService.load(showLoading: false) }
+        .sheet(isPresented: $showNewSandbox) { RunModelContainerView() }
     }
 
     private func sandboxRow(_ sandbox: Sandbox) -> some View {
@@ -66,7 +74,7 @@ struct SandboxesListView: View {
             Text("No sandboxes yet")
                 .font(.subheadline)
                 .fontWeight(.medium)
-            Text("From Models, pick a running server and “Run container…”. It appears here with its endpoint and isolation.")
+            Text("Use the + button to create one wired to a running model, or start a sandbox from a model's detail. It appears here with its endpoint and isolation.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

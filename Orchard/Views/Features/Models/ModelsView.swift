@@ -116,7 +116,7 @@ struct ModelDetailView: View {
     @State private var testTarget: TestTarget?
 
     private struct RunTarget: Identifiable {
-        let id = UUID(); let name: String; let port: UInt16; let api: ModelAPIStyle
+        let id = UUID(); let modelID: String
     }
     private struct TestTarget: Identifiable {
         let id = UUID(); let name: String; let port: UInt16; let api: ModelAPIStyle; let model: String
@@ -143,7 +143,7 @@ struct ModelDetailView: View {
         }
         .task { await networkService.load(showLoading: false) }
         .sheet(item: $runTarget) { t in
-            RunModelContainerView(providerName: t.name, port: t.port, api: t.api)
+            RunModelContainerView(preselectedID: t.modelID)
         }
         .sheet(item: $testTarget) { t in
             TestModelPromptView(providerName: t.name, port: t.port, api: t.api, model: t.model)
@@ -175,8 +175,8 @@ struct ModelDetailView: View {
                     Button(action: { testTarget = TestTarget(name: server.model, port: server.port, api: server.api, model: server.model) }) {
                         Label("Chat…", systemImage: "text.bubble")
                     }
-                    Button(action: { runTarget = RunTarget(name: server.model, port: server.port, api: server.api) }) {
-                        Label("Run container…", systemImage: "play.circle")
+                    Button(action: { runTarget = RunTarget(modelID: server.id) }) {
+                        Label("New sandbox…", systemImage: "shield.lefthalf.filled")
                     }
                 }
                 .font(.subheadline)
@@ -231,8 +231,8 @@ struct ModelDetailView: View {
                 Button(action: { testTarget = TestTarget(name: provider.kind.displayName, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
                     Label("Chat…", systemImage: "text.bubble")
                 }
-                Button(action: { runTarget = RunTarget(name: provider.kind.displayName, port: provider.port, api: provider.api) }) {
-                    Label("Run container…", systemImage: "play.circle")
+                Button(action: { runTarget = RunTarget(modelID: provider.id) }) {
+                    Label("New sandbox…", systemImage: "shield.lefthalf.filled")
                 }
             }
             .font(.subheadline)

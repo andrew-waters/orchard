@@ -1,25 +1,53 @@
 import SwiftUI
 import AppKit
 
-/// Spin up a container already wired to a model server, launched from the Models view. Picks
-/// the network (surfacing its egress), injects the bridge env vars, and explains — live,
-/// against the chosen network — exactly what the container can and cannot reach. The honest
-/// isolation story is the point of this sheet, not a footnote.
+/// Create a sandbox: a container wired to a local model. Reachable two ways — from a model's
+/// detail (with that model preselected) or from the Sandboxes tab's New Sandbox button (pick
+/// any running model). Picks the network (surfacing its egress), injects the bridge env vars,
+/// stamps the sandbox label, and explains the isolation live against the chosen network.
 struct RunModelContainerView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var modelService: ModelService
+    @EnvironmentObject var modelServerService: ModelServerService
     @Environment(\.dismiss) private var dismiss
 
-    /// What we're wiring to (works for both managed and detected servers).
-    let providerName: String
-    let port: UInt16
-    let api: ModelAPIStyle
+    /// A model id (managed server or detected provider) to preselect, or nil to let the user
+    /// pick from everything running.
+    let preselectedID: String?
 
+    @State private var targetID: String = ""
     @State private var image: String = "alpine:latest"
     @State private var name: String = ""
     /// Empty means the runtime default network.
     @State private var networkID: String = ""
     @State private var isRunning = false
+
+    init(preselectedID: String? = nil) {
+        self.preselectedID = preselectedID
+    }
+
+    /// A model the sandbox can be wired to.
+    private struct Target: Identifiable {
+        let id: String
+        let name: String
+        let port: UInt16
+        let api: ModelAPIStyle
+    }
+
+    /// Running managed servers plus detected providers (de-duplicated by port).
+    private var targets: [Target] {
+        let servers = modelServerService.servers.map {
+            Target(id: $0.id, name: $0.model, port: $0.port, api: $0.api)
+        }
+        let managedPorts = modelServerService.managedPorts
+        let providers = modelService.providers
+            .filter { !managedPorts.contains($0.port) }
+            .map { Target(id: $0.id, name: $0.kind.displayName, port: $0.port, api: $0.api) }
+        return servers + providers
+    }
+
+    private var target: Target? { targets.first { $0.id == targetID } }
 
     private var selectedNetwork: ContainerNetwork? {
         let wanted = networkID.isEmpty ? "default" : networkID
@@ -27,12 +55,13 @@ struct RunModelContainerView: View {
     }
 
     private var baseURL: String? {
-        guard let gateway = selectedNetwork?.status.gateway, !gateway.isEmpty else { return nil }
-        return ModelBridge.containerBaseURL(gateway: gateway, hostPort: port, api: api)
+        guard let target, let gateway = selectedNetwork?.status.gateway, !gateway.isEmpty else { return nil }
+        return ModelBridge.containerBaseURL(gateway: gateway, hostPort: target.port, api: target.api)
     }
 
     private var canRun: Bool {
-        !image.trimmingCharacters(in: .whitespaces).isEmpty
+        target != nil
+            && !image.trimmingCharacters(in: .whitespaces).isEmpty
             && !name.trimmingCharacters(in: .whitespaces).isEmpty
             && baseURL != nil
             && !isRunning
@@ -44,6 +73,7 @@ struct RunModelContainerView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    modelPicker
                     field(title: "Image", placeholder: "alpine:latest", text: $image, mono: true)
                     field(title: "Container name", placeholder: "my-agent", text: $name)
                     networkPicker
@@ -55,24 +85,28 @@ struct RunModelContainerView: View {
             Divider()
             footer
         }
-        .frame(width: 560, height: 620)
+        .frame(width: 560, height: 660)
         .onAppear {
+            if targetID.isEmpty { targetID = preselectedID ?? targets.first?.id ?? "" }
             if name.isEmpty { name = defaultName() }
         }
-        .task { await networkService.load(showLoading: false) }
+        .task {
+            await networkService.load(showLoading: false)
+            await modelService.load(showLoading: false)
+        }
     }
 
     // MARK: - Sections
 
     private var header: some View {
         HStack(spacing: 10) {
-            SwiftUI.Image(systemName: "play.circle.fill")
+            SwiftUI.Image(systemName: "shield.lefthalf.filled")
                 .font(.title)
                 .foregroundColor(.accentColor)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Run Container Wired to a Model")
+                Text("New Sandbox")
                     .font(.headline)
-                Text("Bridged to \(providerName) on port \(String(port))")
+                Text("A container wired to a local model")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -80,6 +114,29 @@ struct RunModelContainerView: View {
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var modelPicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Model")
+                .font(.subheadline)
+                .fontWeight(.medium)
+            if targets.isEmpty {
+                Text("No model servers running. Start one in Local AI → Models first.")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            } else {
+                Picker("Model", selection: $targetID) {
+                    ForEach(targets) { t in
+                        Text("\(t.name) · port \(String(t.port))").tag(t.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 320, alignment: .leading)
+            }
+        }
     }
 
     private var networkPicker: some View {
@@ -101,7 +158,7 @@ struct RunModelContainerView: View {
 
     @ViewBuilder
     private var endpointPreview: some View {
-        if let baseURL {
+        if let baseURL, let target {
             VStack(alignment: .leading, spacing: 4) {
                 Text("The container will reach the model at")
                     .font(.caption)
@@ -109,11 +166,11 @@ struct RunModelContainerView: View {
                 Text(baseURL)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
-                Text("Injected as \(api == .openAI ? "OPENAI_BASE_URL" : "OLLAMA_HOST").")
+                Text("Injected as \(target.api == .openAI ? "OPENAI_BASE_URL" : "OLLAMA_HOST").")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
-        } else {
+        } else if target != nil {
             Text("The selected network has no gateway, so a container can't reach the host. Choose another network.")
                 .font(.caption)
                 .foregroundColor(.orange)
@@ -164,7 +221,7 @@ struct RunModelContainerView: View {
             Spacer()
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-            Button("Run Container") { run() }
+            Button("Create Sandbox") { run() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canRun)
@@ -191,12 +248,12 @@ struct RunModelContainerView: View {
             .replacingOccurrences(of: "docker.io/library/", with: "")
             .replacingOccurrences(of: "docker.io/", with: "")
             .split(separator: ":").first.map(String.init) ?? "container"
-        return "\(base)-model"
+        return "\(base)-sandbox"
     }
 
     private func run() {
-        guard let baseURL else { return }
-        let env = ModelBridge.injectionEnvironment(baseURL: baseURL, api: api)
+        guard let baseURL, let target else { return }
+        let env = ModelBridge.injectionEnvironment(baseURL: baseURL, api: target.api)
             .map { ContainerRunConfig.EnvironmentVariable(key: $0.key, value: $0.value) }
 
         let config = ContainerRunConfig(
