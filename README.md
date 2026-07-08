@@ -189,11 +189,13 @@ Using Orchard at your company or in your day-to-day workflow? We'd love to hear 
 
 ## Star History
 
+## Star History
+
 <a href="https://www.star-history.com/?repos=andrew-waters%2Forchard&type=date&legend=bottom-right">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=andrew-waters/orchard&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=andrew-waters/orchard&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=andrew-waters/orchard&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=andrew-waters/orchard&type=date&theme=dark&legend=bottom-right&sealed_token=QHFno-cQk7RLm2jSGqr6nMSnR_x3VQtYBnaXOz-HIQbtG8lrwoY7dsfXa1lwdB-ORWpMSKAUn9lQMsOybZS-umz8X_ge0_BWlPUJ86XKnHQLBAav3XE2oMEEALRJXJVQAM0LfY9ChMtnYx7WZqlRgAtMSyGS72iZEa5Nej6XbIuZ-Y-9l4SLBRe7-4-U" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=andrew-waters/orchard&type=date&legend=bottom-right&sealed_token=QHFno-cQk7RLm2jSGqr6nMSnR_x3VQtYBnaXOz-HIQbtG8lrwoY7dsfXa1lwdB-ORWpMSKAUn9lQMsOybZS-umz8X_ge0_BWlPUJ86XKnHQLBAav3XE2oMEEALRJXJVQAM0LfY9ChMtnYx7WZqlRgAtMSyGS72iZEa5Nej6XbIuZ-Y-9l4SLBRe7-4-U" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=andrew-waters/orchard&type=date&legend=bottom-right&sealed_token=QHFno-cQk7RLm2jSGqr6nMSnR_x3VQtYBnaXOz-HIQbtG8lrwoY7dsfXa1lwdB-ORWpMSKAUn9lQMsOybZS-umz8X_ge0_BWlPUJ86XKnHQLBAav3XE2oMEEALRJXJVQAM0LfY9ChMtnYx7WZqlRgAtMSyGS72iZEa5Nej6XbIuZ-Y-9l4SLBRe7-4-U" />
  </picture>
 </a>
 
