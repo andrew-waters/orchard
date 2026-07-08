@@ -106,7 +106,8 @@
     .card h3 { margin: 0 0 6px; font-size: 17px; }
     .card p { margin: 0; color: var(--muted); font-size: 15px; }
 
-    .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 40px; }
+    .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; margin-top: 40px; }
+    .feature-row + .feature-row { border-top: 1px solid var(--line); padding-top: 40px; }
     .feature-row:nth-child(even) .feature-text { order: 2; }
     .feature-row h3 { font-size: 20px; margin: 0 0 8px; }
     .feature-row p { color: var(--muted); margin: 0; }
@@ -196,6 +197,10 @@
         <div class="feature-row">
           <div class="feature-text"><h3>Glance from the menu bar</h3><p>CPU and memory rings across running containers, per-container start/stop controls, and one-click access back to the app.</p></div>
           <img class="zoomable" src="assets/menubar.png" alt="Menu bar panel in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Persistent Linux machines</h3><p>Create, run and monitor container machines - stateful Linux VMs with your home directory mapped in - with live resource usage, a stop → apply → restart config editor and init-system guardrails. <a href="machines.html">Learn more →</a></p></div>
+          <img class="zoomable" src="assets/machine.png" alt="Managing a container machine in Orchard, with live resource usage" />
         </div>
         <div class="feature-row">
           <div class="feature-text"><h3>Bridge local models into containers</h3><p>Discover MLX, Ollama and LM Studio servers on your Mac - or run your own - and see the endpoint containers use to reach them. Inference stays on the Apple GPU. <a href="ai.html">Learn more →</a></p></div>
