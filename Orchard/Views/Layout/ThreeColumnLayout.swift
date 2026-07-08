@@ -658,9 +658,9 @@ struct ListColumnView: View {
                     subtitle: "Real-time container statistics"
                 )
             case .models:
-                ModelsListView(selectedModel: $selectedModel)
+                ModelsListView(selectedModel: $selectedModel, listFocusedTab: _listFocusedTab)
             case .sandboxes:
-                SandboxesListView(selectedSandbox: $selectedSandbox)
+                SandboxesListView(selectedSandbox: $selectedSandbox, listFocusedTab: _listFocusedTab)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

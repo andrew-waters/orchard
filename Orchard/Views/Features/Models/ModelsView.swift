@@ -10,6 +10,7 @@ struct ModelsListView: View {
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var modelServerService: ModelServerService
     @Binding var selectedModel: String?
+    @FocusState var listFocusedTab: TabSelection?
 
     @State private var showCreateSheet = false
 
@@ -72,6 +73,7 @@ struct ModelsListView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .focused($listFocusedTab, equals: .models)
             }
         }
         .task { await modelService.load(showLoading: false) }

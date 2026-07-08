@@ -30,7 +30,7 @@ final class AppServices: ObservableObject {
     static func forLaunch() -> AppServices {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(uiTestMockBackendArgument) {
-            return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), modelBackend: UITestModelBackend(), runner: UITestCommandRunner())
+            return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), modelBackend: UITestModelBackend(), modelServerEngine: UITestModelServerEngine(), runner: UITestCommandRunner())
         }
         #endif
         let services = AppServices()
@@ -43,6 +43,7 @@ final class AppServices: ObservableObject {
         backend: ContainerBackend = LiveContainerBackend(),
         machineBackend: MachineBackend = LiveMachineBackend(),
         modelBackend: ModelBackend = LiveModelBackend(),
+        modelServerEngine: ModelServerEngine = MLXServerEngine(),
         runner: CommandRunner = SystemCommandRunner(),
         defaults: UserDefaults = .standard
     ) {
@@ -68,7 +69,7 @@ final class AppServices: ObservableObject {
         self.statsService = statsService
         self.machineService = MachineService(backend: machineBackend, alertCenter: alertCenter)
         self.modelService = ModelService(backend: modelBackend)
-        self.modelServerService = ModelServerService(alertCenter: alertCenter)
+        self.modelServerService = ModelServerService(engine: modelServerEngine, alertCenter: alertCenter)
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
         // Stats samples running machines through their backing container (re-keyed to the

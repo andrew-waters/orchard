@@ -152,6 +152,16 @@ struct UITestModelBackend: ModelBackend {
     }
 }
 
+/// A `ModelServerEngine` that reports no binary, so UI tests never spawn a real
+/// `mlx_lm.server` subprocess. Its `launch` is never reached because the create affordance
+/// is disabled when no engine is available.
+struct UITestModelServerEngine: ModelServerEngine {
+    func locateBinary() -> String? { nil }
+    func launch(model: String, host: String, port: UInt16, logURL: URL) throws -> ServerProcess {
+        throw ModelServerEngineError.binaryNotFound
+    }
+}
+
 /// A `CommandRunner` returning benign output so CLI-backed views (builders/DNS/properties)
 /// degrade quietly rather than shelling out during UI tests.
 struct UITestCommandRunner: CommandRunner {

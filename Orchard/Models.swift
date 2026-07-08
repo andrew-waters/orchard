@@ -686,9 +686,11 @@ struct ContainerNetwork: Codable, Equatable, Identifiable {
     let config: NetworkConfig
     let status: NetworkStatus
     /// True for a host-only (`--internal`) network: reachable from the host but with no
-    /// internet egress. This is the sandbox-network property the model bridge relies on - 
-    /// a container on it can reach a host model server yet cannot phone home. Defaults to
-    /// false so it's absent-safe for older data and test fixtures.
+    /// internet egress. This is the sandbox-network property the model bridge relies on -
+    /// a container on it can reach a host model server yet cannot phone home. Derived at
+    /// mapping time; excluded from `CodingKeys` so synthesised `Decodable` never requires it
+    /// (it would otherwise throw `keyNotFound` on payloads/fixtures that omit it) and it
+    /// simply defaults to false.
     var isHostOnly: Bool = false
 
     enum CodingKeys: String, CodingKey {
@@ -696,7 +698,6 @@ struct ContainerNetwork: Codable, Equatable, Identifiable {
         case state
         case config
         case status
-        case isHostOnly
     }
 }
 

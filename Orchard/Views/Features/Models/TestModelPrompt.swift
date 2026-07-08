@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// A lightweight chat session against a model server - send a message, keep the history, and
 /// carry it forward so the model has context. Talks to the provider on the host (127.0.0.1),
