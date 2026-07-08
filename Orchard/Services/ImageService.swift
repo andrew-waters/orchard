@@ -52,6 +52,74 @@ func hostVariantSize(_ variants: [ImageInspection.Variant]) -> Int64 {
     return variants.first?.size ?? 0
 }
 
+func dockerHubSearchURL(query: String, page: Int) -> URL? {
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = "hub.docker.com"
+    components.path = "/v2/search/repositories/"
+    components.queryItems = [
+        URLQueryItem(name: "query", value: query),
+        URLQueryItem(name: "page_size", value: "25"),
+        URLQueryItem(name: "page", value: String(page))
+    ]
+    return components.url
+}
+
+private struct ImageInspectionTimeoutError: LocalizedError {
+    var errorDescription: String? { "Image inspection timed out" }
+}
+
+private let imageInspectTimeoutNanoseconds: UInt64 = 20_000_000_000
+
+private final class OneShotContinuation<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+
+    func resume(_ continuation: CheckedContinuation<Value, Error>, with result: Result<Value, Error>) -> Bool {
+        lock.lock()
+        guard !didResume else {
+            lock.unlock()
+            return false
+        }
+        didResume = true
+        lock.unlock()
+
+        continuation.resume(with: result)
+        return true
+    }
+}
+
+private func isCancellation(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    return (error as? URLError)?.code == .cancelled
+}
+
+private func inspectImageWithTimeout(reference: String, backend: ContainerBackend) async throws -> ImageInspection {
+    let race = OneShotContinuation<ImageInspection>()
+
+    return try await withCheckedThrowingContinuation { continuation in
+        let inspectionTask = Task {
+            do {
+                let inspection = try await backend.inspectImage(reference: reference)
+                _ = race.resume(continuation, with: .success(inspection))
+            } catch {
+                _ = race.resume(continuation, with: .failure(error))
+            }
+        }
+
+        Task {
+            do {
+                try await Task.sleep(nanoseconds: imageInspectTimeoutNanoseconds)
+            } catch {
+                return
+            }
+
+            inspectionTask.cancel()
+            _ = race.resume(continuation, with: .failure(ImageInspectionTimeoutError()))
+        }
+    }
+}
+
 // MARK: - Inspect concurrency limiter
 
 actor InspectGate {
@@ -92,8 +160,11 @@ final class ImageService: ObservableObject {
     @Published var isLoadingMoreSearchResults = false
 
     private let inspectGate = InspectGate()
+    private let imageSizeRetryDelay: TimeInterval = 30
+    private var imageSizeRetryAfter: [String: Date] = [:]
     private var searchResultsPage = 0
     private var lastSearchQuery = ""
+    private var searchGeneration = 0
 
     private let backend: ContainerBackend
     private let alertCenter: AlertCenter
@@ -122,10 +193,11 @@ final class ImageService: ObservableObject {
             self.isImagesLoading = false
 
             let existingRefs = Set(newImages.map(\.reference))
-            imageSizes = imageSizes.filter { ref, status in
-                guard existingRefs.contains(ref) else { return false }
-                if case .failed = status { return false }
-                return true
+            imageSizes = imageSizes.filter { ref, _ in
+                existingRefs.contains(ref)
+            }
+            imageSizeRetryAfter = imageSizeRetryAfter.filter { ref, _ in
+                existingRefs.contains(ref)
             }
             enrichImageSizes(for: newImages)
         } catch {
@@ -160,13 +232,19 @@ final class ImageService: ObservableObject {
     private func enrichImageSizes(for images: [ContainerImage]) {
         let backend = backend
         let inspectGate = inspectGate
+        let retryDelay = imageSizeRetryDelay
+        let now = Date()
 
         for image in images {
             let ref = image.reference
             switch imageSizes[ref] {
             case .known, .loading:
                 continue
-            case .failed, .none:
+            case .failed:
+                if let retryAt = imageSizeRetryAfter[ref], retryAt > now {
+                    continue
+                }
+            case .none:
                 break
             }
 
@@ -175,7 +253,7 @@ final class ImageService: ObservableObject {
                 await inspectGate.enter()
                 let result: ImageSizeStatus
                 do {
-                    let inspection = try await backend.inspectImage(reference: ref)
+                    let inspection = try await inspectImageWithTimeout(reference: ref, backend: backend)
                     result = .known(hostVariantSize(inspection.variants))
                 } catch {
                     result = .failed
@@ -183,6 +261,11 @@ final class ImageService: ObservableObject {
                 await inspectGate.leave()
                 await MainActor.run {
                     self.imageSizes[ref] = result
+                    if case .failed = result {
+                        self.imageSizeRetryAfter[ref] = Date().addingTimeInterval(retryDelay)
+                    } else {
+                        self.imageSizeRetryAfter.removeValue(forKey: ref)
+                    }
                 }
             }
         }
@@ -203,12 +286,15 @@ final class ImageService: ObservableObject {
         do {
             try await backend.pullImage(reference: cleanImageName)
 
-            pullProgress[cleanImageName] = ImagePullProgress(
+            let completedProgress = ImagePullProgress(
                 imageName: cleanImageName, status: .completed, progress: 1.0, message: "Pull completed successfully"
             )
+            pullProgress[cleanImageName] = completedProgress
             Task { await self.load() }
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                self.pullProgress.removeValue(forKey: cleanImageName)
+                if self.pullProgress[cleanImageName]?.id == completedProgress.id {
+                    self.pullProgress.removeValue(forKey: cleanImageName)
+                }
             }
         } catch {
             let errorMsg = error.localizedDescription
@@ -223,19 +309,27 @@ final class ImageService: ObservableObject {
         guard !query.isEmpty else {
             searchResults = []
             searchResultsHasMore = false
+            isSearching = false
+            isLoadingMoreSearchResults = false
             searchResultsPage = 0
             lastSearchQuery = ""
+            searchGeneration += 1
             return
         }
 
+        searchGeneration += 1
+        let generation = searchGeneration
         isSearching = true
         searchResults = []
         searchResultsHasMore = false
+        isLoadingMoreSearchResults = false
         searchResultsPage = 0
         lastSearchQuery = query
 
-        await fetchSearchPage(query: query, page: 1, append: false)
-        isSearching = false
+        await fetchSearchPage(query: query, page: 1, append: false, generation: generation)
+        if generation == searchGeneration {
+            isSearching = false
+        }
     }
 
     func loadMoreSearchResults() async {
@@ -246,17 +340,17 @@ final class ImageService: ObservableObject {
 
         isLoadingMoreSearchResults = true
         let query = lastSearchQuery
+        let generation = searchGeneration
         let page = searchResultsPage + 1
-        await fetchSearchPage(query: query, page: page, append: true)
-        isLoadingMoreSearchResults = false
+        await fetchSearchPage(query: query, page: page, append: true, generation: generation)
+        if generation == searchGeneration {
+            isLoadingMoreSearchResults = false
+        }
     }
 
-    private func fetchSearchPage(query: String, page: Int, append: Bool) async {
+    private func fetchSearchPage(query: String, page: Int, append: Bool, generation: Int) async {
         do {
-            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-            let urlString = "https://hub.docker.com/v2/search/repositories/?query=\(encoded)&page_size=25&page=\(page)"
-
-            guard let url = URL(string: urlString) else {
+            guard let url = dockerHubSearchURL(query: query, page: page) else {
                 if !append { searchResults = [] }
                 searchResultsHasMore = false
                 alertCenter.error("Invalid search query")
@@ -264,6 +358,10 @@ final class ImageService: ObservableObject {
             }
 
             let (data, _) = try await URLSession.shared.data(from: url)
+            guard generation == searchGeneration, query == lastSearchQuery, !Task.isCancelled else {
+                return
+            }
+
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let results = json["results"] as? [[String: Any]] else {
                 if !append { searchResults = [] }
@@ -291,6 +389,9 @@ final class ImageService: ObservableObject {
             searchResultsHasMore = json["next"] as? String != nil
             searchResultsPage = page
         } catch {
+            guard generation == searchGeneration, query == lastSearchQuery, !isCancellation(error), !Task.isCancelled else {
+                return
+            }
             alertCenter.error("Failed to search images: \(error.localizedDescription)")
             if !append { searchResults = [] }
             searchResultsHasMore = false
@@ -303,6 +404,7 @@ final class ImageService: ObservableObject {
         isLoadingMoreSearchResults = false
         searchResultsPage = 0
         lastSearchQuery = ""
+        searchGeneration += 1
     }
 
     func delete(_ imageReference: String) async {

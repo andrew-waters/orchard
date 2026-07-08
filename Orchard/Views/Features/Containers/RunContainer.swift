@@ -131,10 +131,30 @@ struct RunContainerView: View {
         }
     }
 
+    private var hasSelectedLocalImage: Bool {
+        let selectedReference = canonicalImageReference(config.image)
+        guard !selectedReference.isEmpty else { return false }
+
+        return imageService.images.contains { image in
+            let imageReference = canonicalImageReference(image.reference)
+            return imageReference == selectedReference
+                || imageReference.hasPrefix(selectedReference + ":")
+                || imageReference.hasPrefix(selectedReference + "@")
+        }
+    }
+
     private func applyImageSelection(_ reference: String) {
+        let oldImage = config.image
         config.image = reference
-        if config.name.isEmpty {
-            config.name = RunContainerView.derivedName(from: reference)
+        syncGeneratedNameIfNeeded(oldImage: oldImage, newImage: reference)
+    }
+
+    private func syncGeneratedNameIfNeeded(oldImage: String, newImage: String) {
+        guard !newImage.isEmpty else { return }
+
+        let previousAutoName = RunContainerView.derivedName(from: oldImage)
+        if config.name.isEmpty || config.name == previousAutoName {
+            config.name = RunContainerView.derivedName(from: newImage)
             validateContainerName()
         }
     }
@@ -148,11 +168,8 @@ struct RunContainerView: View {
             HStack(spacing: 6) {
                 TextField("Filter local images or paste reference", text: $config.image)
                     .textFieldStyle(.roundedBorder)
-                    .onChange(of: config.image) { _, newValue in
-                        if config.name.isEmpty && !newValue.isEmpty {
-                            config.name = RunContainerView.derivedName(from: newValue)
-                            validateContainerName()
-                        }
+                    .onChange(of: config.image) { oldValue, newValue in
+                        syncGeneratedNameIfNeeded(oldImage: oldValue, newImage: newValue)
                     }
 
                 Menu {
@@ -177,7 +194,7 @@ struct RunContainerView: View {
             }
 
             if !config.image.isEmpty {
-                if imageService.images.contains(where: { $0.reference == config.image }) {
+                if hasSelectedLocalImage {
                     Label("Local image available", systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundColor(.green)

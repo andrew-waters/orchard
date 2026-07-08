@@ -82,6 +82,22 @@ func imageReferenceCanonicalization() {
     #expect(canonicalImageReference("bitnami/redis:7") == "docker.io/bitnami/redis:7")
     #expect(canonicalImageReference("ghcr.io/acme/app:1") == "ghcr.io/acme/app:1")
     #expect(canonicalImageReference("localhost:5000/acme/app:1") == "localhost:5000/acme/app:1")
+    #expect(canonicalImageReference("registry.example.com:5000/repo:1") == "registry.example.com:5000/repo:1")
+    #expect(canonicalImageReference("nginx@sha256:abc123") == "docker.io/library/nginx@sha256:abc123")
+}
+
+@Test("Docker Hub search URL escapes reserved query delimiters")
+func dockerHubSearchURLEncoding() throws {
+    let url = try #require(dockerHubSearchURL(query: "foo&page=999=a b", page: 2))
+    let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+
+    #expect(components.scheme == "https")
+    #expect(components.host == "hub.docker.com")
+    #expect(components.path == "/v2/search/repositories/")
+    #expect(components.queryItems?.first(where: { $0.name == "query" })?.value == "foo&page=999=a b")
+    #expect(components.queryItems?.first(where: { $0.name == "page_size" })?.value == "25")
+    #expect(components.queryItems?.first(where: { $0.name == "page" })?.value == "2")
+    #expect(url.absoluteString.contains("query=foo%26page%3D999%3Da%20b"))
 }
 
 // MARK: - delete

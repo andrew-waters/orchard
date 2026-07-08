@@ -271,7 +271,7 @@ struct SearchResultRow: View {
     @State private var isHovered = false
 
     private var isPulling: Bool {
-        imageService.pullProgress[result.name] != nil
+        imageService.pullProgress[result.name]?.status == .pulling
     }
 
     private var isAlreadyPulled: Bool {
@@ -410,7 +410,9 @@ struct PullProgressRow: View {
                 if progress.status == .pulling {
                     ProgressView()
                         .scaleEffect(0.7)
-                } else if let onDismiss {
+                }
+
+                if let onDismiss {
                     Button(action: onDismiss) {
                         SwiftUI.Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
