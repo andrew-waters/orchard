@@ -7,6 +7,8 @@ struct ListItemRow: View {
     let secondaryLeftText: String?
     let secondaryRightText: String?
     let isSelected: Bool
+    /// When true, a small shield marks the row as a sandbox (wired to a local model).
+    let showSandboxBadge: Bool
 
     init(
         icon: String,
@@ -14,7 +16,8 @@ struct ListItemRow: View {
         primaryText: String,
         secondaryLeftText: String? = nil,
         secondaryRightText: String? = nil,
-        isSelected: Bool = false
+        isSelected: Bool = false,
+        showSandboxBadge: Bool = false
     ) {
         self.icon = icon
         self.iconColor = iconColor
@@ -22,6 +25,7 @@ struct ListItemRow: View {
         self.secondaryLeftText = secondaryLeftText
         self.secondaryRightText = secondaryRightText
         self.isSelected = isSelected
+        self.showSandboxBadge = showSandboxBadge
     }
 
     var body: some View {
@@ -36,10 +40,18 @@ struct ListItemRow: View {
             // Text content
             VStack(alignment: .leading, spacing: 6) {
                 // Primary text
-                Text(primaryText)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(primaryText)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    if showSandboxBadge {
+                        SwiftUI.Image(systemName: "shield.lefthalf.filled")
+                            .font(.system(size: 11))
+                            .foregroundColor(.accentColor)
+                            .help("Sandbox - wired to a local model")
+                    }
+                }
 
                 // Secondary text row
                 if secondaryLeftText != nil || secondaryRightText != nil {

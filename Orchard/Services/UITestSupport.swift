@@ -1,7 +1,7 @@
 import Foundation
 
 /// Launch argument that makes the app wire its services to an in-memory stub backend seeded
-/// with fixtures — so the XCUITest smoke suite runs without a real `container` daemon.
+/// with fixtures - so the XCUITest smoke suite runs without a real `container` daemon.
 let uiTestMockBackendArgument = "--uitest-mock-backend"
 
 /// Launch argument that makes the stub fail `stopContainer`, so the smoke suite can exercise
@@ -14,6 +14,7 @@ enum UITestSeed {
     static let stoppedContainerID = "uitest-db"
     static let imageReference = "docker.io/library/uitest-nginx:latest"
     static let networkID = "uitest-net"
+    static let machineID = "uitest-machine"
 }
 
 #if DEBUG
@@ -95,11 +96,69 @@ struct UITestBackend: ContainerBackend {
                           config: NetworkConfig(labels: [:], id: UITestSeed.networkID),
                           status: NetworkStatus(gateway: "192.168.64.1", address: "192.168.64.0/24"))]
     }
-    func createNetwork(name: String, labels: [String: String]) async throws {}
+    func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {}
     func deleteNetwork(id: String) async throws {}
     func ping() async throws -> SystemHealthInfo { SystemHealthInfo(apiServerVersion: "1.0.0") }
     func diskUsage() async throws -> SystemDiskUsage {
         throw OrchardError.generic("disk usage unavailable in UI-test mode")
+    }
+}
+
+/// A `MachineBackend` returning a single fixed machine. Debug-only; activated solely by the
+/// launch argument, so the Machines section renders in the smoke suite without a live daemon.
+struct UITestMachineBackend: MachineBackend {
+    private func machine(id: String, status: String) -> Machine {
+        Machine(
+            id: id,
+            status: status,
+            isDefault: true,
+            cpus: 4,
+            memoryBytes: 4_294_967_296,
+            diskSizeBytes: 78_659_584,
+            homeMount: "rw",
+            virtualization: false,
+            kernelPath: nil,
+            imageReference: "docker.io/library/alpine:3.22",
+            platform: Platform(os: "linux", architecture: "arm64", variant: nil),
+            ipAddress: status == "running" ? "192.168.66.7" : nil,
+            containerId: status == "running" ? "\(id)-13ab40" : nil,
+            createdDate: Date(timeIntervalSince1970: 1_751_888_675),
+            startedDate: status == "running" ? Date(timeIntervalSince1970: 1_751_888_677) : nil,
+            initialized: true,
+            userSetup: MachineUserSetup(username: "uitest", uid: 501, gid: 20)
+        )
+    }
+
+    func listMachines() async throws -> [Machine] { [machine(id: UITestSeed.machineID, status: "running")] }
+    func inspectMachine(id: String) async throws -> Machine { machine(id: id, status: "running") }
+    func createMachine(_ spec: MachineCreateSpec) async throws {}
+    func setMachineConfig(id: String, config: MachineConfigSpec) async throws {}
+    func bootMachine(id: String) async throws {}
+    func stopMachine(id: String) async throws {}
+    func deleteMachine(id: String) async throws {}
+    func setDefaultMachine(id: String) async throws {}
+    func machineLogs(id: String) async throws -> [FileHandle] { [] }
+}
+
+/// A `ModelBackend` returning a single fixed provider. Debug-only; activated solely by the
+/// launch argument, so the model-bridge UI renders in the smoke suite without a live server.
+struct UITestModelBackend: ModelBackend {
+    func detectProviders() async -> [ModelProvider] {
+        [ModelProvider(kind: .mlxServer, port: 8080, api: .openAI, models: ["mlx-community/Llama-3.2-1B-Instruct-4bit"])]
+    }
+
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
+        "This is a canned UI-test reply to: \(messages.last?.content ?? "")"
+    }
+}
+
+/// A `ModelServerEngine` that reports no binary, so UI tests never spawn a real
+/// `mlx_lm.server` subprocess. Its `launch` is never reached because the create affordance
+/// is disabled when no engine is available.
+struct UITestModelServerEngine: ModelServerEngine {
+    func locateBinary() -> String? { nil }
+    func launch(model: String, host: String, port: UInt16, logURL: URL) throws -> ServerProcess {
+        throw ModelServerEngineError.binaryNotFound
     }
 }
 

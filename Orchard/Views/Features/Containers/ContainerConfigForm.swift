@@ -20,8 +20,12 @@ struct ContainerConfigForm: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var modelService: ModelService
 
     @State private var selectedTab: ConfigTab = .basic
+    /// The detected model provider the user chose to bridge into this container, by
+    /// `ModelProvider.id`. Empty means "none" - the bridge section is opt-in.
+    @State private var bridgeProviderID: String = ""
 
     enum ConfigTab: String, CaseIterable {
         case basic = "Basic"
@@ -55,6 +59,7 @@ struct ContainerConfigForm: View {
             guard mode == .run else { return }
             await networkService.load(showLoading: false)
             await dnsService.load(showLoading: false)
+            await modelService.load(showLoading: false)
             if config.dnsDomain.isEmpty,
                let defaultDomain = dnsService.dnsDomains.first(where: { $0.isDefault }) {
                 config.dnsDomain = defaultDomain.domain
@@ -279,6 +284,11 @@ struct ContainerConfigForm: View {
 
     private var environmentConfigView: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if mode == .run {
+                modelBridgeSection
+                Divider()
+            }
+
             HStack {
                 Text("Environment Variables")
                     .font(.headline)
@@ -311,6 +321,108 @@ struct ContainerConfigForm: View {
             }
 
             Spacer()
+        }
+    }
+
+    // MARK: - Model bridge (run mode)
+
+    /// Lets the user wire this new container to a model server running on the host. The
+    /// endpoint is computed from the target network's gateway (how a container reaches the
+    /// host) and injected as standard client env vars. Opt-in and additive - it only
+    /// appends to the environment when the user asks.
+    @ViewBuilder
+    private var modelBridgeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                SwiftUI.Image(systemName: "cpu")
+                Text("Local Model Bridge")
+                    .font(.headline)
+            }
+
+            Text("Wire this container to an AI model server running on your Mac. The container reaches it over its network gateway - no host networking to hand-configure.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if modelService.providers.isEmpty {
+                Text("No local model servers detected. Start one bound to 0.0.0.0 (Ollama, LM Studio, or an MLX server) and it will appear here.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
+            } else {
+                Picker("Expose to model", selection: $bridgeProviderID) {
+                    Text("None").tag("")
+                    ForEach(modelService.providers) { provider in
+                        Text("\(provider.kind.displayName) · port \(String(provider.port))").tag(provider.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 300, alignment: .leading)
+
+                if let provider = bridgeProvider {
+                    if let env = bridgeEnvironment, let baseURL = bridgeBaseURL(provider) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Container reaches it at")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(baseURL)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+
+                            Button(action: { injectBridge(env) }) {
+                                Label("Add \(env.count) variable\(env.count == 1 ? "" : "s") to Environment",
+                                      systemImage: "plus.circle.fill")
+                                    .font(.subheadline)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .padding(.top, 2)
+
+                            Text("Requires the server to listen on 0.0.0.0, not 127.0.0.1, so the container can reach it.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 4)
+                    } else {
+                        Text("The selected network has no gateway, so a container can't reach the host. Pick a different network on the Basic tab.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .padding(.top, 2)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The provider currently chosen in the bridge picker, if any.
+    private var bridgeProvider: ModelProvider? {
+        modelService.providers.first { $0.id == bridgeProviderID }
+    }
+
+    /// The network this container will attach to; an empty selection means the runtime's
+    /// default network, whose id is `default`.
+    private var targetNetwork: ContainerNetwork? {
+        let wanted = config.network.isEmpty ? "default" : config.network
+        return networkService.networks.first { $0.id == wanted }
+    }
+
+    /// The env-var pairs to inject for the chosen provider on the target network, or nil
+    /// when either is missing (or the network has no gateway).
+    private var bridgeEnvironment: [(key: String, value: String)]? {
+        guard let provider = bridgeProvider, let network = targetNetwork else { return nil }
+        return modelService.bridgeEnvironment(for: provider, on: network)
+    }
+
+    /// The container-reachable base URL shown as a preview, mirroring what will be injected.
+    private func bridgeBaseURL(_ provider: ModelProvider) -> String? {
+        guard let gateway = targetNetwork?.status.gateway, !gateway.isEmpty else { return nil }
+        return ModelBridge.containerBaseURL(gateway: gateway, hostPort: provider.port, api: provider.api)
+    }
+
+    /// Append the bridge variables, replacing any existing entries with the same key so
+    /// re-injecting after a provider/network change stays consistent.
+    private func injectBridge(_ env: [(key: String, value: String)]) {
+        for pair in env {
+            config.environmentVariables.removeAll { $0.key == pair.key }
+            config.environmentVariables.append(ContainerRunConfig.EnvironmentVariable(key: pair.key, value: pair.value))
         }
     }
 

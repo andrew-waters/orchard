@@ -11,6 +11,19 @@ final class StatsService: ObservableObject {
     /// Latest derived sample per container id — drives the table's real CPU% and the
     /// current-value cards. Empty for a container until it has two raw reads.
     @Published var latestSamples: [String: StatsSample] = [:]
+    /// Latest raw stats per **machine id** (re-keyed off the backing container). Container
+    /// machines are sampled through their backing container but tracked under the stable
+    /// machine id so history survives the backing id changing across reboots.
+    @Published var machineStats: [ContainerStats] = []
+
+    /// Supplies the running machines to sample each tick: `(machineId, backingContainerId,
+    /// cpus)`. Wired from `MachineService` in `AppServices`; empty until then.
+    var machineStatTargets: @MainActor () -> [(machineId: String, backingId: String, cpus: Int)] = { [] }
+
+    /// The internal sampling key for a machine — namespaced so it never collides with a
+    /// container id in the shared history/sample maps. `nonisolated` so the concurrent
+    /// sampling task group can build it off the main actor.
+    nonisolated static func machineStatKey(_ machineId: String) -> String { "machine::\(machineId)" }
 
     /// Accumulated time-series history, keyed `(host, id)`. Survives view switches and
     /// (via `persistence`) app relaunches. Read by charts.
@@ -206,9 +219,15 @@ final class StatsService: ObservableObject {
 
         let running = containerList.containers.filter { $0.status == "running" }
         let runningIds = running.map { $0.configuration.id }
-        // Allocated cores per container — the CPU% denominator for computeSample.
-        let cpuCounts = Dictionary(running.map { ($0.configuration.id, $0.configuration.resources.cpus) },
+        // Allocated cores per container/machine — the CPU% denominator for computeSample.
+        var cpuCounts = Dictionary(running.map { ($0.configuration.id, $0.configuration.resources.cpus) },
                                    uniquingKeysWith: { first, _ in first })
+        // Running machines are sampled through their backing container, but re-keyed onto the
+        // stable machine id so a reboot (which changes the backing id) doesn't fork history.
+        let machineTargets = machineStatTargets()
+        for target in machineTargets {
+            cpuCounts[Self.machineStatKey(target.machineId)] = target.cpus
+        }
         let backend = self.backend
 
         // Fetch every container's stats concurrently rather than serially.
@@ -223,9 +242,26 @@ final class StatsService: ObservableObject {
             return collected
         }
 
-        recordSamples(results, cpuCounts: cpuCounts)
+        // Machine stats, re-keyed from backing container id → machine sampling key.
+        let machineResults: [ContainerStats] = await withTaskGroup(of: ContainerStats?.self) { group in
+            for target in machineTargets {
+                group.addTask {
+                    guard let stats = try? await backend.stats(id: target.backingId) else { return nil }
+                    return stats.with(id: Self.machineStatKey(target.machineId))
+                }
+            }
+            var collected: [ContainerStats] = []
+            for await case let stats? in group {
+                collected.append(stats)
+            }
+            return collected
+        }
+
+        recordSamples(results + machineResults, cpuCounts: cpuCounts)
 
         containerStats = results
+        // Expose machine stats under the bare machine id for the machine UI to look up.
+        machineStats = machineResults.map { $0.with(id: String($0.id.dropFirst("machine::".count))) }
         isStatsLoading = false
         // Alert only when every running container failed (results empty) AND the load was
         // user-initiated — the background poll stays silent; DashboardView shows a passive panel.
@@ -238,6 +274,23 @@ final class StatsService: ObservableObject {
     /// running containers but no stats came back. Drives non-modal UI in DashboardView.
     var statsUnavailable: Bool {
         !containerList.containers.filter { $0.status == "running" }.isEmpty && containerStats.isEmpty
+    }
+
+    // MARK: - Machine stats accessors (keyed by stable machine id)
+
+    /// Latest derived sample for a machine, or nil until it has two raw reads.
+    func machineSample(_ machineId: String) -> StatsSample? {
+        latestSamples[Self.machineStatKey(machineId)]
+    }
+
+    /// Latest raw stats for a machine (absolute memory/net/disk values).
+    func machineRawStats(_ machineId: String) -> ContainerStats? {
+        machineStats.first { $0.id == machineId }
+    }
+
+    /// Chronological sample history for a machine (drives its charts/sparklines).
+    func machineHistory(_ machineId: String) -> [StatsSample] {
+        history.samples(for: StatsKey(id: Self.machineStatKey(machineId)))
     }
 
     /// Derive a sample from each raw read against its predecessor, append to history, and

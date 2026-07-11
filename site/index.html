@@ -106,7 +106,8 @@
     .card h3 { margin: 0 0 6px; font-size: 17px; }
     .card p { margin: 0; color: var(--muted); font-size: 15px; }
 
-    .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 40px; }
+    .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; margin-top: 40px; }
+    .feature-row + .feature-row { border-top: 1px solid var(--line); padding-top: 40px; }
     .feature-row:nth-child(even) .feature-text { order: 2; }
     .feature-row h3 { font-size: 20px; margin: 0 0 8px; }
     .feature-row p { color: var(--muted); margin: 0; }
@@ -141,6 +142,8 @@
       <nav class="nav-links">
         <a href="#features">Features</a>
         <a href="#install">Install</a>
+        <a href="machines.html">Machines</a>
+        <a href="ai.html">Local AI</a>
         <a href="https://github.com/andrew-waters/orchard">GitHub</a>
         <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
       </nav>
@@ -151,7 +154,7 @@
     <section class="hero">
       <div class="wrap">
         <h1>The native GUI for<br />Apple Containers</h1>
-        <p class="sub">Orchard is a native macOS app for managing containers with Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling - a fast, focused desktop experience that complements the CLI.</p>
+        <p class="sub">Orchard is a native macOS app for Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling - manage containers and machines, bridge local AI models into them, and run agents in isolated sandboxes, all without dropping to the CLI.</p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/andrew-waters/orchard/releases/latest">Download for macOS</a>
           <a class="btn btn-ghost" href="https://github.com/andrew-waters/orchard">View on GitHub</a>
@@ -173,6 +176,8 @@
         <h2>Everything, without dropping to the CLI</h2>
         <p class="lede">Orchard puts Apple's container tooling behind a first-class Mac interface - signed, notarized, and native Swift.</p>
         <div class="grid">
+          <div class="card"><h3>Container machines</h3><p>Create, run and monitor persistent Linux VMs, with a stop&nbsp;→&nbsp;apply&nbsp;→&nbsp;restart config editor and init-system guardrails. <a href="machines.html">Learn more →</a></p></div>
+          <div class="card"><h3>Local AI &amp; sandboxes</h3><p>Run MLX models on the host and bridge them into containers, with isolated no-egress sandboxes for agents. <a href="ai.html">Learn more →</a></p></div>
           <div class="card"><h3>Container management</h3><p>Create, start, stop, force-stop and delete containers, with live status and sortable lists.</p></div>
           <div class="card"><h3>Image management</h3><p>Pull, delete and search Docker Hub directly, and run containers straight from an image.</p></div>
           <div class="card"><h3>Multi-pane logs</h3><p>Stream logs from several containers side by side, with split panes, filtering and per-container colour.</p></div>
@@ -188,6 +193,22 @@
         <div class="feature-row">
           <div class="feature-text"><h3>See everything at a glance</h3><p>A system-wide dashboard sums CPU, memory, network and disk across every container, with headline disk-usage tiles and per-container sparklines.</p></div>
           <img class="zoomable" src="assets/dashboard.png" alt="System dashboard in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Glance from the menu bar</h3><p>CPU and memory rings across running containers, per-container start/stop controls, and one-click access back to the app.</p></div>
+          <img class="zoomable" src="assets/menubar.png" alt="Menu bar panel in Orchard" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Persistent Linux machines</h3><p>Create, run and monitor container machines - stateful Linux VMs with your home directory mapped in - with live resource usage, a stop → apply → restart config editor and init-system guardrails. <a href="machines.html">Learn more →</a></p></div>
+          <img class="zoomable" src="assets/machine.png" alt="Managing a container machine in Orchard, with live resource usage" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Bridge local models into containers</h3><p>Discover MLX, Ollama and LM Studio servers on your Mac - or run your own - and see the endpoint containers use to reach them. Inference stays on the Apple GPU. <a href="ai.html">Learn more →</a></p></div>
+          <img class="zoomable" src="assets/ai-models.png" alt="The AI Models view in Orchard: a detected MLX server with its on-Mac and container-reachable endpoints" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Run agents in isolated sandboxes</h3><p>A sandbox is a container wired to a local model on a host-only network: it can reach the model but not the internet, with a local endpoint instead of an API key - and a kill-switch when you're done.</p></div>
+          <img class="zoomable" src="assets/sandbox.png" alt="A sandboxed agent in Orchard with the Isolated badge, model endpoint, and chat, terminal and stop controls" />
         </div>
         <div class="feature-row">
           <div class="feature-text"><h3>Search and pull images</h3><p>Browse Docker Hub, inspect image metadata, and pull without memorising CLI flags.</p></div>
@@ -208,10 +229,6 @@
         <div class="feature-row">
           <div class="feature-text"><h3>Track every mount</h3><p>See which host paths and volumes each container mounts, and jump straight to them in Finder.</p></div>
           <img class="zoomable" src="assets/mounts.png" alt="Mount management in Orchard" />
-        </div>
-        <div class="feature-row">
-          <div class="feature-text"><h3>Glance from the menu bar</h3><p>CPU and memory rings across running containers, per-container start/stop controls, and one-click access back to the app.</p></div>
-          <img class="zoomable" src="assets/menubar.png" alt="Menu bar panel in Orchard" />
         </div>
       </div>
     </section>

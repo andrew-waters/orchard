@@ -10,6 +10,9 @@ struct DetailContentView: View {
     let selectedImages: Set<String>
     let selectedMount: String?
     let selectedMounts: Set<String>
+    let selectedMachine: String?
+    let selectedModel: String?
+    let selectedSandbox: String?
     let selectedDNSDomain: String?
     let selectedDNSDomains: Set<String>
     let selectedNetwork: String?
@@ -31,6 +34,14 @@ struct DetailContentView: View {
             imageDetailView
         case .mounts:
             mountDetailView
+        case .machines:
+            if let selectedMachine = selectedMachine {
+                MachineDetailView(machineId: selectedMachine)
+            } else {
+                Text("Select a machine")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         case .dns:
             if let selectedDNSDomain = selectedDNSDomain {
                 DNSDetailView(
@@ -71,6 +82,10 @@ struct DetailContentView: View {
                 selectedTab: $selectedTabBinding,
                 selectedContainer: $selectedContainerBinding
             )
+        case .models:
+            ModelDetailView(selectedModel: selectedModel)
+        case .sandboxes:
+            SandboxDetailView(selectedSandbox: selectedSandbox)
         }
     }
 

@@ -9,11 +9,11 @@ final class ContainerListService: ObservableObject {
         didSet { allMounts = Self.computeMounts(containers) }
     }
     /// Unique mounts across the current containers. Recomputed only when `containers`
-    /// changes, not on every read — several views read it on each objectWillChange tick.
+    /// changes, not on every read - several views read it on each objectWillChange tick.
     @Published private(set) var allMounts: [ContainerMount] = []
     @Published var loadingContainers: Set<String> = []
     @Published var isLoading: Bool = false
-    /// Containers whose automatic recovery failed — drives the persistent "Recreate"
+    /// Containers whose automatic recovery failed - drives the persistent "Recreate"
     /// affordance, which must outlive the transient alert. Cleared on a successful start.
     @Published var recoveryFailedContainerIDs: Set<String> = []
 
@@ -172,7 +172,7 @@ final class ContainerListService: ObservableObject {
 
                     if await recoverContainer(id) {
                         // recoverContainer → runContainer → createContainer already bootstraps
-                        // and starts the container, so this is a completed start — do NOT loop
+                        // and starts the container, so this is a completed start - do NOT loop
                         // back into another bootstrapAndStart on the now-running container.
                         Log.containers.debug("Container \(id) successfully recovered and started")
                         self.recoveryFailedContainerIDs.remove(id)
@@ -297,7 +297,7 @@ final class ContainerListService: ObservableObject {
     func fetchContainerLogs(containerId: String, tailLines: Int = 5000) async throws -> [String] {
         let fileHandles = try await backend.containerLogs(id: containerId)
 
-        // The API returns [containerLog, bootlog] — only read the first (container log).
+        // The API returns [containerLog, bootlog] - only read the first (container log).
         guard let containerLog = fileHandles.first else {
             return []
         }
@@ -327,7 +327,7 @@ final class ContainerListService: ObservableObject {
     // Recovery recreates an auto-removed container from its snapshot. It preserves every
     // field the create path (ContainerRunConfig → ContainerCreateSpec → createContainer)
     // supports: env, ports, volumes (incl. readonly), working directory, network, DNS.
-    // Labels, resources (cpus/memory), and hostname are NOT preserved — no field exists for
+    // Labels, resources (cpus/memory), and hostname are NOT preserved - no field exists for
     // them anywhere in the create path (a normal `run` drops them too); adding them means
     // extending the spec and the XPC create call. Command override is intentionally not
     // reconstructed: the snapshot stores the fully-resolved argv (image entrypoint already
@@ -427,7 +427,8 @@ final class ContainerListService: ObservableObject {
                 publishedPorts: ports,
                 dnsDomain: config.dnsDomain,
                 networkName: config.network,
-                autoRemove: config.removeAfterStop
+                autoRemove: config.removeAfterStop,
+                labels: config.labels
             )
             try await backend.createContainer(spec)
 

@@ -29,7 +29,7 @@ func mapContainerConfiguration(_ config: ContainerResource.ContainerConfiguratio
         resources: mapResources(config.resources),
         labels: config.labels,
         publishedPorts: config.publishedPorts.map { mapPublishPort($0) },
-        publishedSockets: config.publishedSockets.map { $0.containerPath.path },
+        publishedSockets: config.publishedSockets.map { $0.containerPath.string },
         ssh: config.ssh,
         virtualization: config.virtualization,
         sysctls: config.sysctls
@@ -197,26 +197,21 @@ func mapResourceUsage(_ usage: ResourceUsage) -> DiskUsageSection {
     )
 }
 
-// MARK: - Network state mapping
+// MARK: - Network resource mapping
 
-func mapNetworkState(_ state: NetworkState) -> ContainerNetwork {
-    switch state {
-    case .created(let config):
-        return ContainerNetwork(
-            id: config.id,
-            state: "created",
-            config: NetworkConfig(labels: config.labels.dictionary, id: config.id),
-            status: Orchard.NetworkStatus(gateway: nil, address: nil)
-        )
-    case .running(let config, let status):
-        return ContainerNetwork(
-            id: config.id,
-            state: "running",
-            config: NetworkConfig(labels: config.labels.dictionary, id: config.id),
-            status: Orchard.NetworkStatus(
-                gateway: "\(status.ipv4Gateway)",
-                address: "\(status.ipv4Subnet)"
-            )
-        )
-    }
+// As of container 1.1.0 the network API replaced the created/running `NetworkState`
+// enum with a single `NetworkResource` that splits persistent `configuration` from
+// runtime `status`. A resource returned by `list()` always carries an assigned
+// status, so it is reported as running.
+func mapNetworkResource(_ resource: NetworkResource) -> ContainerNetwork {
+    ContainerNetwork(
+        id: resource.id,
+        state: "running",
+        config: NetworkConfig(labels: resource.labels.dictionary, id: resource.id),
+        status: Orchard.NetworkStatus(
+            gateway: "\(resource.status.ipv4Gateway)",
+            address: "\(resource.status.ipv4Subnet)"
+        ),
+        isHostOnly: resource.configuration.mode == .hostOnly
+    )
 }

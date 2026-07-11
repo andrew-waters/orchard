@@ -12,6 +12,43 @@ struct ContainerDetailHeader: View {
     @State private var isStarting = false
     @State private var isStopping = false
     @State private var wasRunningBeforeStop = false
+    @State private var showSandboxInfo = false
+
+    /// Shield badge shown when the container is a sandbox (wired to a local model). Tapping
+    /// it explains what that means and shows the endpoint - since a sandbox appears in both
+    /// the Containers and Sandboxes lists.
+    private var sandboxBadge: some View {
+        Button(action: { showSandboxInfo.toggle() }) {
+            SwiftUI.Image(systemName: "shield.lefthalf.filled")
+                .foregroundColor(.accentColor)
+        }
+        .buttonStyle(.plain)
+        .help("Sandbox - wired to a local model")
+        .popover(isPresented: $showSandboxInfo) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    SwiftUI.Image(systemName: "shield.lefthalf.filled")
+                        .foregroundColor(.accentColor)
+                    Text("Sandbox")
+                        .font(.headline)
+                }
+                Text("This container is wired to a local model. It also appears under Compute → Sandboxes.")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                if let endpoint = container.sandboxEndpoint {
+                    Divider()
+                    Text("Model endpoint")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(endpoint)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(14)
+            .frame(width: 300)
+        }
+    }
 
     private var isRunning: Bool {
         container.status.lowercased() == "running"
@@ -77,9 +114,14 @@ struct ContainerDetailHeader: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(containerName)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                HStack(spacing: 8) {
+                    Text(containerName)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    if container.isSandbox {
+                        sandboxBadge
+                    }
+                }
                 Text(imageReference)
                     .font(.subheadline)
                     .fontDesign(.monospaced)
@@ -135,7 +177,7 @@ struct ContainerDetailHeader: View {
                 }
 
                 Button("Logs") {
-                    openWindow(id: "logs", value: container.configuration.id)
+                    openWindow(id: "logs", value: LogTarget.container(container.configuration.id))
                 }
                 .buttonStyle(BorderedButtonStyle())
             }
@@ -172,7 +214,7 @@ struct ContainerDetailHeader: View {
             }
         }
         .onChange(of: recoveryFailed) { _, failed in
-            // Recovery failed for this container — clear our transient state flags.
+            // Recovery failed for this container - clear our transient state flags.
             if failed {
                 wasRunningBeforeStop = false
                 isStarting = false
@@ -182,7 +224,7 @@ struct ContainerDetailHeader: View {
         }
     }
 
-    /// Whether this container's automatic recovery failed — persistent state, so the
+    /// Whether this container's automatic recovery failed - persistent state, so the
     /// affordance survives the alert being dismissed or replaced.
     private var recoveryFailed: Bool {
         containerListService.recoveryFailedContainerIDs.contains(container.configuration.id)

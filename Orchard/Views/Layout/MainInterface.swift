@@ -10,6 +10,9 @@ struct MainInterfaceView: View {
     @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
+    @Binding var selectedMachine: String?
+    @Binding var selectedModel: String?
+    @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
     @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
@@ -17,6 +20,7 @@ struct MainInterfaceView: View {
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
+    @Binding var lastSelectedMachine: String?
     @Binding var lastSelectedDNSDomain: String?
     @Binding var lastSelectedNetwork: String?
     @Binding var lastSelectedImageTab: String
@@ -28,6 +32,7 @@ struct MainInterfaceView: View {
     @Binding var showImageSearch: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
+    @Binding var showAddMachineSheet: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let windowTitle: String
@@ -71,11 +76,17 @@ struct MainInterfaceView: View {
                 return selectedNetwork
             }
             return isConfigurationMode ? "Configuration" : ""
+        case .machines:
+            return selectedMachine ?? ""
         case .registries:
             return ""
         case .systemLogs:
             return ""
         case .dashboard:
+            return ""
+        case .models:
+            return ""
+        case .sandboxes:
             return ""
         }
     }
@@ -101,6 +112,9 @@ struct MainInterfaceView: View {
             selectedImages: $selectedImages,
             selectedMount: $selectedMount,
             selectedMounts: $selectedMounts,
+            selectedMachine: $selectedMachine,
+            selectedModel: $selectedModel,
+            selectedSandbox: $selectedSandbox,
             selectedDNSDomain: $selectedDNSDomain,
             selectedDNSDomains: $selectedDNSDomains,
             selectedNetwork: $selectedNetwork,
@@ -108,6 +122,7 @@ struct MainInterfaceView: View {
             lastSelectedContainer: $lastSelectedContainer,
             lastSelectedImage: $lastSelectedImage,
             lastSelectedMount: $lastSelectedMount,
+            lastSelectedMachine: $lastSelectedMachine,
             lastSelectedDNSDomain: $lastSelectedDNSDomain,
             lastSelectedNetwork: $lastSelectedNetwork,
             lastSelectedImageTab: $lastSelectedImageTab,
@@ -119,6 +134,7 @@ struct MainInterfaceView: View {
             showImageSearch: $showImageSearch,
             showAddDNSDomainSheet: $showAddDNSDomainSheet,
             showAddNetworkSheet: $showAddNetworkSheet,
+            showAddMachineSheet: $showAddMachineSheet,
             showingItemNavigatorPopover: $showingItemNavigatorPopover,
             listFocusedTab: _listFocusedTab,
             windowTitle: windowTitle

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AAAA0000000000000000AA03 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA02 /* Sparkle */; };
 		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
+		C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5D2F86944400E6D0B2 /* MachineAPIClient */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */,
+				C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */,
 				AAAA0000000000000000AA03 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -120,6 +122,7 @@
 			name = Orchard;
 			packageProductDependencies = (
 				C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */,
+				C201AD5D2F86944400E6D0B2 /* MachineAPIClient */,
 				AAAA0000000000000000AA02 /* Sparkle */,
 			);
 			productName = Orchard;
@@ -424,7 +427,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.12.7;
+				MARKETING_VERSION = 2.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.Orchard";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -465,7 +468,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.12.7;
+				MARKETING_VERSION = 2.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.Orchard";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -487,7 +490,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.12.7;
+				MARKETING_VERSION = 2.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.OrchardTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -509,7 +512,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.12.7;
+				MARKETING_VERSION = 2.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.OrchardTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -530,7 +533,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 1.12.7;
+				MARKETING_VERSION = 2.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.OrchardUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -551,7 +554,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 1.12.7;
+				MARKETING_VERSION = 2.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "container-compose.OrchardUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -619,7 +622,7 @@
 			repositoryURL = "https://github.com/apple/container.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.12.3;
+				minimumVersion = 1.1.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -634,6 +637,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerAPIClient;
+		};
+		C201AD5D2F86944400E6D0B2 /* MachineAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
+			productName = MachineAPIClient;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -11,6 +11,9 @@ enum OrchardError: Error, LocalizedError, Equatable {
     case recoveryFailed(id: String)
     case searchFailed
     case noEntrypoint
+    /// The container machine API server (a separate Mach service from the main daemon) is
+    /// unreachable — typically an older `container` install without machine support.
+    case machineApiUnavailable
     /// An error we haven't classified; carries the original message verbatim.
     case generic(String)
 
@@ -38,6 +41,8 @@ enum OrchardError: Error, LocalizedError, Equatable {
             return "Image search failed. Check your connection and try again."
         case .noEntrypoint:
             return "No entrypoint or command specified for the container."
+        case .machineApiUnavailable:
+            return "Container machines are unavailable. Update your `container` install (1.0 or later) to use machines."
         case .generic(let message):
             return message
         }

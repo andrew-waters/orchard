@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.3] - 2026-07-08
+
+### Added
+- **Local AI models (MLX)**: a new **AI Models** section discovers model servers running on your Mac (Ollama, LM Studio, and MLX servers), and can start and stop your own `mlx_lm.server` instances - pick a model and port, choose whether to bind `0.0.0.0` so containers can reach it, with child-process supervision, crash surfacing and log access.
+- **The container↔model bridge**: wire a container to a host model in one step. Orchard computes the container-reachable endpoint from the network gateway and injects `OPENAI_BASE_URL` at create time - so a containerised app or agent talks to a local model with no hand-configured host networking. Inference runs on the Apple GPU on the host (Virtualization.framework guests have no GPU access).
+- **Sandboxes**: a first-class view of containers wired to a local model, recognised by a label Orchard stamps or by a model-endpoint environment variable. Each sandbox shows its model endpoint, an isolation badge (host-only/no-egress vs internet-open), and agent-runner controls - chat, terminal, and a stop kill-switch. Create one from the **New Sandbox** button or from a model's detail.
+- **In-app chat tester**: hold a short conversation with any model server from the AI Models view - no terminal or container needed - to check it's working.
+- Sandbox containers are flagged with a shield badge (and an explanatory popover) in the Containers list and detail, since a sandbox appears in both places.
+- A new [Local AI guide](https://orchard.andon.dev/ai.html) on the site covering MLX, the bridge, isolation, and a runnable quick start.
+
+### Changed
+- Reorganised the sidebar so **Sandboxes** joins Containers and Machines under **Compute**, and **AI Models** sits under **Resources** alongside Images and Mounts.
+
+## [2.1.2] - 2026-07-07
+
+### Added
+- **Container machines**: create, configure, run and monitor Apple container machines (persistent Linux VMs) directly in Orchard, over the native XPC API rather than shelling out to the CLI. A new **Machines** section in the sidebar lists your machines with state, IP address and a default badge, and the detail view shows the full configuration plus live CPU, memory, network and disk usage.
+- Create machines from an image with configurable CPUs, memory (defaulting to about half your host RAM), home-directory mount mode (read/write, read-only, or none), nested virtualization, and an optional custom kernel.
+- Machine lifecycle controls - start, stop, set-default, and delete - each with clear in-progress feedback.
+- Edit a machine's configuration with a one-click stop, apply and restart, since Apple's runtime only applies CPU/memory/home-mount/kernel changes on the next boot.
+- Machine output and boot logs stream in the same multi-pane log viewer as containers, and running machines appear in a **Machine Utilisation** table on the Dashboard.
+- Init-system guardrails for the most common machine pitfall: a warning before creating from an image that has no init system, and a clear "the image has no init system" explanation when a machine boots and immediately stops because it lacks `/sbin/init`.
+
+### Changed
+- Reorganised the sidebar into **Compute** (Containers, Machines), **Resources** (Images, Mounts) and **Networking** (DNS, Networks), with Machines a first-class peer of Containers.
+
+### Fixed
+- Container machines' backing containers no longer appear as unexplained entries in the container list - they're now filtered out, matching the `container` CLI.
+
+## [2.1.1] - 2026-07-07
+
+### Changed
+- Updated for Apple's `container` 1.1.0. Orchard now builds against the 1.1.0 client libraries (previously 0.12.3), which had many breaking API changes across the 1.0 release; container 1.0.0 or later is now required.
+
+### Fixed
+- Stop, force-stop, and remove container actions work again on container 1.0.0 and later. Orchard was still linking the pre-1.0 client, so these commands silently failed against a 1.x daemon and the container never stopped ([#54](https://github.com/andrew-waters/orchard/issues/54)).
+- The System pane in Settings no longer stays stuck on "Loading…". container 1.0 changed `system property list --format=json` from a flat array to a nested object keyed by category, which the parser didn't recognise, so every daemon property read as missing.
+
 ## [1.12.7] - 2026-07-05
 
 ### Added

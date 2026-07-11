@@ -250,6 +250,127 @@ struct Platform: Codable, Equatable {
     }
 }
 
+// MARK: - Machine Models
+
+/// A container machine - a persistent, stateful lightweight Linux VM - expressed entirely
+/// in app-owned types so the machine XPC client's model types never leak past the backend.
+///
+/// `isDefault` is resolved by `MachineService` from the machine API's separate `getDefault()`
+/// call; the snapshot itself does not carry it. `ipAddress`, `containerId`, and `startedDate`
+/// are only populated while a machine is running (verified in the M0 spike).
+struct Machine: Codable, Equatable, Identifiable {
+    let id: String
+    let status: String
+    let isDefault: Bool
+    let cpus: Int
+    let memoryBytes: Int
+    let diskSizeBytes: Int?
+    /// Home directory mount mode: `rw`, `ro`, or `none`.
+    let homeMount: String
+    let virtualization: Bool
+    let kernelPath: String?
+    let imageReference: String
+    let platform: Platform
+    let ipAddress: String?
+    let containerId: String?
+    let createdDate: Date?
+    let startedDate: Date?
+    let initialized: Bool
+    let userSetup: MachineUserSetup?
+
+    var isRunning: Bool { status == "running" }
+    var isStopped: Bool { status == "stopped" }
+}
+
+/// The host user mapped into a machine at first-boot provisioning.
+struct MachineUserSetup: Codable, Equatable {
+    let username: String
+    let uid: Int
+    let gid: Int
+}
+
+// MARK: - Local model providers (the container↔model bridge)
+
+/// The wire API a model provider speaks. Decides which environment variables a container
+/// needs so an in-container client reaches the host provider.
+enum ModelAPIStyle: String, Codable, Sendable {
+    case openAI
+    case ollama
+}
+
+/// One turn in a chat conversation, in the shape the OpenAI/Ollama chat APIs expect.
+struct ChatMessage: Identifiable, Equatable, Sendable {
+    enum Role: String, Sendable {
+        case user
+        case assistant
+    }
+
+    let id = UUID()
+    let role: Role
+    var content: String
+}
+
+/// A local inference provider discovered running on the host - Ollama, LM Studio, an MLX
+/// server, and so on. Orchard *manages and bridges* providers; it does not run inference
+/// itself. Detected read-only in this first slice.
+struct ModelProvider: Identifiable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable, CaseIterable {
+        case ollama
+        case lmStudio
+        case mlxServer
+        case custom
+
+        var displayName: String {
+            switch self {
+            case .ollama: return "Ollama"
+            case .lmStudio: return "LM Studio"
+            case .mlxServer: return "MLX Server"
+            case .custom: return "Custom"
+            }
+        }
+    }
+
+    let kind: Kind
+    /// The loopback port the provider listens on, as seen from the host.
+    let port: UInt16
+    /// The wire API the provider speaks.
+    let api: ModelAPIStyle
+    /// Model identifiers the provider advertises, when it exposes a listing endpoint.
+    var models: [String]
+
+    /// Stable across refreshes: a provider is identified by its kind and port.
+    var id: String { "\(kind.rawValue):\(port)" }
+
+    /// The base URL reachable *from the host* (e.g. `http://127.0.0.1:11434`). Distinct
+    /// from the container-reachable URL, which goes through the network gateway - see
+    /// `ModelBridge`.
+    var hostBaseURL: String { "http://127.0.0.1:\(port)" }
+}
+
+/// A model server Orchard started and supervises (as opposed to a `ModelProvider`, which is
+/// any server merely detected running). Carries the config it was launched with plus its
+/// live lifecycle state.
+struct ManagedModelServer: Identifiable, Equatable, Sendable {
+    enum Status: String, Sendable {
+        case running
+        case failed
+    }
+
+    /// Stable identity: one server per model+port. Also the log-file key.
+    let id: String
+    let model: String
+    let host: String
+    let port: UInt16
+    var status: Status
+    /// Absolute path to the captured stdout/stderr log.
+    let logPath: String
+
+    /// mlx_lm.server speaks the OpenAI wire API.
+    var api: ModelAPIStyle { .openAI }
+    /// Whether the server is bound to all interfaces, so containers can reach it.
+    var reachableFromContainers: Bool { host == "0.0.0.0" }
+}
+
 struct PublishedPort: Codable, Equatable {
     let hostPort: Int
     let containerPort: Int
@@ -564,6 +685,13 @@ struct ContainerNetwork: Codable, Equatable, Identifiable {
     let state: String
     let config: NetworkConfig
     let status: NetworkStatus
+    /// True for a host-only (`--internal`) network: reachable from the host but with no
+    /// internet egress. This is the sandbox-network property the model bridge relies on -
+    /// a container on it can reach a host model server yet cannot phone home. Derived at
+    /// mapping time; excluded from `CodingKeys` so synthesised `Decodable` never requires it
+    /// (it would otherwise throw `keyNotFound` on payloads/fixtures that omit it) and it
+    /// simply defaults to false.
+    var isHostOnly: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -607,6 +735,8 @@ struct ContainerRunConfig: Equatable {
     var commandOverride: String = ""
     var dnsDomain: String = ""
     var network: String = ""
+    /// Labels to stamp on the container at creation (e.g. the sandbox marker).
+    var labels: [String: String] = [:]
 
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()
@@ -683,6 +813,22 @@ struct ContainerStats: Codable, Equatable, Identifiable {
         case networkTxBytes
         case numProcesses
     }
+
+    /// A copy with a different id. Used to re-key a machine's backing-container stats onto the
+    /// stable machine id, so history survives the backing container id changing across reboots.
+    func with(id newId: String) -> ContainerStats {
+        ContainerStats(
+            id: newId,
+            cpuUsageUsec: cpuUsageUsec,
+            memoryUsageBytes: memoryUsageBytes,
+            memoryLimitBytes: memoryLimitBytes,
+            blockReadBytes: blockReadBytes,
+            blockWriteBytes: blockWriteBytes,
+            networkRxBytes: networkRxBytes,
+            networkTxBytes: networkTxBytes,
+            numProcesses: numProcesses
+        )
+    }
 }
 
 // MARK: - System Disk Usage Models
@@ -731,7 +877,7 @@ struct DiskUsageSection: Codable, Equatable {
 
 extension String {
     /// A network address with any CIDR suffix removed, e.g. "10.0.0.2/24" → "10.0.0.2".
-    /// Generic over the prefix length — the previous hard-coded "/24" strip left "/16", "/8",
+    /// Generic over the prefix length - the previous hard-coded "/24" strip left "/16", "/8",
     /// etc. attached to copied addresses.
     var strippingCIDRSuffix: String {
         guard let slash = firstIndex(of: "/") else { return self }

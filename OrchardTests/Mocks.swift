@@ -3,7 +3,7 @@ import Foundation
 
 struct NotConfigured: Error {}
 
-/// An error carrying `message` as its `localizedDescription` — for driving classified
+/// An error carrying `message` as its `localizedDescription` - for driving classified
 /// error paths (e.g. OrchardError.classifyStartError matches on the message text).
 func makeError(_ message: String) -> NSError {
     NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
@@ -11,7 +11,7 @@ func makeError(_ message: String) -> NSError {
 
 // The mocks are `@unchecked Sendable` and their methods run off the main actor (nonisolated
 // async protocol requirements), so fire-and-forget service Tasks can touch their state
-// concurrently. All mutable state is therefore guarded by an `NSLock` — config via get/set
+// concurrently. All mutable state is therefore guarded by an `NSLock` - config via get/set
 // accessors, recorded calls/counters via a locked mutation inside each method with a
 // get-only accessor for tests. Recorded arrays append on SUCCESS only (throw first), so a
 // failed operation never looks like it happened.
@@ -69,14 +69,14 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
 
     private var _pulledReferences: [String] = []
     private var _deletedImageReferences: [String] = []
-    private var _createdNetworks: [(name: String, labels: [String: String])] = []
+    private var _createdNetworks: [(name: String, subnet: String?, labels: [String: String])] = []
     private var _deletedNetworkIds: [String] = []
     private var _createdSpecs: [ContainerCreateSpec] = []
     private var _deletedContainers: [(id: String, force: Bool)] = []
     private var _bootstrapAndStartCount = 0
     private var _listContainersCount = 0
 
-    // Configuration — set by tests.
+    // Configuration - set by tests.
     var containers: [Container] {
         get { lock.withLock { _containers } }
         set { lock.withLock { _containers = newValue } }
@@ -148,10 +148,10 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         set { lock.withLock { _statsHandler = newValue } }
     }
 
-    // Recorded calls — read by tests.
+    // Recorded calls - read by tests.
     var pulledReferences: [String] { lock.withLock { _pulledReferences } }
     var deletedImageReferences: [String] { lock.withLock { _deletedImageReferences } }
-    var createdNetworks: [(name: String, labels: [String: String])] { lock.withLock { _createdNetworks } }
+    var createdNetworks: [(name: String, subnet: String?, labels: [String: String])] { lock.withLock { _createdNetworks } }
     var deletedNetworkIds: [String] { lock.withLock { _deletedNetworkIds } }
     var createdSpecs: [ContainerCreateSpec] { lock.withLock { _createdSpecs } }
     var deletedContainers: [(id: String, force: Bool)] { lock.withLock { _deletedContainers } }
@@ -174,7 +174,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         lock.withLock { _deletedContainers.append((id: id, force: force)) }
     }
     func bootstrapAndStart(id: String) async throws {
-        // Counts every attempt (including failed ones) — increment before the handler throws.
+        // Counts every attempt (including failed ones) - increment before the handler throws.
         let attempt = lock.withLock { () -> Int in _bootstrapAndStartCount += 1; return _bootstrapAndStartCount }
         try bootstrapAndStartHandler?(attempt)
     }
@@ -204,9 +204,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         if let listNetworksError { throw listNetworksError }
         return networks
     }
-    func createNetwork(name: String, labels: [String: String]) async throws {
+    func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {
         if let createNetworkError { throw createNetworkError }
-        lock.withLock { _createdNetworks.append((name: name, labels: labels)) }
+        lock.withLock { _createdNetworks.append((name: name, subnet: subnet, labels: labels)) }
     }
     func deleteNetwork(id: String) async throws {
         if let deleteNetworkError { throw deleteNetworkError }
@@ -324,4 +324,280 @@ func makeService(
 /// a user's persisted binary path). Unused suites write nothing to disk.
 func ephemeralDefaults() -> UserDefaults {
     UserDefaults(suiteName: "OrchardTests-\(UUID().uuidString)")!
+}
+
+// MARK: - Machine mocks
+
+extension Machine {
+    /// Test-only copy with selected fields overridden. Used by `MockMachineBackend` to model
+    /// lifecycle transitions and by tests to build fixtures without repeating every field.
+    func copy(status: String? = nil, isDefault: Bool? = nil) -> Machine {
+        Machine(
+            id: id,
+            status: status ?? self.status,
+            isDefault: isDefault ?? self.isDefault,
+            cpus: cpus,
+            memoryBytes: memoryBytes,
+            diskSizeBytes: diskSizeBytes,
+            homeMount: homeMount,
+            virtualization: virtualization,
+            kernelPath: kernelPath,
+            imageReference: imageReference,
+            platform: platform,
+            ipAddress: ipAddress,
+            containerId: containerId,
+            createdDate: createdDate,
+            startedDate: startedDate,
+            initialized: initialized,
+            userSetup: userSetup
+        )
+    }
+}
+
+/// Build a `Machine` for tests. Defaults mirror the M0 alpine capture (4cpu/4G, rw home).
+func makeMachine(
+    id: String,
+    status: String = "running",
+    isDefault: Bool = false,
+    ipAddress: String? = "192.168.66.7"
+) -> Machine {
+    Machine(
+        id: id,
+        status: status,
+        isDefault: isDefault,
+        cpus: 4,
+        memoryBytes: 4_294_967_296,
+        diskSizeBytes: 78_659_584,
+        homeMount: "rw",
+        virtualization: false,
+        kernelPath: nil,
+        imageReference: "docker.io/library/alpine:3.22",
+        platform: Platform(os: "linux", architecture: "arm64", variant: nil),
+        ipAddress: status == "running" ? ipAddress : nil,
+        containerId: status == "running" ? "\(id)-13ab40" : nil,
+        createdDate: Date(timeIntervalSince1970: 1_751_888_675),
+        startedDate: status == "running" ? Date(timeIntervalSince1970: 1_751_888_677) : nil,
+        initialized: true,
+        userSetup: MachineUserSetup(username: "aw", uid: 501, gid: 20)
+    )
+}
+
+/// A `MachineBackend` whose behaviour is configured per test. Lifecycle calls mutate the
+/// stored machines (boot→running, stop→stopped, delete→removed, setDefault→flips the badge)
+/// so a subsequent `listMachines()` reflects the transition, matching the live daemon.
+/// Records detection calls and returns a configurable provider list. Detection never
+/// throws, so this mock stays simple - no error injection.
+final class MockModelBackend: ModelBackend, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _providers: [ModelProvider]
+    private var _detectCount = 0
+
+    init(providers: [ModelProvider] = []) {
+        self._providers = providers
+    }
+
+    var providers: [ModelProvider] {
+        get { lock.withLock { _providers } }
+        set { lock.withLock { _providers = newValue } }
+    }
+    var detectCount: Int { lock.withLock { _detectCount } }
+
+    /// Canned reply for `complete`; set to control the tester's output in tests. Guarded by
+    /// the same lock as the rest of the mock, since `complete` is async and may run off the
+    /// main actor.
+    private var _completion = "mock reply"
+    private var _completeError: Error?
+    private var _completeMessageCounts: [Int] = []
+
+    var completion: String {
+        get { lock.withLock { _completion } }
+        set { lock.withLock { _completion = newValue } }
+    }
+    var completeError: Error? {
+        get { lock.withLock { _completeError } }
+        set { lock.withLock { _completeError = newValue } }
+    }
+    var completeMessageCounts: [Int] { lock.withLock { _completeMessageCounts } }
+
+    func detectProviders() async -> [ModelProvider] {
+        lock.withLock {
+            _detectCount += 1
+            return _providers
+        }
+    }
+
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
+        try lock.withLock {
+            _completeMessageCounts.append(messages.count)
+            if let _completeError { throw _completeError }
+            return _completion
+        }
+    }
+}
+
+/// A fake supervised process: records `terminate()` and lets a test drive the exit.
+final class MockServerProcess: ServerProcess, @unchecked Sendable {
+    var terminationHandler: ((Int32) -> Void)?
+    private(set) var terminated = false
+
+    func terminate() { terminated = true }
+
+    /// Drive the process to exit with `code`, invoking the handler synchronously (call on
+    /// the main actor in tests, mirroring `LiveServerProcess`'s main-thread delivery).
+    func simulateExit(_ code: Int32) { terminationHandler?(code) }
+}
+
+/// A `ModelServerEngine` that records launches and hands back `MockServerProcess`es. No real
+/// processes; `binaryPath` controls whether the engine reports as available.
+final class MockModelServerEngine: ModelServerEngine, @unchecked Sendable {
+    var binaryPath: String?
+    var launchError: Error?
+    private(set) var launched: [(model: String, host: String, port: UInt16)] = []
+    private(set) var processes: [MockServerProcess] = []
+
+    init(binaryPath: String? = "/usr/bin/mlx_lm.server") { self.binaryPath = binaryPath }
+
+    func locateBinary() -> String? { binaryPath }
+
+    func launch(model: String, host: String, port: UInt16, logURL: URL) throws -> ServerProcess {
+        if let launchError { throw launchError }
+        launched.append((model, host, port))
+        let process = MockServerProcess()
+        processes.append(process)
+        return process
+    }
+}
+
+final class MockMachineBackend: MachineBackend, @unchecked Sendable {
+    private let lock = NSLock()
+
+    private var _machines: [Machine] = []
+    private var _listError: Error?
+    private var _bootError: Error?
+    private var _stopError: Error?
+    private var _deleteError: Error?
+    private var _setDefaultError: Error?
+    private var _logsError: Error?
+    private var _logs: [FileHandle] = []
+
+    private var _bootedIds: [String] = []
+    private var _stoppedIds: [String] = []
+    private var _deletedIds: [String] = []
+    private var _setDefaultIds: [String] = []
+    private var _createdSpecs: [MachineCreateSpec] = []
+    private var _createError: Error?
+    private var _setConfigCalls: [(id: String, config: MachineConfigSpec)] = []
+    private var _setConfigError: Error?
+
+    var machines: [Machine] {
+        get { lock.withLock { _machines } }
+        set { lock.withLock { _machines = newValue } }
+    }
+    var listError: Error? {
+        get { lock.withLock { _listError } }
+        set { lock.withLock { _listError = newValue } }
+    }
+    var bootError: Error? {
+        get { lock.withLock { _bootError } }
+        set { lock.withLock { _bootError = newValue } }
+    }
+    var stopError: Error? {
+        get { lock.withLock { _stopError } }
+        set { lock.withLock { _stopError = newValue } }
+    }
+    var deleteError: Error? {
+        get { lock.withLock { _deleteError } }
+        set { lock.withLock { _deleteError = newValue } }
+    }
+    var setDefaultError: Error? {
+        get { lock.withLock { _setDefaultError } }
+        set { lock.withLock { _setDefaultError = newValue } }
+    }
+    var logsError: Error? {
+        get { lock.withLock { _logsError } }
+        set { lock.withLock { _logsError = newValue } }
+    }
+    var logs: [FileHandle] {
+        get { lock.withLock { _logs } }
+        set { lock.withLock { _logs = newValue } }
+    }
+
+    var createError: Error? {
+        get { lock.withLock { _createError } }
+        set { lock.withLock { _createError = newValue } }
+    }
+    var setConfigError: Error? {
+        get { lock.withLock { _setConfigError } }
+        set { lock.withLock { _setConfigError = newValue } }
+    }
+
+    var bootedIds: [String] { lock.withLock { _bootedIds } }
+    var setConfigCalls: [(id: String, config: MachineConfigSpec)] { lock.withLock { _setConfigCalls } }
+    var stoppedIds: [String] { lock.withLock { _stoppedIds } }
+    var deletedIds: [String] { lock.withLock { _deletedIds } }
+    var setDefaultIds: [String] { lock.withLock { _setDefaultIds } }
+    var createdSpecs: [MachineCreateSpec] { lock.withLock { _createdSpecs } }
+
+    func listMachines() async throws -> [Machine] {
+        if let error = listError { throw error }
+        return machines
+    }
+
+    func inspectMachine(id: String) async throws -> Machine {
+        if let error = listError { throw error }
+        guard let machine = machines.first(where: { $0.id == id }) else {
+            throw OrchardError.generic("machine \(id) not found")
+        }
+        return machine
+    }
+
+    func createMachine(_ spec: MachineCreateSpec) async throws {
+        if let error = createError { throw error }
+        lock.withLock {
+            _createdSpecs.append(spec)
+            _machines.append(makeMachine(id: spec.name, status: spec.noBoot ? "stopped" : "running", isDefault: spec.setDefault))
+        }
+    }
+
+    func setMachineConfig(id: String, config: MachineConfigSpec) async throws {
+        if let error = setConfigError { throw error }
+        lock.withLock { _setConfigCalls.append((id: id, config: config)) }
+    }
+
+    func bootMachine(id: String) async throws {
+        if let error = bootError { throw error }
+        lock.withLock {
+            _bootedIds.append(id)
+            _machines = _machines.map { $0.id == id ? $0.copy(status: "running") : $0 }
+        }
+    }
+
+    func stopMachine(id: String) async throws {
+        if let error = stopError { throw error }
+        lock.withLock {
+            _stoppedIds.append(id)
+            _machines = _machines.map { $0.id == id ? $0.copy(status: "stopped") : $0 }
+        }
+    }
+
+    func deleteMachine(id: String) async throws {
+        if let error = deleteError { throw error }
+        lock.withLock {
+            _deletedIds.append(id)
+            _machines.removeAll { $0.id == id }
+        }
+    }
+
+    func setDefaultMachine(id: String) async throws {
+        if let error = setDefaultError { throw error }
+        lock.withLock {
+            _setDefaultIds.append(id)
+            _machines = _machines.map { $0.copy(isDefault: $0.id == id) }
+        }
+    }
+
+    func machineLogs(id: String) async throws -> [FileHandle] {
+        if let error = logsError { throw error }
+        return logs
+    }
 }

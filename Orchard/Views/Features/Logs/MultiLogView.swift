@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Multi-pane log viewer window
 
 struct MultiLogView: View {
-    var initialContainerId: String?
+    var initialTarget: LogTarget?
     @EnvironmentObject var containerListService: ContainerListService
     @State private var paneIds: [UUID] = [UUID()]
     @State private var splitVertical: Bool = true
@@ -37,13 +37,13 @@ struct MultiLogView: View {
 
             Divider()
 
-            // Panes — the first pane opens on the container that was targeted.
+            // Panes — the first pane opens on the target that was requested.
             if paneIds.count == 1 {
-                LogPaneView(paneId: paneIds[0], initialContainerId: initialContainerId, canClose: false, onClose: {})
+                LogPaneView(paneId: paneIds[0], initialTarget: initialTarget, canClose: false, onClose: {})
             } else if splitVertical {
                 VSplitView {
                     ForEach(paneIds, id: \.self) { paneId in
-                        LogPaneView(paneId: paneId, initialContainerId: paneId == paneIds.first ? initialContainerId : nil, canClose: true) {
+                        LogPaneView(paneId: paneId, initialTarget: paneId == paneIds.first ? initialTarget : nil, canClose: true) {
                             removePane(paneId)
                         }
                         .frame(minHeight: 200)
@@ -52,7 +52,7 @@ struct MultiLogView: View {
             } else {
                 HSplitView {
                     ForEach(paneIds, id: \.self) { paneId in
-                        LogPaneView(paneId: paneId, initialContainerId: paneId == paneIds.first ? initialContainerId : nil, canClose: true) {
+                        LogPaneView(paneId: paneId, initialTarget: paneId == paneIds.first ? initialTarget : nil, canClose: true) {
                             removePane(paneId)
                         }
                         .frame(minWidth: 300)
@@ -79,16 +79,18 @@ struct MultiLogView: View {
     }
 }
 
-// MARK: - Individual log pane (single container)
+// MARK: - Individual log pane (one container or machine)
 
 struct LogPaneView: View {
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var machineService: MachineService
     let paneId: UUID
-    var initialContainerId: String?
+    var initialTarget: LogTarget?
     let canClose: Bool
     let onClose: () -> Void
 
-    @State private var selectedContainerId: String?
+    @State private var selectedTarget: LogTarget?
+    @State private var showBootLog: Bool = false
     @State private var logLines: [String] = []
     @State private var filterText: String = ""
     @State private var refreshTimer: Timer?
@@ -98,23 +100,42 @@ struct LogPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header: container picker + controls
+            // Header: target picker + controls
             HStack(spacing: 8) {
-                Picker("", selection: $selectedContainerId) {
-                    Text("Select container...")
-                        .tag(nil as String?)
-                    ForEach(containerListService.containers, id: \.configuration.id) { container in
-                        HStack {
-                            Circle()
-                                .fill(container.status.lowercased() == "running" ? .green : .secondary)
-                                .frame(width: 6, height: 6)
-                            Text(container.configuration.id)
+                Picker("", selection: $selectedTarget) {
+                    Text("Select…")
+                        .tag(nil as LogTarget?)
+
+                    if !containerListService.containers.isEmpty {
+                        Section("Containers") {
+                            ForEach(containerListService.containers, id: \.configuration.id) { container in
+                                Text(container.configuration.id)
+                                    .tag(LogTarget.container(container.configuration.id) as LogTarget?)
+                            }
                         }
-                        .tag(container.configuration.id as String?)
+                    }
+
+                    if !machineService.machines.isEmpty {
+                        Section("Machines") {
+                            ForEach(machineService.machines, id: \.id) { machine in
+                                Text(machine.id)
+                                    .tag(LogTarget.machine(machine.id) as LogTarget?)
+                            }
+                        }
                     }
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: 250)
+
+                // Machines expose a separate boot log; containers do not.
+                if selectedTarget?.isMachine == true {
+                    Picker("", selection: $showBootLog) {
+                        Text("Output").tag(false)
+                        Text("Boot").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 150)
+                }
 
                 Spacer()
 
@@ -178,10 +199,10 @@ struct LogPaneView: View {
                                 .padding()
                             Spacer()
                         }
-                    } else if selectedContainerId == nil {
+                    } else if selectedTarget == nil {
                         HStack {
                             Spacer()
-                            Text("Select a container above")
+                            Text("Select a container or machine above")
                                 .foregroundColor(Color(white: 0.5))
                                 .padding()
                             Spacer()
@@ -216,20 +237,25 @@ struct LogPaneView: View {
             }
         }
         .onAppear {
-            // The container this window was opened for, else the first running one.
-            if let initial = initialContainerId, !initial.isEmpty {
-                selectedContainerId = initial
+            // The target this window was opened for, else the first running container.
+            if let initial = initialTarget {
+                selectedTarget = initial
             } else {
-                selectedContainerId = containerListService.containers
-                    .first { $0.status.lowercased() == "running" }?
-                    .configuration.id
+                selectedTarget = containerListService.containers
+                    .first { $0.status.lowercased() == "running" }
+                    .map { LogTarget.container($0.configuration.id) }
             }
             startRefresh()
         }
         .onDisappear {
             stopRefresh()
         }
-        .onChange(of: selectedContainerId) {
+        .onChange(of: selectedTarget) {
+            logLines = []
+            hasScrolledToBottom = false
+            Task { await fetchLogs() }
+        }
+        .onChange(of: showBootLog) {
             logLines = []
             hasScrolledToBottom = false
             Task { await fetchLogs() }
@@ -293,16 +319,26 @@ struct LogPaneView: View {
 
     private func fetchLogs() async {
         guard !isPaused else { return }
-        guard let cid = selectedContainerId else { return }
+        guard let target = selectedTarget else { return }
+        let wantsBoot = showBootLog
 
         if logLines.isEmpty {
             await MainActor.run { isLoading = true }
         }
 
         do {
-            let lines = try await containerListService.fetchContainerLogs(containerId: cid)
+            let lines: [String]
+            switch target {
+            case .container(let id):
+                lines = try await containerListService.fetchContainerLogs(containerId: id)
+            case .machine(let id):
+                lines = try await machineService.fetchLogs(id: id, boot: showBootLog)
+            }
 
             await MainActor.run {
+                // Drop the result if the pane switched target/stream while this fetch was in
+                // flight, so a slow fetch can't overwrite the current selection's logs.
+                guard target == selectedTarget, wantsBoot == showBootLog else { return }
                 logLines = lines
                 isLoading = false
             }
