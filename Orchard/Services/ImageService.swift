@@ -117,4 +117,23 @@ final class ImageService: ObservableObject {
             self.alertCenter.error("Failed to delete image: \(error.localizedDescription)")
         }
     }
+    func deleteImages(_ references: [String]) async {
+        var deletedCount = 0
+        var failedCount = 0
+        var lastError: Error?
+        for reference in references {
+            do {
+                try await backend.deleteImage(reference: reference)
+                deletedCount += 1
+            } catch {
+                failedCount += 1
+                lastError = error
+            }
+        }
+        await load()
+        if failedCount > 0 {
+            alertCenter.error("Failed to delete \(failedCount) image(s): \(lastError?.localizedDescription ?? "Unknown error")")
+        }
+    }
+
 }

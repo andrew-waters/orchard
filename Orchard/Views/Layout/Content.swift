@@ -2,26 +2,33 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
+    @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
-    @EnvironmentObject var builderService: BuilderService
-    @EnvironmentObject var statsService: StatsService
-    @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var builderService: BuilderService
+    @EnvironmentObject var statsService: StatsService
     @EnvironmentObject var machineService: MachineService
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var alertCenter: AlertCenter
-    @State private var selectedTab: TabSelection = .dashboard
+    @State private var selectedTab: TabSelection = .containers
     @State private var selectedContainer: String?
     @State private var selectedContainers: Set<String> = []
     @State private var selectedImage: String?
+    @State private var selectedImages: Set<String> = []
     @State private var selectedMount: String?
+    @State private var selectedMounts: Set<String> = []
     @State private var selectedMachine: String?
+    @State private var pendingMachineSelection: String?
     @State private var selectedModel: String?
     @State private var selectedSandbox: String?
     @State private var selectedDNSDomain: String?
+    @State private var selectedDNSDomains: Set<String> = []
+    @State private var pendingDNSSelection: String?
     @State private var selectedNetwork: String?
+    @State private var selectedNetworks: Set<String> = []
+    @State private var pendingNetworkSelection: String?
 
     // Last selected items to restore state
     @State private var lastSelectedContainer: String?
@@ -55,7 +62,7 @@ struct ContentView: View {
 
 
     @ViewBuilder
-    var body: some View {
+    private var baseView: some View {
         Group {
             if systemService.systemStatus == .stopped {
                 NotRunningView()
@@ -69,12 +76,16 @@ struct ContentView: View {
                     selectedContainer: $selectedContainer,
                     selectedContainers: $selectedContainers,
                     selectedImage: $selectedImage,
+                    selectedImages: $selectedImages,
                     selectedMount: $selectedMount,
+                    selectedMounts: $selectedMounts,
                     selectedMachine: $selectedMachine,
                     selectedModel: $selectedModel,
                     selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
+                    selectedDNSDomains: $selectedDNSDomains,
                     selectedNetwork: $selectedNetwork,
+                    selectedNetworks: $selectedNetworks,
                     lastSelectedContainer: $lastSelectedContainer,
                     lastSelectedImage: $lastSelectedImage,
                     lastSelectedMount: $lastSelectedMount,
@@ -102,6 +113,278 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private func applyServiceSyncHandlers(to view: some View) -> some View {
+        view
+            .onChange(of: containerListService.containers) { oldContainers, newContainers in
+                if selectedContainer == nil && !newContainers.isEmpty && selectedTab == .containers {
+                    selectedContainer = newContainers[0].configuration.id
+                    selectedContainers = [newContainers[0].configuration.id]
+                }
+                let existingIds = Set(newContainers.map { $0.configuration.id })
+                let pruned = selectedContainers.intersection(existingIds)
+                if pruned != selectedContainers {
+                    selectedContainers = pruned
+                }
+            }
+            .onChange(of: imageService.images) { oldImages, newImages in
+                if selectedImage == nil && !newImages.isEmpty && selectedTab == .images {
+                    selectedImage = newImages[0].reference
+                    selectedImages = [newImages[0].reference]
+                }
+                let existingIds = Set(newImages.map { $0.reference })
+                let pruned = selectedImages.intersection(existingIds)
+                if pruned != selectedImages {
+                    selectedImages = pruned
+                }
+            }
+            .onChange(of: containerListService.allMounts) { oldMounts, newMounts in
+                if selectedMount == nil && !newMounts.isEmpty && selectedTab == .mounts {
+                    selectedMount = newMounts[0].id
+                    selectedMounts = [newMounts[0].id]
+                }
+                let existingIds = Set(newMounts.map { $0.id })
+                let pruned = selectedMounts.intersection(existingIds)
+                if pruned != selectedMounts {
+                    selectedMounts = pruned
+                }
+            }
+            .onChange(of: dnsService.dnsDomains) { oldDomains, newDomains in
+                if let pending = pendingDNSSelection, newDomains.contains(where: { $0.domain == pending }) {
+                    selectedDNSDomain = pending
+                    selectedDNSDomains = [pending]
+                    lastSelectedDNSDomain = pending
+                    listFocusedTab = .dns
+                    pendingDNSSelection = nil
+                } else if selectedDNSDomain == nil && pendingDNSSelection == nil && !newDomains.isEmpty && selectedTab == .dns {
+                    selectedDNSDomain = newDomains[0].domain
+                    selectedDNSDomains = [newDomains[0].domain]
+                }
+                let existingIds = Set(newDomains.map { $0.domain })
+                let pruned = selectedDNSDomains.intersection(existingIds)
+                if pruned != selectedDNSDomains {
+                    selectedDNSDomains = pruned
+                }
+            }
+            .onChange(of: networkService.networks) { oldNetworks, newNetworks in
+                if let pending = pendingNetworkSelection, newNetworks.contains(where: { $0.id == pending }) {
+                    selectedNetwork = pending
+                    selectedNetworks = [pending]
+                    lastSelectedNetwork = pending
+                    listFocusedTab = .networks
+                    pendingNetworkSelection = nil
+                } else if selectedNetwork == nil && pendingNetworkSelection == nil && !newNetworks.isEmpty && selectedTab == .networks {
+                    selectedNetwork = newNetworks[0].id
+                    selectedNetworks = [newNetworks[0].id]
+                }
+                let existingIds = Set(newNetworks.map { $0.id })
+                let pruned = selectedNetworks.intersection(existingIds)
+                if pruned != selectedNetworks {
+                    selectedNetworks = pruned
+                }
+            }
+            .onChange(of: machineService.machines) { _, newMachines in
+                if let pending = pendingMachineSelection, newMachines.contains(where: { $0.id == pending }) {
+                    selectedMachine = pending
+                    lastSelectedMachine = pending
+                    listFocusedTab = .machines
+                    pendingMachineSelection = nil
+                } else if selectedMachine == nil && pendingMachineSelection == nil && !newMachines.isEmpty {
+                    selectedMachine = newMachines[0].id
+                } else if let current = selectedMachine, !newMachines.contains(where: { $0.id == current }) {
+                    selectedMachine = newMachines.first?.id
+                }
+            }
+    }
+
+    private func applySelectionSyncHandlers(to view: some View) -> some View {
+        view
+            .onChange(of: selectedContainers) { _, newSet in
+                if newSet.isEmpty {
+                    if selectedContainer != nil { selectedContainer = nil }
+                } else if let current = selectedContainer, newSet.contains(current) {
+                } else {
+                    selectedContainer = newSet.first
+                }
+            }
+            .onChange(of: selectedContainer) { _, newValue in
+                if let id = newValue {
+                    if !selectedContainers.contains(id) {
+                        selectedContainers = [id]
+                    }
+                } else {
+                    if !selectedContainers.isEmpty {
+                        selectedContainers = []
+                    }
+                }
+            }
+            .onChange(of: selectedImages) { _, newSet in
+                if newSet.isEmpty {
+                    if selectedImage != nil { selectedImage = nil }
+                } else if let current = selectedImage, newSet.contains(current) {
+                } else {
+                    selectedImage = newSet.first
+                }
+            }
+            .onChange(of: selectedImage) { _, newValue in
+                if let id = newValue {
+                    if !selectedImages.contains(id) {
+                        selectedImages = [id]
+                    }
+                } else {
+                    if !selectedImages.isEmpty {
+                        selectedImages = []
+                    }
+                }
+            }
+            .onChange(of: selectedMounts) { _, newSet in
+                if newSet.isEmpty {
+                    if selectedMount != nil { selectedMount = nil }
+                } else if let current = selectedMount, newSet.contains(current) {
+                } else {
+                    selectedMount = newSet.first
+                }
+            }
+            .onChange(of: selectedMount) { _, newValue in
+                if let id = newValue {
+                    if !selectedMounts.contains(id) {
+                        selectedMounts = [id]
+                    }
+                } else {
+                    if !selectedMounts.isEmpty {
+                        selectedMounts = []
+                    }
+                }
+            }
+            .onChange(of: selectedDNSDomains) { _, newSet in
+                if newSet.isEmpty {
+                    if selectedDNSDomain != nil { selectedDNSDomain = nil }
+                } else if let current = selectedDNSDomain, newSet.contains(current) {
+                } else {
+                    selectedDNSDomain = newSet.first
+                }
+            }
+            .onChange(of: selectedDNSDomain) { _, newValue in
+                if let id = newValue {
+                    if !selectedDNSDomains.contains(id) {
+                        selectedDNSDomains = [id]
+                    }
+                } else {
+                    if !selectedDNSDomains.isEmpty {
+                        selectedDNSDomains = []
+                    }
+                }
+            }
+            .onChange(of: selectedNetworks) { _, newSet in
+                if newSet.isEmpty {
+                    if selectedNetwork != nil { selectedNetwork = nil }
+                } else if let current = selectedNetwork, newSet.contains(current) {
+                } else {
+                    selectedNetwork = newSet.first
+                }
+            }
+            .onChange(of: selectedNetwork) { _, newValue in
+                if let id = newValue {
+                    if !selectedNetworks.contains(id) {
+                        selectedNetworks = [id]
+                    }
+                } else {
+                    if !selectedNetworks.isEmpty {
+                        selectedNetworks = []
+                    }
+                }
+            }
+    }
+
+    private func applyNotificationHandlers(to view: some View) -> some View {
+        view
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToContainer"))
+            ) { notification in
+                if let containerId = notification.object as? String {
+                    selectedTab = TabSelection.containers
+                    selectedContainer = containerId
+                    selectedContainers = [containerId]
+                }
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToImage"))
+            ) { notification in
+                if let imageReference = notification.object as? String {
+                    selectedTab = TabSelection.images
+                    selectedImage = imageReference
+                }
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToMount"))
+            ) { notification in
+                if let mountId = notification.object as? String {
+                    selectedTab = TabSelection.mounts
+                    selectedMount = mountId
+                }
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToMachine"))
+            ) { notification in
+                if let machineId = notification.object as? String {
+                    pendingMachineSelection = machineId
+                    selectedTab = TabSelection.machines
+                    if machineService.machines.contains(where: { $0.id == machineId }) {
+                        selectedMachine = machineId
+                        lastSelectedMachine = machineId
+                        listFocusedTab = .machines
+                        pendingMachineSelection = nil
+                    }
+                    Task {
+                        await machineService.load(showLoading: false)
+                    }
+                }
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToDNSDomain"))
+            ) { notification in
+                if let domainName = notification.object as? String {
+                    pendingDNSSelection = domainName
+                    selectedTab = TabSelection.dns
+                    if dnsService.dnsDomains.contains(where: { $0.domain == domainName }) {
+                        selectedDNSDomain = domainName
+                        selectedDNSDomains = [domainName]
+                        lastSelectedDNSDomain = domainName
+                        listFocusedTab = .dns
+                        pendingDNSSelection = nil
+                    }
+                    Task {
+                        await dnsService.load(showLoading: false)
+                    }
+                }
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToNetwork"))
+            ) { notification in
+                if let networkId = notification.object as? String {
+                    pendingNetworkSelection = networkId
+                    selectedTab = TabSelection.networks
+                    if networkService.networks.contains(where: { $0.id == networkId }) {
+                        selectedNetwork = networkId
+                        selectedNetworks = [networkId]
+                        lastSelectedNetwork = networkId
+                        listFocusedTab = .networks
+                        pendingNetworkSelection = nil
+                    }
+                    Task {
+                        await networkService.load(showLoading: false)
+                    }
+                }
+            }
+    }
+
+    var body: some View {
+        applyNotificationHandlers(
+            to: applySelectionSyncHandlers(
+                to: applyServiceSyncHandlers(to: baseView)
+            )
+        )
         // Pin an explicit ideal size so the window opens at 1200×800 instead of sizing to the
         // content's (tall) ideal height, which otherwise overflows the screen. `.topLeading`
         // keeps the content anchored - a default (centre-aligned) fill frame shifts it.
@@ -123,165 +406,13 @@ struct ContentView: View {
         .onAppear {
             // Default tab is already set to containers
         }
-        .onChange(of: containerListService.containers) { oldContainers, newContainers in
-            // Auto-select first container when containers load.
-            if selectedContainer == nil && !newContainers.isEmpty {
-                selectedContainer = newContainers[0].configuration.id
-                selectedContainers = [newContainers[0].configuration.id]
-            }
-            // Prune selectedContainers of any IDs no longer present
-            let existingIds = Set(newContainers.map { $0.configuration.id })
-            let pruned = selectedContainers.intersection(existingIds)
-            if pruned != selectedContainers {
-                selectedContainers = pruned
-            }
-            if selectedMount == nil && !containerListService.allMounts.isEmpty {
-                selectedMount = containerListService.allMounts[0].id
-            }
-        }
-        .onChange(of: selectedContainers) { _, newSet in
-            // Keep selectedContainer (primary) in sync with the set
-            if newSet.isEmpty {
-                if selectedContainer != nil { selectedContainer = nil }
-            } else if let current = selectedContainer, newSet.contains(current) {
-                // primary still valid
-            } else {
-                selectedContainer = newSet.first
-            }
-        }
-        .onChange(of: selectedContainer) { _, newValue in
-            // External navigation (e.g. NavigateToContainer, tab switching) drives primary - 
-            // mirror into the set when the set wouldn't already cover this state.
-            if let id = newValue {
-                if !selectedContainers.contains(id) {
-                    selectedContainers = [id]
-                }
-            } else {
-                if !selectedContainers.isEmpty {
-                    selectedContainers = []
-                }
-            }
-        }
-        .onChange(of: dnsService.dnsDomains) { oldDomains, newDomains in
-            // Auto-select first DNS domain when domains load.
-            if selectedDNSDomain == nil && !newDomains.isEmpty {
-                selectedDNSDomain = newDomains[0].domain
-            }
-        }
-        .onChange(of: networkService.networks) { oldNetworks, newNetworks in
-            // Auto-select first network when networks load.
-            if selectedNetwork == nil && !newNetworks.isEmpty {
-                selectedNetwork = newNetworks[0].id
-            }
-        }
-        .onChange(of: machineService.machines) { _, newMachines in
-            // Auto-select first machine when machines load; prune a stale selection.
-            if selectedMachine == nil && !newMachines.isEmpty {
-                selectedMachine = newMachines[0].id
-            } else if let current = selectedMachine, !newMachines.contains(where: { $0.id == current }) {
-                selectedMachine = newMachines.first?.id
-            }
-        }
+
         .task {
             await performInitialLoad()
             startRefreshTimer()
         }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToContainer"))
-        ) { notification in
-            if let containerId = notification.object as? String {
-                // Switch to containers view and select the specific container
-                selectedTab = TabSelection.containers
-                selectedContainer = containerId
-                selectedContainers = [containerId]
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToImage"))
-        ) { notification in
-            if let imageReference = notification.object as? String {
-                // Switch to images view and select the specific image
-                selectedTab = TabSelection.images
-                selectedImage = imageReference
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToMount"))
-        ) { notification in
-            if let mountId = notification.object as? String {
-                // Switch to mounts view and select the specific mount
-                selectedTab = TabSelection.mounts
-                selectedMount = mountId
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToDNSDomain"))
-        ) { notification in
-            if let domainName = notification.object as? String {
-                // Switch to DNS view and select the specific domain
-                selectedTab = TabSelection.dns
-
-                // Ensure DNS domains are loaded before selecting
-                Task {
-                    await dnsService.load(showLoading: false)
-                    await MainActor.run {
-                        // Verify the domain exists in the loaded list
-                        if dnsService.dnsDomains.contains(where: { $0.domain == domainName }) {
-                            // Add delay to ensure list is rendered before selection
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                selectedDNSDomain = domainName
-                                lastSelectedDNSDomain = domainName
-                                listFocusedTab = .dns
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToMachine"))
-        ) { notification in
-            if let machineId = notification.object as? String {
-                selectedTab = TabSelection.machines
-                Task {
-                    await machineService.load(showLoading: false)
-                    await MainActor.run {
-                        if machineService.machines.contains(where: { $0.id == machineId }) {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                selectedMachine = machineId
-                                lastSelectedMachine = machineId
-                                listFocusedTab = .machines
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToNetwork"))
-        ) { notification in
-            if let networkId = notification.object as? String {
-                // Switch to networks view and select the specific network
-                selectedTab = TabSelection.networks
-
-                // Ensure networks are loaded before selecting
-                Task {
-                    await networkService.load(showLoading: false)
-                    await MainActor.run {
-                        // Verify the network exists in the loaded list
-                        if networkService.networks.contains(where: { $0.id == networkId }) {
-                            // Add delay to ensure list is rendered before selection
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                selectedNetwork = networkId
-                                lastSelectedNetwork = networkId
-                                listFocusedTab = .networks
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
+
 
     private func performInitialLoad() async {
         await systemService.checkSystemStatus()

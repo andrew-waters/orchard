@@ -83,6 +83,11 @@ final class DNSService: ObservableObject {
     }
 
     func delete(_ domain: String) async {
+        if defaultDomain() == domain {
+            alertCenter.error("Cannot delete the default DNS domain.")
+            return
+        }
+
         do {
             let result = try await runner.runWithSudo(
                 program: settings.safeContainerBinaryPath(),
@@ -124,6 +129,45 @@ final class DNSService: ObservableObject {
             await refreshSystemProperties()
             await load(showLoading: false)
             alertCenter.error("Failed to set default DNS domain: \(error.localizedDescription)")
+        }
+    }
+    func deleteDNSDomains(_ domains: [String]) async {
+        guard !domains.isEmpty else { return }
+        
+        let script = """
+        for d in "$@"; do
+            err=$("$0" system dns delete "$d" 2>&1 >/dev/null)
+            if [ $? -ne 0 ]; then
+                echo "FAILED|$d|$err"
+            fi
+        done
+        """
+        
+        do {
+            let arguments = ["-c", script, settings.safeContainerBinaryPath()] + domains
+            let result = try await runner.runWithSudo(program: "/bin/sh", arguments: arguments)
+            
+            var failedDetails = [String]()
+            let lines = (result.stdout ?? "").components(separatedBy: .newlines).filter { !$0.isEmpty }
+            
+            for line in lines {
+                if line.hasPrefix("FAILED|") {
+                    let parts = line.split(separator: "|", maxSplits: 2)
+                    if parts.count == 3 {
+                        failedDetails.append("\(parts[1]): \(parts[2])")
+                    }
+                }
+            }
+            
+            await load()
+            if !failedDetails.isEmpty {
+                alertCenter.error("Failed to delete domains:\n" + failedDetails.joined(separator: "\n"))
+            } else if result.failed {
+                alertCenter.error(result.stderr ?? "Failed to delete DNS domains")
+            }
+        } catch {
+            await load()
+            alertCenter.error("Failed to delete DNS domains: \(error.localizedDescription)")
         }
     }
 }

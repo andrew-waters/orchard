@@ -2,16 +2,21 @@ import SwiftUI
 
 struct MainInterfaceView: View {
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var systemService: SystemService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
+    @Binding var selectedMounts: Set<String>
     @Binding var selectedMachine: String?
     @Binding var selectedModel: String?
     @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
@@ -34,12 +39,17 @@ struct MainInterfaceView: View {
 
     // Computed properties
     private var currentResourceTitle: String {
+        // Check if we're in configuration mode (no selections)
+        let isConfigurationMode = selectedContainer == nil && selectedImage == nil && selectedMount == nil && selectedDNSDomain == nil && selectedNetwork == nil
+
+
+
         switch selectedTab {
         case .containers:
             if let selectedContainer = selectedContainer {
                 return selectedContainer
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .images:
             if let selectedImage = selectedImage {
                 // Extract image name from reference for cleaner display
@@ -49,23 +59,23 @@ struct MainInterfaceView: View {
                 }
                 return selectedImage
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .mounts:
             if let selectedMount = selectedMount,
                let mount = containerListService.allMounts.first(where: { $0.id == selectedMount }) {
                 return URL(fileURLWithPath: mount.mount.source).lastPathComponent
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .dns:
             if let selectedDNSDomain = selectedDNSDomain {
                 return selectedDNSDomain
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .networks:
             if let selectedNetwork = selectedNetwork {
                 return selectedNetwork
             }
-            return ""
+            return isConfigurationMode ? "Configuration" : ""
         case .machines:
             return selectedMachine ?? ""
         case .registries:
@@ -99,12 +109,16 @@ struct MainInterfaceView: View {
             selectedContainer: $selectedContainer,
             selectedContainers: $selectedContainers,
             selectedImage: $selectedImage,
+            selectedImages: $selectedImages,
             selectedMount: $selectedMount,
+            selectedMounts: $selectedMounts,
             selectedMachine: $selectedMachine,
             selectedModel: $selectedModel,
             selectedSandbox: $selectedSandbox,
             selectedDNSDomain: $selectedDNSDomain,
+            selectedDNSDomains: $selectedDNSDomains,
             selectedNetwork: $selectedNetwork,
+            selectedNetworks: $selectedNetworks,
             lastSelectedContainer: $lastSelectedContainer,
             lastSelectedImage: $lastSelectedImage,
             lastSelectedMount: $lastSelectedMount,
