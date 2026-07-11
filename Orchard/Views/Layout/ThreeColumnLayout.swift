@@ -721,6 +721,8 @@ struct DetailColumnView: View {
     let selectedMount: String?
     let selectedMounts: Set<String>
     let selectedMachine: String?
+    let selectedModel: String?
+    let selectedSandbox: String?
     let selectedDNSDomain: String?
     let selectedDNSDomains: Set<String>
     let selectedNetwork: String?

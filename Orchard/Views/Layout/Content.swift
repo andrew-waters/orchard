@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var selectedMount: String?
     @State private var selectedMounts: Set<String> = []
     @State private var selectedMachine: String?
+    @State private var pendingMachineSelection: String?
     @State private var selectedModel: String?
     @State private var selectedSandbox: String?
     @State private var selectedDNSDomain: String?
@@ -126,9 +127,6 @@ struct ContentView: View {
                 if pruned != selectedContainers {
                     selectedContainers = pruned
                 }
-                if selectedMount == nil && !containerListService.allMounts.isEmpty {
-                    selectedMount = containerListService.allMounts[0].id
-                }
             }
             .onChange(of: imageService.images) { oldImages, newImages in
                 if selectedImage == nil && !newImages.isEmpty && selectedTab == .images {
@@ -187,7 +185,12 @@ struct ContentView: View {
                 }
             }
             .onChange(of: machineService.machines) { _, newMachines in
-                if selectedMachine == nil && !newMachines.isEmpty {
+                if let pending = pendingMachineSelection, newMachines.contains(where: { $0.id == pending }) {
+                    selectedMachine = pending
+                    lastSelectedMachine = pending
+                    listFocusedTab = .machines
+                    pendingMachineSelection = nil
+                } else if selectedMachine == nil && pendingMachineSelection == nil && !newMachines.isEmpty {
                     selectedMachine = newMachines[0].id
                 } else if let current = selectedMachine, !newMachines.contains(where: { $0.id == current }) {
                     selectedMachine = newMachines.first?.id
@@ -325,18 +328,16 @@ struct ContentView: View {
                 NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToMachine"))
             ) { notification in
                 if let machineId = notification.object as? String {
+                    pendingMachineSelection = machineId
                     selectedTab = TabSelection.machines
+                    if machineService.machines.contains(where: { $0.id == machineId }) {
+                        selectedMachine = machineId
+                        lastSelectedMachine = machineId
+                        listFocusedTab = .machines
+                        pendingMachineSelection = nil
+                    }
                     Task {
                         await machineService.load(showLoading: false)
-                        await MainActor.run {
-                            if machineService.machines.contains(where: { $0.id == machineId }) {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    selectedMachine = machineId
-                                    lastSelectedMachine = machineId
-                                    listFocusedTab = .machines
-                                }
-                            }
-                        }
                     }
                 }
             }
