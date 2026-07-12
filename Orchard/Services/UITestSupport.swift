@@ -100,7 +100,8 @@ struct UITestBackend: ContainerBackend {
     func deleteNetwork(id: String) async throws {}
     func ping() async throws -> SystemHealthInfo { SystemHealthInfo(apiServerVersion: "1.0.0") }
     func diskUsage() async throws -> SystemDiskUsage {
-        throw OrchardError.generic("disk usage unavailable in UI-test mode")
+        let empty = DiskUsageSection(active: 0, reclaimable: 0, sizeInBytes: 0, total: 0)
+        return SystemDiskUsage(containers: empty, images: empty, volumes: empty)
     }
 }
 

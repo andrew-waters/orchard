@@ -103,6 +103,25 @@ protocol ContainerBackend: Sendable {
     func diskUsage() async throws -> SystemDiskUsage
 }
 
+// MARK: - Error mapping
+
+func mapContainerError(_ error: Error) -> Error {
+    isContainerServiceUnavailable(error) ? OrchardError.xpcUnavailable : error
+}
+
+func isContainerServiceUnavailable(_ error: Error) -> Bool {
+    let message = error.localizedDescription.lowercased()
+    return message.contains("connection invalid")
+        || message.contains("connection was invalid")
+        || message.contains("connection interrupted")
+        || message.contains("xpc connection")
+        || message.contains("couldn’t communicate")
+        || message.contains("couldn't communicate")
+        || message.contains("could not communicate")
+        || message.contains("service could not")
+        || message.contains("no such xpc")
+}
+
 // MARK: - Live implementation
 
 /// `ContainerBackend` backed by the real XPC client, translating client model types to
@@ -116,213 +135,247 @@ struct LiveContainerBackend: ContainerBackend {
     }
 
     func listContainers() async throws -> [Container] {
-        let snapshots = try await ContainerClient().list()
-        return snapshots
-            .filter { !MachineBackingContainer.isMachine(labels: $0.configuration.labels) }
-            .map { mapContainer($0) }
+        do {
+            let snapshots = try await ContainerClient().list()
+            return snapshots
+                .filter { !MachineBackingContainer.isMachine(labels: $0.configuration.labels) }
+                .map { mapContainer($0) }
+        } catch { throw mapContainerError(error) }
     }
 
     func stopContainer(id: String) async throws {
-        try await ContainerClient().stop(id: id)
+        do {
+            try await ContainerClient().stop(id: id)
+        } catch { throw mapContainerError(error) }
     }
 
     func killContainer(id: String, signal: Int32) async throws {
         // As of container 1.1.0 the client takes the signal as a name/number string;
         // Signal(_:) on the server parses the numeric form.
-        try await ContainerClient().kill(id: id, signal: String(signal))
+        do {
+            try await ContainerClient().kill(id: id, signal: String(signal))
+        } catch { throw mapContainerError(error) }
     }
 
     func deleteContainer(id: String, force: Bool) async throws {
-        if force {
-            try await ContainerClient().delete(id: id, force: true)
-        } else {
-            try await ContainerClient().delete(id: id)
-        }
+        do {
+            if force {
+                try await ContainerClient().delete(id: id, force: true)
+            } else {
+                try await ContainerClient().delete(id: id)
+            }
+        } catch { throw mapContainerError(error) }
     }
 
     func bootstrapAndStart(id: String) async throws {
-        let stdio: [FileHandle?] = [nil, nil, nil]
-        let process = try await ContainerClient().bootstrap(id: id, stdio: stdio)
-        try await process.start()
+        do {
+            let stdio: [FileHandle?] = [nil, nil, nil]
+            let process = try await ContainerClient().bootstrap(id: id, stdio: stdio)
+            try await process.start()
+        } catch { throw mapContainerError(error) }
     }
 
     func containerLogs(id: String) async throws -> [FileHandle] {
-        try await ContainerClient().logs(id: id)
+        do {
+            return try await ContainerClient().logs(id: id)
+        } catch { throw mapContainerError(error) }
     }
 
     func stats(id: String) async throws -> Orchard.ContainerStats {
-        let stats = try await ContainerClient().stats(id: id)
-        return mapContainerStats(stats)
+        do {
+            let stats = try await ContainerClient().stats(id: id)
+            return mapContainerStats(stats)
+        } catch { throw mapContainerError(error) }
     }
 
     func createContainer(_ spec: ContainerCreateSpec) async throws {
-        // Translate the spec's app types into the client's configuration types.
-        var mounts: [Filesystem] = []
-        for vol in spec.volumes {
-            var options: [String] = []
-            if vol.readonly { options.append("ro") }
-            mounts.append(.virtiofs(source: vol.hostPath, destination: vol.containerPath, options: options))
-        }
+        do {
+            // Translate the spec's app types into the client's configuration types.
+            var mounts: [Filesystem] = []
+            for vol in spec.volumes {
+                var options: [String] = []
+                if vol.readonly { options.append("ro") }
+                mounts.append(.virtiofs(source: vol.hostPath, destination: vol.containerPath, options: options))
+            }
 
-        var ports: [PublishPort] = []
-        for pm in spec.publishedPorts {
-            let proto = PublishProtocol(pm.transportProtocol) ?? .tcp
-            ports.append(try PublishPort(
-                hostAddress: try IPAddress("0.0.0.0"),
-                hostPort: pm.hostPort,
-                containerPort: pm.containerPort,
-                proto: proto,
-                count: 1
-            ))
-        }
+            var ports: [PublishPort] = []
+            for pm in spec.publishedPorts {
+                let proto = PublishProtocol(pm.transportProtocol) ?? .tcp
+                ports.append(try PublishPort(
+                    hostAddress: try IPAddress("0.0.0.0"),
+                    hostPort: pm.hostPort,
+                    containerPort: pm.containerPort,
+                    proto: proto,
+                    count: 1
+                ))
+            }
 
-        let dns: ContainerResource.ContainerConfiguration.DNSConfiguration? = {
-            if spec.dnsDomain.isEmpty { return nil }
-            return .init(
-                nameservers: ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers,
-                domain: spec.dnsDomain,
-                searchDomains: [],
-                options: []
+            let dns: ContainerResource.ContainerConfiguration.DNSConfiguration? = {
+                if spec.dnsDomain.isEmpty { return nil }
+                return .init(
+                    nameservers: ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers,
+                    domain: spec.dnsDomain,
+                    searchDomains: [],
+                    options: []
+                )
+            }()
+
+            // Fetch/unpack the image and read its OCI config.
+            let systemConfig = try await loadContainerSystemConfig()
+            let image = try await ClientImage.fetch(reference: spec.imageRef, containerSystemConfig: systemConfig)
+            let platform = ContainerizationOCI.Platform.current
+            try await image.getCreateSnapshot(platform: platform)
+            let kernel = try await ClientKernel.getDefaultKernel(for: .current)
+            let imageConfig = try await image.config(for: platform).config
+
+            let mergedEnv = (imageConfig?.env ?? []) + spec.environment
+            let processArgs = resolveProcessArguments(
+                imageEntrypoint: imageConfig?.entrypoint,
+                imageCmd: imageConfig?.cmd,
+                override: spec.commandOverride
             )
-        }()
+            guard !processArgs.isEmpty else {
+                throw OrchardError.noEntrypoint
+            }
 
-        // Fetch/unpack the image and read its OCI config.
-        let systemConfig = try await loadContainerSystemConfig()
-        let image = try await ClientImage.fetch(reference: spec.imageRef, containerSystemConfig: systemConfig)
-        let platform = ContainerizationOCI.Platform.current
-        try await image.getCreateSnapshot(platform: platform)
-        let kernel = try await ClientKernel.getDefaultKernel(for: .current)
-        let imageConfig = try await image.config(for: platform).config
+            let user: ProcessConfiguration.User = {
+                if let u = imageConfig?.user, !u.isEmpty { return .raw(userString: u) }
+                return .id(uid: 0, gid: 0)
+            }()
+            let wd = spec.workingDirectory.isEmpty ? (imageConfig?.workingDir ?? "/") : spec.workingDirectory
 
-        let mergedEnv = (imageConfig?.env ?? []) + spec.environment
-        let processArgs = resolveProcessArguments(
-            imageEntrypoint: imageConfig?.entrypoint,
-            imageCmd: imageConfig?.cmd,
-            override: spec.commandOverride
-        )
-        guard !processArgs.isEmpty else {
-            throw OrchardError.noEntrypoint
-        }
-
-        let user: ProcessConfiguration.User = {
-            if let u = imageConfig?.user, !u.isEmpty { return .raw(userString: u) }
-            return .id(uid: 0, gid: 0)
-        }()
-        let wd = spec.workingDirectory.isEmpty ? (imageConfig?.workingDir ?? "/") : spec.workingDirectory
-
-        let process = ProcessConfiguration(
-            executable: processArgs.first!,
-            arguments: Array(processArgs.dropFirst()),
-            environment: mergedEnv,
-            workingDirectory: wd,
-            terminal: false,
-            user: user
-        )
-
-        var containerConfig = ContainerResource.ContainerConfiguration(
-            id: spec.id,
-            image: image.description,
-            process: process
-        )
-        containerConfig.mounts = mounts
-        containerConfig.publishedPorts = ports
-        containerConfig.dns = dns
-        containerConfig.labels = spec.labels
-
-        let builtinNetworkId = try await NetworkClient().builtin?.id
-        let networkId = spec.networkName.isEmpty ? (builtinNetworkId ?? NetworkClient.defaultNetworkName) : spec.networkName
-        containerConfig.networks = [
-            AttachmentConfiguration(
-                network: networkId,
-                options: AttachmentOptions(hostname: spec.id, macAddress: nil, mtu: 1280)
+            let process = ProcessConfiguration(
+                executable: processArgs.first!,
+                arguments: Array(processArgs.dropFirst()),
+                environment: mergedEnv,
+                workingDirectory: wd,
+                terminal: false,
+                user: user
             )
-        ]
 
-        let client = ContainerClient()
-        let options = ContainerCreateOptions(autoRemove: spec.autoRemove)
-        try await client.create(configuration: containerConfig, options: options, kernel: kernel)
+            var containerConfig = ContainerResource.ContainerConfiguration(
+                id: spec.id,
+                image: image.description,
+                process: process
+            )
+            containerConfig.mounts = mounts
+            containerConfig.publishedPorts = ports
+            containerConfig.dns = dns
+            containerConfig.labels = spec.labels
 
-        let stdio: [FileHandle?] = [nil, nil, nil]
-        let proc = try await client.bootstrap(id: spec.id, stdio: stdio)
-        try await proc.start()
+            let builtinNetworkId = try await NetworkClient().builtin?.id
+            let networkId = spec.networkName.isEmpty ? (builtinNetworkId ?? NetworkClient.defaultNetworkName) : spec.networkName
+            containerConfig.networks = [
+                AttachmentConfiguration(
+                    network: networkId,
+                    options: AttachmentOptions(hostname: spec.id, macAddress: nil, mtu: 1280)
+                )
+            ]
+
+            let client = ContainerClient()
+            let options = ContainerCreateOptions(autoRemove: spec.autoRemove)
+            try await client.create(configuration: containerConfig, options: options, kernel: kernel)
+
+            let stdio: [FileHandle?] = [nil, nil, nil]
+            let proc = try await client.bootstrap(id: spec.id, stdio: stdio)
+            try await proc.start()
+        } catch { throw mapContainerError(error) }
     }
 
     func listImages() async throws -> [ContainerImage] {
-        let images = try await ClientImage.list()
-        return images.map { mapClientImage($0) }
+        do {
+            let images = try await ClientImage.list()
+            return images.map { mapClientImage($0) }
+        } catch { throw mapContainerError(error) }
     }
 
     func pullImage(reference: String) async throws {
-        _ = try await ClientImage.pull(reference: reference, containerSystemConfig: try await loadContainerSystemConfig())
+        do {
+            _ = try await ClientImage.pull(reference: reference, containerSystemConfig: try await loadContainerSystemConfig())
+        } catch { throw mapContainerError(error) }
     }
 
     func deleteImage(reference: String) async throws {
-        try await ClientImage.delete(reference: reference)
+        do {
+            try await ClientImage.delete(reference: reference)
+        } catch { throw mapContainerError(error) }
     }
 
     func inspectImage(reference: String) async throws -> ImageInspection {
-        // container 1.1.0 removed ClientImage.details(); rebuild the inspection from the
-        // OCI index (per-platform manifests) and each platform's config blob.
-        let image = try await ClientImage.get(reference: reference, containerSystemConfig: try await loadContainerSystemConfig())
-        let index = try await image.index()
+        do {
+            // container 1.1.0 removed ClientImage.details(); rebuild the inspection from the
+            // OCI index (per-platform manifests) and each platform's config blob.
+            let image = try await ClientImage.get(reference: reference, containerSystemConfig: try await loadContainerSystemConfig())
+            let index = try await image.index()
 
-        var variants: [ImageInspection.Variant] = []
-        for manifest in index.manifests {
-            guard let platform = manifest.platform else { continue }
-            // Config blobs for non-local architectures may be absent; skip config
-            // details rather than failing the whole inspection.
-            let config = (try? await image.config(for: platform))?.config
-            variants.append(ImageInspection.Variant(
-                platform: "\(platform.os)/\(platform.architecture)",
-                size: manifest.size,
-                entrypoint: config?.entrypoint,
-                cmd: config?.cmd,
-                env: config?.env,
-                workingDir: config?.workingDir,
-                user: config?.user,
-                exposedPorts: nil,
-                volumes: nil
-            ))
-        }
+            var variants: [ImageInspection.Variant] = []
+            for manifest in index.manifests {
+                guard let platform = manifest.platform else { continue }
+                // Config blobs for non-local architectures may be absent; skip config
+                // details rather than failing the whole inspection.
+                let config = (try? await image.config(for: platform))?.config
+                variants.append(ImageInspection.Variant(
+                    platform: "\(platform.os)/\(platform.architecture)",
+                    size: manifest.size,
+                    entrypoint: config?.entrypoint,
+                    cmd: config?.cmd,
+                    env: config?.env,
+                    workingDir: config?.workingDir,
+                    user: config?.user,
+                    exposedPorts: nil,
+                    volumes: nil
+                ))
+            }
 
-        let descriptor = image.descriptor
-        return ImageInspection(
-            name: image.reference,
-            digest: "\(descriptor.digest)",
-            mediaType: descriptor.mediaType,
-            size: descriptor.size,
-            variants: variants
-        )
+            let descriptor = image.descriptor
+            return ImageInspection(
+                name: image.reference,
+                digest: "\(descriptor.digest)",
+                mediaType: descriptor.mediaType,
+                size: descriptor.size,
+                variants: variants
+            )
+        } catch { throw mapContainerError(error) }
     }
 
     func listNetworks() async throws -> [ContainerNetwork] {
-        let resources = try await NetworkClient().list()
-        return resources.map { mapNetworkResource($0) }
+        do {
+            let resources = try await NetworkClient().list()
+            return resources.map { mapNetworkResource($0) }
+        } catch { throw mapContainerError(error) }
     }
 
     func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {
-        let ipv4Subnet = try subnet.flatMap { $0.isEmpty ? nil : try CIDRv4($0) }
-        let config = try NetworkConfiguration(
-            name: name,
-            mode: .nat,
-            ipv4Subnet: ipv4Subnet,
-            labels: try ResourceLabels(labels),
-            plugin: "container-network-vmnet"
-        )
-        _ = try await NetworkClient().create(configuration: config)
+        do {
+            let ipv4Subnet = try subnet.flatMap { $0.isEmpty ? nil : try CIDRv4($0) }
+            let config = try NetworkConfiguration(
+                name: name,
+                mode: .nat,
+                ipv4Subnet: ipv4Subnet,
+                labels: try ResourceLabels(labels),
+                plugin: "container-network-vmnet"
+            )
+            _ = try await NetworkClient().create(configuration: config)
+        } catch { throw mapContainerError(error) }
     }
 
     func deleteNetwork(id: String) async throws {
-        try await NetworkClient().delete(id: id)
+        do {
+            try await NetworkClient().delete(id: id)
+        } catch { throw mapContainerError(error) }
     }
 
     func ping() async throws -> SystemHealthInfo {
-        let health = try await ClientHealthCheck.ping()
-        return SystemHealthInfo(apiServerVersion: health.apiServerVersion)
+        do {
+            let health = try await ClientHealthCheck.ping()
+            return SystemHealthInfo(apiServerVersion: health.apiServerVersion)
+        } catch { throw mapContainerError(error) }
     }
 
     func diskUsage() async throws -> SystemDiskUsage {
-        let stats = try await ClientDiskUsage.get()
-        return mapDiskUsageStats(stats)
+        do {
+            let stats = try await ClientDiskUsage.get()
+            return mapDiskUsageStats(stats)
+        } catch { throw mapContainerError(error) }
     }
 }

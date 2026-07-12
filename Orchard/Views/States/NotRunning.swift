@@ -54,9 +54,6 @@ struct NotRunningView: View {
         .padding()
         .task {
             await systemService.checkSystemStatus()
-            await containerListService.loadContainers(showLoading: true)
-            await imageService.load()
-            await builderService.loadBuilders()
         }
     }
 }

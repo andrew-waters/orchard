@@ -186,6 +186,13 @@ struct ContentView: View {
             await performInitialLoad()
             startRefreshTimer()
         }
+        .onChange(of: systemService.systemStatus) { _, newStatus in
+            if newStatus == .running {
+                Task {
+                    await performInitialLoad()
+                }
+            }
+        }
         .onReceive(
             NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToContainer"))
         ) { notification in
@@ -286,6 +293,12 @@ struct ContentView: View {
     private func performInitialLoad() async {
         await systemService.checkSystemStatus()
 
+        // If the system is stopped or incompatible, don't hammer the XPC services
+        // with loading calls. They will just fail and show dialogs.
+        if systemService.systemStatus != .running {
+            return
+        }
+
         // Load stats first for immediate display
         await statsService.load(showLoading: true)
         await systemService.loadSystemDiskUsage(showLoading: true)
@@ -304,6 +317,7 @@ struct ContentView: View {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
                 await systemService.checkSystemStatus()
+                guard systemService.systemStatus == .running else { return }
                 await containerListService.loadContainers(showLoading: false)
                 await imageService.load()
                 await builderService.loadBuilders()
