@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Terminal and iTerm2 launch failures (-1743) caused by missing Apple Events permissions on hardened runtime builds.
+
 ## [2.1.3] - 2026-07-08
 
 ### Added
