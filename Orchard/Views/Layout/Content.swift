@@ -45,6 +45,7 @@ struct ContentView: View {
     @State private var showAddMachineSheet: Bool = false
 
     @State private var refreshTimer: Timer?
+    @State private var initialLoadTask: Task<Void, Never>?
 
     @FocusState private var listFocusedTab: TabSelection?
 
@@ -183,14 +184,23 @@ struct ContentView: View {
             }
         }
         .task {
-            await performInitialLoad()
+            if initialLoadTask == nil {
+                initialLoadTask = Task {
+                    await performInitialLoad()
+                    initialLoadTask = nil
+                }
+            }
             startRefreshTimer()
         }
         .onChange(of: systemService.systemStatus) { _, newStatus in
             if newStatus == .running {
-                Task {
-                    await performInitialLoad()
+                if initialLoadTask == nil {
+                    initialLoadTask = Task {
+                        await performInitialLoad()
+                        initialLoadTask = nil
+                    }
                 }
+                startRefreshTimer()
             }
         }
         .onReceive(
@@ -314,6 +324,7 @@ struct ContentView: View {
     }
 
     private func startRefreshTimer() {
+        refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
                 await systemService.checkSystemStatus()

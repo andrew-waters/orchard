@@ -98,8 +98,9 @@ final class SystemService: ObservableObject {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "start"])
-            isSystemLoading = false
+            
             if result.failed {
+                isSystemLoading = false
                 alertCenter.error(result.stderr ?? "Failed to start system")
                 await checkSystemStatus()   // don't assume .running — re-derive
                 return
@@ -114,6 +115,8 @@ final class SystemService: ObservableObject {
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
                 attempts += 1
             }
+            
+            isSystemLoading = false
             
             if systemStatus != .running {
                 alertCenter.error("System started but container service is unreachable.")
