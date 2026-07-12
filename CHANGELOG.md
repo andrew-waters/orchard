@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- When the container system is stopped or XPC is unreachable, Orchard no longer storms error dialogs from background refresh. Failed XPC connections surface as a clear "container service is unavailable" message, and after starting the system Orchard waits until the service is actually reachable before loading data.
+
 ## [2.1.3] - 2026-07-08
 
 ### Added
