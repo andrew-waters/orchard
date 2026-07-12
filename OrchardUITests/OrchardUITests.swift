@@ -12,7 +12,13 @@ final class OrchardUITests: XCTestCase {
     private func launchedApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["--uitest-mock-backend"] + extraArguments
+        app.launchEnvironment["ORCHARD_UITEST_MOCK_BACKEND"] = "1"
         app.launch()
+        app.activate()
+        XCTAssertTrue(
+            app.wait(for: .runningForeground, timeout: 15),
+            "App should reach the foreground under the mock backend"
+        )
         return app
     }
 
@@ -27,7 +33,7 @@ final class OrchardUITests: XCTestCase {
         let tab = app.buttons["sidebar-containers"]
         XCTAssertTrue(tab.waitForExistence(timeout: 20), "Containers sidebar tab should exist")
         for _ in 0..<5 {
-            tab.click()
+            tab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
             if app.staticTexts["uitest-web"].waitForExistence(timeout: 5) { return }
         }
         XCTFail("Containers list did not render after selecting the Containers tab")

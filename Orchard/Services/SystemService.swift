@@ -98,13 +98,31 @@ final class SystemService: ObservableObject {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "start"])
-            isSystemLoading = false
+            
             if result.failed {
+                isSystemLoading = false
                 alertCenter.error(result.stderr ?? "Failed to start system")
                 await checkSystemStatus()   // don't assume .running — re-derive
                 return
             }
-            systemStatus = .running
+            
+            // The CLI command returned, but the XPC daemon might need a moment to bind.
+            // Poll until ping succeeds so we don't transition the UI while XPC is unreachable.
+            var attempts = 0
+            while attempts < 10 {
+                await checkSystemStatus()
+                if systemStatus == .running { break }
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                attempts += 1
+            }
+            
+            isSystemLoading = false
+            
+            if systemStatus != .running {
+                alertCenter.error("System started but container service is unreachable.")
+                return
+            }
+            
             Log.containers.debug("Container system started successfully")
             await onSystemStarted()
         } catch {
