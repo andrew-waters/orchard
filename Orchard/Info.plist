@@ -10,6 +10,6 @@
 	<key>SUPublicEDKey</key>
 	<string>Ws/MYNAg4JzHzrjDzptZnj8Sun8S4kUnBUyIwx7FExk=</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Orchard needs to control Terminal to launch container shells.</string>
+	<string>Orchard needs to control terminal applications to launch container shells.</string>
 </dict>
 </plist>
