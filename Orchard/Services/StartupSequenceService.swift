@@ -165,6 +165,8 @@ struct StartupSequence: Codable, Equatable {
 			for container in group.containers {
 				dependencies[.container(container.containerID), default: []].formUnion(
 					container.waitForContainerIDs.map(DependencyNode.container))
+				dependencies[.container(container.containerID), default: []].formUnion(
+					group.waitForGroupIDs.map(DependencyNode.group))
 			}
 		}
 
@@ -447,22 +449,18 @@ final class StartupSequenceService: ObservableObject {
 
 	private func execute(_ group: StartupGroup) async throws {
 		state = .startingGroup(group.name)
-		try await withThrowingTaskGroup(of: String?.self) { containerTasks in
+		try await withThrowingTaskGroup(of: Void.self) { containerTasks in
 			for container in group.containers {
 				containerTasks.addTask { [weak self] in
 					guard let self else { throw CancellationError() }
-					return try await self.execute(container)
+					try await self.execute(container)
 				}
 			}
-			for try await startedContainerID in containerTasks {
-				if let startedContainerID {
-					sequenceOwnedContainerIDs.append(startedContainerID)
-				}
-			}
+			for try await _ in containerTasks { }
 		}
 	}
 
-	private func execute(_ container: StartupGroupContainer) async throws -> String? {
+	private func execute(_ container: StartupGroupContainer) async throws {
 		for dependency in container.waitForContainerIDs {
 			try await waitUntilRunning(dependency)
 		}
@@ -473,13 +471,15 @@ final class StartupSequenceService: ObservableObject {
 		}
 
 		if status.lowercased() == "running" {
-			return nil
+			return
 		}
 
 		state = .starting(container.containerID)
 		try await runtime.startStartupContainer(container.containerID)
+		if !sequenceOwnedContainerIDs.contains(container.containerID) {
+			sequenceOwnedContainerIDs.append(container.containerID)
+		}
 		try await waitUntilRunning(container.containerID)
-		return container.containerID
 	}
 
 	private func waitUntilRunning(_ id: String) async throws {

@@ -62,7 +62,7 @@ struct StartupSequenceServiceTests {
 		#expect(reloaded.sequence == sequence)
 	}
 
-	@Test func rejectsDuplicateAndOutOfOrderDependencies() {
+	@Test func rejectsDuplicatesButAllowsOutOfOrderDependencies() {
 		let duplicate = StartupSequence(steps: [
 			StartupStep(containerID: "a"),
 			StartupStep(containerID: "a")
@@ -80,7 +80,10 @@ struct StartupSequenceServiceTests {
 		let backendID = UUID()
 		let frontendID = UUID()
 		let runtime = StartupRuntimeStub(statuses: ["mysql": "stopped", "php8": "stopped", "nginx": "stopped"])
-		let service = StartupSequenceService(runtime: runtime, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+		let suiteName = "OrchardStartupSequenceTests-\(UUID().uuidString)"
+		let defaults = UserDefaults(suiteName: suiteName)!
+		defer { defaults.removePersistentDomain(forName: suiteName) }
+		let service = StartupSequenceService(runtime: runtime, defaults: defaults)
 		service.updateSequence(StartupSequence(groups: [
 			StartupGroup(
 				id: backendID,
@@ -121,7 +124,10 @@ struct StartupSequenceServiceTests {
 		#expect(sequence.validationError() == nil)
 
 		let runtime = StartupRuntimeStub(statuses: ["mysql": "stopped", "mosquitto": "stopped", "nodered": "stopped"])
-		let service = StartupSequenceService(runtime: runtime, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+		let suiteName = "OrchardStartupSequenceTests-\(UUID().uuidString)"
+		let defaults = UserDefaults(suiteName: suiteName)!
+		defer { defaults.removePersistentDomain(forName: suiteName) }
+		let service = StartupSequenceService(runtime: runtime, defaults: defaults)
 		service.updateSequence(sequence)
 		service.run(availableContainerIDs: ["mysql", "mosquitto", "nodered"])
 		await waitForRunToFinish(service)
@@ -130,9 +136,30 @@ struct StartupSequenceServiceTests {
 		#expect(Set(runtime.startedContainerIDs) == Set(["mysql", "mosquitto", "nodered"]))
 	}
 
+	@Test func rejectsCrossGroupDependencyDeadlocks() {
+		let groupAID = UUID()
+		let groupBID = UUID()
+		let sequence = StartupSequence(groups: [
+			StartupGroup(
+				id: groupAID,
+				name: "A",
+				containers: [StartupGroupContainer(containerID: "a")],
+				waitForGroupIDs: [groupBID]),
+			StartupGroup(
+				id: groupBID,
+				name: "B",
+				containers: [StartupGroupContainer(containerID: "b", waitForContainerIDs: ["a"])])
+		])
+
+		#expect(sequence.validationError() == "Startup groups contain a dependency cycle.")
+	}
+
 	@Test func startsInOrderAndStopsOnlyOwnedContainersInReverseOrder() async {
 		let runtime = StartupRuntimeStub(statuses: ["a": "stopped", "b": "running", "c": "stopped", "nginx": "stopped"])
-		let service = StartupSequenceService(runtime: runtime, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+		let suiteName = "OrchardStartupSequenceTests-\(UUID().uuidString)"
+		let defaults = UserDefaults(suiteName: suiteName)!
+		defer { defaults.removePersistentDomain(forName: suiteName) }
+		let service = StartupSequenceService(runtime: runtime, defaults: defaults)
 		service.updateSequence(StartupSequence(steps: [
 			StartupStep(containerID: "a"),
 			StartupStep(containerID: "b", waitForContainerID: "a"),
@@ -156,9 +183,12 @@ struct StartupSequenceServiceTests {
 	@Test func abortsWhenStartedContainerNeverBecomesReady() async {
 		let runtime = StartupRuntimeStub(statuses: ["a": "stopped"])
 		runtime.containersBecomeRunning = false
+		let suiteName = "OrchardStartupSequenceTests-\(UUID().uuidString)"
+		let defaults = UserDefaults(suiteName: suiteName)!
+		defer { defaults.removePersistentDomain(forName: suiteName) }
 		let service = StartupSequenceService(
 			runtime: runtime,
-			defaults: UserDefaults(suiteName: UUID().uuidString)!,
+			defaults: defaults,
 			readinessTimeout: 0.02)
 		service.updateSequence(StartupSequence(steps: [StartupStep(containerID: "a")]))
 
@@ -171,11 +201,16 @@ struct StartupSequenceServiceTests {
 		}
 		#expect(message.contains("Timed out waiting for a"))
 		#expect(runtime.startedContainerIDs == ["a"])
+		#expect(service.sequenceOwnedContainerIDs == ["a"])
 	}
 
 	private func waitForRunToFinish(_ service: StartupSequenceService) async {
 		while service.isRunning {
-			try? await Task.sleep(for: .milliseconds(10))
+			do {
+				try await Task.sleep(for: .milliseconds(10))
+			} catch {
+				return
+			}
 		}
 	}
 }

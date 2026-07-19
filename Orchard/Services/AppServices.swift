@@ -19,9 +19,9 @@ final class AppServices: ObservableObject {
     let imageService: ImageService
     let statsService: StatsService
     let dnsService: DNSService
-	let systemService: SystemService
-	let containerListService: ContainerListService
-	let startupSequenceService: StartupSequenceService
+    let systemService: SystemService
+    let containerListService: ContainerListService
+    let startupSequenceService: StartupSequenceService
     let machineService: MachineService
     let modelService: ModelService
     let modelServerService: ModelServerService
@@ -64,13 +64,13 @@ final class AppServices: ObservableObject {
         let systemService = SystemService(backend: backend, runner: runner, settings: settings, alertCenter: alertCenter)
         self.systemService = systemService
         // ContainerListService is built before StatsService, which depends on it.
-		let containerListService = ContainerListService(backend: backend, alertCenter: alertCenter)
-		self.containerListService = containerListService
-		let startupRuntime = StartupSequenceRuntimeAdapter(
-			backend: backend,
-			systemService: systemService,
-			containerListService: containerListService)
-		self.startupSequenceService = StartupSequenceService(runtime: startupRuntime, defaults: defaults)
+        let containerListService = ContainerListService(backend: backend, alertCenter: alertCenter)
+        self.containerListService = containerListService
+        let startupRuntime = StartupSequenceRuntimeAdapter(
+            backend: backend,
+            systemService: systemService,
+            containerListService: containerListService)
+        self.startupSequenceService = StartupSequenceService(runtime: startupRuntime, defaults: defaults)
 		let statsService = StatsService(backend: backend, alertCenter: alertCenter, containerList: containerListService)
         self.statsService = statsService
         self.machineService = MachineService(backend: machineBackend, alertCenter: alertCenter)

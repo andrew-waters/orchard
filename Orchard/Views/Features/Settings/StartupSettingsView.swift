@@ -7,8 +7,12 @@ struct StartupSettingsView: View {
 	@State private var showStatusMessage = true
 
 	private var availableContainerIDs: [String] {
+		containerListService.containers.map { $0.configuration.id }.sorted()
+	}
+
+	private var containerPickerIDs: [String] {
 		let configuredIDs = startupSequenceService.sequence.groups.flatMap { $0.containers.map(\.containerID) }
-		return Set(containerListService.containers.map { $0.configuration.id } + configuredIDs).sorted()
+		return Set(availableContainerIDs + configuredIDs).sorted()
 	}
 
 	private var validationMessage: String? {
@@ -50,16 +54,17 @@ struct StartupSettingsView: View {
 					.frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
 				}
 			} else {
-				ForEach(startupSequenceService.sequence.groups.indices, id: \.self) { index in
+				ForEach(startupSequenceService.sequence.groups) { group in
 					StartupGroupEditor(
-						group: startupSequenceService.sequence.groups[index],
+						group: group,
 						allGroups: startupSequenceService.sequence.groups,
-						containerIDs: availableContainerIDs,
+						containerIDs: containerPickerIDs,
+						availableContainerIDs: Set(availableContainerIDs),
 						startupSequence: startupSequenceService.sequence,
-						onChange: { updateGroup(index, with: $0) },
-						onMoveUp: { moveGroup(index, by: -1) },
-						onMoveDown: { moveGroup(index, by: 1) },
-						onDelete: { deleteGroup(index) })
+						onChange: { updateGroup(group.id, with: $0) },
+						onMoveUp: { moveGroup(group.id, by: -1) },
+						onMoveDown: { moveGroup(group.id, by: 1) },
+						onDelete: { deleteGroup(group.id) })
 				}
 			}
 
@@ -128,23 +133,25 @@ struct StartupSettingsView: View {
 		startupSequenceService.updateSequence(sequence)
 	}
 
-	private func updateGroup(_ index: Int, with group: StartupGroup) {
+	private func updateGroup(_ id: UUID, with group: StartupGroup) {
 		var sequence = startupSequenceService.sequence
-		guard sequence.groups.indices.contains(index) else { return }
+		guard let index = sequence.groups.firstIndex(where: { $0.id == id }) else { return }
 		sequence.groups[index] = group
 		startupSequenceService.updateSequence(sequence)
 	}
 
-	private func moveGroup(_ index: Int, by offset: Int) {
+	private func moveGroup(_ id: UUID, by offset: Int) {
 		var sequence = startupSequenceService.sequence
+		guard let index = sequence.groups.firstIndex(where: { $0.id == id }) else { return }
 		let destination = index + offset
 		guard sequence.groups.indices.contains(index), sequence.groups.indices.contains(destination) else { return }
 		sequence.groups.swapAt(index, destination)
 		startupSequenceService.updateSequence(sequence)
 	}
 
-	private func deleteGroup(_ index: Int) {
+	private func deleteGroup(_ id: UUID) {
 		var sequence = startupSequenceService.sequence
+		guard let index = sequence.groups.firstIndex(where: { $0.id == id }) else { return }
 		guard sequence.groups.indices.contains(index) else { return }
 		sequence.groups.remove(at: index)
 		startupSequenceService.updateSequence(sequence)
@@ -155,6 +162,7 @@ private struct StartupGroupEditor: View {
 	let group: StartupGroup
 	let allGroups: [StartupGroup]
 	let containerIDs: [String]
+	let availableContainerIDs: Set<String>
 	let startupSequence: StartupSequence
 	let onChange: (StartupGroup) -> Void
 	let onMoveUp: () -> Void
@@ -182,6 +190,7 @@ private struct StartupGroupEditor: View {
 					StartupGroupContainerEditor(
 						container: container,
 						containerIDs: containerIDs,
+						availableContainerIDs: availableContainerIDs,
 						allGroups: allGroups,
 						disabledContainerIDs: containersInOtherGroups,
 						startupSequence: startupSequence,
@@ -192,7 +201,7 @@ private struct StartupGroupEditor: View {
 
 			if !group.containers.isEmpty {
 				Button("Add Container", systemImage: "plus", action: addContainer)
-					.disabled(containerIDs.allSatisfy { id in
+					.disabled(availableContainerIDs.allSatisfy { id in
 						group.containers.contains { $0.containerID == id } || containersInOtherGroups.contains(id)
 					})
 					.frame(maxWidth: .infinity, alignment: .center)
@@ -254,7 +263,7 @@ private struct StartupGroupEditor: View {
 			allGroups
 				.filter { $0.id != group.id }
 				.flatMap { $0.containers.map(\.containerID) })
-		guard let id = containerIDs.first(where: { id in
+		guard let id = availableContainerIDs.sorted().first(where: { id in
 			!group.containers.contains { $0.containerID == id } && !containersInOtherGroups.contains(id)
 		}) else { return }
 		var containers = group.containers
@@ -279,6 +288,7 @@ private struct StartupGroupEditor: View {
 private struct StartupGroupContainerEditor: View {
 	let container: StartupGroupContainer
 	let containerIDs: [String]
+	let availableContainerIDs: Set<String>
 	let allGroups: [StartupGroup]
 	let disabledContainerIDs: Set<String>
 	let startupSequence: StartupSequence
@@ -299,7 +309,7 @@ private struct StartupGroupContainerEditor: View {
 							Text(id)
 						}
 					}
-					.disabled(disabledContainerIDs.contains(id) && id != container.containerID)
+					.disabled((!availableContainerIDs.contains(id) || disabledContainerIDs.contains(id)) && id != container.containerID)
 				}
 			} label: {
 				Label(container.containerID, systemImage: "shippingbox")
@@ -354,7 +364,7 @@ private struct StartupGroupContainerEditor: View {
 				}
 				onChange(StartupGroupContainer(id: container.id, containerID: container.containerID, waitForContainerIDs: dependencies))
 			}))
-		.disabled(startupSequence.wouldCreateContainerDependency(containerID: container.containerID, dependencyID: id) && !container.waitForContainerIDs.contains(id))
+		.disabled((!availableContainerIDs.contains(id) || startupSequence.wouldCreateContainerDependency(containerID: container.containerID, dependencyID: id)) && !container.waitForContainerIDs.contains(id))
 	}
 
 	private var containerPrerequisiteLabel: String {
@@ -410,6 +420,7 @@ private struct StartupGroupContainerEditor: View {
 				group: group,
 				allGroups: groups,
 				containerIDs: containerIDs,
+				availableContainerIDs: Set(containerIDs),
 				startupSequence: sequence,
 				onChange: { _ in },
 				onMoveUp: { },
