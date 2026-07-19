@@ -7,22 +7,40 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var dnsService: DNSService
+    @EnvironmentObject var startupSequenceService: StartupSequenceService
+    @State private var selectedTab: SettingsTab = .general
+
+    fileprivate enum SettingsTab: Hashable {
+        case general
+        case startup
+        case system
+    }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             GeneralSettingsView()
+                .fixedSize(horizontal: false, vertical: true)
                 .tabItem {
                     Label("General", systemImage: "gearshape")
                 }
+                .tag(SettingsTab.general)
+
+            StartupSettingsView()
+                .fixedSize(horizontal: false, vertical: true)
+                .tabItem {
+                    Label("Startup", systemImage: "arrow.clockwise.circle")
+                }
+                .tag(SettingsTab.startup)
 
             SystemSettingsView()
+                .fixedSize(horizontal: false, vertical: true)
                 .tabItem {
                     Label("System", systemImage: "cpu")
                 }
+                .tag(SettingsTab.system)
         }
-        .frame(width: 540, height: 460)
-        // Loaded once here rather than per-tab: macOS TabView builds both tabs when the
-        // window opens, so a per-tab onAppear would fetch the property list twice.
+        .padding(20)
+        .frame(width: 540)
         .onAppear {
             Task {
                 await systemService.loadSystemProperties(showLoading: true)
@@ -32,8 +50,6 @@ struct SettingsView: View {
     }
 }
 
-/// Genuine app preferences: which terminal to open shells in, which `container` binary to
-/// drive, the default DNS domain, and software updates.
 struct GeneralSettingsView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var alertCenter: AlertCenter
@@ -193,7 +209,7 @@ struct SystemSettingsView: View {
         description: String
     ) -> some View {
         let property = systemService.systemProperties.first(where: { $0.id == propertyId })
-        let value = (useDisplayValue ? property?.displayValue : property?.value) ?? "Loading..."
+        let value = (useDisplayValue ? property?.displayValue : property?.value) ?? "Loading…"
         return Section {
             LabeledContent(title) {
                 Text(value)

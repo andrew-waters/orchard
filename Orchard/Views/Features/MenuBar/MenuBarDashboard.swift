@@ -7,6 +7,7 @@ struct MenuBarView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var builderService: BuilderService
     @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var startupSequenceService: StartupSequenceService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var statsService: StatsService
@@ -190,6 +191,8 @@ struct MenuBarView: View {
             await dnsService.load(showLoading: true)
             await networkService.load(showLoading: true)
             await systemService.loadSystemDiskUsage(showLoading: false)
+			startupSequenceService.runIfEnabled(
+				availableContainerIDs: Set(containerListService.containers.map { $0.configuration.id }))
         }
         .onDisappear {
             stopRefreshTimer()

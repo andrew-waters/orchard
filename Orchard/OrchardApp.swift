@@ -2,9 +2,16 @@ import SwiftUI
 
 @main
 struct OrchardApp: App {
-    @StateObject private var services = AppServices.forLaunch()
+    @NSApplicationDelegateAdaptor(OrchardAppDelegate.self) private var appDelegate
+    @StateObject private var services: AppServices
     @StateObject private var menuBarManager = MenuBarManager()
     @StateObject private var updater = UpdaterService()
+
+    init() {
+        let services = AppServices.forLaunch()
+        _services = StateObject(wrappedValue: services)
+        (NSApplication.shared.delegate as? OrchardAppDelegate)?.startupSequenceService = services.startupSequenceService
+    }
 
     var body: some Scene {
         WindowGroup(id: "main") {
@@ -70,6 +77,7 @@ extension View {
             .environmentObject(s.dnsService)
             .environmentObject(s.systemService)
             .environmentObject(s.containerListService)
+            .environmentObject(s.startupSequenceService)
             .environmentObject(s.machineService)
             .environmentObject(s.modelService)
             .environmentObject(s.modelServerService)
