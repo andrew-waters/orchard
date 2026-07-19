@@ -393,6 +393,7 @@ final class StartupSequenceService: ObservableObject {
 
 		state = .stopping
 		for id in sequenceOwnedContainerIDs.reversed() {
+			guard !Task.isCancelled else { break }
 			do {
 				try await runtime.stopStartupContainer(id)
 			} catch {
