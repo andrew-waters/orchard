@@ -286,6 +286,7 @@ struct ContentView: View {
 
     private func performInitialLoad() async {
         await systemService.checkSystemStatus()
+		guard await startupSequenceService.prepareForAutomaticRun() else { return }
 
         // Load stats first for immediate display
         await statsService.load(showLoading: true)

@@ -186,6 +186,7 @@ struct MenuBarView: View {
             startRefreshTimer()
 
             await systemService.checkSystemStatus()
+			guard await startupSequenceService.prepareForAutomaticRun() else { return }
             await containerListService.loadContainers(showLoading: true)
             await builderService.loadBuilders()
             await dnsService.load(showLoading: true)

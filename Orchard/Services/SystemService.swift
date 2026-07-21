@@ -49,6 +49,7 @@ final class SystemService: ObservableObject {
     private let runner: CommandRunner
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
+    private let systemReadinessTimeout: TimeInterval = 60
 
     /// Refresh the container list after the system starts. Set by the owner.
     var onSystemStarted: () async -> Void = {}
@@ -98,13 +99,19 @@ final class SystemService: ObservableObject {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "start"])
-            isSystemLoading = false
-            if result.failed {
+			if result.failed {
                 alertCenter.error(result.stderr ?? "Failed to start system")
                 await checkSystemStatus()   // don't assume .running — re-derive
                 return
             }
-            systemStatus = .running
+
+            guard await waitForSystemReadiness() else {
+                isSystemLoading = false
+                alertCenter.error("Container system started but its service is not ready yet.")
+                return
+            }
+
+            isSystemLoading = false
             Log.containers.debug("Container system started successfully")
             await onSystemStarted()
         } catch {
@@ -113,6 +120,23 @@ final class SystemService: ObservableObject {
             await checkSystemStatus()
             Log.containers.error("Error starting system: \(error.localizedDescription)")
         }
+    }
+
+    private func waitForSystemReadiness() async -> Bool {
+        let deadline = Date().addingTimeInterval(systemReadinessTimeout)
+        while Date() < deadline {
+            await checkSystemStatus()
+            if systemStatus == .running {
+                return true
+            }
+
+            do {
+                try await Task.sleep(for: .milliseconds(250))
+            } catch {
+                return false
+            }
+        }
+        return false
     }
 
     func stopSystem() async {

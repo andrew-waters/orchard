@@ -375,6 +375,20 @@ final class StartupSequenceService: ObservableObject {
 		run(availableContainerIDs: availableContainerIDs)
 	}
 
+	func prepareForAutomaticRun() async -> Bool {
+		guard sequence.isEnabled else { return true }
+		guard !(await runtime.isContainerSystemRunning()) else { return true }
+
+		state = .startingSystem
+		do {
+			try await runtime.startContainerSystem()
+			return true
+		} catch {
+			state = .failed(error.localizedDescription)
+			return false
+		}
+	}
+
 	func run(availableContainerIDs: Set<String>) {
 		guard activeRunTask == nil else { return }
 		activeRunTask = Task { [weak self] in

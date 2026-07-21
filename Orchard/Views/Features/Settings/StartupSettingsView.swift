@@ -24,14 +24,20 @@ struct StartupSettingsView: View {
 		Form {
 			Section {
 				Toggle(
-					"Run startup sequence when Orchard opens",
 					isOn: Binding(
 						get: { startupSequenceService.sequence.isEnabled },
 						set: { isEnabled in
 							var sequence = startupSequenceService.sequence
 							sequence.isEnabled = isEnabled
 							startupSequenceService.updateSequence(sequence)
-						}))
+						})) {
+					VStack(alignment: .leading, spacing: 2) {
+						Text("Run startup sequence when Orchard opens")
+						Text("If the container system or a configured container is stopped, Orchard starts it automatically so the sequence can run.")
+							.font(.caption)
+							.foregroundStyle(.secondary)
+					}
+				}
 
                 if let validationMessage {
                     Label(validationMessage, systemImage: "exclamationmark.triangle")
