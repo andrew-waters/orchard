@@ -345,6 +345,7 @@ final class StartupSequenceService: ObservableObject {
 	private let sequenceKey = "OrchardStartupSequence"
 	private var hasAttemptedAutomaticRun = false
 	private var activeRunTask: Task<Void, Never>?
+	private var automaticPreparationTask: Task<Bool, Never>?
 
 	init(runtime: StartupSequenceRuntime, defaults: UserDefaults = .standard, readinessTimeout: TimeInterval = StartupSequence.readinessTimeout) {
 		self.runtime = runtime
@@ -377,16 +378,28 @@ final class StartupSequenceService: ObservableObject {
 
 	func prepareForAutomaticRun() async -> Bool {
 		guard sequence.isEnabled else { return true }
-		guard !(await runtime.isContainerSystemRunning()) else { return true }
-
-		state = .startingSystem
-		do {
-			try await runtime.startContainerSystem()
-			return true
-		} catch {
-			state = .failed(error.localizedDescription)
-			return false
+		if let automaticPreparationTask {
+			return await automaticPreparationTask.value
 		}
+
+		let task = Task { [weak self] in
+			guard let self else { return false }
+			guard !(await self.runtime.isContainerSystemRunning()) else { return true }
+
+			self.state = .startingSystem
+			do {
+				try await self.runtime.startContainerSystem()
+				return true
+			} catch {
+				self.state = .failed(error.localizedDescription)
+				return false
+			}
+		}
+		automaticPreparationTask = task
+
+		let result = await task.value
+		automaticPreparationTask = nil
+		return result
 	}
 
 	func run(availableContainerIDs: Set<String>) {

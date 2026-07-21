@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 
+private struct SystemReadinessTimeout: Error {}
+
 enum SystemStatus {
     case unknown
     case stopped
@@ -99,13 +101,19 @@ final class SystemService: ObservableObject {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "start"])
-			if result.failed {
+            if result.failed {
+                isSystemLoading = false
                 alertCenter.error(result.stderr ?? "Failed to start system")
                 await checkSystemStatus()   // don't assume .running — re-derive
                 return
             }
 
-            guard await waitForSystemReadiness() else {
+            do {
+                try await waitForSystemReadiness()
+            } catch is CancellationError {
+                isSystemLoading = false
+                return
+            } catch {
                 isSystemLoading = false
                 alertCenter.error("Container system started but its service is not ready yet.")
                 return
@@ -114,6 +122,8 @@ final class SystemService: ObservableObject {
             isSystemLoading = false
             Log.containers.debug("Container system started successfully")
             await onSystemStarted()
+        } catch is CancellationError {
+            isSystemLoading = false
         } catch {
             alertCenter.error("Failed to start system: \(error.localizedDescription)")
             isSystemLoading = false
@@ -122,21 +132,18 @@ final class SystemService: ObservableObject {
         }
     }
 
-    private func waitForSystemReadiness() async -> Bool {
+    private func waitForSystemReadiness() async throws {
         let deadline = Date().addingTimeInterval(systemReadinessTimeout)
         while Date() < deadline {
+            try Task.checkCancellation()
             await checkSystemStatus()
             if systemStatus == .running {
-                return true
+                return
             }
 
-            do {
-                try await Task.sleep(for: .milliseconds(250))
-            } catch {
-                return false
-            }
+            try await Task.sleep(for: .milliseconds(250))
         }
-        return false
+        throw SystemReadinessTimeout()
     }
 
     func stopSystem() async {

@@ -89,6 +89,22 @@ struct StartupSequenceServiceTests {
 		#expect(runtime.systemRunning)
 	}
 
+	@Test func coalescesConcurrentAutomaticPreparation() async {
+		let runtime = StartupRuntimeStub(statuses: [:])
+		let suiteName = "OrchardStartupSequenceTests-\(UUID().uuidString)"
+		let defaults = UserDefaults(suiteName: suiteName)!
+		defer { defaults.removePersistentDomain(forName: suiteName) }
+		let service = StartupSequenceService(runtime: runtime, defaults: defaults)
+		service.updateSequence(StartupSequence(isEnabled: true))
+
+		async let first = service.prepareForAutomaticRun()
+		async let second = service.prepareForAutomaticRun()
+
+		#expect(await first)
+		#expect(await second)
+		#expect(runtime.startSystemCount == 1)
+	}
+
 	@Test func runsDependentGroupsAfterAllPrerequisiteContainersAreReady() async {
 		let backendID = UUID()
 		let frontendID = UUID()

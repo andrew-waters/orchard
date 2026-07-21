@@ -10,7 +10,6 @@ struct OrchardApp: App {
     init() {
         let services = AppServices.forLaunch()
         _services = StateObject(wrappedValue: services)
-        appDelegate.startupSequenceService = services.startupSequenceService
     }
 
     var body: some Scene {
