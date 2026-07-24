@@ -3,28 +3,19 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.1.3</title>
-      <sparkle:version>43</sparkle:version>
-      <sparkle:shortVersionString>2.1.3</sparkle:shortVersionString>
+      <title>Version 2.1.4</title>
+      <sparkle:version>44</sparkle:version>
+      <sparkle:shortVersionString>2.1.4</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.3</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.4</link>
       <description><![CDATA[
 <h3>Added</h3>
 <ul>
-<li><strong>Local AI models (MLX)</strong>: a new <strong>AI Models</strong> section discovers model servers running on your Mac (Ollama, LM Studio, and MLX servers), and can start and stop your own <code>mlx_lm.server</code> instances - pick a model and port, choose whether to bind <code>0.0.0.0</code> so containers can reach it, with child-process supervision, crash surfacing and log access.</li>
-<li><strong>The container↔model bridge</strong>: wire a container to a host model in one step. Orchard computes the container-reachable endpoint from the network gateway and injects <code>OPENAI_BASE_URL</code> at create time - so a containerised app or agent talks to a local model with no hand-configured host networking. Inference runs on the Apple GPU on the host (Virtualization.framework guests have no GPU access).</li>
-<li><strong>Sandboxes</strong>: a first-class view of containers wired to a local model, recognised by a label Orchard stamps or by a model-endpoint environment variable. Each sandbox shows its model endpoint, an isolation badge (host-only/no-egress vs internet-open), and agent-runner controls - chat, terminal, and a stop kill-switch. Create one from the <strong>New Sandbox</strong> button or from a model&#x27;s detail.</li>
-<li><strong>In-app chat tester</strong>: hold a short conversation with any model server from the AI Models view - no terminal or container needed - to check it&#x27;s working.</li>
-<li>Sandbox containers are flagged with a shield badge (and an explanatory popover) in the Containers list and detail, since a sandbox appears in both places.</li>
-<li>A new <a href="https://orchard.andon.dev/ai.html">Local AI guide</a> on the site covering MLX, the bridge, isolation, and a runnable quick start.</li>
-</ul>
-<h3>Changed</h3>
-<ul>
-<li>Reorganised the sidebar so <strong>Sandboxes</strong> joins Containers and Machines under <strong>Compute</strong>, and <strong>AI Models</strong> sits under <strong>Resources</strong> alongside Images and Mounts.</li>
+<li>Error message displayed when trying to start <code>container</code> now includes a download link if the binary could not be found.</li>
 </ul>
 ]]></description>
-      <pubDate>Wed, 08 Jul 2026 09:42:43 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.3/Orchard-2.1.3.dmg" type="application/octet-stream" sparkle:edSignature="QwzcQJDrmeomLmqYMluvYv/36WmYiOu3rps9OOVyc4hnS1Wo2VGlAVfQVghPiwRUbFAPa1OjjUmW7b+Uj0Q6Dg==" length="28364085" />
+      <pubDate>Fri, 24 Jul 2026 07:42:27 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.4/Orchard-2.1.4.dmg" type="application/octet-stream" sparkle:edSignature="9yvzpW2MosxxGWh+neTMXL4U/V0rT5wiXngWmKM1QlRBTsKv4kEk9K9yALf9frY7NrBr6NlPij1uSKl7nRjfDA==" length="28376578" />
     </item>
   </channel>
 </rss>
