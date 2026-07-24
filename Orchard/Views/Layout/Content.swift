@@ -7,6 +7,7 @@ struct ContentView: View {
     @EnvironmentObject var builderService: BuilderService
     @EnvironmentObject var statsService: StatsService
     @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var startupSequenceService: StartupSequenceService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var machineService: MachineService
@@ -289,6 +290,7 @@ struct ContentView: View {
 
     private func performInitialLoad() async {
         await systemService.checkSystemStatus()
+		guard await startupSequenceService.prepareForAutomaticRun() else { return }
 
         // Load stats first for immediate display
         await statsService.load(showLoading: true)
@@ -302,6 +304,8 @@ struct ContentView: View {
         await networkService.load(showLoading: true)
         await machineService.load(showLoading: true)
         await modelService.load(showLoading: true)
+		startupSequenceService.runIfEnabled(
+			availableContainerIDs: Set(containerListService.containers.map { $0.configuration.id }))
     }
 
     private func startRefreshTimer() {

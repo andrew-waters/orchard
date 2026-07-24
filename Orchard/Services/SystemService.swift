@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 
+private struct SystemReadinessTimeout: Error {}
+
 enum SystemStatus {
     case unknown
     case stopped
@@ -49,6 +51,7 @@ final class SystemService: ObservableObject {
     private let runner: CommandRunner
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
+    private let systemReadinessTimeout: TimeInterval = 60
 
     /// Refresh the container list after the system starts. Set by the owner.
     var onSystemStarted: () async -> Void = {}
@@ -98,15 +101,29 @@ final class SystemService: ObservableObject {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["system", "start"])
-            isSystemLoading = false
             if result.failed {
+                isSystemLoading = false
                 alertCenter.error(result.stderr ?? "Failed to start system")
                 await checkSystemStatus()   // don't assume .running — re-derive
                 return
             }
-            systemStatus = .running
+
+            do {
+                try await waitForSystemReadiness()
+            } catch is CancellationError {
+                isSystemLoading = false
+                return
+            } catch {
+                isSystemLoading = false
+                alertCenter.error("Container system started but its service is not ready yet.")
+                return
+            }
+
+            isSystemLoading = false
             Log.containers.debug("Container system started successfully")
             await onSystemStarted()
+        } catch is CancellationError {
+            isSystemLoading = false
         } catch {
             let nsError = error as NSError
             if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileNoSuchFileError {
@@ -125,6 +142,20 @@ final class SystemService: ObservableObject {
             await checkSystemStatus()
             Log.containers.error("Error starting system: \(error.localizedDescription)")
         }
+    }
+
+    private func waitForSystemReadiness() async throws {
+        let deadline = Date().addingTimeInterval(systemReadinessTimeout)
+        while Date() < deadline {
+            try Task.checkCancellation()
+            await checkSystemStatus()
+            if systemStatus == .running {
+                return
+            }
+
+            try await Task.sleep(for: .milliseconds(250))
+        }
+        throw SystemReadinessTimeout()
     }
 
     func stopSystem() async {
