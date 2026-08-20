@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Containers owned by a container plugin (such as k8s cluster nodes) are badged in the containers list and detail header with the owning plugin and their role, e.g. "k8s · control-plane", so kindest/node containers aren't mystery rows.
 - Clusters: a new sidebar section for local Kubernetes clusters created with the `container k8s` plugin (container 1.2.2+). Node containers are grouped into clusters with per-node role, status, IP, CPUs, memory, and published ports; clusters can be created, started, and deleted from the UI, local images can be loaded into a cluster's containerd, and the kubeconfig can be written or its path copied, with a one-click terminal preconfigured for kubectl. Installs without the plugin get an explanatory state with upgrade guidance.
 
+### Fixed
+- With the sidebar hidden, the Dashboard (and other full-width pages) no longer render underneath the macOS window controls ([#88](https://github.com/andrew-waters/orchard/issues/88)).
+
 ## [2.1.7] - 2026-08-20
 
 ### Changed
