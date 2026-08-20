@@ -230,12 +230,15 @@ struct RunContainerView: View {
             let started = await containerListService.runContainer(config: runConfig)
             await MainActor.run {
                 isRunning = false
+                // runContainer surfaces its own error; keep the sheet open on failure so
+                // the user can adjust the form and retry (matches RunModelContainer).
+                guard started else { return }
                 dismiss()
                 // Non-detached run: open the user's preferred terminal attached to the
                 // container. The service uses config.name as the container id (the Run
                 // button is disabled while the name is empty), and the container is
                 // already started by the time runContainer returns (#43).
-                if started && !config.detached {
+                if !config.detached {
                     terminalLauncher.openTerminal(for: config.name)
                 }
             }
