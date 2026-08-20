@@ -15,6 +15,14 @@ struct OrchardApp: App {
         .defaultSize(width: 1200, height: 800)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
+            CommandGroup(after: .sidebar) {
+                Divider()
+                Button("Command Palette...") {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ToggleCommandPalette"), object: nil)
+                }
+                .keyboardShortcut("k", modifiers: .command)
+            }
             CommandGroup(replacing: .help) {
                 CheckForUpdatesView(updater: updater)
 
