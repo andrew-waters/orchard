@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Running containers' stop buttons in the menu-bar panel now respond on first click.
+
 ## [2.1.5] - 2026-08-20
 
 ### Added
