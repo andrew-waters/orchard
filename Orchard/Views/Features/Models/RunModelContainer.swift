@@ -43,7 +43,9 @@ struct RunModelContainerView: View {
         }
         let managedPorts = modelServerService.managedPorts
         let providers = modelService.providers
-            .filter { !managedPorts.contains($0.port) }
+            // A locked provider has no usable key yet - a sandbox wired to it could
+            // never reach its model, so it isn't offered as a target.
+            .filter { !managedPorts.contains($0.port) && !$0.requiresAPIKey }
             .map { Target(id: $0.id, name: $0.kind.displayName, port: $0.port, api: $0.api) }
         return servers + providers
     }

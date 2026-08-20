@@ -231,7 +231,7 @@ struct ModelDetailView: View {
                     Label("API key required", systemImage: "lock")
                         .font(.caption)
                         .foregroundColor(.orange)
-                    Text("This server rejected the probe with 401. Paste its API key to list models and chat.")
+                    Text("This server rejected the probe with 401 or 403. Paste its API key to list models and chat.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                     HStack(spacing: 8) {

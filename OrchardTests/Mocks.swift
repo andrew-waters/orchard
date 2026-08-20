@@ -316,7 +316,7 @@ func makeService(
     runner: MockCommandRunner = MockCommandRunner(),
     defaults: UserDefaults = ephemeralDefaults()
 ) -> AppServices {
-    AppServices(backend: backend, runner: runner, defaults: defaults)
+    AppServices(backend: backend, runner: runner, defaults: defaults, secrets: InMemorySecretsStore())
 }
 
 /// A throwaway `UserDefaults` suite, unique per call, so a service built in a test never

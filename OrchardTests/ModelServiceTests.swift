@@ -26,7 +26,7 @@ private func makeNetwork(id: String = "default", gateway: String? = "192.168.66.
 
 @MainActor
 private func makeModelService(backend: ModelBackend) -> ModelService {
-    ModelService(backend: backend, settings: SettingsStore(alertCenter: AlertCenter(), defaults: ephemeralDefaults()))
+    ModelService(backend: backend, settings: SettingsStore(alertCenter: AlertCenter(), defaults: ephemeralDefaults(), secrets: InMemorySecretsStore()))
 }
 
 // MARK: - load
