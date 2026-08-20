@@ -338,7 +338,8 @@ struct ThreeColumnLayout: View {
                     selectedDNSDomainsBinding: $selectedDNSDomains,
                     selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork,
-                    selectedClusterBinding: $selectedCluster
+                    selectedClusterBinding: $selectedCluster,
+                    selectedSandboxBinding: $selectedSandbox
                 )
                 .ignoresSafeArea(.container, edges: .top)
             }
@@ -389,7 +390,8 @@ struct ThreeColumnLayout: View {
                     selectedDNSDomainsBinding: $selectedDNSDomains,
                     selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork,
-                    selectedClusterBinding: $selectedCluster
+                    selectedClusterBinding: $selectedCluster,
+                    selectedSandboxBinding: $selectedSandbox
                 )
                 .ignoresSafeArea(.container, edges: .top)
             }
@@ -793,6 +795,7 @@ struct DetailColumnView: View {
     @Binding var selectedContainerBinding: String?
     @Binding var selectedNetworkBinding: String?
     @Binding var selectedClusterBinding: String?
+    @Binding var selectedSandboxBinding: String?
     @Binding var showingItemNavigatorPopover: Bool
     @State private var selectedContainersLocal: Set<String> = []
     @State private var selectedImagesLocal: Set<String> = []
@@ -827,7 +830,8 @@ struct DetailColumnView: View {
                 selectedDNSDomainsBinding: $selectedDNSDomainsLocal,
                 selectedNetworksBinding: $selectedNetworksLocal,
                 selectedNetworkBinding: $selectedNetworkBinding,
-                selectedClusterBinding: $selectedClusterBinding
+                selectedClusterBinding: $selectedClusterBinding,
+                selectedSandboxBinding: $selectedSandboxBinding
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

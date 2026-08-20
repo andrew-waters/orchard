@@ -50,9 +50,13 @@ struct ListItemRow: View {
                         .foregroundColor(.primary)
                         .lineLimit(1)
                     if showSandboxBadge {
-                        SwiftUI.Image(systemName: "shield.lefthalf.filled")
-                            .font(.system(size: 11))
+                        Text("sandbox")
+                            .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.accentColor)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.accentColor.opacity(0.14)))
+                            .lineLimit(1)
                             .help("Sandbox - wired to a local model")
                     }
                     if let pluginBadge {

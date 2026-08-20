@@ -11,6 +11,7 @@ struct ContainerDetailView: View {
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedNetwork: String?
     @Binding var selectedCluster: String?
+    @Binding var selectedSandbox: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,10 +34,48 @@ struct ContainerDetailView: View {
         }
     }
 
+    /// Accent-tinted banner linking a container to the view that owns its grouping.
+    private func membershipBanner(icon: String, text: String, linkTitle: String, action: @escaping () -> Void) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            SwiftUI.Image(systemName: icon)
+                .foregroundStyle(Color.accentColor)
+            Text(text)
+                .font(.subheadline)
+            Spacer()
+            Button(linkTitle, action: action)
+                .buttonStyle(.link)
+        }
+        .padding(12)
+        .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     // One scrolling page — the former Overview, Environment and Mounts tabs merged.
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                // Membership banners: a node container belongs to a cluster, a sandbox
+                // to the Sandboxes view - say so up top and link across.
+                if let cluster = K8sCluster.clusterName(for: container) {
+                    membershipBanner(
+                        icon: "helm",
+                        text: "This container is a node of the Kubernetes cluster '\(cluster)'.",
+                        linkTitle: "Show Cluster"
+                    ) {
+                        selectedTabBinding = .clusters
+                        selectedCluster = cluster
+                    }
+                }
+                if container.isSandbox {
+                    membershipBanner(
+                        icon: "shield.lefthalf.filled",
+                        text: "This container is an agent sandbox wired to a local model.",
+                        linkTitle: "Show Sandbox"
+                    ) {
+                        selectedTabBinding = .sandboxes
+                        selectedSandbox = container.configuration.id
+                    }
+                }
+
                 // Stats master–detail; mounts sit beneath the disk stats.
                 ContainerStatsPanel(container: container)
 
