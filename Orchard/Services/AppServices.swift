@@ -45,11 +45,12 @@ final class AppServices: ObservableObject {
         modelBackend: ModelBackend = LiveModelBackend(),
         modelServerEngine: ModelServerEngine = MLXServerEngine(),
         runner: CommandRunner = SystemCommandRunner(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        secrets: SecretsStore = KeychainSecretsStore()
     ) {
         let alertCenter = AlertCenter()
         self.alertCenter = alertCenter
-        let settings = SettingsStore(alertCenter: alertCenter, defaults: defaults)
+        let settings = SettingsStore(alertCenter: alertCenter, defaults: defaults, secrets: secrets)
         self.settings = settings
         self.terminalLauncher = TerminalLauncher(settings: settings, alertCenter: alertCenter)
         let builderService = BuilderService(runner: runner, settings: settings, alertCenter: alertCenter)

@@ -17,7 +17,7 @@ private func withSettingsStore(_ body: (SettingsStore, UserDefaults) -> Void) {
     let name = "OrchardTests-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: name)!
     defer { defaults.removePersistentDomain(forName: name) }
-    body(SettingsStore(alertCenter: AlertCenter(), defaults: defaults), defaults)
+    body(SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore()), defaults)
 }
 
 // MARK: - validateAndSetCustomBinaryPath
@@ -118,5 +118,25 @@ func preferredTerminalPersists() {
         // No fresh-store round-trip assertion: `.terminal` is the default AND the
         // always-installed first fallback, so a reloaded store returns it whether or not
         // the persisted value is read — the read path can't be falsifiably round-tripped.
+    }
+}
+
+// MARK: - Model API keys
+
+@MainActor
+@Test("Model API keys: set, read back, clear, and enumerate per port")
+func modelAPIKeyRoundTrip() {
+    withSettingsStore { store, _ in
+        #expect(store.modelAPIKey(port: 8000) == nil)
+
+        store.setModelAPIKey("sk-test", port: 8000)
+        store.setModelAPIKey("sk-other", port: 1234)
+        #expect(store.modelAPIKey(port: 8000) == "sk-test")
+        #expect(store.allModelAPIKeys() == [8000: "sk-test", 1234: "sk-other"])
+
+        store.setModelAPIKey("", port: 8000)    // empty clears
+        #expect(store.modelAPIKey(port: 8000) == nil)
+        store.setModelAPIKey(nil, port: 1234)   // nil clears
+        #expect(store.allModelAPIKeys().isEmpty)
     }
 }
