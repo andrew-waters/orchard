@@ -140,4 +140,38 @@ final class SettingsStore: ObservableObject {
             return defaultBinaryPath
         }
     }
+
+    // MARK: - Model provider API keys
+
+    /// Per-port API keys for local model servers (e.g. an oMLX install that generated
+    /// one at setup). Keyed by port because that's the only stable identity a detected
+    /// provider has. Stored in UserDefaults - these guard loopback-only servers, so the
+    /// keychain's ceremony isn't warranted.
+    private let modelAPIKeysKey = "ModelProviderAPIKeys"
+
+    func modelAPIKey(port: UInt16) -> String? {
+        let keys = defaults.dictionary(forKey: modelAPIKeysKey) as? [String: String]
+        return keys?[String(port)]
+    }
+
+    func setModelAPIKey(_ key: String?, port: UInt16) {
+        var keys = (defaults.dictionary(forKey: modelAPIKeysKey) as? [String: String]) ?? [:]
+        if let key, !key.isEmpty {
+            keys[String(port)] = key
+        } else {
+            keys.removeValue(forKey: String(port))
+        }
+        defaults.set(keys, forKey: modelAPIKeysKey)
+        objectWillChange.send()
+    }
+
+    /// All stored provider keys, for the detection probe.
+    func allModelAPIKeys() -> [UInt16: String] {
+        let keys = (defaults.dictionary(forKey: modelAPIKeysKey) as? [String: String]) ?? [:]
+        var result: [UInt16: String] = [:]
+        for (portString, key) in keys {
+            if let port = UInt16(portString) { result[port] = key }
+        }
+        return result
+    }
 }

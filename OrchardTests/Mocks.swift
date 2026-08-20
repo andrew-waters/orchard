@@ -391,6 +391,7 @@ final class MockModelBackend: ModelBackend, @unchecked Sendable {
     private let lock = NSLock()
     private var _providers: [ModelProvider]
     private var _detectCount = 0
+    private var _lastAPIKeys: [UInt16: String] = [:]
 
     init(providers: [ModelProvider] = []) {
         self._providers = providers
@@ -419,14 +420,17 @@ final class MockModelBackend: ModelBackend, @unchecked Sendable {
     }
     var completeMessageCounts: [Int] { lock.withLock { _completeMessageCounts } }
 
-    func detectProviders() async -> [ModelProvider] {
+    func detectProviders(apiKeys: [UInt16: String]) async -> [ModelProvider] {
         lock.withLock {
             _detectCount += 1
+            _lastAPIKeys = apiKeys
             return _providers
         }
     }
 
-    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
+    var lastAPIKeys: [UInt16: String] { lock.withLock { _lastAPIKeys } }
+
+    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
         try lock.withLock {
             _completeMessageCounts.append(messages.count)
             if let _completeError { throw _completeError }
