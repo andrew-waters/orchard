@@ -38,13 +38,13 @@ Thousands of installations and starred by engineers from Apple, Microsoft, NVIDI
 - [Star History](#star-history)
 - [License](#license)
 
-![Orchard container detail - CPU, memory, network, and disk over time](assets/overview.png)
+![Orchard container detail - CPU, memory, network, and disk over time](site/assets/screens/containers.png)
 
 ## Local AI & Sandboxes
 
 Orchard wires **local MLX models** into Apple containers. Inference runs on your Mac's GPU (container VMs have no GPU access) and containers reach it with no hand-configured networking.
 
-![A sandboxed agent in Orchard - Isolated badge, model endpoint, and chat, terminal and stop controls](assets/sandbox.png)
+![A sandboxed agent in Orchard - Isolated badge, model endpoint, and chat, terminal and stop controls](site/assets/screens/sandboxes.png)
 
 - Discover model servers already on your Mac (Ollama, LM Studio, MLX servers), or start and stop `mlx_lm.server` instances from the app - with process supervision, crash surfacing and logs
 - The container↔model bridge: Orchard computes the container-reachable endpoint from the network gateway and injects `OPENAI_BASE_URL` at create time, so containerised apps just use the OpenAI SDK
@@ -57,7 +57,7 @@ See the [Local AI guide](https://orchard.andon.dev/ai.html) for a full walkthrou
 
 Orchard manages Apple **container machines** natively: persistent, stateful Linux VMs you can create, configure, run and monitor without leaving the app or dropping to the CLI.
 
-![Container machine detail with live resource usage](assets/machine.png)
+![Container machine detail with live resource usage](site/assets/screens/machines.png)
 
 - Create machines from any init-capable image, with CPU, memory, home-mount, nested-virtualization and custom-kernel options
 - Start, stop, set-default and delete, plus a one-click stop / apply / restart configuration editor
@@ -104,11 +104,11 @@ Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard
 - Builder, kernel and system property management
 - Menu bar integration
 
-![Dashboard - system-wide resource usage](assets/dashboard.png)
+![Dashboard - system-wide resource usage](site/assets/screens/dashboard.png)
 
 A system-wide dashboard - the default view when the app opens - summing CPU, memory, network, and disk across every container, with headline disk-usage tiles and a per-container utilisation table with live sparklines.
 
-![image management](assets/images.png)
+![image management](site/assets/screens/images.png)
 
 Browse, pull, and delete container images. Search Docker Hub directly from the app and inspect image metadata without dropping to the CLI.
 
@@ -116,7 +116,7 @@ Browse, pull, and delete container images. Search Docker Hub directly from the a
 
 Stream logs from multiple containers side by side. Split panes, filter by text, and use per-container colour coding to keep output readable when debugging across services.
 
-![networks and DNS](assets/networks.png)
+![networks and DNS](site/assets/screens/networks.png)
 
 Manage networks and DNS domains without touching the CLI - see every container's IP address and hostname at a glance, set the default DNS domain, and create or remove domains and networks.
 
