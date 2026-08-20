@@ -165,8 +165,26 @@ struct ModelDetailView: View {
                 Circle().fill(server.status == .running ? Color.green : Color.red).frame(width: 9, height: 9)
                 Text(server.model).font(.title3).fontWeight(.semibold)
                     .lineLimit(1).truncationMode(.middle)
-                Spacer()
                 portBadge(server.port)
+                Spacer()
+                // Actions live top-right, consistent with the other detail headers.
+                HStack(spacing: 8) {
+                    if server.status == .running {
+                        Button(action: { testTarget = TestTarget(name: server.model, port: server.port, api: server.api, model: server.model) }) {
+                            Label("Chat…", systemImage: "text.bubble")
+                        }
+                        Button(action: { runTarget = RunTarget(modelID: server.id) }) {
+                            Label("New sandbox…", systemImage: "shield.lefthalf.filled")
+                        }
+                    }
+                    Button(role: .destructive, action: { modelServerService.stop(server.id) }) {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    Button(action: { revealLog(server.logPath) }) {
+                        Label("Show Log", systemImage: "doc.text")
+                    }
+                }
+                .font(.subheadline)
             }
 
             labeledRow("On this Mac", "http://\(server.host):\(server.port)/v1")
@@ -177,25 +195,7 @@ struct ModelDetailView: View {
                     .font(.caption).foregroundColor(.secondary)
             }
 
-            if server.status == .running {
-                HStack(spacing: 8) {
-                    Button(action: { testTarget = TestTarget(name: server.model, port: server.port, api: server.api, model: server.model) }) {
-                        Label("Chat…", systemImage: "text.bubble")
-                    }
-                    Button(action: { runTarget = RunTarget(modelID: server.id) }) {
-                        Label("New sandbox…", systemImage: "shield.lefthalf.filled")
-                    }
-                }
-                .font(.subheadline)
-            }
-
             HStack(spacing: 8) {
-                Button(role: .destructive, action: { modelServerService.stop(server.id) }) {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-                Button(action: { revealLog(server.logPath) }) {
-                    Label("Show Log", systemImage: "doc.text")
-                }
                 if server.status == .failed {
                     Text("Stopped unexpectedly").font(.caption).foregroundColor(.red)
                 }
@@ -214,8 +214,19 @@ struct ModelDetailView: View {
             HStack(spacing: 8) {
                 SwiftUI.Image(systemName: "cpu")
                 Text(provider.kind.displayName).font(.title3).fontWeight(.semibold)
-                Spacer()
                 portBadge(provider.port)
+                Spacer()
+                if !provider.requiresAPIKey {
+                    HStack(spacing: 8) {
+                        Button(action: { testTarget = TestTarget(name: provider.kind.displayName, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
+                            Label("Chat…", systemImage: "text.bubble")
+                        }
+                        Button(action: { runTarget = RunTarget(modelID: provider.id) }) {
+                            Label("New sandbox…", systemImage: "shield.lefthalf.filled")
+                        }
+                    }
+                    .font(.subheadline)
+                }
             }
 
             labeledRow("On this Mac", provider.hostBaseURL)
@@ -255,18 +266,6 @@ struct ModelDetailView: View {
                         Text(model).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     }
                 }
-            }
-
-            if !provider.requiresAPIKey {
-                HStack(spacing: 8) {
-                    Button(action: { testTarget = TestTarget(name: provider.kind.displayName, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
-                        Label("Chat…", systemImage: "text.bubble")
-                    }
-                    Button(action: { runTarget = RunTarget(modelID: provider.id) }) {
-                        Label("New sandbox…", systemImage: "shield.lefthalf.filled")
-                    }
-                }
-                .font(.subheadline)
             }
 
             Spacer()
