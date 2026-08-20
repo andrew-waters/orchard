@@ -340,8 +340,11 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
     /// Model identifiers the provider advertises, when it exposes a listing endpoint.
     var models: [String]
 
-    /// Stable across refreshes: a provider is identified by its kind and port.
-    var id: String { "\(kind.rawValue):\(port)" }
+    /// Stable across refreshes: only one server can listen on a port, and `api` comes
+    /// from the probe's static candidate rather than response data - so `kind` being
+    /// refined from the models listing (e.g. oMLX) can't flap identity-based UI state
+    /// if a listing is transiently missing or malformed.
+    var id: String { "\(api.rawValue):\(port)" }
 
     /// The base URL reachable *from the host* (e.g. `http://127.0.0.1:11434`). Distinct
     /// from the container-reachable URL, which goes through the network gateway - see
