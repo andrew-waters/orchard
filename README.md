@@ -19,7 +19,7 @@ Orchard is a native (Swift) macOS application for managing containers, machines 
 
 It gives you a desktop experience that complements the `container` command-line interface.
 
-Hundreds of installations and starred by engineers from Apple, Microsoft, NVIDIA, IBM, Stripe & more - [see who's adopting Orchard](#adoption)  
+Thousands of installations and starred by engineers from Apple, Microsoft, NVIDIA, IBM, Stripe, Cisco, LinkedIn, Uber & more - [see who's adopting Orchard](#adoption)  
 
 ---
 
