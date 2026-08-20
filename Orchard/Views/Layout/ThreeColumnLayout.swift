@@ -18,12 +18,16 @@ struct ThreeColumnLayout: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
+    @Binding var selectedMounts: Set<String>
     @Binding var selectedMachine: String?
     @Binding var selectedModel: String?
     @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
     @Binding var lastSelectedContainer: String?
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
@@ -65,12 +69,16 @@ struct ThreeColumnLayout: View {
                     selectedTab: $selectedTab,
                     selectedContainer: $selectedContainer,
                     selectedImage: $selectedImage,
+                        selectedImages: $selectedImages,
                     selectedMount: $selectedMount,
+                    selectedMounts: $selectedMounts,
                     selectedMachine: $selectedMachine,
                     selectedModel: $selectedModel,
                     selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
+                        selectedDNSDomains: $selectedDNSDomains,
                     selectedNetwork: $selectedNetwork,
+                        selectedNetworks: $selectedNetworks,
                     listFocusedTab: $listFocusedTab
                 )
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
@@ -255,12 +263,16 @@ struct ThreeColumnLayout: View {
                         selectedContainer: $selectedContainer,
                         selectedContainers: $selectedContainers,
                         selectedImage: $selectedImage,
+                        selectedImages: $selectedImages,
                         selectedMount: $selectedMount,
-                        selectedMachine: $selectedMachine,
-                        selectedModel: $selectedModel,
-                        selectedSandbox: $selectedSandbox,
+                    selectedMounts: $selectedMounts,
+                    selectedMachine: $selectedMachine,
+                    selectedModel: $selectedModel,
+                    selectedSandbox: $selectedSandbox,
                         selectedDNSDomain: $selectedDNSDomain,
+                        selectedDNSDomains: $selectedDNSDomains,
                         selectedNetwork: $selectedNetwork,
+                        selectedNetworks: $selectedNetworks,
                         lastSelectedContainer: lastSelectedContainer,
                         lastSelectedImage: lastSelectedImage,
                         lastSelectedMount: lastSelectedMount,
@@ -290,15 +302,23 @@ struct ThreeColumnLayout: View {
                     selectedContainer: selectedContainer,
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
+                    selectedImages: selectedImages,
                     selectedMount: selectedMount,
+                    selectedMounts: selectedMounts,
                     selectedMachine: selectedMachine,
                     selectedModel: selectedModel,
                     selectedSandbox: selectedSandbox,
                     selectedDNSDomain: selectedDNSDomain,
+                    selectedDNSDomains: selectedDNSDomains,
                     selectedNetwork: selectedNetwork,
+                    selectedNetworks: selectedNetworks,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedContainersBinding: $selectedContainers,
+                    selectedImagesBinding: $selectedImages,
+                    selectedMountsBinding: $selectedMounts,
+                    selectedDNSDomainsBinding: $selectedDNSDomains,
+                    selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork
                 )
                 .ignoresSafeArea(.container, edges: .top)
@@ -310,12 +330,16 @@ struct ThreeColumnLayout: View {
                     selectedTab: $selectedTab,
                     selectedContainer: $selectedContainer,
                     selectedImage: $selectedImage,
+                        selectedImages: $selectedImages,
                     selectedMount: $selectedMount,
+                    selectedMounts: $selectedMounts,
                     selectedMachine: $selectedMachine,
                     selectedModel: $selectedModel,
                     selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
+                        selectedDNSDomains: $selectedDNSDomains,
                     selectedNetwork: $selectedNetwork,
+                        selectedNetworks: $selectedNetworks,
                     listFocusedTab: $listFocusedTab
                 )
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
@@ -326,15 +350,23 @@ struct ThreeColumnLayout: View {
                     selectedContainer: selectedContainer,
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
+                    selectedImages: selectedImages,
                     selectedMount: selectedMount,
+                    selectedMounts: selectedMounts,
                     selectedMachine: selectedMachine,
                     selectedModel: selectedModel,
                     selectedSandbox: selectedSandbox,
                     selectedDNSDomain: selectedDNSDomain,
+                    selectedDNSDomains: selectedDNSDomains,
                     selectedNetwork: selectedNetwork,
+                    selectedNetworks: selectedNetworks,
                     selectedTabBinding: $selectedTab,
                     selectedContainerBinding: $selectedContainer,
                     selectedContainersBinding: $selectedContainers,
+                    selectedImagesBinding: $selectedImages,
+                    selectedMountsBinding: $selectedMounts,
+                    selectedDNSDomainsBinding: $selectedDNSDomains,
+                    selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork
                 )
                 .ignoresSafeArea(.container, edges: .top)
@@ -359,12 +391,16 @@ struct TabColumnView: View {
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
+    @Binding var selectedMounts: Set<String>
     @Binding var selectedMachine: String?
     @Binding var selectedModel: String?
     @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
     @FocusState.Binding var listFocusedTab: TabSelection?
     // Dim the sidebar only when the whole app is in the background. Uses controlActiveState
     // rather than key-window notifications so a transient context menu (which briefly takes
@@ -584,12 +620,16 @@ struct ListColumnView: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
+    @Binding var selectedMounts: Set<String>
     @Binding var selectedMachine: String?
     @Binding var selectedModel: String?
     @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
+    @Binding var selectedDNSDomains: Set<String>
     @Binding var selectedNetwork: String?
+    @Binding var selectedNetworks: Set<String>
     let lastSelectedContainer: String?
     let lastSelectedImage: String?
     let lastSelectedMount: String?
@@ -623,6 +663,7 @@ struct ListColumnView: View {
             case .images:
                 ImagesListView(
                     selectedImage: $selectedImage,
+                        selectedImages: $selectedImages,
                     lastSelectedImage: .constant(lastSelectedImage),
                     searchText: $searchText,
                     showOnlyImagesInUse: $showOnlyImagesInUse,
@@ -632,6 +673,7 @@ struct ListColumnView: View {
             case .mounts:
                 MountsListView(
                     selectedMount: $selectedMount,
+                        selectedMounts: $selectedMounts,
                     lastSelectedMount: .constant(lastSelectedMount),
                     searchText: $searchText,
                     showOnlyMountsInUse: $showOnlyMountsInUse,
@@ -648,6 +690,7 @@ struct ListColumnView: View {
             case .dns:
                 DNSListView(
                     selectedDNSDomain: $selectedDNSDomain,
+                        selectedDNSDomains: $selectedDNSDomains,
                     lastSelectedDNSDomain: .constant(lastSelectedDNSDomain),
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     listFocusedTab: _listFocusedTab
@@ -655,6 +698,7 @@ struct ListColumnView: View {
             case .networks:
                 NetworksListView(
                     selectedNetwork: $selectedNetwork,
+                        selectedNetworks: $selectedNetworks,
                     lastSelectedNetwork: .constant(lastSelectedNetwork),
                     showAddNetworkSheet: $showAddNetworkSheet,
                     listFocusedTab: _listFocusedTab
@@ -690,10 +734,16 @@ struct DetailColumnView: View {
     let selectedTab: TabSelection
     let selectedContainer: String?
     let selectedImage: String?
+    let selectedImages: Set<String>
     let selectedMount: String?
+    let selectedMounts: Set<String>
     let selectedMachine: String?
+    let selectedModel: String?
+    let selectedSandbox: String?
     let selectedDNSDomain: String?
+    let selectedDNSDomains: Set<String>
     let selectedNetwork: String?
+    let selectedNetworks: Set<String>
     @Binding var lastSelectedImageTab: String
     @Binding var lastSelectedMountTab: String
     @Binding var selectedTabBinding: TabSelection
@@ -701,6 +751,10 @@ struct DetailColumnView: View {
     @Binding var selectedNetworkBinding: String?
     @Binding var showingItemNavigatorPopover: Bool
     @State private var selectedContainersLocal: Set<String> = []
+    @State private var selectedImagesLocal: Set<String> = []
+    @State private var selectedMountsLocal: Set<String> = []
+    @State private var selectedDNSDomainsLocal: Set<String> = []
+    @State private var selectedNetworksLocal: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -710,15 +764,23 @@ struct DetailColumnView: View {
                 selectedContainer: selectedContainer,
                 selectedContainers: selectedContainersLocal,
                 selectedImage: selectedImage,
+                    selectedImages: selectedImages,
                 selectedMount: selectedMount,
-                selectedMachine: selectedMachine,
-                selectedModel: nil,
-                selectedSandbox: nil,
+                    selectedMounts: selectedMounts,
+                    selectedMachine: selectedMachine,
+                    selectedModel: selectedModel,
+                    selectedSandbox: selectedSandbox,
                 selectedDNSDomain: selectedDNSDomain,
+                    selectedDNSDomains: selectedDNSDomains,
                 selectedNetwork: selectedNetwork,
+                    selectedNetworks: selectedNetworks,
                 selectedTabBinding: $selectedTabBinding,
                 selectedContainerBinding: $selectedContainerBinding,
                 selectedContainersBinding: $selectedContainersLocal,
+                selectedImagesBinding: $selectedImagesLocal,
+                selectedMountsBinding: $selectedMountsLocal,
+                selectedDNSDomainsBinding: $selectedDNSDomainsLocal,
+                selectedNetworksBinding: $selectedNetworksLocal,
                 selectedNetworkBinding: $selectedNetworkBinding
             )
         }

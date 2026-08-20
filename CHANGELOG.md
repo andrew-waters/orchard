@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Image sizes display consistently and pull progress is clearer, with failed pulls dismissible and retryable.
+- Multi-selection across containers, images, mounts, DNS domains, and networks: shift-click range selection, Command+A select-all, batch deletion, and a summary detail view for the selection ([#53](https://github.com/andrew-waters/orchard/pull/53)).
+
 ### Fixed
 - Running containers' stop buttons in the menu-bar panel now respond on first click.
 
