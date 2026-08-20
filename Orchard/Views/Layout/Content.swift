@@ -131,6 +131,14 @@ struct ContentView: View {
                     selectedContainer = newContainers[0].configuration.id
                     selectedContainers = [newContainers[0].configuration.id]
                 }
+                // Sandboxes and clusters derive from the container list, so their
+                // first-item auto-select must also react here, not just on tab switch.
+                if selectedSandbox == nil && selectedTab == .sandboxes {
+                    selectedSandbox = detectSandboxes(containers: newContainers, networks: networkService.networks).first?.id
+                }
+                if selectedCluster == nil && selectedTab == .clusters {
+                    selectedCluster = K8sCluster.group(containers: newContainers).first?.name
+                }
                 let existingIds = Set(newContainers.map { $0.configuration.id })
                 let pruned = selectedContainers.intersection(existingIds)
                 if pruned != selectedContainers {
