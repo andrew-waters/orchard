@@ -38,7 +38,7 @@ Thousands of installations and starred by engineers from Apple, Microsoft, NVIDI
 - [Star History](#star-history)
 - [License](#license)
 
-![Orchard container detail - CPU, memory, network, and disk over time](site/assets/screens/containers.png)
+![Dashboard - system-wide resource usage across every container](site/assets/screens/dashboard.png)
 
 ## Local AI & Sandboxes
 
@@ -104,9 +104,9 @@ Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard
 - Builder, kernel and system property management
 - Menu bar integration
 
-![Dashboard - system-wide resource usage](site/assets/screens/dashboard.png)
+![Orchard container detail - CPU, memory, network, and disk over time](site/assets/screens/containers.png)
 
-A system-wide dashboard - the default view when the app opens - summing CPU, memory, network, and disk across every container, with headline disk-usage tiles and a per-container utilisation table with live sparklines.
+Per-container detail with CPU, memory, network and disk over time, cross-links to the cluster or sandbox a container belongs to, and one-click terminal and log access. (The system-wide dashboard above is the default view when the app opens, summing usage across every container with headline disk-usage tiles and live sparklines.)
 
 ![image management](site/assets/screens/images.png)
 
