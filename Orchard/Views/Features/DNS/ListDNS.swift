@@ -152,7 +152,8 @@ struct DNSListView: View {
     }
 
     private func handleRowTap(id: String) {
-        let orderedIds = dnsService.dnsDomains.map { $0.domain }
+        // Shift-click ranges must be computed over the rows actually on screen.
+        let orderedIds = filteredDomains.map { $0.domain }
         SelectionHandler.handleSelection(
             clickedId: id,
             orderedIds: orderedIds,
