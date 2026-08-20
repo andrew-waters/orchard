@@ -57,3 +57,20 @@ func checkSystemStatusVersionMismatch() async {
     #expect(service.systemService.systemStatus == .unsupportedVersion)
     #expect(service.systemService.systemStatusError?.isEmpty == false)
 }
+
+@MainActor
+@Test("startSystem: a version mismatch stops the readiness poll without an outage alert")
+func startSystemVersionMismatchGates() async {
+    let runner = MockCommandRunner()   // `system start` exits 0
+    let backend = MockContainerBackend()
+    backend.pingError = NSError(
+        domain: "test", code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "failed to decode apiServerBuild in health check"])
+    let service = makeService(backend: backend, runner: runner)
+
+    await service.systemService.startSystem()
+
+    #expect(service.systemService.systemStatus == .unsupportedVersion)
+    #expect(service.alertCenter.current == nil)   // gated by the version screen, not an alert
+    #expect(service.systemService.isSystemLoading == false)
+}

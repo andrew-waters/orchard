@@ -111,16 +111,21 @@ final class SystemService: ObservableObject {
             
             // The CLI command returned, but the XPC daemon might need a moment to bind.
             // Poll until ping succeeds so we don't transition the UI while XPC is unreachable.
+            // A version mismatch is terminal, not transient: stop polling and let the
+            // version-incompatibility screen take over instead of alerting an outage.
             var attempts = 0
             while attempts < 10 {
                 await checkSystemStatus()
-                if systemStatus == .running { break }
+                if systemStatus == .running || systemStatus == .unsupportedVersion { break }
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
                 attempts += 1
             }
             
             isSystemLoading = false
             
+            if systemStatus == .unsupportedVersion {
+                return
+            }
             if systemStatus != .running {
                 alertCenter.error("System started but container service is unreachable.")
                 return
