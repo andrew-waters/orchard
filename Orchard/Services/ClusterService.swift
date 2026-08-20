@@ -141,7 +141,9 @@ final class ClusterService: ObservableObject {
     /// kubectl context (write-config names it after the control-plane container), then
     /// hand over to an interactive shell.
     nonisolated static func kubectlTerminalCommand(cluster: String) -> String {
-        "kubectl config use-context \(SystemCommandRunner.shellQuote(cluster)) ; exec ${SHELL:-/bin/zsh}"
+        // && so a failed context switch (e.g. kubeconfig not written yet) surfaces
+        // instead of silently leaving the shell on the previously active cluster.
+        "kubectl config use-context \(SystemCommandRunner.shellQuote(cluster)) && exec ${SHELL:-/bin/zsh}"
     }
 
     /// Probe whether the k8s plugin is installed by running `container k8s list`.
