@@ -73,4 +73,5 @@ func startSystemVersionMismatchGates() async {
     #expect(service.systemService.systemStatus == .unsupportedVersion)
     #expect(service.alertCenter.current == nil)   // gated by the version screen, not an alert
     #expect(service.systemService.isSystemLoading == false)
+    #expect(backend.pingCount == 1)   // mismatch is terminal: no retry sleeps
 }
