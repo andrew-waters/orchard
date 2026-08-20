@@ -178,3 +178,11 @@ func groupOrphanWithoutWorkerSuffix() throws {
     #expect(clusters.first?.name == "stray")
     #expect(clusters.first?.nodes.map(\.id) == ["stray"])
 }
+
+@Test("clusterName(for:): control plane names itself, workers derive, others are nil")
+func clusterNameForContainer() throws {
+    #expect(K8sCluster.clusterName(for: try k8sNode("k8s-dev", role: "control-plane")) == "k8s-dev")
+    #expect(K8sCluster.clusterName(for: try k8sNode("k8s-dev-worker-2")) == "k8s-dev")
+    #expect(K8sCluster.clusterName(for: try k8sNode("stray")) == "stray")
+    #expect(K8sCluster.clusterName(for: try makeContainer(id: "web", status: "running")) == nil)
+}

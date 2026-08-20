@@ -10,10 +10,15 @@ struct ContainerDetailView: View {
     @EnvironmentObject var statsService: StatsService
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedNetwork: String?
+    @Binding var selectedCluster: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ContainerDetailHeader(container: container)
+            ContainerDetailHeader(
+                container: container,
+                selectedTab: $selectedTabBinding,
+                selectedCluster: $selectedCluster
+            )
             Divider()
             content
         }

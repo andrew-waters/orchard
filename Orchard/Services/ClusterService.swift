@@ -32,6 +32,17 @@ struct K8sCluster: Identifiable, Equatable {
     var isRunning: Bool { controlPlane?.isRunning ?? false }
     var status: String { controlPlane?.container.status ?? nodes.first?.container.status ?? "unknown" }
 
+    /// The cluster a k8s node container belongs to: a control plane names its own
+    /// cluster; a worker derives it from `<cluster>-worker-N`, falling back to the id.
+    /// Nil for containers the k8s plugin doesn't own.
+    static func clusterName(for container: Container) -> String? {
+        guard container.owningPlugin == pluginName else { return nil }
+        let id = container.configuration.id
+        if container.pluginRole == controlPlaneRole { return id }
+        let derived = id.components(separatedBy: "-worker-").dropLast().joined(separator: "-worker-")
+        return derived.isEmpty ? id : derived
+    }
+
     /// Group the k8s plugin's node containers into clusters. Pure so it can be unit
     /// tested; containers not owned by the k8s plugin are ignored.
     static func group(containers: [Container]) -> [K8sCluster] {
@@ -67,11 +78,7 @@ struct K8sCluster: Identifiable, Equatable {
             .sorted { $0.configuration.id < $1.configuration.id }
         var orphanClusters: [String: [Container]] = [:]
         for w in orphans {
-            // A k8s-labelled container without "-worker-" in its id derives an empty
-            // name; fall back to the id so the row stays selectable.
-            let derived = w.configuration.id
-                .components(separatedBy: "-worker-").dropLast().joined(separator: "-worker-")
-            let clusterName = derived.isEmpty ? w.configuration.id : derived
+            guard let clusterName = clusterName(for: w) else { continue }
             orphanClusters[clusterName, default: []].append(w)
         }
         for (clusterName, members) in orphanClusters.sorted(by: { $0.key < $1.key }) {

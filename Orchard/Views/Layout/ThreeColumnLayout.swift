@@ -337,7 +337,8 @@ struct ThreeColumnLayout: View {
                     selectedMountsBinding: $selectedMounts,
                     selectedDNSDomainsBinding: $selectedDNSDomains,
                     selectedNetworksBinding: $selectedNetworks,
-                    selectedNetworkBinding: $selectedNetwork
+                    selectedNetworkBinding: $selectedNetwork,
+                    selectedClusterBinding: $selectedCluster
                 )
                 .ignoresSafeArea(.container, edges: .top)
             }
@@ -387,7 +388,8 @@ struct ThreeColumnLayout: View {
                     selectedMountsBinding: $selectedMounts,
                     selectedDNSDomainsBinding: $selectedDNSDomains,
                     selectedNetworksBinding: $selectedNetworks,
-                    selectedNetworkBinding: $selectedNetwork
+                    selectedNetworkBinding: $selectedNetwork,
+                    selectedClusterBinding: $selectedCluster
                 )
                 .ignoresSafeArea(.container, edges: .top)
             }
@@ -790,6 +792,7 @@ struct DetailColumnView: View {
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedContainerBinding: String?
     @Binding var selectedNetworkBinding: String?
+    @Binding var selectedClusterBinding: String?
     @Binding var showingItemNavigatorPopover: Bool
     @State private var selectedContainersLocal: Set<String> = []
     @State private var selectedImagesLocal: Set<String> = []
@@ -823,7 +826,8 @@ struct DetailColumnView: View {
                 selectedMountsBinding: $selectedMountsLocal,
                 selectedDNSDomainsBinding: $selectedDNSDomainsLocal,
                 selectedNetworksBinding: $selectedNetworksLocal,
-                selectedNetworkBinding: $selectedNetworkBinding
+                selectedNetworkBinding: $selectedNetworkBinding,
+                selectedClusterBinding: $selectedClusterBinding
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

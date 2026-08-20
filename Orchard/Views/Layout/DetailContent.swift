@@ -26,6 +26,7 @@ struct DetailContentView: View {
     @Binding var selectedDNSDomainsBinding: Set<String>
     @Binding var selectedNetworksBinding: Set<String>
     @Binding var selectedNetworkBinding: String?
+    @Binding var selectedClusterBinding: String?
 
     var body: some View {
         switch selectedTab {
@@ -115,7 +116,8 @@ struct DetailContentView: View {
                     ContainerDetailView(
                         container: container,
                         selectedTabBinding: $selectedTabBinding,
-                        selectedNetwork: $selectedNetworkBinding
+                        selectedNetwork: $selectedNetworkBinding,
+                        selectedCluster: $selectedClusterBinding
                     )
                 }
             }
