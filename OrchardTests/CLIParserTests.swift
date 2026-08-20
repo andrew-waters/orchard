@@ -284,3 +284,50 @@ func stopDiagnosisHealthyBoot() {
     ]
     #expect(!MachineImageAdvisor.logsIndicateMissingInit(lines))
 }
+
+// MARK: - Command-line splitting (#42)
+
+@Test("splitCommandLine: plain words split on whitespace")
+func splitCommandLinePlain() {
+    #expect(splitCommandLine("sleep 3600") == ["sleep", "3600"])
+    #expect(splitCommandLine("  nginx   -g  ") == ["nginx", "-g"])
+}
+
+@Test("splitCommandLine: double quotes keep spaces together")
+func splitCommandLineDoubleQuotes() {
+    #expect(splitCommandLine("sh -c \"echo hi\"") == ["sh", "-c", "echo hi"])
+    #expect(splitCommandLine("nginx -g \"daemon off;\"") == ["nginx", "-g", "daemon off;"])
+}
+
+@Test("splitCommandLine: single quotes and escapes")
+func splitCommandLineSingleQuotes() {
+    #expect(splitCommandLine("echo 'a b' c\\ d") == ["echo", "a b", "c d"])
+    #expect(splitCommandLine("echo \\\"hi\\\"") == ["echo", "\"hi\""])
+}
+
+@Test("splitCommandLine: empty and quoted-empty arguments")
+func splitCommandLineEmpty() {
+    #expect(splitCommandLine("") == [])
+    #expect(splitCommandLine("   ") == [])
+    #expect(splitCommandLine("cmd \"\"") == ["cmd", ""])
+}
+
+@Test("joinCommandLine: quotes only what needs quoting")
+func joinCommandLinePlain() {
+    #expect(joinCommandLine(["sleep", "3600"]) == "sleep 3600")
+    #expect(joinCommandLine(["nginx", "-g", "daemon off;"]) == "nginx -g \"daemon off;\"")
+}
+
+@Test("join/split round-trips argv exactly")
+func commandLineRoundTrip() {
+    let cases: [[String]] = [
+        ["sleep", "3600"],
+        ["sh", "-c", "echo hi && sleep 1"],
+        ["nginx", "-g", "daemon off;"],
+        ["printf", "%s\\n", "a b", "", "c\"d", "e'f"],
+        ["/usr/local/bin/my tool", "--flag=va lue"],
+    ]
+    for argv in cases {
+        #expect(splitCommandLine(joinCommandLine(argv)) == argv)
+    }
+}

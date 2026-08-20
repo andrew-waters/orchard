@@ -417,7 +417,8 @@ final class ContainerListService: ObservableObject {
 
             var commandArgs: [String] = []
             if !config.commandOverride.isEmpty {
-                commandArgs = config.commandOverride.split(separator: " ").map(String.init)
+                // Quote-aware split so `sh -c "echo hi"` stays three arguments (#42).
+                commandArgs = splitCommandLine(config.commandOverride)
             }
 
             let spec = ContainerCreateSpec(

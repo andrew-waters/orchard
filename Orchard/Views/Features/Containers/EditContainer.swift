@@ -40,7 +40,11 @@ struct EditContainerView: View {
             portMappings: [], // Port mappings not available in container config
             volumeMappings: volumes,
             workingDirectory: container.configuration.initProcess.workingDirectory,
-            commandOverride: container.configuration.initProcess.arguments.joined(separator: " "),
+            // The executable lives separately from the arguments in the process config;
+            // rebuild the full command line so editing doesn't silently drop it (#42).
+            commandOverride: joinCommandLine(
+                [container.configuration.initProcess.executable] + container.configuration.initProcess.arguments
+            ),
             cpus: container.configuration.resources.cpus,
             // Exact bytes: a non-integral allocation only changes if the user edits it.
             memoryBytes: UInt64(clamping: container.configuration.resources.memoryInBytes)
