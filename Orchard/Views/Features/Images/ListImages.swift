@@ -1,9 +1,10 @@
 import SwiftUI
 
 struct ImagesListView: View {
-    @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var containerListService: ContainerListService
     @Binding var selectedImage: String?
+    @Binding var selectedImages: Set<String>
     @Binding var lastSelectedImage: String?
     @Binding var searchText: String
     @Binding var showOnlyImagesInUse: Bool
@@ -18,16 +19,23 @@ struct ImagesListView: View {
         }
         .sheet(isPresented: $showImageSearch) {
             ImageSearchView()
+                .environmentObject(imageService)
         }
     }
 
     private var imagesList: some View {
-        List(selection: $selectedImage) {
+        List(selection: $selectedImages) {
             ForEach(Array(filteredImages), id: \.reference) { image in
                 imageRowView(for: image)
             }
         }
         .listStyle(PlainListStyle())
+        .background(
+            Button(action: selectAllImages) {
+                EmptyView()
+            }
+            .keyboardShortcut("a", modifiers: .command)
+        )
         .animation(.easeInOut(duration: 0.3), value: imageService.images)
         .focused($listFocusedTab, equals: .images)
         .onChange(of: selectedImage) { _, newValue in
@@ -38,7 +46,15 @@ struct ImagesListView: View {
     private func imageRowView(for image: ContainerImage) -> some View {
         let imageName = imageName(from: image.reference)
         let imageTag = imageTag(from: image.reference)
-        let sizeText = ByteFormat.string(image.descriptor.size)
+        let sizeText = ByteCountFormatter().string(fromByteCount: Int64(image.descriptor.size))
+
+        let targetIds: [String] = {
+            if selectedImages.count > 1 && selectedImages.contains(image.reference) {
+                return Array(selectedImages)
+            }
+            return [image.reference]
+        }()
+        let multiple = targetIds.count > 1
 
         return ListItemRow(
             icon: "cube.transparent",
@@ -46,20 +62,23 @@ struct ImagesListView: View {
             primaryText: imageName,
             secondaryLeftText: imageTag,
             secondaryRightText: sizeText,
-            isSelected: selectedImage == image.reference
+            isSelected: selectedImages.contains(image.reference)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            handleRowTap(id: image.reference)
+        }
         .contextMenu {
-            Button("Copy Image Reference") {
+            Button(multiple ? "Copy Image References" : "Copy Image Reference") {
+                let refsText = targetIds.joined(separator: "\n")
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(image.reference, forType: .string)
+                NSPasteboard.general.setString(refsText, forType: .string)
             }
 
             Divider()
 
-            Button("Remove Image", role: .destructive) {
-                Task {
-                    await imageService.delete(image.reference)
-                }
+            Button(multiple ? "Remove \(targetIds.count) Images" : "Remove Image", role: .destructive) {
+                confirmImagesDeletion(references: targetIds)
             }
         }
         .tag(image.reference)
@@ -123,6 +142,35 @@ struct ImagesListView: View {
         return containerListService.containers.contains { container in
             container.configuration.image.reference == image.reference &&
             container.status.lowercased() == "running"
+        }
+    }
+
+    private func handleRowTap(id: String) {
+        let orderedIds = filteredImages.map { $0.reference }
+        SelectionHandler.handleSelection(
+            clickedId: id,
+            orderedIds: orderedIds,
+            selectedSet: &selectedImages,
+            lastSelectedId: &lastSelectedImage
+        )
+    }
+
+    private func selectAllImages() {
+        let orderedIds = filteredImages.map { $0.reference }
+        selectedImages = Set(orderedIds)
+    }
+
+    private func confirmImagesDeletion(references: [String]) {
+        let alert = NSAlert()
+        alert.messageText = references.count > 1 ? "Delete Images" : "Delete Image"
+        let refsList = references.joined(separator: ", ")
+        alert.informativeText = "Are you sure you want to delete \(references.count > 1 ? "\(references.count) images (\(refsList))" : "'\(references[0])'")?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await imageService.deleteImages(references) }
         }
     }
 }

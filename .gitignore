@@ -5,6 +5,7 @@ Orchard.xcodeproj/xcuserdata/*
 
 # Build / CI artifacts
 .spm-cache/
+UITestResults
 TestResults
 *.xcresult
 coverage.json

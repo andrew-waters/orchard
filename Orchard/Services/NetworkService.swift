@@ -64,4 +64,24 @@ final class NetworkService: ObservableObject {
             self.alertCenter.error("Failed to delete network: \(error.localizedDescription)")
         }
     }
+    func deleteNetworks(_ networkIds: [String]) async {
+        var deletedCount = 0
+        var failedCount = 0
+        var lastError: Error?
+        for networkId in networkIds {
+            if networkId == "default" { continue }
+            do {
+                try await backend.deleteNetwork(id: networkId)
+                deletedCount += 1
+            } catch {
+                failedCount += 1
+                lastError = error
+            }
+        }
+        await load()
+        if failedCount > 0 {
+            alertCenter.error("Failed to delete \(failedCount) network(s): \(lastError?.localizedDescription ?? "Unknown error")")
+        }
+    }
+
 }
