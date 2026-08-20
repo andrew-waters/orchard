@@ -738,9 +738,21 @@ struct ContainerRunConfig: Equatable {
     /// Labels to stamp on the container at creation (e.g. the sandbox marker).
     var labels: [String: String] = [:]
     /// Resource allocation applied at create time. Defaults match the runtime's own
-    /// (4 CPUs, 1 GB) so an untouched form behaves exactly as before.
+    /// (4 CPUs, 1 GB) so an untouched form behaves exactly as before. Memory is carried
+    /// in bytes so a value that isn't a whole number of GB (e.g. a CLI-created 1.5 GB
+    /// container) survives edit and recovery untouched; the form edits it in whole GB.
     var cpus: Int = 4
-    var memoryGiB: Int = 1
+    var memoryBytes: UInt64 = ContainerRunConfig.bytesPerGiB
+
+    static let bytesPerGiB: UInt64 = 1_073_741_824
+
+    /// Whole-GB view of `memoryBytes` for the form's stepper: reads rounded to the
+    /// nearest GB (never below 1), writes exact whole GB. Only a user edit goes through
+    /// the setter, so an untouched non-integral value keeps its exact byte count.
+    var memoryGiB: Int {
+        get { max(1, Int(clamping: (memoryBytes + Self.bytesPerGiB / 2) / Self.bytesPerGiB)) }
+        set { memoryBytes = UInt64(max(1, newValue)) * Self.bytesPerGiB }
+    }
 
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()

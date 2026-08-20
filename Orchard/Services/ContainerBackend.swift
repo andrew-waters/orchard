@@ -36,9 +36,9 @@ struct ContainerCreateSpec: Sendable {
     let dnsDomain: String
     let networkName: String
     let autoRemove: Bool
-    /// CPU cores and memory allocated to the container's VM.
+    /// CPU cores and memory (in bytes) allocated to the container's VM.
     let cpus: Int
-    let memoryGiB: Int
+    let memoryBytes: UInt64
     /// Key/value labels stamped on the container at creation - e.g. the sandbox marker
     /// that lets the Sandboxes view recognise a container Orchard wired to a model.
     var labels: [String: String] = [:]
@@ -232,7 +232,7 @@ struct LiveContainerBackend: ContainerBackend {
         containerConfig.dns = dns
         containerConfig.labels = spec.labels
         containerConfig.resources.cpus = spec.cpus
-        containerConfig.resources.memoryInBytes = UInt64(spec.memoryGiB) * 1_073_741_824
+        containerConfig.resources.memoryInBytes = spec.memoryBytes
 
         let builtinNetworkId = try await NetworkClient().builtin?.id
         let networkId = spec.networkName.isEmpty ? (builtinNetworkId ?? NetworkClient.defaultNetworkName) : spec.networkName
