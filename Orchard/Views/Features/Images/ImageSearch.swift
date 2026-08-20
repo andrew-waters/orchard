@@ -6,16 +6,19 @@ struct ImageSearchView: View {
     @EnvironmentObject var imageService: ImageService
     @State private var searchQuery: String = ""
     @State private var searchTask: Task<Void, Never>?
+    @State private var directReference: String = ""
     @FocusState private var isSearchFieldFocused: Bool
+
+    private var trimmedDirectReference: String {
+        directReference.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Search header
             searchHeader
 
             Divider()
 
-            // Search results or empty state
             if searchQuery.isEmpty && imageService.searchResults.isEmpty {
                 emptySearchState
             } else if imageService.isSearching {
@@ -27,14 +30,8 @@ struct ImageSearchView: View {
             } else {
                 emptySearchState
             }
-
-            // Active pulls section
-            if !imageService.pullProgress.isEmpty {
-                Divider()
-                activePullsSection
-            }
         }
-        .frame(width: 920, height: 600)
+        .frame(minWidth: 720, idealWidth: 920, minHeight: 560, idealHeight: 640)
         .onAppear {
             isSearchFieldFocused = true
         }
@@ -69,16 +66,21 @@ struct ImageSearchView: View {
                 .buttonStyle(.borderless)
             }
 
-            // Search field
             HStack {
                 SwiftUI.Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
 
-                TextField("Search for images (e.g., nginx, postgres, alpine)...", text: $searchQuery)
+                TextField("Search for images...", text: $searchQuery)
                     .textFieldStyle(.plain)
                     .focused($isSearchFieldFocused)
-                    .onSubmit {
-                        performSearch()
+                    .onSubmit(performSearchImmediately)
+                    .onChange(of: searchQuery) { _, newValue in
+                        if newValue.isEmpty {
+                            searchTask?.cancel()
+                            imageService.clearSearchResults()
+                        } else {
+                            performSearch()
+                        }
                     }
 
                 if !searchQuery.isEmpty {
@@ -92,9 +94,7 @@ struct ImageSearchView: View {
                     .buttonStyle(.plain)
                 }
 
-                Button(action: {
-                    performSearch()
-                }) {
+                Button(action: performSearchImmediately) {
                     Text("Search")
                         .fontWeight(.medium)
                 }
@@ -108,9 +108,37 @@ struct ImageSearchView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
             )
+
+            HStack(spacing: 8) {
+                Text("Or pull by reference:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                TextField("e.g. ghcr.io/apple/containerization/vminit:0.33.3", text: $directReference)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .onSubmit(pullByReference)
+
+                Button("Pull") {
+                    pullByReference()
+                }
+                .controlSize(.small)
+                .disabled(trimmedDirectReference.isEmpty)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(NSColor.textBackgroundColor).opacity(0.5))
+            .cornerRadius(6)
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private func pullByReference() {
+        let ref = trimmedDirectReference
+        guard !ref.isEmpty else { return }
+        Task { await imageService.pull(ref) }
+        directReference = ""
     }
 
     private var emptySearchState: some View {
@@ -196,47 +224,44 @@ struct ImageSearchView: View {
 
     private var searchResultsList: some View {
         ScrollView {
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(280), spacing: 16), count: 3), spacing: 16) {
-                ForEach(imageService.searchResults.prefix(12)) { result in
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 260, maximum: 320), spacing: 16)], spacing: 16) {
+                ForEach(imageService.searchResults) { result in
                     SearchResultRow(result: result)
                 }
             }
             .padding(20)
-        }
-        .frame(width: 900, height: 400)
-    }
 
-    private var activePullsSection: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Active Downloads")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-
-            ForEach(Array(imageService.pullProgress.values), id: \.id) { progress in
-                PullProgressRow(progress: progress)
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+            if imageService.searchResultsHasMore {
+                ProgressView()
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
+                    .onAppear {
+                        Task { await imageService.loadMoreSearchResults() }
+                    }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func performSearch() {
-        // Cancel any existing search
         searchTask?.cancel()
 
-        // Start new search with debounce
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 second debounce
+            try? await Task.sleep(nanoseconds: 300_000_000)
 
             if !Task.isCancelled {
                 await imageService.search(searchQuery)
             }
         }
+    }
+
+    /// Skip the typing debounce and fire the current query right away.
+    /// Used by Enter key and the Search button - explicit user intent.
+    private func performSearchImmediately() {
+        searchTask?.cancel()
+        let query = searchQuery
+        guard !query.isEmpty else { return }
+        searchTask = Task { await imageService.search(query) }
     }
 }
 
@@ -244,19 +269,21 @@ struct SearchResultRow: View {
     @EnvironmentObject var imageService: ImageService
     let result: RegistrySearchResult
     @State private var isHovered = false
-    @State private var showRunContainer = false
 
     private var isPulling: Bool {
-        imageService.pullProgress[result.name] != nil
+        imageService.pullProgress[result.name]?.status == .pulling
     }
 
     private var isAlreadyPulled: Bool {
-        imageService.images.contains { $0.reference.contains(result.displayName) }
+        imageService.images.contains { image in
+            image.reference == result.name
+                || image.reference.hasPrefix(result.name + ":")
+                || image.reference.hasPrefix(result.name + "@")
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header with icon and name
             HStack(spacing: 8) {
                 SwiftUI.Image(systemName: result.isOfficial ? "checkmark.seal.fill" : "cube.transparent")
                     .font(.title3)
@@ -269,7 +296,6 @@ struct SearchResultRow: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
 
-                    // Metadata
                     HStack(spacing: 6) {
                         if result.isOfficial {
                             Text("Official")
@@ -296,7 +322,6 @@ struct SearchResultRow: View {
                 }
             }
 
-            // Description
             if let description = result.description, !description.isEmpty {
                 Text(description)
                     .font(.system(size: 11))
@@ -308,23 +333,21 @@ struct SearchResultRow: View {
 
             Spacer(minLength: 4)
 
-            // Pull/Run button
             if isPulling {
                 ProgressView()
                     .scaleEffect(0.7)
                     .frame(height: 24)
             } else if isAlreadyPulled {
-                Button(action: {
-                    showRunContainer = true
-                }) {
-                    Text("Run")
+                HStack(spacing: 4) {
+                    SwiftUI.Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                    Text("Already pulled")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, minHeight: 24)
-                        .background(Color.green)
-                        .cornerRadius(4)
                 }
-                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 24)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(4)
             } else {
                 Button(action: {
                     Task {
@@ -354,14 +377,12 @@ struct SearchResultRow: View {
                 isHovered = hovered
             }
         }
-        .sheet(isPresented: $showRunContainer) {
-            RunContainerView(imageName: result.name)
-        }
     }
 }
 
 struct PullProgressRow: View {
     let progress: ImagePullProgress
+    var onDismiss: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -373,10 +394,15 @@ struct PullProgressRow: View {
                     Text(progress.imageName)
                         .font(.subheadline)
                         .fontWeight(.medium)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
                     Text(progress.message)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .help(progress.message)
                 }
 
                 Spacer()
@@ -385,10 +411,20 @@ struct PullProgressRow: View {
                     ProgressView()
                         .scaleEffect(0.7)
                 }
+
+                if let onDismiss {
+                    Button(action: onDismiss) {
+                        SwiftUI.Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 14))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dismiss")
+                }
             }
 
             if progress.status == .pulling {
-                ProgressView(value: progress.progress)
+                ProgressView()
                     .progressViewStyle(.linear)
             }
         }

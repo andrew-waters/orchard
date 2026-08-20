@@ -551,7 +551,7 @@ struct ContainerImageDetailView: View {
                 InfoRow(label: "Tag", value: imageTag)
                 InfoRow(
                     label: "Size",
-                    value: ByteFormat.string(image.descriptor.size))
+                    value: imageService.sizeText(for: image))
                 if let created = createdDate {
                     InfoRow(label: "Created", value: formatDate(created))
                 }

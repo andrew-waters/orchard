@@ -12,6 +12,8 @@ struct ThreeColumnLayout: View {
     @AppStorage("containerRunningFirst") private var containerRunningFirst: Bool = true
     @AppStorage("imageSortBy") private var imageSortBy: ImageSortOption = .name
     @AppStorage("imageSortAscending") private var imageSortAscending: Bool = true
+    @State private var splitVisibility: NavigationSplitViewVisibility = .all
+    @State private var showRunContainerSheet: Bool = false
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -55,9 +57,13 @@ struct ThreeColumnLayout: View {
         }
     }
 
+    private var sidebarCollapsed: Bool {
+        splitVisibility == .doubleColumn || splitVisibility == .detailOnly
+    }
+
     var body: some View {
         if needsMiddleColumn {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $splitVisibility) {
                 // First Column - Sidebar with navigation tabs
                 TabColumnView(
                     selectedTab: $selectedTab,
@@ -204,10 +210,18 @@ struct ThreeColumnLayout: View {
                                 Spacer()
 
                                 // Add resource button for tabs that support it
-                                if selectedTab == .images {
+                                if selectedTab == .containers {
+                                    Button(action: { showRunContainerSheet = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.primary)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Run Container")
+                                } else if selectedTab == .images {
                                     Button(action: { showImageSearch = true }) {
                                         SwiftUI.Image(systemName: "plus")
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.primary)
                                             .font(.system(size: 14, weight: .medium))
                                     }
                                     .buttonStyle(.plain)
@@ -215,7 +229,7 @@ struct ThreeColumnLayout: View {
                                 } else if selectedTab == .dns {
                                     Button(action: { showAddDNSDomainSheet = true }) {
                                         SwiftUI.Image(systemName: "plus")
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.primary)
                                             .font(.system(size: 14, weight: .medium))
                                     }
                                     .buttonStyle(.plain)
@@ -223,7 +237,7 @@ struct ThreeColumnLayout: View {
                                 } else if selectedTab == .networks {
                                     Button(action: { showAddNetworkSheet = true }) {
                                         SwiftUI.Image(systemName: "plus")
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.primary)
                                             .font(.system(size: 14, weight: .medium))
                                     }
                                     .buttonStyle(.plain)
@@ -241,7 +255,7 @@ struct ThreeColumnLayout: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 20)
+                    .padding(.top, sidebarCollapsed ? 52 : 20)
                     .padding(.bottom, 12)
 
                     ListColumnView(
@@ -278,6 +292,9 @@ struct ThreeColumnLayout: View {
                 }
                 .ignoresSafeArea(.container, edges: .top)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 500)
+                .sheet(isPresented: $showRunContainerSheet) {
+                    RunContainerView()
+                }
             } detail: {
                 // Third Column - Detail view for selected item
                 DetailContentView(
@@ -307,7 +324,7 @@ struct ThreeColumnLayout: View {
                 .ignoresSafeArea(.container, edges: .top)
             }
         } else {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $splitVisibility) {
                 // First Column - Sidebar with navigation tabs
                 TabColumnView(
                     selectedTab: $selectedTab,

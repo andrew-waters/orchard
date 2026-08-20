@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Pull images by reference from non-Docker-Hub registries: the image search gains a pull-by-reference input, and references are canonicalized so by-reference and search-result pulls share progress tracking.
+- Docker Hub search now searches as you type (300ms debounce, Enter bypasses it) and paginates as you scroll.
+
+### Changed
+- Image sizes display consistently and pull progress is clearer, with failed pulls dismissible and retryable.
 - Multi-selection across containers, images, mounts, DNS domains, and networks: shift-click range selection, Command+A select-all, batch deletion, and a summary detail view for the selection ([#53](https://github.com/andrew-waters/orchard/pull/53)).
 
 ### Fixed

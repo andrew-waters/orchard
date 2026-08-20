@@ -47,15 +47,15 @@ func imageLoadFailure(_ c: (showLoading: Bool, expectsAlert: Bool)) async {
 // MARK: - pull
 
 @MainActor
-@Test("Images pull: success marks progress completed and pulls the trimmed reference")
+@Test("Images pull: success marks progress completed and pulls the canonical reference")
 func imagePullSuccess() async {
     let backend = MockContainerBackend()
     let (service, alert) = makeImageService(backend)
 
     await service.pull("  nginx:latest  ")   // leading/trailing space trimmed
 
-    #expect(backend.pulledReferences == ["nginx:latest"])
-    #expect(service.pullProgress["nginx:latest"]?.status == .completed)
+    #expect(backend.pulledReferences == ["docker.io/library/nginx:latest"])
+    #expect(service.pullProgress["docker.io/library/nginx:latest"]?.status == .completed)
     #expect(alert.current == nil)
 }
 
@@ -69,10 +69,35 @@ func imagePullFailureAlerts() async {
     await service.pull("nginx:latest")
 
     // Match the case, not the (localized, brittle) message.
-    if case .failed = service.pullProgress["nginx:latest"]?.status {} else {
-        Issue.record("expected .failed pull status, got \(String(describing: service.pullProgress["nginx:latest"]?.status))")
+    if case .failed = service.pullProgress["docker.io/library/nginx:latest"]?.status {} else {
+        Issue.record("expected .failed pull status, got \(String(describing: service.pullProgress["docker.io/library/nginx:latest"]?.status))")
     }
     #expect(alert.current != nil)
+}
+
+@Test("Image references canonicalize Docker Hub names and preserve explicit registries")
+func imageReferenceCanonicalization() {
+    #expect(canonicalImageReference("nginx") == "docker.io/library/nginx")
+    #expect(canonicalImageReference("nginx:latest") == "docker.io/library/nginx:latest")
+    #expect(canonicalImageReference("bitnami/redis:7") == "docker.io/bitnami/redis:7")
+    #expect(canonicalImageReference("ghcr.io/acme/app:1") == "ghcr.io/acme/app:1")
+    #expect(canonicalImageReference("localhost:5000/acme/app:1") == "localhost:5000/acme/app:1")
+    #expect(canonicalImageReference("registry.example.com:5000/repo:1") == "registry.example.com:5000/repo:1")
+    #expect(canonicalImageReference("nginx@sha256:abc123") == "docker.io/library/nginx@sha256:abc123")
+}
+
+@Test("Docker Hub search URL escapes reserved query delimiters")
+func dockerHubSearchURLEncoding() throws {
+    let url = try #require(dockerHubSearchURL(query: "foo&page=999=a b", page: 2))
+    let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+
+    #expect(components.scheme == "https")
+    #expect(components.host == "hub.docker.com")
+    #expect(components.path == "/v2/search/repositories/")
+    #expect(components.queryItems?.first(where: { $0.name == "query" })?.value == "foo&page=999=a b")
+    #expect(components.queryItems?.first(where: { $0.name == "page_size" })?.value == "25")
+    #expect(components.queryItems?.first(where: { $0.name == "page" })?.value == "2")
+    #expect(url.absoluteString.contains("query=foo%26page%3D999%3Da%20b"))
 }
 
 // MARK: - delete
@@ -115,6 +140,7 @@ func imageSearchEmptyQueryClears() async {
     await service.search("")
 
     #expect(service.searchResults.isEmpty)
+    #expect(service.searchResultsHasMore == false)
     // KNOWN-ISSUE (2026-07-04): search(_:) hardcodes URLSession.shared with no transport
     // seam, so the guard can't be verified to skip the network, and the non-empty query
     // path isn't unit-testable without hitting hub.docker.com.
