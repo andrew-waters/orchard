@@ -3,31 +3,20 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.1.6</title>
-      <sparkle:version>46</sparkle:version>
-      <sparkle:shortVersionString>2.1.6</sparkle:shortVersionString>
+      <title>Version 2.1.7</title>
+      <sparkle:version>47</sparkle:version>
+      <sparkle:shortVersionString>2.1.7</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.6</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.7</link>
       <description><![CDATA[
-<h3>Added</h3>
-<ul>
-<li>Pull images by reference from non-Docker-Hub registries: the image search gains a pull-by-reference input, and references are canonicalized so by-reference and search-result pulls share progress tracking.</li>
-<li>Docker Hub search now searches as you type (300ms debounce, Enter bypasses it) and paginates as you scroll.</li>
-</ul>
 <h3>Changed</h3>
 <ul>
-<li>Image sizes display consistently and pull progress is clearer, with failed pulls dismissible and retryable.</li>
-<li>Multi-selection across containers, images, mounts, DNS domains, and networks: shift-click range selection, Command+A select-all, batch deletion, and a summary detail view for the selection (<a href="https://github.com/andrew-waters/orchard/pull/53">#53</a>).</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>The Run Container sheet now stays open when the run fails, so the configuration can be adjusted and retried; previously it dismissed regardless, leaving only the error alert.</li>
-<li>When the container system is stopped or XPC is unreachable, Orchard no longer storms error dialogs from background refresh. Failed XPC connections surface as a clear &quot;container service is unavailable&quot; message, and after starting the system Orchard waits until the service is actually reachable before loading data.</li>
-<li>Running containers&#x27; stop buttons in the menu-bar panel now respond on first click.</li>
+<li>Orchard now links the Apple container 1.2.2 client libraries (previously 1.1.0), restoring compatibility with current container installs (<a href="https://github.com/andrew-waters/orchard/issues/54">#54</a>).</li>
+<li>When the installed container release doesn&#x27;t match the client Orchard links, the app now shows the version-incompatibility screen with upgrade guidance instead of reporting the system as stopped with a raw health-check decode error (<a href="https://github.com/andrew-waters/orchard/issues/37">#37</a>, <a href="https://github.com/andrew-waters/orchard/issues/39">#39</a>).</li>
 </ul>
 ]]></description>
-      <pubDate>Thu, 20 Aug 2026 11:27:12 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.6/Orchard-2.1.6.dmg" type="application/octet-stream" sparkle:edSignature="K8gGbwdkrHXdnsZQBjLE9wgb/bQfz0/4P7BKR8f5MOSRbbrJOY1KNOZUcF17FSlnA9oqePhBuU2+9smUlJwYAg==" length="29108173" />
+      <pubDate>Thu, 20 Aug 2026 12:49:58 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.7/Orchard-2.1.7.dmg" type="application/octet-stream" sparkle:edSignature="FE42TLMl3X1I+VOlkBzSLUwSIJZVwT1Y3U4Z875JJ0wKSPzjJ6Uy6zeNbc6mP+mNyD6X4c9zL7LERWW0c9jBAg==" length="28925505" />
     </item>
   </channel>
 </rss>
