@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Containers can now be created with a chosen CPU and memory allocation, and both can be changed later from Edit Configuration (via the usual stop/recreate flow). Previously every container silently got the runtime defaults of 4 CPUs and 1 GB with no way to change them in the GUI ([#73](https://github.com/andrew-waters/orchard/issues/73)).
+
 ### Fixed
 - Unchecking "Run in detached mode (background)" now does what it says: after the container starts, Orchard opens your preferred terminal attached to it. The toggle no longer appears in the Edit Configuration sheet, where recreation always happens in the background ([#43](https://github.com/andrew-waters/orchard/issues/43)).
 - Opening a container terminal in Terminal.app or iTerm2 no longer fails with "Not authorized to send Apple events" on notarized builds: the app now carries the `com.apple.security.automation.apple-events` entitlement and a usage description, so macOS shows the Automation consent prompt. If permission is denied, the error now points to System Settings → Privacy & Security → Automation instead of dumping the raw AppleScript error ([#64](https://github.com/andrew-waters/orchard/issues/64)).

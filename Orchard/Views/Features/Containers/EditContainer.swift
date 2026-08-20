@@ -40,7 +40,9 @@ struct EditContainerView: View {
             portMappings: [], // Port mappings not available in container config
             volumeMappings: volumes,
             workingDirectory: container.configuration.initProcess.workingDirectory,
-            commandOverride: container.configuration.initProcess.arguments.joined(separator: " ")
+            commandOverride: container.configuration.initProcess.arguments.joined(separator: " "),
+            cpus: container.configuration.resources.cpus,
+            memoryGiB: max(1, container.configuration.resources.memoryInBytes / 1_073_741_824)
         ))
     }
 

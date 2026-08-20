@@ -737,6 +737,10 @@ struct ContainerRunConfig: Equatable {
     var network: String = ""
     /// Labels to stamp on the container at creation (e.g. the sandbox marker).
     var labels: [String: String] = [:]
+    /// Resource allocation applied at create time. Defaults match the runtime's own
+    /// (4 CPUs, 1 GB) so an untouched form behaves exactly as before.
+    var cpus: Int = 4
+    var memoryGiB: Int = 1
 
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()
