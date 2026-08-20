@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Opt-in container startup orchestration: define ordered startup groups of existing containers, with group and per-container prerequisites, run automatically when Orchard launches ([#71](https://github.com/andrew-waters/orchard/pull/71)).
+
 ### Fixed
 - Running containers' stop buttons in the menu-bar panel now respond on first click.
 
