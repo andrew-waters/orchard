@@ -126,8 +126,9 @@ struct MenuBarView: View {
             .popover(isPresented: $hoveringTop, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
                 ResourceHistoryPanel(
                     name: "System",
-                    cpuValues: metricHistory(cpu: true),
-                    memValues: metricHistory(cpu: false),
+                    state: statsService.menuBarHistoryState(),
+                    cpuValues: metricHistory(cpu: true) ?? [],
+                    memValues: metricHistory(cpu: false) ?? [],
                     cpuNow: cpuCenter,
                     memNow: ByteFormat.memory(memoryUsed)
                 )
@@ -231,8 +232,9 @@ struct MenuBarView: View {
                 .popover(isPresented: containerHoverBinding(row.id), arrowEdge: .leading) {
                     ResourceHistoryPanel(
                         name: row.id,
-                        cpuValues: containerHistory(id: row.id, cpu: true),
-                        memValues: containerHistory(id: row.id, cpu: false),
+                        state: perContainerHistoryState(isRunning: row.isRunning),
+                        cpuValues: containerHistory(id: row.id, cpu: true) ?? [],
+                        memValues: containerHistory(id: row.id, cpu: false) ?? [],
                         cpuNow: String(format: "%.1f%%", row.cpuPercent),
                         memNow: ByteFormat.memory(row.memoryBytes)
                     )
@@ -308,8 +310,16 @@ struct MenuBarView: View {
     }
 
     /// One container's own last-hour history for a metric: CPU% as sampled, memory as a
-    /// percentage of its limit. Capped to ~120 bars.
-    private func containerHistory(id: String, cpu: Bool) -> [Double] {
+    /// percentage of its limit. Capped to ~120 bars. Returns `nil` when the stats layer
+    /// has signalled an unavailable or no-data state — the caller (the panel) renders an
+    /// explicit message instead of a misleading "Collecting…".
+    private func containerHistory(id: String, cpu: Bool) -> [Double]? {
+        switch statsService.menuBarHistoryState() {
+        case .unavailable, .noData:
+            return nil
+        case .collecting, .available:
+            break
+        }
         let windowSeconds: TimeInterval = 3600
         let samples = statsService.history.samples(for: StatsKey(id: id))
         guard let newest = samples.last?.timestamp else { return [] }
@@ -321,8 +331,15 @@ struct MenuBarView: View {
 
     /// Recent normalized system history for a metric over the last hour, matching the ring's
     /// meaning: memory is used ÷ total-limit, CPU is busy-cores ÷ total-cores, each as 0…100
-    /// per tick. Capped to ~120 bars for the panel.
-    private func metricHistory(cpu: Bool) -> [Double] {
+    /// per tick. Capped to ~120 bars for the panel. Returns `nil` when the stats layer has
+    /// signalled an unavailable or no-data state.
+    private func metricHistory(cpu: Bool) -> [Double]? {
+        switch statsService.menuBarHistoryState() {
+        case .unavailable, .noData:
+            return nil
+        case .collecting, .available:
+            break
+        }
         let windowSeconds: TimeInterval = 3600
         let running = containerListService.containers.filter { $0.status.lowercased() == "running" }
         let series = running.map { statsService.history.samples(for: StatsKey(id: $0.configuration.id)) }
@@ -356,6 +373,14 @@ struct MenuBarView: View {
         return thinned(values)
     }
 
+    /// State for the per-container popover. Stopped containers have no live data so they
+    /// surface as `.noData` rather than inheriting the system-wide `.collecting` state,
+    /// which would imply the panel is about to render history.
+    private func perContainerHistoryState(isRunning: Bool) -> MenuBarHistoryState {
+        guard isRunning else { return .noData }
+        return statsService.menuBarHistoryState()
+    }
+
     private func startRefreshTimer() {
         // Invalidate any existing timer first so a re-entrant `.task` can't strand a duplicate
         // running alongside the new one and double the background polling.
@@ -378,9 +403,13 @@ struct MenuBarView: View {
 }
 
 /// Pop-out panel beside the menu: CPU and memory history for one container, or for the
-/// whole system (when `name` is "System"). Both are last-hour bar charts.
+/// whole system (when `name` is "System"). Both are last-hour bar charts. Renders one of
+/// four explicit states per spec: available bars, "Collecting…" during the first-tick
+/// baseline, "No running containers" when the system has none, or "Stats unavailable"
+/// with a reason when sampling failed terminally.
 struct ResourceHistoryPanel: View {
     let name: String
+    let state: MenuBarHistoryState
     let cpuValues: [Double]
     let memValues: [Double]
     let cpuNow: String
@@ -407,14 +436,39 @@ struct ResourceHistoryPanel: View {
                 Spacer()
                 Text(now).font(.caption).fontDesign(.monospaced).foregroundColor(.secondary)
             }
-            if values.count >= 2 {
+            switch state {
+            case .available where values.count >= 2:
                 HistoryBars(values: values, color: color).frame(height: 60)
-            } else {
-                Text("Collecting…")
-                    .font(.caption2).foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 60)
+            case .available:
+                // Sampling is up but this specific series is still warming up (e.g. the
+                // system-level chart folds every container's history, and one freshly-started
+                // container's series is short). The same boundary as the prior "Collecting…".
+                transientMessage("Collecting…")
+            case .collecting:
+                transientMessage("Collecting…")
+            case .noData:
+                transientMessage("No running containers")
+            case .unavailable(let reason):
+                transientMessage("Stats unavailable", subtitle: reason)
             }
         }
+    }
+
+    /// Same 60pt reserved height as the bars so the panel's frame stays stable across
+    /// states. Uses caption2 with secondary color, matching the existing visual weight.
+    @ViewBuilder
+    private func transientMessage(_ primary: String, subtitle: String? = nil) -> some View {
+        VStack(spacing: 2) {
+            Text(primary)
+                .font(.caption2).foregroundColor(.secondary)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption2).foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 60)
     }
 }
 

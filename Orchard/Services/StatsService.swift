@@ -1,6 +1,33 @@
 import AppKit
 import Foundation
 
+/// High-level sampling state — the menu-bar popover (and any other consumer) reads this
+/// instead of inferring state from `latestSamples`/`containerStats`. Distinguishes the
+/// transient "first/second tick" window from the four terminal states the prompts call out
+/// (no containers, every container failed, container service unreachable, idle).
+enum StatsSamplingState: Equatable {
+    /// Not yet activated, or no sampling surface is visible.
+    case idle
+    /// Sampling has started but the first derived sample hasn't been produced yet
+    /// (either the very first tick, or the second tick hasn't landed).
+    case collecting
+    /// At least one derived sample is in history — the UI can render real bars.
+    case available
+    /// No running containers were found, so there's nothing to derive from.
+    case noContainers
+    /// Sampling attempted but failed terminally. `reason` is a short, user-presentable
+    /// description (e.g. "Container service unavailable").
+    case unavailable(reason: String)
+}
+
+/// Menu-bar-specific collapse of `StatsSamplingState` for the four-state UI design.
+enum MenuBarHistoryState: Equatable {
+    case available
+    case collecting
+    case noData
+    case unavailable(reason: String)
+}
+
 /// Owns per-container resource stats. Reads the running containers from the container
 /// list (owned by `ContainerListService`), fetches stats for each, derives plottable
 /// samples, accumulates history, and persists it across launches.
@@ -15,6 +42,16 @@ final class StatsService: ObservableObject {
     /// machines are sampled through their backing container but tracked under the stable
     /// machine id so history survives the backing id changing across reboots.
     @Published var machineStats: [ContainerStats] = []
+    /// The classified outcome of the most recent sampling tick. Updated at the end of
+    /// `load(...)` so a partial-or-total failure is observable from the UI and the logs.
+    /// The single source of truth for "is the menu-bar popover loading, available, or
+    /// failed" — derived from container list, fetch outcomes, and history.
+    @Published private(set) var samplingState: StatsSamplingState = .idle
+
+    /// Test-only hook: in production, failures are logged via `Log.xpc`. Tests inject a
+    /// closure to capture what would have been logged so they can assert on it without
+    /// spinning up a real `Logger` capture session.
+    var testLogHook: ((String) -> Void)?
 
     /// Supplies the running machines to sample each tick: `(machineId, backingContainerId,
     /// cpus)`. Wired from `MachineService` in `AppServices`; empty until then.
@@ -230,39 +267,115 @@ final class StatsService: ObservableObject {
         }
         let backend = self.backend
 
-        // Fetch every container's stats concurrently rather than serially.
-        let results: [ContainerStats] = await withTaskGroup(of: ContainerStats?.self) { group in
+        // Fetch every container's stats concurrently, capturing each outcome (success or
+        // classified error) so a per-container failure is observable in logs and contributes
+        // to `samplingState`. Previously this used `try?` and `for await case let stats?`
+        // which silently dropped every error, leaving the menu-bar popover stuck on
+        // "Collecting…" when the daemon went away.
+        enum FetchOutcome: Sendable {
+            case ok(ContainerStats)
+            case containerFailed(id: String, error: Error)
+            case serviceUnavailable(Error)
+        }
+
+        let containerOutcomes: [FetchOutcome] = await withTaskGroup(of: FetchOutcome.self) { group in
             for id in runningIds {
-                group.addTask { try? await backend.stats(id: id) }
+                group.addTask {
+                    do {
+                        let stats = try await backend.stats(id: id)
+                        return .ok(stats)
+                    } catch {
+                        let mapped = mapContainerError(error)
+                        if isContainerServiceUnavailable(error) {
+                            return .serviceUnavailable(error)
+                        }
+                        return .containerFailed(id: id, error: mapped)
+                    }
+                }
             }
-            var collected: [ContainerStats] = []
-            for await case let stats? in group {
-                collected.append(stats)
+            var collected: [FetchOutcome] = []
+            for await outcome in group {
+                collected.append(outcome)
             }
             return collected
         }
 
         // Machine stats, re-keyed from backing container id → machine sampling key.
-        let machineResults: [ContainerStats] = await withTaskGroup(of: ContainerStats?.self) { group in
+        let machineOutcomes: [FetchOutcome] = await withTaskGroup(of: FetchOutcome.self) { group in
             for target in machineTargets {
                 group.addTask {
-                    guard let stats = try? await backend.stats(id: target.backingId) else { return nil }
-                    return stats.with(id: Self.machineStatKey(target.machineId))
+                    do {
+                        let stats = try await backend.stats(id: target.backingId)
+                        return .ok(stats.with(id: Self.machineStatKey(target.machineId)))
+                    } catch {
+                        let mapped = mapContainerError(error)
+                        if isContainerServiceUnavailable(error) {
+                            return .serviceUnavailable(error)
+                        }
+                        return .containerFailed(id: target.backingId, error: mapped)
+                    }
                 }
             }
-            var collected: [ContainerStats] = []
-            for await case let stats? in group {
-                collected.append(stats)
+            var collected: [FetchOutcome] = []
+            for await outcome in group {
+                collected.append(outcome)
             }
             return collected
         }
 
-        recordSamples(results + machineResults, cpuCounts: cpuCounts)
+        // Log every failure so diagnostics aren't blind. Container-level failures get the
+        // offending id; service-unavailable failures are logged once per tick (the first
+        // match) and the rest folded in.
+        var serviceUnavailable: Error?
+        var containerFailures: [(id: String, error: Error)] = []
+        var results: [ContainerStats] = []
+        var machineResults: [ContainerStats] = []
+        for outcome in containerOutcomes + machineOutcomes {
+            switch outcome {
+            case .ok(let stats):
+                if stats.id.hasPrefix("machine::") {
+                    machineResults.append(stats)
+                } else {
+                    results.append(stats)
+                }
+            case .containerFailed(let id, let error):
+                containerFailures.append((id, error))
+                recordFailure("stats(id: \(id)): \(error.localizedDescription)")
+            case .serviceUnavailable(let error):
+                if serviceUnavailable == nil { serviceUnavailable = error }
+                recordFailure("container service unavailable: \(error.localizedDescription)")
+            }
+        }
+
+        let derivedThisTick = recordSamples(results + machineResults, cpuCounts: cpuCounts)
 
         containerStats = results
         // Expose machine stats under the bare machine id for the machine UI to look up.
         machineStats = machineResults.map { $0.with(id: String($0.id.dropFirst("machine::".count))) }
         isStatsLoading = false
+
+        // Classify the high-level state for the UI. The menu-bar popover reads this
+        // instead of inferring from `latestSamples`/`history` so it can distinguish the
+        // transient "collecting" window from terminal "no containers" / "unavailable".
+        // `latestSamples` is the source of truth for "do we have derived samples yet" —
+        // `derivedThisTick` covers the success-this-tick case, and `!latestSamples.isEmpty`
+        // covers the recovery case where this tick failed but a previous tick seeded history.
+        let anyRequested = !runningIds.isEmpty || !machineTargets.isEmpty
+        let anySucceeded = !results.isEmpty || !machineResults.isEmpty
+        let hasDerivedHistory = derivedThisTick || !latestSamples.isEmpty
+        if !anyRequested {
+            samplingState = .noContainers
+        } else if serviceUnavailable != nil && !anySucceeded {
+            samplingState = .unavailable(reason: OrchardError.xpcUnavailable.errorDescription
+                                          ?? "Container service unavailable")
+        } else if !anySucceeded && !containerFailures.isEmpty {
+            samplingState = .unavailable(reason: "Container stats could not be read")
+        } else if hasDerivedHistory {
+            samplingState = .available
+        } else {
+            samplingState = .collecting
+        }
+
         // Alert only when every running container failed (results empty) AND the load was
         // user-initiated — the background poll stays silent; DashboardView shows a passive panel.
         if showLoading && !runningIds.isEmpty && results.isEmpty {
@@ -270,10 +383,32 @@ final class StatsService: ObservableObject {
         }
     }
 
+    /// Plumb a stats failure to the system log and the test capture hook (if any).
+    private func recordFailure(_ message: String) {
+        Log.xpc.error("\(message, privacy: .public)")
+        testLogHook?(message)
+    }
+
     /// Whether the stats page should show its passive "unavailable" panel: there are
     /// running containers but no stats came back. Drives non-modal UI in DashboardView.
     var statsUnavailable: Bool {
         !containerList.containers.filter { $0.status == "running" }.isEmpty && containerStats.isEmpty
+    }
+
+    /// Collapse `samplingState` into the four-state vocabulary the menu-bar popover uses.
+    /// `idle` is folded into `.collecting` because the menu bar's own lifecycle already
+    /// implies "we're sampling" by the time the popover is rendered.
+    func menuBarHistoryState() -> MenuBarHistoryState {
+        switch samplingState {
+        case .idle, .collecting:
+            return .collecting
+        case .available:
+            return .available
+        case .noContainers:
+            return .noData
+        case .unavailable(let reason):
+            return .unavailable(reason: reason)
+        }
     }
 
     // MARK: - Machine stats accessors (keyed by stable machine id)
@@ -297,10 +432,15 @@ final class StatsService: ObservableObject {
     /// republish the latest per container. Containers with no prior read only seed the
     /// baseline (need two points for a rate). Stopped/vanished containers are pruned from
     /// the live maps (history is retained) so a restart deltas fresh, not across the gap.
-    private func recordSamples(_ reads: [ContainerStats], cpuCounts: [String: Int]) {
+    /// Returns `true` if at least one derived sample was written this tick, so the caller
+    /// can distinguish the first/second-tick baseline from the steady-state where every
+    /// tick produces a sample.
+    @discardableResult
+    private func recordSamples(_ reads: [ContainerStats], cpuCounts: [String: Int]) -> Bool {
         let monotonicNow = clock.now      // rate math
         let wallNow = Date()              // sample stamp (persistable, cross-launch)
         var samples = latestSamples
+        var derived = false
 
         for read in reads {
             defer { previousRaw[read.id] = (read, monotonicNow) }
@@ -314,6 +454,7 @@ final class StatsService: ObservableObject {
             )
             history.record(sample, for: StatsKey(id: read.id))
             samples[read.id] = sample
+            derived = true
         }
 
         let live = Set(reads.map(\.id))
@@ -328,5 +469,6 @@ final class StatsService: ObservableObject {
         // still be charted.
         let liveKeys = Set(reads.map { StatsKey(id: $0.id) })
         history.evictSeries(olderThan: wallNow.addingTimeInterval(-history.retention), keeping: liveKeys)
+        return derived
     }
 }
