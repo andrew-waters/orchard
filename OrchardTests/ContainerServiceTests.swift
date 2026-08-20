@@ -71,6 +71,33 @@ func specCommandAndName() async {
     #expect(spec?.id.isEmpty == false)   // empty name → generated id
 }
 
+@MainActor
+@Test("Spec: resources default to the runtime's own values (4 CPUs, 1 GB)")
+func specResourceDefaults() async {
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
+    await service.containerListService.runContainer(config: ContainerRunConfig(name: "web", image: "nginx"))
+
+    let spec = backend.createdSpecs.first
+    #expect(spec?.cpus == 4)
+    #expect(spec?.memoryGiB == 1)
+}
+
+@MainActor
+@Test("Spec: configured CPUs and memory carry through to the create spec")
+func specResourcePassthrough() async {
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.cpus = 6
+    config.memoryGiB = 8
+    await service.containerListService.runContainer(config: config)
+
+    let spec = backend.createdSpecs.first
+    #expect(spec?.cpus == 6)
+    #expect(spec?.memoryGiB == 8)
+}
+
 // MARK: - Service state transitions
 
 @MainActor

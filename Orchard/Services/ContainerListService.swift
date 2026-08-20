@@ -377,7 +377,9 @@ final class ContainerListService: ObservableObject {
             volumeMappings: volumeMappings,
             workingDirectory: config.initProcess.workingDirectory,
             dnsDomain: config.dns.domain ?? "",
-            network: snapshot.networks.first?.network ?? ""
+            network: snapshot.networks.first?.network ?? "",
+            cpus: config.resources.cpus,
+            memoryGiB: max(1, config.resources.memoryInBytes / 1_073_741_824)
         )
 
         let started = await runContainer(config: runConfig)
@@ -428,6 +430,8 @@ final class ContainerListService: ObservableObject {
                 dnsDomain: config.dnsDomain,
                 networkName: config.network,
                 autoRemove: config.removeAfterStop,
+                cpus: config.cpus,
+                memoryGiB: config.memoryGiB,
                 labels: config.labels
             )
             try await backend.createContainer(spec)
