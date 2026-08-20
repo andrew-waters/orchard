@@ -13,6 +13,7 @@ struct ContainerDetailHeader: View {
     @State private var isStopping = false
     @State private var wasRunningBeforeStop = false
     @State private var showSandboxInfo = false
+    @State private var showPluginInfo = false
 
     /// Shield badge shown when the container is a sandbox (wired to a local model). Tapping
     /// it explains what that means and shows the endpoint - since a sandbox appears in both
@@ -41,6 +42,45 @@ struct ContainerDetailHeader: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Text(endpoint)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(14)
+            .frame(width: 300)
+        }
+    }
+
+    /// Capsule badge shown when a plugin owns the container (e.g. a k8s cluster node).
+    /// Tapping it explains which plugin manages it and what role the container plays.
+    private var pluginBadge: some View {
+        Button(action: { showPluginInfo.toggle() }) {
+            Text(container.pluginBadgeText ?? "")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.accentColor)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.accentColor.opacity(0.14)))
+        }
+        .buttonStyle(.plain)
+        .help("Managed by the \(container.owningPlugin ?? "container") plugin")
+        .popover(isPresented: $showPluginInfo) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    SwiftUI.Image(systemName: "puzzlepiece.extension")
+                        .foregroundColor(.accentColor)
+                    Text("Plugin-managed container")
+                        .font(.headline)
+                }
+                Text("This container is created and managed by the '\(container.owningPlugin ?? "")' container plugin. Its lifecycle is tied to the plugin's resources, so prefer the plugin's commands over acting on it directly.")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                if let role = container.pluginRole {
+                    Divider()
+                    Text("Role")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(role)
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                 }
@@ -120,6 +160,9 @@ struct ContainerDetailHeader: View {
                         .fontWeight(.semibold)
                     if container.isSandbox {
                         sandboxBadge
+                    }
+                    if container.pluginBadgeText != nil {
+                        pluginBadge
                     }
                 }
                 Text(imageReference)

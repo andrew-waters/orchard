@@ -25,7 +25,8 @@ struct ContainersListView: View {
                         secondaryLeftText: networkAddress(for: container) ?? "-",
                         secondaryRightText: hostname(for: container),
                         isSelected: selectedContainers.contains(container.configuration.id),
-                        showSandboxBadge: container.isSandbox
+                        showSandboxBadge: container.isSandbox,
+                        pluginBadge: container.pluginBadgeText
                     )
                     .contextMenu {
                         contextMenu(for: container)

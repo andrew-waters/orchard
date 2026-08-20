@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Containers owned by a container plugin (such as k8s cluster nodes) are badged in the containers list and detail header with the owning plugin and their role, e.g. "k8s · control-plane", so kindest/node containers aren't mystery rows.
+
 ## [2.1.7] - 2026-08-20
 
 ### Changed

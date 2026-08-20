@@ -9,6 +9,8 @@ struct ListItemRow: View {
     let isSelected: Bool
     /// When true, a small shield marks the row as a sandbox (wired to a local model).
     let showSandboxBadge: Bool
+    /// Plugin + role capsule for plugin-owned containers (e.g. "k8s · control-plane").
+    let pluginBadge: String?
 
     init(
         icon: String,
@@ -17,7 +19,8 @@ struct ListItemRow: View {
         secondaryLeftText: String? = nil,
         secondaryRightText: String? = nil,
         isSelected: Bool = false,
-        showSandboxBadge: Bool = false
+        showSandboxBadge: Bool = false,
+        pluginBadge: String? = nil
     ) {
         self.icon = icon
         self.iconColor = iconColor
@@ -26,6 +29,7 @@ struct ListItemRow: View {
         self.secondaryRightText = secondaryRightText
         self.isSelected = isSelected
         self.showSandboxBadge = showSandboxBadge
+        self.pluginBadge = pluginBadge
     }
 
     var body: some View {
@@ -50,6 +54,16 @@ struct ListItemRow: View {
                             .font(.system(size: 11))
                             .foregroundColor(.accentColor)
                             .help("Sandbox - wired to a local model")
+                    }
+                    if let pluginBadge {
+                        Text(pluginBadge)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.accentColor)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.accentColor.opacity(0.14)))
+                            .lineLimit(1)
+                            .help("Managed by a container plugin")
                     }
                 }
 

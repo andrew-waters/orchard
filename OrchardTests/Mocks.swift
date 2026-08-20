@@ -236,7 +236,10 @@ private func fixtureImageJSON(_ reference: String) -> String {
     #"{ "reference": "\#(reference)", "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 } }"#
 }
 
-func makeContainer(id: String, status: String) throws -> Container {
+func makeContainer(id: String, status: String, labels: [String: String] = [:]) throws -> Container {
+    let labelsJSON = labels.isEmpty
+        ? "{}"
+        : String(data: try JSONEncoder().encode(labels), encoding: .utf8)!
     let json = """
     {
       "status": "\(status)",
@@ -245,7 +248,7 @@ func makeContainer(id: String, status: String) throws -> Container {
         "id": "\(id)",
         "runtimeHandler": "vz",
         "rosetta": false,
-        "labels": {},
+        "labels": \(labelsJSON),
         "sysctls": {},
         "publishedPorts": [],
         "mounts": [],
