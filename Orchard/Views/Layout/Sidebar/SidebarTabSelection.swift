@@ -5,6 +5,7 @@ enum TabSelection: String, CaseIterable {
     case images = "images"
     case mounts = "mounts"
     case machines = "machines"
+    case clusters = "clusters"
     case models = "models"
     case sandboxes = "sandboxes"
     case dns = "dns"
@@ -23,6 +24,8 @@ enum TabSelection: String, CaseIterable {
             return "externaldrive"
         case .machines:
             return "cpu"
+        case .clusters:
+            return "helm"
         case .models:
             return "sparkles"
         case .sandboxes:
@@ -50,6 +53,8 @@ enum TabSelection: String, CaseIterable {
             return "Mounts"
         case .machines:
             return "Machines"
+        case .clusters:
+            return "Clusters"
         case .models:
             return "AI Models"
         case .sandboxes:

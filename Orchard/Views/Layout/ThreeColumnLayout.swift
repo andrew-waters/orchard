@@ -22,6 +22,7 @@ struct ThreeColumnLayout: View {
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
     @Binding var selectedMachine: String?
+    @Binding var selectedCluster: String?
     @Binding var selectedModel: String?
     @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
@@ -32,6 +33,7 @@ struct ThreeColumnLayout: View {
     @Binding var lastSelectedImage: String?
     @Binding var lastSelectedMount: String?
     @Binding var lastSelectedMachine: String?
+    @Binding var lastSelectedCluster: String?
     @Binding var lastSelectedDNSDomain: String?
     @Binding var lastSelectedNetwork: String?
     @Binding var lastSelectedImageTab: String
@@ -44,13 +46,14 @@ struct ThreeColumnLayout: View {
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
     @Binding var showAddMachineSheet: Bool
+    @Binding var showCreateClusterSheet: Bool
     @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let windowTitle: String
 
     private var needsMiddleColumn: Bool {
         switch selectedTab {
-        case .containers, .images, .mounts, .machines, .models, .sandboxes, .dns, .networks:
+        case .containers, .images, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
             return true
         case .registries, .systemLogs, .dashboard:
             return false
@@ -73,6 +76,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
                     selectedMachine: $selectedMachine,
+                    selectedCluster: $selectedCluster,
                     selectedModel: $selectedModel,
                     selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
@@ -250,6 +254,14 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Create Machine")
+                                } else if selectedTab == .clusters {
+                                    Button(action: { showCreateClusterSheet = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.primary)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Create Cluster")
                                 }
                             }
                         }
@@ -267,6 +279,7 @@ struct ThreeColumnLayout: View {
                         selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
                     selectedMachine: $selectedMachine,
+                    selectedCluster: $selectedCluster,
                     selectedModel: $selectedModel,
                     selectedSandbox: $selectedSandbox,
                         selectedDNSDomain: $selectedDNSDomain,
@@ -277,6 +290,7 @@ struct ThreeColumnLayout: View {
                         lastSelectedImage: lastSelectedImage,
                         lastSelectedMount: lastSelectedMount,
                         lastSelectedMachine: lastSelectedMachine,
+                        lastSelectedCluster: lastSelectedCluster,
                         lastSelectedDNSDomain: lastSelectedDNSDomain,
                         lastSelectedNetwork: lastSelectedNetwork,
                         searchText: $searchText,
@@ -287,6 +301,7 @@ struct ThreeColumnLayout: View {
                         showAddDNSDomainSheet: $showAddDNSDomainSheet,
                         showAddNetworkSheet: $showAddNetworkSheet,
                         showAddMachineSheet: $showAddMachineSheet,
+                        showCreateClusterSheet: $showCreateClusterSheet,
                         listFocusedTab: _listFocusedTab
                     )
                 }
@@ -306,6 +321,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: selectedMount,
                     selectedMounts: selectedMounts,
                     selectedMachine: selectedMachine,
+                    selectedCluster: selectedCluster,
                     selectedModel: selectedModel,
                     selectedSandbox: selectedSandbox,
                     selectedDNSDomain: selectedDNSDomain,
@@ -334,6 +350,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
                     selectedMachine: $selectedMachine,
+                    selectedCluster: $selectedCluster,
                     selectedModel: $selectedModel,
                     selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
@@ -354,6 +371,7 @@ struct ThreeColumnLayout: View {
                     selectedMount: selectedMount,
                     selectedMounts: selectedMounts,
                     selectedMachine: selectedMachine,
+                    selectedCluster: selectedCluster,
                     selectedModel: selectedModel,
                     selectedSandbox: selectedSandbox,
                     selectedDNSDomain: selectedDNSDomain,
@@ -395,6 +413,7 @@ struct TabColumnView: View {
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
     @Binding var selectedMachine: String?
+    @Binding var selectedCluster: String?
     @Binding var selectedModel: String?
     @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
@@ -416,7 +435,7 @@ struct TabColumnView: View {
         .onAppear {
             // Set initial focus when view appears
             switch selectedTab {
-            case .containers, .images, .mounts, .machines, .models, .sandboxes, .dns, .networks:
+            case .containers, .images, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
@@ -441,6 +460,7 @@ struct TabColumnView: View {
            Section {
                sidebarRow(for: .containers)
                sidebarRow(for: .machines)
+               sidebarRow(for: .clusters)
                sidebarRow(for: .sandboxes)
            } header: {
                HStack {
@@ -542,6 +562,10 @@ struct TabColumnView: View {
             if selectedMachine == nil && !machineService.machines.isEmpty {
                 selectedMachine = machineService.machines.first?.id
             }
+        case .clusters:
+            if selectedCluster == nil {
+                selectedCluster = K8sCluster.group(containers: containerListService.containers).first?.name
+            }
         case .dns:
             if selectedDNSDomain == nil && !dnsService.dnsDomains.isEmpty {
                 selectedDNSDomain = dnsService.dnsDomains.first?.domain
@@ -564,6 +588,7 @@ struct TabColumnView: View {
             selectedImage = nil
             selectedMount = nil
             selectedMachine = nil
+            selectedCluster = nil
             selectedDNSDomain = nil
             selectedNetwork = nil
             break
@@ -573,7 +598,7 @@ struct TabColumnView: View {
         listFocusedTab = nil
         DispatchQueue.main.async {
             switch tab {
-            case .containers, .images, .mounts, .machines, .models, .sandboxes, .dns, .networks:
+            case .containers, .images, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 self.listFocusedTab = tab
             case .registries, .systemLogs, .dashboard:
                 self.listFocusedTab = nil
@@ -599,6 +624,8 @@ struct TabColumnView: View {
             return containerListService.allMounts.count
         case .machines:
             return machineService.machines.count
+        case .clusters:
+            return K8sCluster.group(containers: containerListService.containers).count
         case .models:
             return modelServerService.servers.count
                 + modelService.providers.filter { !modelServerService.managedPorts.contains($0.port) }.count
@@ -624,6 +651,7 @@ struct ListColumnView: View {
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
     @Binding var selectedMachine: String?
+    @Binding var selectedCluster: String?
     @Binding var selectedModel: String?
     @Binding var selectedSandbox: String?
     @Binding var selectedDNSDomain: String?
@@ -634,6 +662,7 @@ struct ListColumnView: View {
     let lastSelectedImage: String?
     let lastSelectedMount: String?
     let lastSelectedMachine: String?
+    let lastSelectedCluster: String?
     let lastSelectedDNSDomain: String?
     let lastSelectedNetwork: String?
     @Binding var searchText: String
@@ -644,6 +673,7 @@ struct ListColumnView: View {
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
     @Binding var showAddMachineSheet: Bool
+    @Binding var showCreateClusterSheet: Bool
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -685,6 +715,14 @@ struct ListColumnView: View {
                     lastSelectedMachine: .constant(lastSelectedMachine),
                     searchText: $searchText,
                     showAddMachineSheet: $showAddMachineSheet,
+                    listFocusedTab: _listFocusedTab
+                )
+            case .clusters:
+                ClustersListView(
+                    selectedCluster: $selectedCluster,
+                    lastSelectedCluster: .constant(lastSelectedCluster),
+                    searchText: $searchText,
+                    showCreateClusterSheet: $showCreateClusterSheet,
                     listFocusedTab: _listFocusedTab
                 )
             case .dns:
@@ -738,6 +776,7 @@ struct DetailColumnView: View {
     let selectedMount: String?
     let selectedMounts: Set<String>
     let selectedMachine: String?
+    let selectedCluster: String?
     let selectedModel: String?
     let selectedSandbox: String?
     let selectedDNSDomain: String?
@@ -768,6 +807,7 @@ struct DetailColumnView: View {
                 selectedMount: selectedMount,
                     selectedMounts: selectedMounts,
                     selectedMachine: selectedMachine,
+                    selectedCluster: selectedCluster,
                     selectedModel: selectedModel,
                     selectedSandbox: selectedSandbox,
                 selectedDNSDomain: selectedDNSDomain,

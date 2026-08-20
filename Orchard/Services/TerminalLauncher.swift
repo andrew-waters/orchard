@@ -33,6 +33,21 @@ final class TerminalLauncher: ObservableObject {
         openTerminal(for: containerId, shell: "bash")
     }
 
+    /// Open the user's preferred terminal running an arbitrary shell command (e.g. a
+    /// kubectl session preconfigured for a cluster).
+    func openTerminal(runningCommand command: String) {
+        Log.ui.debug("Opening terminal — terminal: \(self.settings.preferredTerminal.displayName), command: \(command)")
+
+        switch settings.preferredTerminal {
+        case .terminal:
+            openInTerminalApp(command: command)
+        case .iterm2:
+            openInITerm2(command: command)
+        case .ghostty:
+            openInGhostty(command: command)
+        }
+    }
+
     // MARK: - Terminal-specific openers
 
     private func openInTerminalApp(command: String) {
@@ -69,6 +84,10 @@ final class TerminalLauncher: ObservableObject {
     }
 
     private func openInGhostty(containerBinary: String, containerId: String, shell: String) {
+        openInGhostty(command: "'\(containerBinary)' exec -it '\(containerId)' \(shell)")
+    }
+
+    private func openInGhostty(command fullCommand: String) {
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: TerminalApp.ghostty.bundleIdentifier) else {
             Log.ui.error("❌ Ghostty application not found")
             alertCenter.error("Ghostty application not found")
@@ -77,7 +96,6 @@ final class TerminalLauncher: ObservableObject {
 
         // Use 'open -na' to always open a new window, even if Ghostty is already running.
         // Pass the command via 'sh -c' to avoid Ghostty's argument parsing issues.
-        let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         process.arguments = ["-na", appURL.path, "--args", "-e", "sh", "-c", fullCommand]
