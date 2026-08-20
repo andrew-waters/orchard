@@ -3,19 +3,27 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.1.4</title>
-      <sparkle:version>44</sparkle:version>
-      <sparkle:shortVersionString>2.1.4</sparkle:shortVersionString>
+      <title>Version 2.1.5</title>
+      <sparkle:version>45</sparkle:version>
+      <sparkle:shortVersionString>2.1.5</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.4</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.5</link>
       <description><![CDATA[
 <h3>Added</h3>
 <ul>
-<li>Error message displayed when trying to start <code>container</code> now includes a download link if the binary could not be found.</li>
+<li>Containers can now be created with a chosen CPU and memory allocation, and both can be changed later from Edit Configuration (via the usual stop/recreate flow). Previously every container silently got the runtime defaults of 4 CPUs and 1 GB with no way to change them in the GUI (<a href="https://github.com/andrew-waters/orchard/issues/73">#73</a>).</li>
+<li>The AI Models section now recognises <a href="https://github.com/jundot/omlx">oMLX</a> servers. oMLX serves the same OpenAI-style API on the same conventional port (8000) as <code>mlx_lm.server</code>, so it previously appeared as a generic &quot;MLX Server&quot;; it&#x27;s now identified by the <code>owned_by: omlx</code> stamp in its models listing (<a href="https://github.com/andrew-waters/orchard/issues/72">#72</a>).</li>
+<li>Local model servers that require an API key (oMLX generates one at setup) are no longer invisible: they appear as a locked provider with a field to paste the key, which is then used for detection, model listing, the chat tester, and the container bridge (<code>OPENAI_API_KEY</code>).</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Edit Configuration no longer drops the executable from the Command Override field: the form now shows the full command (<code>sleep 3600</code>, not just <code>3600</code>), so saving doesn&#x27;t corrupt the container&#x27;s process configuration. Quoted arguments (<code>sh -c &quot;echo hi&quot;</code>) now also survive the round-trip (<a href="https://github.com/andrew-waters/orchard/issues/42">#42</a>).</li>
+<li>Unchecking &quot;Run in detached mode (background)&quot; now does what it says: after the container starts, Orchard opens your preferred terminal attached to it. The toggle no longer appears in the Edit Configuration sheet, where recreation always happens in the background (<a href="https://github.com/andrew-waters/orchard/issues/43">#43</a>).</li>
+<li>Opening a container terminal in Terminal.app or iTerm2 no longer fails with &quot;Not authorized to send Apple events&quot; on notarized builds: the app now carries the <code>com.apple.security.automation.apple-events</code> entitlement and a usage description, so macOS shows the Automation consent prompt. If permission is denied, the error now points to System Settings → Privacy &amp; Security → Automation instead of dumping the raw AppleScript error (<a href="https://github.com/andrew-waters/orchard/issues/64">#64</a>).</li>
 </ul>
 ]]></description>
-      <pubDate>Fri, 24 Jul 2026 07:42:27 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.4/Orchard-2.1.4.dmg" type="application/octet-stream" sparkle:edSignature="9yvzpW2MosxxGWh+neTMXL4U/V0rT5wiXngWmKM1QlRBTsKv4kEk9K9yALf9frY7NrBr6NlPij1uSKl7nRjfDA==" length="28376578" />
+      <pubDate>Thu, 20 Aug 2026 10:03:00 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.5/Orchard-2.1.5.dmg" type="application/octet-stream" sparkle:edSignature="k2lt25z5p1IAM5+uWqWeP41UwAErcxsBuJLfJ/cRbKxxlgrzYzwRVLkknSYeTqtRlD2Ac07nRV3eNCZ8ohTrCg==" length="28411554" />
     </item>
   </channel>
 </rss>
