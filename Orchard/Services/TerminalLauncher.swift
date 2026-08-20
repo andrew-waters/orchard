@@ -121,9 +121,11 @@ final class TerminalLauncher: ObservableObject {
         case -600, -609: // procNotFound, connectionInvalid
             return "\(appName) isn't running and couldn't be launched. Open it once manually, then try again."
         default:
+            // Never dump the raw error dictionary at the user; the full details are
+            // already logged. Fall back to a stable message carrying the error code.
             let message = (error[NSAppleScript.errorBriefMessage] as? String)
                 ?? (error[NSAppleScript.errorMessage] as? String)
-                ?? String(describing: error)
+                ?? "An unknown AppleScript error occurred (code \(code))."
             return "Failed to open terminal: \(message)"
         }
     }
