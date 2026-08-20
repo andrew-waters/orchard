@@ -27,10 +27,21 @@ struct ClusterStatsPanel: View {
         aggregate(nodeIds.map { statsService.history.samples(for: StatsKey(id: $0)) })
     }
 
-    /// Headline stats are exact for a single node; a multi-node cluster falls back to
-    /// the aggregated sample (ContainerStats isn't meaningfully summable across nodes).
+    /// Headline stats summed across the cluster's nodes, keyed to the cluster name.
     private var currentStats: ContainerStats? {
-        guard nodeIds.count == 1, let id = nodeIds.first else { return nil }
-        return statsService.containerStats.first { $0.id == id }
+        let nodeStats = statsService.containerStats.filter { nodeIds.contains($0.id) }
+        guard let first = nodeStats.first else { return nil }
+        return nodeStats.dropFirst().reduce(first) { acc, s in
+            ContainerStats(
+                id: cluster.name,
+                cpuUsageUsec: acc.cpuUsageUsec + s.cpuUsageUsec,
+                memoryUsageBytes: acc.memoryUsageBytes + s.memoryUsageBytes,
+                memoryLimitBytes: acc.memoryLimitBytes + s.memoryLimitBytes,
+                blockReadBytes: acc.blockReadBytes + s.blockReadBytes,
+                blockWriteBytes: acc.blockWriteBytes + s.blockWriteBytes,
+                networkRxBytes: acc.networkRxBytes + s.networkRxBytes,
+                networkTxBytes: acc.networkTxBytes + s.networkTxBytes,
+                numProcesses: acc.numProcesses + s.numProcesses)
+        }
     }
 }

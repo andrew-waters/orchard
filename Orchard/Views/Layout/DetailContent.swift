@@ -50,7 +50,8 @@ struct DetailContentView: View {
                 ClusterDetailView(
                     clusterName: selectedCluster,
                     selectedTab: $selectedTabBinding,
-                    selectedContainer: $selectedContainerBinding
+                    selectedContainer: $selectedContainerBinding,
+                    selectedContainers: $selectedContainersBinding
                 )
             } else {
                 Text("Select a cluster")

@@ -1,18 +1,37 @@
 #!/bin/bash
-# Tear down everything scripts/demo-env-up.sh created. Leaves traefik, the k8s
-# cluster, pulled images, and anything else it didn't create.
+# Tear down exactly what scripts/demo-env-up.sh recorded creating - nothing else.
+# Pre-existing resources that happened to share a name were never recorded, so
+# they survive.
 set -uo pipefail
 
-for c in web api cache db queue sessions metrics registry objects worker agent; do
-  container stop "$c" 2>/dev/null
-  container delete "$c" 2>/dev/null && echo "deleted container $c"
-done
+DEMO_DIR="$HOME/.orchard-demo"
+STATE="$DEMO_DIR/state"
 
-container machine stop demo-box 2>/dev/null
-container machine delete demo-box 2>/dev/null && echo "deleted machine demo-box"
+[[ -f "$STATE" ]] || { echo "No state file at $STATE - nothing recorded to tear down."; exit 0; }
 
-for net in frontend backend; do
-  container network delete "$net" 2>/dev/null && echo "deleted network $net"
-done
+REMOVE_DIR=0
+# Containers first, then the machine, then networks (they must be unused).
+while read -r kind name; do
+  [[ "$kind" == "container" ]] || continue
+  container stop "$name" 2>/dev/null
+  container delete "$name" 2>/dev/null && echo "deleted container $name"
+done < "$STATE"
 
-rm -rf "$HOME/.orchard-demo" && echo "removed $HOME/.orchard-demo"
+while read -r kind name; do
+  case "$kind" in
+    machine)
+      container machine stop "$name" 2>/dev/null
+      container machine delete "$name" 2>/dev/null && echo "deleted machine $name" ;;
+    network)
+      container network delete "$name" 2>/dev/null && echo "deleted network $name" ;;
+    dir)
+      REMOVE_DIR=1 ;;
+  esac
+done < "$STATE"
+
+if [[ "$REMOVE_DIR" == 1 ]]; then
+  rm -rf "$DEMO_DIR" && echo "removed $DEMO_DIR"
+else
+  rm -f "$STATE"
+  echo "kept pre-existing $DEMO_DIR (removed the state file)"
+fi

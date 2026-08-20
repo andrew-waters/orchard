@@ -9,6 +9,7 @@ struct ClusterDetailView: View {
     let clusterName: String
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @Binding var selectedContainers: Set<String>
 
     @State private var showLoadImageSheet = false
     @State private var showDeleteConfirmation = false
@@ -97,6 +98,7 @@ struct ClusterDetailView: View {
                         terminalLauncher.openTerminal(runningCommand: ClusterService.kubectlTerminalCommand(cluster: cluster.name))
                     }
                     .buttonStyle(BorderedButtonStyle())
+                    .disabled(busy)
 
                     Button(kubeconfigWritten ? "Kubeconfig ✓" : "Write Kubeconfig") {
                         Task {
@@ -108,7 +110,7 @@ struct ClusterDetailView: View {
                         }
                     }
                     .buttonStyle(BorderedButtonStyle())
-                    .disabled(kubeconfigWritten)
+                    .disabled(busy || kubeconfigWritten)
 
                     Button(copiedPath ? "Copied ✓" : "Copy Kubeconfig Path") {
                         NSPasteboard.general.clearContents()
@@ -124,7 +126,7 @@ struct ClusterDetailView: View {
 
                     Button("Load Image…") { showLoadImageSheet = true }
                         .buttonStyle(BorderedButtonStyle())
-                        .disabled(clusterService.isLoadingImage)
+                        .disabled(busy || clusterService.isLoadingImage)
                 }
                 Button("Delete") { showDeleteConfirmation = true }
                     .buttonStyle(BorderedButtonStyle())
@@ -159,7 +161,9 @@ struct ClusterDetailView: View {
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
 
-            singleNodeBanner
+            if cluster.nodes.count == 1 {
+                singleNodeBanner
+            }
         }
     }
 
@@ -211,8 +215,11 @@ struct ClusterDetailView: View {
         return HStack(spacing: 0) {
             // Node name jumps to the backing container, like ContainerTable rows.
             Button(action: {
-                selectedTab = .containers
+                // Clear any multi-selection first, or DetailContentView renders the
+                // previous multi-container cards instead of this node.
+                selectedContainers = [node.id]
                 selectedContainer = node.id
+                selectedTab = .containers
             }) {
                 HStack {
                     SwiftUI.Image(systemName: "cube")

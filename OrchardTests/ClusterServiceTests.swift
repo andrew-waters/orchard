@@ -80,7 +80,7 @@ func clusterStatusFollowsControlPlane() throws {
 @Test("kubectl terminal command selects the cluster context, quoted, then stays interactive")
 func kubectlCommand() {
     let command = ClusterService.kubectlTerminalCommand(cluster: "k8s-dev")
-    #expect(command.contains("kubectl config use-context 'k8s-dev'"))
+    #expect(command.contains("kubectl config use-context 'k8s-dev' &&"))
     #expect(command.contains("exec ${SHELL"))
 }
 
