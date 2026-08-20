@@ -172,6 +172,12 @@ struct ClusterDetailView: View {
             }
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
+
+            // Honest about the current ceiling: the k8s plugin creates single-node
+            // clusters; worker provisioning is in development upstream (#87).
+            Text("Apple container currently supports single-node clusters. Worker nodes will appear here once the k8s plugin can add them.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
