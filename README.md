@@ -19,7 +19,7 @@ Orchard is a native (Swift) macOS application for managing containers, machines 
 
 It gives you a desktop experience that complements the `container` command-line interface.
 
-Thousands of installations and starred by engineers from Apple, Microsoft, NVIDIA, IBM, Stripe, Cisco, LinkedIn, Uber & more - [see who's adopting Orchard](#adoption)  
+Thousands of installations and starred by engineers from Apple, Microsoft, NVIDIA, IBM, Stripe, Cisco, LinkedIn, Uber, Vercel & more - [see who's adopting Orchard](#adoption)  
 
 ---
 
@@ -183,7 +183,7 @@ The project uses Swift Package Manager for dependencies. Xcode will resolve the 
 
 ## Adoption
 
-Orchard is installed hundreds of times a month via Homebrew - see the live [install stats](https://formulae.brew.sh/cask/orchard) - and has been starred by engineers from Apple, Microsoft, NVIDIA, IBM, Stripe, Cisco, LinkedIn, Uber, GitHub, Red Hat, SUSE, Amazon, VMware, Siemens, Hitachi, Alibaba, Tencent, MongoDB, Honeycomb, Automattic and across the wider cloud-native community.
+Orchard is installed hundreds of times a month via Homebrew - see the live [install stats](https://formulae.brew.sh/cask/orchard) - and has been starred by engineers from Apple, Microsoft, NVIDIA, IBM, Stripe, Cisco, LinkedIn, Uber, GitHub, Red Hat, SUSE, Amazon, VMware, Siemens, Hitachi, Alibaba, Tencent, MongoDB, Honeycomb, Automattic, Vercel and across the wider cloud-native community.
 
 Using Orchard at your company or in your day-to-day workflow? We'd love to hear about it - add yourself to [`ADOPTERS.md`](ADOPTERS.md) with a quick pull request.
 
