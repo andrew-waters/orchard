@@ -42,7 +42,8 @@ struct EditContainerView: View {
             workingDirectory: container.configuration.initProcess.workingDirectory,
             commandOverride: container.configuration.initProcess.arguments.joined(separator: " "),
             cpus: container.configuration.resources.cpus,
-            memoryGiB: max(1, container.configuration.resources.memoryInBytes / 1_073_741_824)
+            // Exact bytes: a non-integral allocation only changes if the user edits it.
+            memoryBytes: UInt64(clamping: container.configuration.resources.memoryInBytes)
         ))
     }
 

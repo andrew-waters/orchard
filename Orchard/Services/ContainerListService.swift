@@ -379,7 +379,8 @@ final class ContainerListService: ObservableObject {
             dnsDomain: config.dns.domain ?? "",
             network: snapshot.networks.first?.network ?? "",
             cpus: config.resources.cpus,
-            memoryGiB: max(1, config.resources.memoryInBytes / 1_073_741_824)
+            // Exact bytes, not a GB round-trip: recovery must never resize a container.
+            memoryBytes: UInt64(clamping: config.resources.memoryInBytes)
         )
 
         let started = await runContainer(config: runConfig)
@@ -430,8 +431,11 @@ final class ContainerListService: ObservableObject {
                 dnsDomain: config.dnsDomain,
                 networkName: config.network,
                 autoRemove: config.removeAfterStop,
-                cpus: config.cpus,
-                memoryGiB: config.memoryGiB,
+                // Clamped here so no caller can trap the backend's UInt64 math with a
+                // negative or zero allocation. Upper bounds are deliberately not
+                // enforced: the runtime accepts overcommitted VMs.
+                cpus: max(1, config.cpus),
+                memoryBytes: max(1_048_576, config.memoryBytes),
                 labels: config.labels
             )
             try await backend.createContainer(spec)
