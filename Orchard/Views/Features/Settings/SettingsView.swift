@@ -58,6 +58,19 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Toggle("Hide Dock icon", isOn: Binding(
+                    get: { settings.hideDockIcon },
+                    set: { hidden in
+                        settings.setHideDockIcon(hidden)
+                        DockIconPolicy.apply(hidden: hidden)
+                    }
+                ))
+            } footer: {
+                Text("Orchard stays available from the menu bar. Hiding the Dock icon also removes Orchard from the Cmd-Tab app switcher; reopen the main window from the menu bar.")
+                    .foregroundColor(.secondary)
+            }
+
+            Section {
                 LabeledContent("Container Binary") {
                     HStack(spacing: 8) {
                         Text(settings.containerBinaryPath)

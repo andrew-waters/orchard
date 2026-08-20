@@ -1,11 +1,16 @@
 import Foundation
 import AppKit
 
-/// Owns user settings: the `container` binary path and the preferred terminal.
+/// Owns user settings: the `container` binary path, the preferred terminal, and the
+/// Dock-icon preference.
 @MainActor
 final class SettingsStore: ObservableObject {
     @Published var customBinaryPath: String?
     @Published var preferredTerminal: TerminalApp = .terminal
+    /// Whether the app hides its Dock icon and runs as a menu-bar accessory. Persisted
+    /// here; the activation-policy side effect is applied by callers via
+    /// `DockIconPolicy` (see that type for why it isn't applied from the setter).
+    @Published private(set) var hideDockIcon: Bool = false
     @Published var installedTerminals: [TerminalApp] = [.terminal]
 
     private let alertCenter: AlertCenter
@@ -34,6 +39,9 @@ final class SettingsStore: ObservableObject {
     }
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
     private let preferredTerminalKey = "OrchardPreferredTerminal"
+    /// Static so the app can read the launch policy straight from defaults before any
+    /// services are built.
+    static let hideDockIconDefaultsKey = "OrchardHideDockIcon"
 
     var containerBinaryPath: String {
         let path = customBinaryPath ?? defaultBinaryPath
@@ -51,6 +59,12 @@ final class SettingsStore: ObservableObject {
         self.defaults = defaults
         loadCustomBinaryPath()
         loadPreferredTerminal()
+        hideDockIcon = defaults.bool(forKey: Self.hideDockIconDefaultsKey)
+    }
+
+    func setHideDockIcon(_ hidden: Bool) {
+        hideDockIcon = hidden
+        defaults.set(hidden, forKey: Self.hideDockIconDefaultsKey)
     }
 
     private func loadCustomBinaryPath() {
