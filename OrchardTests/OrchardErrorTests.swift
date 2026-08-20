@@ -71,3 +71,17 @@ func mapContainerErrorRewritesXPC() {
     let other = mapContainerError(error("disk full"))
     #expect(other.localizedDescription == "disk full")
 }
+
+@Test("isContainerVersionMismatch: matches undecodable health-check replies, not outages")
+func containerVersionMismatchClassifier() {
+    for message in [
+        "internalError: \"failed to decode apiServerBuild in health check\"",
+        "failed to decode apiServerAppName in health check",
+        "Failed to decode appRoot in health check",
+    ] {
+        #expect(isContainerVersionMismatch(error(message)) == true, "expected match for: \(message)")
+    }
+    #expect(isContainerVersionMismatch(error("The connection was invalidated.")) == false)
+    #expect(isContainerVersionMismatch(error("failed to decode container list")) == false)
+    #expect(isContainerVersionMismatch(error("disk full")) == false)
+}

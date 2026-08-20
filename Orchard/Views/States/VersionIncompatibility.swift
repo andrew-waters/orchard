@@ -13,27 +13,19 @@ struct VersionIncompatibilityView: View {
                     .font(.title)
                     .fontWeight(.semibold)
 
-                if let installedVersion = systemService.parsedContainerVersion {
-                    Text("We require Apple Container version \(systemService.parsedContainerVersion ?? "unknown"), but you are running version \(installedVersion)")
-                        .padding(.horizontal)
-                        .multilineTextAlignment(.center)
-                } else if let rawVersion = systemService.containerVersion {
-                    Text("Detected version: \(rawVersion)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
-                        .multilineTextAlignment(.center)
+                Text("This build of Orchard talks to Apple container \(supportedContainerVersion), but the installed container service is a different release the app can't communicate with.")
+                    .padding(.horizontal)
+                    .multilineTextAlignment(.center)
 
-                    Text("We require Apple Container version \(systemService.parsedContainerVersion ?? "unknown")")
-                        .font(.subheadline)
+                if let detail = systemService.systemStatusError {
+                    Text(detail)
+                        .font(.caption)
                         .foregroundColor(.secondary)
-                } else {
-                    Text("We require Apple Container version \(systemService.parsedContainerVersion ?? "unknown")")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                 }
 
-                Text("Please update your Container installation to continue using this application.")
+                Text("Update your container installation (or Orchard) so the versions match, then check again.")
                     .font(.body)
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
