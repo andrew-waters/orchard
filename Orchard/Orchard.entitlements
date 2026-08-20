@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<!-- Required for TerminalLauncher to drive Terminal.app and iTerm2 via
+	     AppleScript under the hardened runtime; without it, notarized builds
+	     are refused with "Not authorized to send Apple events" (#64). -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+</dict>
 </plist>

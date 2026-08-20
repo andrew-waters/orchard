@@ -11,14 +11,16 @@ final class ModelService: ObservableObject {
     @Published var isLoading = false
 
     private let backend: ModelBackend
+    private let settings: SettingsStore
 
-    init(backend: ModelBackend) {
+    init(backend: ModelBackend, settings: SettingsStore) {
         self.backend = backend
+        self.settings = settings
     }
 
     func load(showLoading: Bool = true) async {
         if showLoading { isLoading = true }
-        let providers = await backend.detectProviders()
+        let providers = await backend.detectProviders(apiKeys: settings.allModelAPIKeys())
         if providers != self.providers {
             self.providers = providers
         }
@@ -28,7 +30,14 @@ final class ModelService: ObservableObject {
     /// Send a chat conversation to a provider running on the host and return its reply.
     /// Surfaces transport/HTTP errors to the caller (the tester shows them inline).
     func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {
-        try await backend.complete(port: port, api: api, model: model, messages: messages)
+        try await backend.complete(port: port, api: api, model: model, messages: messages, apiKey: settings.modelAPIKey(port: port))
+    }
+
+    /// Store (or clear, when empty) the API key for the server on `port`, then re-detect
+    /// so a locked provider unlocks immediately.
+    func setAPIKey(_ key: String, port: UInt16) async {
+        settings.setModelAPIKey(key, port: port)
+        await load(showLoading: false)
     }
 
     /// The environment-variable pairs to inject so a container attached to `network`
@@ -37,6 +46,6 @@ final class ModelService: ObservableObject {
     func bridgeEnvironment(for provider: ModelProvider, on network: ContainerNetwork) -> [(key: String, value: String)]? {
         guard let gateway = network.status.gateway, !gateway.isEmpty else { return nil }
         let baseURL = ModelBridge.containerBaseURL(gateway: gateway, hostPort: provider.port, api: provider.api)
-        return ModelBridge.injectionEnvironment(baseURL: baseURL, api: provider.api)
+        return ModelBridge.injectionEnvironment(baseURL: baseURL, api: provider.api, apiKey: settings.modelAPIKey(port: provider.port))
     }
 }

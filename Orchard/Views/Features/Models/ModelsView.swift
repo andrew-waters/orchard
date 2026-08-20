@@ -119,6 +119,8 @@ struct ModelDetailView: View {
 
     @State private var runTarget: RunTarget?
     @State private var testTarget: TestTarget?
+    /// Draft key for unlocking a 401-locked provider; cleared on save.
+    @State private var apiKeyDraft = ""
 
     private struct RunTarget: Identifiable {
         let id = UUID(); let modelID: String
@@ -224,7 +226,27 @@ struct ModelDetailView: View {
                     .foregroundColor(.secondary)
             }
 
-            if provider.models.isEmpty {
+            if provider.requiresAPIKey {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("API key required", systemImage: "lock")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text("This server rejected the probe with 401 or 403. Paste its API key to list models and chat.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        SecureField("API key", text: $apiKeyDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 280)
+                        Button("Save") {
+                            let key = apiKeyDraft
+                            apiKeyDraft = ""
+                            Task { await modelService.setAPIKey(key, port: provider.port) }
+                        }
+                        .disabled(apiKeyDraft.isEmpty)
+                    }
+                }
+            } else if provider.models.isEmpty {
                 Text("No models reported").font(.caption).foregroundColor(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
@@ -235,15 +257,17 @@ struct ModelDetailView: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                Button(action: { testTarget = TestTarget(name: provider.kind.displayName, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
-                    Label("Chat…", systemImage: "text.bubble")
+            if !provider.requiresAPIKey {
+                HStack(spacing: 8) {
+                    Button(action: { testTarget = TestTarget(name: provider.kind.displayName, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
+                        Label("Chat…", systemImage: "text.bubble")
+                    }
+                    Button(action: { runTarget = RunTarget(modelID: provider.id) }) {
+                        Label("New sandbox…", systemImage: "shield.lefthalf.filled")
+                    }
                 }
-                Button(action: { runTarget = RunTarget(modelID: provider.id) }) {
-                    Label("New sandbox…", systemImage: "shield.lefthalf.filled")
-                }
+                .font(.subheadline)
             }
-            .font(.subheadline)
 
             Spacer()
         }

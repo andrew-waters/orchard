@@ -50,6 +50,26 @@ func parseOllamaModels() {
     #expect(LiveModelBackend.parseModels(json, api: .ollama) == ["llama3.1:latest", "mistral:7b"])
 }
 
+@Test("Refine: an oMLX models listing (owned_by \"omlx\") reclassifies the provider")
+func refineKindOMLX() {
+    let json = Data(#"{"object":"list","data":[{"id":"llama-3.2-1b","owned_by":"omlx"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.mlxServer, data: json, api: .openAI) == .omlx)
+}
+
+@Test("Refine: other owned_by values and non-OpenAI APIs keep the candidate's kind")
+func refineKindPassthrough() {
+    let mlx = Data(#"{"object":"list","data":[{"id":"llama-3.2-1b","owned_by":"mlx"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.mlxServer, data: mlx, api: .openAI) == .mlxServer)
+
+    let noOwner = Data(#"{"object":"list","data":[{"id":"llama-3.2-1b"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.lmStudio, data: noOwner, api: .openAI) == .lmStudio)
+
+    let ollama = Data(#"{"models":[{"name":"llama3.1:latest"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.ollama, data: ollama, api: .ollama) == .ollama)
+
+    #expect(LiveModelBackend.refineKind(.mlxServer, data: Data("not json".utf8), api: .openAI) == .mlxServer)
+}
+
 @Test("Parse: malformed or empty JSON yields no models rather than throwing")
 func parseGarbage() {
     #expect(LiveModelBackend.parseModels(Data("not json".utf8), api: .openAI).isEmpty)
@@ -75,4 +95,40 @@ func parseCompletionBadShape() {
     #expect(throws: (any Error).self) {
         try LiveModelBackend.parseCompletion(Data("{}".utf8), api: .openAI)
     }
+}
+
+// MARK: - Probe classification and API keys (#72 follow-up)
+
+private let omlxCandidate = LiveModelBackend.Candidate(kind: .mlxServer, port: 8000, api: .openAI, listPath: "/v1/models")
+
+@Test("Probe: a 200 with an oMLX listing yields an unlocked oMLX provider")
+func probeClassifiesOK() {
+    let json = Data(#"{"object":"list","data":[{"id":"qwen3-4b","owned_by":"omlx"}]}"#.utf8)
+    let provider = LiveModelBackend.provider(from: 200, data: json, candidate: omlxCandidate)
+    #expect(provider?.kind == .omlx)
+    #expect(provider?.models == ["qwen3-4b"])
+    #expect(provider?.requiresAPIKey == false)
+}
+
+@Test("Probe: 401 and 403 surface a locked provider instead of hiding the server", arguments: [401, 403])
+func probeClassifiesLocked(status: Int) {
+    let errorBody = Data(#"{"error":{"message":"API key required"}}"#.utf8)
+    let provider = LiveModelBackend.provider(from: status, data: errorBody, candidate: omlxCandidate)
+    #expect(provider?.requiresAPIKey == true)
+    #expect(provider?.models.isEmpty == true)
+    #expect(provider?.kind == .mlxServer)   // can't refine without a listing
+}
+
+@Test("Probe: other statuses are not a provider", arguments: [404, 500, 302])
+func probeClassifiesOther(status: Int) {
+    #expect(LiveModelBackend.provider(from: status, data: Data(), candidate: omlxCandidate) == nil)
+}
+
+@Test("Bridge env: a stored API key replaces the placeholder")
+func bridgeEnvWithKey() {
+    let env = ModelBridge.injectionEnvironment(baseURL: "http://192.168.64.1:8000/v1", api: .openAI, apiKey: "sk-test")
+    #expect(env.contains { $0.key == "OPENAI_API_KEY" && $0.value == "sk-test" })
+
+    let open = ModelBridge.injectionEnvironment(baseURL: "http://192.168.64.1:8000/v1", api: .openAI)
+    #expect(open.contains { $0.key == "OPENAI_API_KEY" && $0.value == "not-needed" })
 }
