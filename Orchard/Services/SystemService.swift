@@ -108,7 +108,19 @@ final class SystemService: ObservableObject {
             Log.containers.debug("Container system started successfully")
             await onSystemStarted()
         } catch {
-            alertCenter.error("Failed to start system: \(error.localizedDescription)")
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileNoSuchFileError {
+                // `try!` is bad, but we know this is valid markdown
+                alertCenter.error("""
+                                   Failed to start system: \(error.localizedDescription)
+                                   Make sure Apple Container is installed.
+                                   """,
+                                  alertButtons: [
+                                    AlertButton(text: "Download Apple Container", url: URL(string: "https://github.com/apple/container?tab=readme-ov-file#initial-install"))
+                                  ])
+            } else {
+                alertCenter.error("Failed to start system: \(error.localizedDescription)")
+            }
             isSystemLoading = false
             await checkSystemStatus()
             Log.containers.error("Error starting system: \(error.localizedDescription)")

@@ -58,6 +58,7 @@ struct ContentView: View {
     @State private var showingItemNavigatorPopover = false
 
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openURL) private var openURL
 
 
 
@@ -398,8 +399,11 @@ struct ContentView: View {
                 set: { presented in if !presented { alertCenter.dismiss() } }
             ),
             presenting: alertCenter.current
-        ) { _ in
+        ) { alert in
             Button("OK", role: .cancel) { alertCenter.dismiss() }
+            ForEach(alert.extraButtons) { button in
+                Button(button.text, role: .confirm) { if let url = button.url { openURL(url) } }
+            }
         } message: { alert in
             Text(alert.message)
         }
