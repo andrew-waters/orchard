@@ -3,6 +3,8 @@ import SwiftUI
 // MARK: - Container Detail Header
 struct ContainerDetailHeader: View {
     let container: Container
+    @Binding var selectedTab: TabSelection
+    @Binding var selectedCluster: String?
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
     @Environment(\.openWindow) private var openWindow
@@ -83,6 +85,14 @@ struct ContainerDetailHeader: View {
                     Text(role)
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
+                }
+                if let cluster = K8sCluster.clusterName(for: container) {
+                    Divider()
+                    Button("Show in Clusters") {
+                        showPluginInfo = false
+                        selectedTab = .clusters
+                        selectedCluster = cluster
+                    }
                 }
             }
             .padding(14)
