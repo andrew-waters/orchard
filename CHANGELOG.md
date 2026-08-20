@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Orchard now links the Apple container 1.2.2 client libraries (previously 1.1.0), restoring compatibility with current container installs ([#54](https://github.com/andrew-waters/orchard/issues/54)).
+- When the installed container release doesn't match the client Orchard links, the app now shows the version-incompatibility screen with upgrade guidance instead of reporting the system as stopped with a raw health-check decode error ([#37](https://github.com/andrew-waters/orchard/issues/37), [#39](https://github.com/andrew-waters/orchard/issues/39)).
+
 ## [2.1.6] - 2026-08-20
 
 ### Added

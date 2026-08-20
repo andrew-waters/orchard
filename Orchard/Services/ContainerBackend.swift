@@ -112,6 +112,17 @@ func mapContainerError(_ error: Error) -> Error {
     isContainerServiceUnavailable(error) ? OrchardError.xpcUnavailable : error
 }
 
+/// The apple/container release Orchard's client libraries are built against. Keep in
+/// sync with the container package pin in project.pbxproj when bumping.
+let supportedContainerVersion = "1.2.2"
+
+/// A ping reply the linked client cannot decode means the installed daemon speaks a
+/// different protocol revision than the client libraries Orchard links.
+func isContainerVersionMismatch(_ error: Error) -> Bool {
+    let message = error.localizedDescription.lowercased()
+    return message.contains("failed to decode") && message.contains("health check")
+}
+
 func isContainerServiceUnavailable(_ error: Error) -> Bool {
     let message = error.localizedDescription.lowercased()
     return message.contains("connection invalid")

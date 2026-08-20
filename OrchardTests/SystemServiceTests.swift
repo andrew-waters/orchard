@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import Orchard
 
 @MainActor
@@ -40,4 +41,19 @@ func stopSystemFailureReDerives() async {
 
     #expect(service.systemService.systemStatus == .running)   // re-derived, not forced .stopped
     #expect(service.alertCenter.current != nil)
+}
+
+@MainActor
+@Test("checkSystemStatus: undecodable health check gates on version, not .stopped")
+func checkSystemStatusVersionMismatch() async {
+    let backend = MockContainerBackend()
+    backend.pingError = NSError(
+        domain: "test", code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "internalError: \"failed to decode apiServerBuild in health check\""])
+    let service = makeService(backend: backend)
+
+    await service.systemService.checkSystemStatus()
+
+    #expect(service.systemService.systemStatus == .unsupportedVersion)
+    #expect(service.systemService.systemStatusError?.isEmpty == false)
 }

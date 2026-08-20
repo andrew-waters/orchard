@@ -76,7 +76,10 @@ final class SystemService: ObservableObject {
         } catch {
             self.containerVersion = nil
             self.parsedContainerVersion = nil
-            self.systemStatus = .stopped
+            // A health check the linked client can't decode isn't an outage: the daemon
+            // is up but speaking a different container release. Gate on version instead
+            // of reporting "stopped" with a cryptic decode error (#37, #39, #54).
+            self.systemStatus = isContainerVersionMismatch(error) ? .unsupportedVersion : .stopped
             self.systemStatusError = "\(type(of: error)): \(String(describing: error))"
         }
     }
