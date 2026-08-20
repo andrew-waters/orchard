@@ -9,11 +9,16 @@
 #   - Accessibility (to click the sidebar)
 #   - Screen Recording (to capture the window)
 #
-# Usage: ./scripts/capture-screenshots.sh [output-dir]   (default: scratch/screenshots)
+# Usage: ./scripts/capture-screenshots.sh [output-dir]   (default: site/assets/screens)
+#
+# The default lands where both consumers can use the files directly:
+#   - GH Pages serves them at https://orchard.andon.dev/assets/screens/<tab>.png
+#   - the README can embed them as site/assets/screens/<tab>.png
+# Re-run and commit to refresh the screenshots everywhere at once.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-OUT="${1:-scratch/screenshots}"
+OUT="${1:-site/assets/screens}"
 AX="scripts/.build/orchard-ax"
 
 # Compile the AX helper on first run (or when its source changes).
@@ -37,4 +42,4 @@ for tab in $TABS; do
   echo "captured $OUT/$tab.png"
 done
 echo
-echo "Site hero shot: cp $OUT/clusters.png site/assets/clusters.png (on the site branch)"
+echo "Committed with the site, these serve at https://orchard.andon.dev/assets/screens/<tab>.png"
