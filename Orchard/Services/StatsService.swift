@@ -342,8 +342,10 @@ final class StatsService: ObservableObject {
                 containerFailures.append((id, error))
                 recordFailure("stats(id: \(id)): \(error.localizedDescription)")
             case .serviceUnavailable(let error):
-                if serviceUnavailable == nil { serviceUnavailable = error }
-                recordFailure("container service unavailable: \(error.localizedDescription)")
+                if serviceUnavailable == nil {
+                    serviceUnavailable = error
+                    recordFailure("container service unavailable: \(error.localizedDescription)")
+                }
             }
         }
 
