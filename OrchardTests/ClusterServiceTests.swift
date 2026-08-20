@@ -170,3 +170,11 @@ func lifecycleCommands() async {
     #expect(runner.calls.contains(["k8s", "load-image", "--name", "k8s-dev", "demo-api:latest"]))
     #expect(runner.calls.contains(["k8s", "write-config", "--name", "k8s-dev"]))
 }
+
+@Test("Grouping: a k8s node without '-worker-' in its id falls back to the id as cluster name")
+func groupOrphanWithoutWorkerSuffix() throws {
+    let clusters = K8sCluster.group(containers: [try k8sNode("stray")])
+    #expect(clusters.count == 1)
+    #expect(clusters.first?.name == "stray")
+    #expect(clusters.first?.nodes.map(\.id) == ["stray"])
+}

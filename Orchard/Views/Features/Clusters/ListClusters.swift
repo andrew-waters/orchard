@@ -38,10 +38,12 @@ struct ClustersListView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if !clusters.isEmpty {
-            clustersListView
-        } else if clusterService.pluginAvailability == .missingPlugin {
+        if clusterService.pluginAvailability == .missingPlugin {
+            // Authoritative even if labelled node containers linger (e.g. after a
+            // downgrade): every lifecycle action would fail without the plugin.
             pluginMissingStateView
+        } else if !clusters.isEmpty {
+            clustersListView
         } else {
             emptyStateView
         }

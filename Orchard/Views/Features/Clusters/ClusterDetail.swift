@@ -235,7 +235,6 @@ private struct LoadImageSheet: View {
                 Text("Load Image into '\(clusterName)'")
                     .font(.title3).fontWeight(.semibold)
                 Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
