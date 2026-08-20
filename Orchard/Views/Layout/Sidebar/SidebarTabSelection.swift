@@ -54,7 +54,7 @@ enum TabSelection: String, CaseIterable {
         case .machines:
             return "Machines"
         case .clusters:
-            return "Clusters"
+            return "k8s Clusters"
         case .models:
             return "AI Models"
         case .sandboxes:
