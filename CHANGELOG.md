@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.5] - 2026-08-20
+
 ### Added
 - Containers can now be created with a chosen CPU and memory allocation, and both can be changed later from Edit Configuration (via the usual stop/recreate flow). Previously every container silently got the runtime defaults of 4 CPUs and 1 GB with no way to change them in the GUI ([#73](https://github.com/andrew-waters/orchard/issues/73)).
 - The AI Models section now recognises [oMLX](https://github.com/jundot/omlx) servers. oMLX serves the same OpenAI-style API on the same conventional port (8000) as `mlx_lm.server`, so it previously appeared as a generic "MLX Server"; it's now identified by the `owned_by: omlx` stamp in its models listing ([#72](https://github.com/andrew-waters/orchard/issues/72)).
