@@ -140,3 +140,23 @@ func modelAPIKeyRoundTrip() {
         #expect(store.allModelAPIKeys().isEmpty)
     }
 }
+
+@MainActor
+@Test("Dock icon: defaults to visible, persists, and round-trips across store instances")
+func dockIconPreferencePersists() {
+    withSettingsStore { store, defaults in
+        #expect(store.hideDockIcon == false)
+
+        store.setHideDockIcon(true)
+        #expect(store.hideDockIcon == true)
+        #expect(defaults.bool(forKey: SettingsStore.hideDockIconDefaultsKey) == true)
+
+        // A fresh store on the same suite reads the persisted value back.
+        let second = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore())
+        #expect(second.hideDockIcon == true)
+
+        second.setHideDockIcon(false)
+        #expect(second.hideDockIcon == false)
+        #expect(defaults.bool(forKey: SettingsStore.hideDockIconDefaultsKey) == false)
+    }
+}

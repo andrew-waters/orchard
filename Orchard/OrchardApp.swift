@@ -6,6 +6,16 @@ struct OrchardApp: App {
     @StateObject private var menuBarManager = MenuBarManager()
     @StateObject private var updater = UpdaterService()
 
+    init() {
+        // Apply the persisted Dock-icon preference before any window appears. Read
+        // straight from defaults: the services aren't built yet. Only the hidden case
+        // needs applying - the app launches as .regular anyway, and applying .regular
+        // here would trigger the restore-activation dance at every launch.
+        if UserDefaults.standard.bool(forKey: SettingsStore.hideDockIconDefaultsKey) {
+            DockIconPolicy.apply(hidden: true)
+        }
+    }
+
     var body: some Scene {
         WindowGroup(id: "main") {
             ContentView()

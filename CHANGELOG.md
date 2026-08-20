@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Command palette: press Cmd+K (or View > Command Palette...) to fuzzy-search everything Orchard manages - containers, images, mounts, machines, k8s clusters, AI models, sandboxes, DNS domains and networks - and jump straight to any of them, or run actions from the keyboard: run a container, pull an image, create networks/machines/clusters, start/stop/restart the container system, and per-resource verbs like "stop db", "logs api" or "console web". Results rank with real fuzzy matching (exact prefix beats word-boundary beats scattered match); destructive operations are deliberately not palette-reachable.
+- The Dock icon can now be hidden (Settings > General > "Hide Dock icon"): Orchard switches to a menu-bar accessory, staying reachable from the menu bar, and the preference applies immediately and persists across launches. Note that macOS also removes accessory apps from the Cmd-Tab switcher.
 
 ### Fixed
 - The AI Models and Sandboxes middle columns no longer render lighter than every other list: they used the sidebar list style, which paints its own source-list background, instead of the plain style the rest of the middle columns use.
