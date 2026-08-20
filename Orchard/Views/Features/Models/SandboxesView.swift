@@ -128,33 +128,33 @@ struct SandboxDetailView: View {
                 SwiftUI.Image(systemName: sandbox.kind == .container ? "cube" : "cpu")
                 Text(sandbox.name).font(.title3).fontWeight(.semibold)
                     .lineLimit(1).truncationMode(.middle)
-                Spacer()
                 isolationBadge(sandbox.isIsolated)
+                Spacer()
+                // Actions live top-right, consistent with the other detail headers.
+                if sandbox.isRunning {
+                    HStack(spacing: 8) {
+                        if let target = chatTargetFor(sandbox) {
+                            Button(action: { chatTarget = target }) {
+                                Label("Chat…", systemImage: "text.bubble")
+                            }
+                        }
+                        Button(action: { terminalLauncher.openTerminal(for: sandbox.id) }) {
+                            Label("Open Terminal", systemImage: "terminal")
+                        }
+                        Button(role: .destructive, action: {
+                            Task { await containerListService.stopContainer(sandbox.id) }
+                        }) {
+                            Label("Stop", systemImage: "stop.fill")
+                        }
+                    }
+                    .font(.subheadline)
+                }
             }
 
             if let endpoint = sandbox.modelEndpoint {
                 labeledRow("Model endpoint", endpoint)
             }
             labeledRow("Source", sandbox.source == .managed ? "Wired by Orchard" : "Detected (env var)")
-
-            if sandbox.isRunning {
-                HStack(spacing: 8) {
-                    if let target = chatTargetFor(sandbox) {
-                        Button(action: { chatTarget = target }) {
-                            Label("Chat…", systemImage: "text.bubble")
-                        }
-                    }
-                    Button(action: { terminalLauncher.openTerminal(for: sandbox.id) }) {
-                        Label("Open Terminal", systemImage: "terminal")
-                    }
-                    Button(role: .destructive, action: {
-                        Task { await containerListService.stopContainer(sandbox.id) }
-                    }) {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                }
-                .font(.subheadline)
-            }
 
             Divider()
             Text(sandbox.isIsolated
