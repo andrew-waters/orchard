@@ -57,6 +57,7 @@ func matches(_ el: AXUIElement) -> Bool {
     if byText {
         return stringAttr(el, kAXValueAttribute as String) == wanted
             || stringAttr(el, kAXTitleAttribute as String) == wanted
+            || stringAttr(el, kAXDescriptionAttribute as String) == wanted
     }
     return identifier(el) == wanted
 }

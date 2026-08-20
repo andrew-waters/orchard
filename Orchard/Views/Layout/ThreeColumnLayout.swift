@@ -393,6 +393,11 @@ struct ThreeColumnLayout: View {
                     selectedClusterBinding: $selectedCluster,
                     selectedSandboxBinding: $selectedSandbox
                 )
+                // With the sidebar hidden this column is leftmost and the traffic
+                // lights float over it; inset below them, like the middle column's
+                // header does (#88). The middle-column layout never puts the detail
+                // leftmost, so only this arm needs it.
+                .padding(.top, sidebarCollapsed ? 52 : 0)
                 .ignoresSafeArea(.container, edges: .top)
             }
         }
