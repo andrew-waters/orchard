@@ -227,14 +227,20 @@ struct MenuBarView: View {
         }
         .contentShape(Rectangle())
         .onHover { if row.isRunning { setContainerHover(row.id, $0) } }
-        .popover(isPresented: containerHoverBinding(row.id), arrowEdge: .leading) {
-            ResourceHistoryPanel(
-                name: row.id,
-                cpuValues: containerHistory(id: row.id, cpu: true),
-                memValues: containerHistory(id: row.id, cpu: false),
-                cpuNow: String(format: "%.1f%%", row.cpuPercent),
-                memNow: ByteFormat.memory(row.memoryBytes)
-            )
+        // Anchor the popover to a zero-size overlay instead of the container row, so a
+        // click on the control button isn't consumed before reaching it.
+        .overlay(alignment: .leading) {
+            Color.clear
+                .frame(width: 0, height: 0)
+                .popover(isPresented: containerHoverBinding(row.id), arrowEdge: .leading) {
+                    ResourceHistoryPanel(
+                        name: row.id,
+                        cpuValues: containerHistory(id: row.id, cpu: true),
+                        memValues: containerHistory(id: row.id, cpu: false),
+                        cpuNow: String(format: "%.1f%%", row.cpuPercent),
+                        memNow: ByteFormat.memory(row.memoryBytes)
+                    )
+                }
         }
         .contextMenu { rowMenu(row) }
     }

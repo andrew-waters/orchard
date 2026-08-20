@@ -12,6 +12,9 @@ final class SettingsStore: ObservableObject {
     /// Backing store for persisted settings. Production uses `.standard`; tests inject an
     /// ephemeral suite so they never read or mutate the real user domain.
     private let defaults: UserDefaults
+    /// Credential storage for model-server API keys. Keychain in production; tests
+    /// inject the in-memory variant.
+    private let secrets: SecretsStore
 
     private let fallbackBinaryPath = "/usr/local/bin/container"
     private let candidateBinaryPaths: [String] = [
@@ -42,7 +45,8 @@ final class SettingsStore: ObservableObject {
         return customPath != defaultBinaryPath && validateBinaryPath(customPath)
     }
 
-    init(alertCenter: AlertCenter, defaults: UserDefaults = .standard) {
+    init(alertCenter: AlertCenter, defaults: UserDefaults = .standard, secrets: SecretsStore = KeychainSecretsStore()) {
+        self.secrets = secrets
         self.alertCenter = alertCenter
         self.defaults = defaults
         loadCustomBinaryPath()
@@ -139,5 +143,29 @@ final class SettingsStore: ObservableObject {
             }
             return defaultBinaryPath
         }
+    }
+
+    // MARK: - Model provider API keys
+
+    /// Per-port API keys for local model servers (e.g. an oMLX install that generated
+    /// one at setup). Keyed by port because that's the only stable identity a detected
+    /// provider has. Stored in the keychain, not UserDefaults - they're credentials,
+    /// and the bridge injects them into containers that may be internet-enabled.
+    func modelAPIKey(port: UInt16) -> String? {
+        secrets.secret(for: String(port))
+    }
+
+    func setModelAPIKey(_ key: String?, port: UInt16) {
+        secrets.setSecret(key, for: String(port))
+        objectWillChange.send()
+    }
+
+    /// All stored provider keys, for the detection probe.
+    func allModelAPIKeys() -> [UInt16: String] {
+        var result: [UInt16: String] = [:]
+        for (portString, key) in secrets.allSecrets() {
+            if let port = UInt16(portString) { result[port] = key }
+        }
+        return result
     }
 }

@@ -46,11 +46,12 @@ final class AppServices: ObservableObject {
         modelBackend: ModelBackend = LiveModelBackend(),
         modelServerEngine: ModelServerEngine = MLXServerEngine(),
         runner: CommandRunner = SystemCommandRunner(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        secrets: SecretsStore = KeychainSecretsStore()
     ) {
         let alertCenter = AlertCenter()
         self.alertCenter = alertCenter
-        let settings = SettingsStore(alertCenter: alertCenter, defaults: defaults)
+        let settings = SettingsStore(alertCenter: alertCenter, defaults: defaults, secrets: secrets)
         self.settings = settings
         self.terminalLauncher = TerminalLauncher(settings: settings, alertCenter: alertCenter)
         let builderService = BuilderService(runner: runner, settings: settings, alertCenter: alertCenter)
@@ -74,7 +75,7 @@ final class AppServices: ObservableObject {
 		let statsService = StatsService(backend: backend, alertCenter: alertCenter, containerList: containerListService)
         self.statsService = statsService
         self.machineService = MachineService(backend: machineBackend, alertCenter: alertCenter)
-        self.modelService = ModelService(backend: modelBackend)
+        self.modelService = ModelService(backend: modelBackend, settings: settings)
         self.modelServerService = ModelServerService(engine: modelServerEngine, alertCenter: alertCenter)
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }

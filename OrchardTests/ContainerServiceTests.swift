@@ -71,6 +71,75 @@ func specCommandAndName() async {
     #expect(spec?.id.isEmpty == false)   // empty name → generated id
 }
 
+@MainActor
+@Test("Spec: resources default to the runtime's own values (4 CPUs, 1 GB)")
+func specResourceDefaults() async {
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
+    await service.containerListService.runContainer(config: ContainerRunConfig(name: "web", image: "nginx"))
+
+    let spec = backend.createdSpecs.first
+    #expect(spec?.cpus == 4)
+    #expect(spec?.memoryBytes == 1_073_741_824)
+}
+
+@MainActor
+@Test("Spec: configured CPUs and memory carry through to the create spec")
+func specResourcePassthrough() async {
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.cpus = 6
+    config.memoryGiB = 8
+    await service.containerListService.runContainer(config: config)
+
+    let spec = backend.createdSpecs.first
+    #expect(spec?.cpus == 6)
+    #expect(spec?.memoryBytes == 8_589_934_592)
+}
+
+@MainActor
+@Test("Spec: a non-integral memory allocation passes through in exact bytes")
+func specResourceExactBytes() async {
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.memoryBytes = 1_610_612_736   // 1.5 GB, e.g. from a CLI-created container
+    await service.containerListService.runContainer(config: config)
+
+    #expect(backend.createdSpecs.first?.memoryBytes == 1_610_612_736)
+}
+
+@MainActor
+@Test("Spec: invalid resource values are clamped, never trapped")
+func specResourceClamping() async {
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.cpus = -2
+    config.memoryBytes = 0
+    await service.containerListService.runContainer(config: config)
+
+    let spec = backend.createdSpecs.first
+    #expect(spec?.cpus == 1)
+    #expect(spec?.memoryBytes == 1_048_576)
+}
+
+@Test("Config: the GB accessor rounds for display and floors edits at 1 GB")
+func memoryGiBAccessor() {
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+
+    config.memoryBytes = 1_610_612_736            // 1.5 GB reads as 2
+    #expect(config.memoryGiB == 2)
+    config.memoryBytes = 1_400_000_000            // ~1.3 GB reads as 1
+    #expect(config.memoryGiB == 1)
+
+    config.memoryGiB = 3                          // edits write exact whole GB
+    #expect(config.memoryBytes == 3_221_225_472)
+    config.memoryGiB = -5                         // nonsense edits floor at 1 GB
+    #expect(config.memoryBytes == 1_073_741_824)
+}
+
 // MARK: - Service state transitions
 
 @MainActor
