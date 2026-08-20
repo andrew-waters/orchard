@@ -41,11 +41,19 @@ struct FuzzyMatchTests {
 
     @Test("Separators start words: slash, dot, colon, dash, underscore")
     func separatorBoundaries() throws {
-        // "node" starts after a slash in the reference - it should score at least as a
+        // "node" starts after each separator - every one should score as a
         // word-boundary match, well above a scattered match of the same letters.
-        let boundary = try #require(FuzzyMatch.score(query: "node", candidate: "kindest/node:v1.29"))
         let scattered = try #require(FuzzyMatch.score(query: "node", candidate: "nginx-loadbalancer-demo"))
-        #expect(boundary > scattered)
+        for candidate in [
+            "kindest/node:v1.29",
+            "kindest.node",
+            "kindest:node",
+            "kindest-node",
+            "kindest_node",
+        ] {
+            let boundary = try #require(FuzzyMatch.score(query: "node", candidate: candidate))
+            #expect(boundary > scattered, "expected boundary match in \(candidate) to outrank scattered")
+        }
     }
 
     @Test("Tighter matches beat spread-out matches")

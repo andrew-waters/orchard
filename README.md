@@ -91,6 +91,7 @@ Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard
 
 ## Orchard Features
 
+- Command palette: press Cmd+K to fuzzy-search everything Orchard manages, jump to any resource, or run actions from the keyboard - "stop db", "logs api", "console web"
 - Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
 - Kubernetes clusters: create and manage local k8s clusters (container's k8s plugin), load images into them, and get one-click kubectl access
@@ -103,6 +104,10 @@ Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard
 - Container log viewer with search highlighting
 - Builder, kernel and system property management
 - Menu bar integration
+
+![Command palette - fuzzy search across every resource, with keyboard-reachable actions](site/assets/screens/palette.png)
+
+Press Cmd+K anywhere and type: results rank with real fuzzy matching across containers, images, mounts, machines, k8s clusters, AI models, sandboxes, DNS domains and networks. Verbs work too - "stop db" stops the container, "logs api" opens the log viewer, "console web" drops you into a shell - and the actions section covers running containers, pulling images, and starting or stopping the container system itself.
 
 ![Orchard container detail - CPU, memory, network, and disk over time](site/assets/screens/containers.png)
 
@@ -136,6 +141,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 | Container machines (native XPC) | ✅ | ❌ | ✅ |
 | Kubernetes clusters on `apple/container` | ✅ | ❌ | ✅ |
 | Local AI models & agent sandboxes | ✅ | ❌ | ❌ |
+| Command palette (fuzzy search + actions) | ✅ | ❌ | ❌ |
 | Signed & notarized | ✅ | ✅ | ✅ |
 | Multi-pane log viewer | ✅ | ➖ | ➖ <sup>5</sup> |
 | Live container stats (CPU/mem/net/disk) | ✅ | ✅ | ➖ |

@@ -52,6 +52,7 @@ struct CommandPaletteCatalogTests {
         let stopped = ids(catalog(systemRunning: false))
         #expect(stopped.contains("action:startSystem"))
         #expect(!stopped.contains("action:stopSystem"))
+        #expect(!stopped.contains("action:restartSystem"))
     }
 
     @Test("Machine verbs are state-aware")
@@ -76,7 +77,9 @@ struct CommandPaletteCatalogTests {
         let ranked = CommandPaletteCatalog.rank(entries, query: "")
         let all = ids(ranked)
         #expect(all.contains("container:zzz-running"))
-        #expect(!all.contains { $0.hasSuffix(":stop") || $0.hasSuffix(":start") || $0.hasSuffix(":logs") })
+        #expect(!all.contains {
+            $0.hasSuffix(":stop") || $0.hasSuffix(":start") || $0.hasSuffix(":console") || $0.hasSuffix(":logs")
+        })
         let runningIndex = try #require(all.firstIndex(of: "container:zzz-running"))
         let stoppedIndex = try #require(all.firstIndex(of: "container:aaa-stopped"))
         #expect(runningIndex < stoppedIndex)

@@ -14,7 +14,6 @@ struct ThreeColumnLayout: View {
     @AppStorage("imageSortBy") private var imageSortBy: ImageSortOption = .name
     @AppStorage("imageSortAscending") private var imageSortAscending: Bool = true
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
-    @State private var showRunContainerSheet: Bool = false
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -44,6 +43,7 @@ struct ThreeColumnLayout: View {
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
+    @Binding var showRunContainerSheet: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
     @Binding var showAddMachineSheet: Bool
@@ -311,11 +311,6 @@ struct ThreeColumnLayout: View {
                 .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 500)
                 .sheet(isPresented: $showRunContainerSheet) {
                     RunContainerView()
-                }
-                .onReceive(
-                    NotificationCenter.default.publisher(for: NSNotification.Name("ShowRunContainerSheet"))
-                ) { _ in
-                    showRunContainerSheet = true
                 }
             } detail: {
                 // Third Column - Detail view for selected item
