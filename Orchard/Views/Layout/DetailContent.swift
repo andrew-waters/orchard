@@ -27,6 +27,7 @@ struct DetailContentView: View {
     @Binding var selectedNetworksBinding: Set<String>
     @Binding var selectedNetworkBinding: String?
     @Binding var selectedClusterBinding: String?
+    @Binding var selectedSandboxBinding: String?
 
     var body: some View {
         switch selectedTab {
@@ -117,7 +118,8 @@ struct DetailContentView: View {
                         container: container,
                         selectedTabBinding: $selectedTabBinding,
                         selectedNetwork: $selectedNetworkBinding,
-                        selectedCluster: $selectedClusterBinding
+                        selectedCluster: $selectedClusterBinding,
+                        selectedSandbox: $selectedSandboxBinding
                     )
                 }
             }

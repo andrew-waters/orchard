@@ -22,8 +22,12 @@ struct ContainerDetailHeader: View {
     /// the Containers and Sandboxes lists.
     private var sandboxBadge: some View {
         Button(action: { showSandboxInfo.toggle() }) {
-            SwiftUI.Image(systemName: "shield.lefthalf.filled")
+            Text("sandbox")
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.accentColor)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.accentColor.opacity(0.14)))
         }
         .buttonStyle(.plain)
         .help("Sandbox - wired to a local model")
