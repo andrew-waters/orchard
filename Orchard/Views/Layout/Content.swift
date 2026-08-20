@@ -52,6 +52,7 @@ struct ContentView: View {
     @State private var showAddMachineSheet: Bool = false
 
     @State private var refreshTimer: Timer?
+    @State private var initialLoadTask: Task<Void, Never>?
 
     @FocusState private var listFocusedTab: TabSelection?
 
@@ -412,14 +413,36 @@ struct ContentView: View {
         }
 
         .task {
-            await performInitialLoad()
+            if initialLoadTask == nil {
+                initialLoadTask = Task {
+                    await performInitialLoad()
+                    initialLoadTask = nil
+                }
+            }
             startRefreshTimer()
+        }
+        .onChange(of: systemService.systemStatus) { _, newStatus in
+            if newStatus == .running {
+                if initialLoadTask == nil {
+                    initialLoadTask = Task {
+                        await performInitialLoad()
+                        initialLoadTask = nil
+                    }
+                }
+                startRefreshTimer()
+            }
         }
     }
 
 
     private func performInitialLoad() async {
         await systemService.checkSystemStatus()
+
+        // If the system is stopped or incompatible, don't hammer the XPC services
+        // with loading calls. They will just fail and show dialogs.
+        if systemService.systemStatus != .running {
+            return
+        }
 
         // Load stats first for immediate display
         await statsService.load(showLoading: true)
@@ -436,9 +459,11 @@ struct ContentView: View {
     }
 
     private func startRefreshTimer() {
+        refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
                 await systemService.checkSystemStatus()
+                guard systemService.systemStatus == .running else { return }
                 await containerListService.loadContainers(showLoading: false)
                 await imageService.load()
                 await builderService.loadBuilders()

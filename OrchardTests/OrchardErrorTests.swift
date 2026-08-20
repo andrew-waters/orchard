@@ -45,3 +45,29 @@ func cliFailedCopy() {
     let noStderr = OrchardError.cliFailed(command: "builder start", exitCode: 2, stderr: nil)
     #expect(noStderr.errorDescription == "builder start failed (exit 2).")
 }
+
+@Test("isContainerServiceUnavailable: matches common XPC outage messages")
+func containerServiceUnavailableClassifier() {
+    for message in [
+        "The connection was invalidated.",
+        "Connection invalid",
+        "XPC connection interrupted",
+        "Couldn’t communicate with a helper application.",
+        "Couldn't communicate with a helper application.",
+        "Could not communicate with the helper",
+        "The service could not be opened",
+        "No such XPC service",
+    ] {
+        #expect(isContainerServiceUnavailable(error(message)) == true, "expected match for: \(message)")
+    }
+    #expect(isContainerServiceUnavailable(error("disk full")) == false)
+}
+
+@Test("mapContainerError: rewrites XPC outages to xpcUnavailable, passes others through")
+func mapContainerErrorRewritesXPC() {
+    let mapped = mapContainerError(error("The connection was invalidated."))
+    #expect((mapped as? OrchardError) == .xpcUnavailable)
+
+    let other = mapContainerError(error("disk full"))
+    #expect(other.localizedDescription == "disk full")
+}

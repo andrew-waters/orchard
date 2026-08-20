@@ -29,7 +29,7 @@ final class AppServices: ObservableObject {
     /// in-memory stub seeded with fixtures for the XCUITest smoke suite.
     static func forLaunch() -> AppServices {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains(uiTestMockBackendArgument) {
+        if isUITestMockBackendRequested {
             return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), modelBackend: UITestModelBackend(), modelServerEngine: UITestModelServerEngine(), runner: UITestCommandRunner())
         }
         #endif
@@ -38,6 +38,13 @@ final class AppServices: ObservableObject {
         services.statsService.activate()
         return services
     }
+
+    #if DEBUG
+    private static var isUITestMockBackendRequested: Bool {
+        ProcessInfo.processInfo.arguments.contains(uiTestMockBackendArgument)
+            || ProcessInfo.processInfo.environment["ORCHARD_UITEST_MOCK_BACKEND"] == "1"
+    }
+    #endif
 
     init(
         backend: ContainerBackend = LiveContainerBackend(),

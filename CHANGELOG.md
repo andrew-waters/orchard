@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-selection across containers, images, mounts, DNS domains, and networks: shift-click range selection, Command+A select-all, batch deletion, and a summary detail view for the selection ([#53](https://github.com/andrew-waters/orchard/pull/53)).
 
 ### Fixed
+- When the container system is stopped or XPC is unreachable, Orchard no longer storms error dialogs from background refresh. Failed XPC connections surface as a clear "container service is unavailable" message, and after starting the system Orchard waits until the service is actually reachable before loading data.
 - Running containers' stop buttons in the menu-bar panel now respond on first click.
 
 ## [2.1.5] - 2026-08-20
