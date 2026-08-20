@@ -14,3 +14,4 @@ badge/
 # Local agent/session artifacts
 .omo/
 UITestResults/
+scripts/.build/
