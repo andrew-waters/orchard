@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Pull images by reference from non-Docker-Hub registries: the image search gains a pull-by-reference input, and references are canonicalized so by-reference and search-result pulls share progress tracking.
+- Docker Hub search now searches as you type (300ms debounce, Enter bypasses it) and paginates as you scroll.
+
+### Changed
+- Image sizes display consistently and pull progress is clearer, with failed pulls dismissible and retryable.
+
 ## [2.1.5] - 2026-08-20
 
 ### Added
