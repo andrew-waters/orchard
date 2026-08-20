@@ -26,10 +26,10 @@ func terminalLauncherPrivilegeErrorMessage() {
     #expect(message.contains("Automation"))
 }
 
-@Test("TerminalLauncher: app-not-running errors suggest opening the app")
-func terminalLauncherAppNotRunningMessage() {
+@Test("TerminalLauncher: app-not-running errors suggest opening the app", arguments: [-600, -609])
+func terminalLauncherAppNotRunningMessage(code: Int) {
     let error: NSDictionary = [
-        NSAppleScript.errorNumber: -600,
+        NSAppleScript.errorNumber: code,
         NSAppleScript.errorAppName: "iTerm2",
     ]
     let message = TerminalLauncher.userMessage(for: error)
@@ -48,8 +48,11 @@ func terminalLauncherUnknownErrorMessage() {
     #expect(message.contains("Some other failure."))
 }
 
-@Test("TerminalLauncher: missing error fields still produce a usable message")
+@Test("TerminalLauncher: missing error fields still produce a usable message, not the raw dictionary")
 func terminalLauncherMissingFieldsMessage() {
-    let message = TerminalLauncher.userMessage(for: [:])
+    let error: NSDictionary = [NSAppleScript.errorNumber: -2700, "SomeInternalKey": "noise"]
+    let message = TerminalLauncher.userMessage(for: error)
     #expect(message.contains("Failed to open terminal"))
+    #expect(message.contains("-2700"))
+    #expect(!message.contains("SomeInternalKey"))
 }
