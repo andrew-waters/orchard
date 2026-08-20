@@ -154,7 +154,7 @@ enum CommandPaletteCatalog {
                 action: .selectImage(image.reference)))
         }
 
-        for mount in mounts {
+        for mount in mounts.sorted(by: { $0.id < $1.id }) {
             entries.append(PaletteEntry(
                 id: "mount:\(mount.id)",
                 section: .mounts,
@@ -181,7 +181,7 @@ enum CommandPaletteCatalog {
                 action: .selectCluster(cluster.name)))
         }
 
-        for provider in providers {
+        for provider in providers.sorted(by: { $0.port < $1.port }) {
             entries.append(PaletteEntry(
                 id: "model:\(provider.id)",
                 section: .models,
@@ -192,7 +192,7 @@ enum CommandPaletteCatalog {
                 action: .selectModel(provider.id)))
         }
 
-        for sandbox in sandboxes {
+        for sandbox in sandboxes.sorted(by: { $0.name < $1.name }) {
             entries.append(PaletteEntry(
                 id: "sandbox:\(sandbox.id)",
                 section: .sandboxes,

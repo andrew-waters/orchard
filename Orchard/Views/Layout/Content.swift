@@ -52,6 +52,7 @@ struct ContentView: View {
     @State private var showOnlyImagesInUse: Bool = false
     @State private var showOnlyMountsInUse: Bool = false
     @State private var showImageSearch: Bool = false
+    @State private var showRunContainerSheet: Bool = false
     @State private var showAddDNSDomainSheet: Bool = false
     @State private var showAddNetworkSheet: Bool = false
     @State private var showAddMachineSheet: Bool = false
@@ -66,6 +67,7 @@ struct ContentView: View {
 
     @State private var showingCommandPalette = false
     @State private var paletteEntries: [PaletteEntry] = []
+    @State private var hostWindow: NSWindow?
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openURL) private var openURL
@@ -112,6 +114,7 @@ struct ContentView: View {
                     showOnlyImagesInUse: $showOnlyImagesInUse,
                     showOnlyMountsInUse: $showOnlyMountsInUse,
                     showImageSearch: $showImageSearch,
+                    showRunContainerSheet: $showRunContainerSheet,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     showAddNetworkSheet: $showAddNetworkSheet,
                     showAddMachineSheet: $showAddMachineSheet,
@@ -432,10 +435,14 @@ struct ContentView: View {
         } message: { alert in
             Text(alert.message)
         }
+        .background(WindowAccessor { window in
+            if hostWindow !== window { hostWindow = window }
+        })
         .overlay {
             if showingCommandPalette {
                 CommandPaletteView(
                     entries: paletteEntries,
+                    hostWindow: hostWindow,
                     onAction: handlePaletteAction,
                     onDismiss: { showingCommandPalette = false }
                 )
@@ -477,6 +484,10 @@ struct ContentView: View {
         if showingCommandPalette {
             showingCommandPalette = false
         } else {
+            // The toggle notification is broadcast to every scene, so only the key
+            // window's ContentView may respond - otherwise each open main window
+            // (and its key monitor) would toggle at once.
+            if let hostWindow, !hostWindow.isKeyWindow { return }
             // Snapshot the catalog on open so the 5s background refresh can't reshuffle
             // results under the cursor while the palette is up.
             paletteEntries = buildPaletteEntries()
@@ -541,7 +552,7 @@ struct ContentView: View {
         // first - the sheet then presents as the list mounts.
         case .showRunContainerSheet:
             selectedTab = .containers
-            NotificationCenter.default.post(name: NSNotification.Name("ShowRunContainerSheet"), object: nil)
+            showRunContainerSheet = true
         case .showImageSearch:
             selectedTab = .images
             showImageSearch = true

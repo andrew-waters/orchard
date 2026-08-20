@@ -8,6 +8,9 @@ import AppKit
 /// owns all selection state and services.
 struct CommandPaletteView: View {
     let entries: [PaletteEntry]
+    /// The NSWindow hosting this palette. The key monitor sees every window's events
+    /// (e.g. the logs windows), so it must ignore ones from other windows.
+    let hostWindow: NSWindow?
     let onAction: (PaletteAction) -> Void
     let onDismiss: () -> Void
 
@@ -154,6 +157,9 @@ struct CommandPaletteView: View {
     /// level and consume what we handle.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if let hostWindow, let eventWindow = event.window, eventWindow !== hostWindow {
+                return event
+            }
             switch event.keyCode {
             case 126: // up
                 moveSelection(-1)
@@ -173,9 +179,12 @@ struct CommandPaletteView: View {
                     query = ""
                 }
                 return nil
-            case 51: // delete: route to the query while the field is still grabbing focus
-                if !searchFocused, !query.isEmpty {
-                    query.removeLast()
+            case 51: // delete: consumed while the field is still grabbing focus, so it
+                      // can never edit the field behind the palette
+                if !searchFocused {
+                    if !query.isEmpty {
+                        query.removeLast()
+                    }
                     return nil
                 }
                 return event
@@ -291,5 +300,22 @@ private struct KeyHint: View {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color.primary.opacity(0.07))
             )
+    }
+}
+
+
+/// Reports the NSWindow hosting a SwiftUI hierarchy, for window-scoped behaviour
+/// (only the key window toggles its palette; the key monitor filters by window).
+struct WindowAccessor: NSViewRepresentable {
+    let onResolve: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { onResolve(view.window) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { onResolve(nsView.window) }
     }
 }
