@@ -10,6 +10,7 @@ struct ContentView: View {
     @EnvironmentObject var builderService: BuilderService
     @EnvironmentObject var statsService: StatsService
     @EnvironmentObject var machineService: MachineService
+    @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var alertCenter: AlertCenter
     @State private var selectedTab: TabSelection = .containers
@@ -20,6 +21,7 @@ struct ContentView: View {
     @State private var selectedMount: String?
     @State private var selectedMounts: Set<String> = []
     @State private var selectedMachine: String?
+    @State private var selectedCluster: String?
     @State private var pendingMachineSelection: String?
     @State private var selectedModel: String?
     @State private var selectedSandbox: String?
@@ -35,6 +37,7 @@ struct ContentView: View {
     @State private var lastSelectedImage: String?
     @State private var lastSelectedMount: String?
     @State private var lastSelectedMachine: String?
+    @State private var lastSelectedCluster: String?
     @State private var lastSelectedDNSDomain: String?
     @State private var lastSelectedNetwork: String?
 
@@ -50,6 +53,7 @@ struct ContentView: View {
     @State private var showAddDNSDomainSheet: Bool = false
     @State private var showAddNetworkSheet: Bool = false
     @State private var showAddMachineSheet: Bool = false
+    @State private var showCreateClusterSheet: Bool = false
 
     @State private var refreshTimer: Timer?
     @State private var initialLoadTask: Task<Void, Never>?
@@ -82,6 +86,7 @@ struct ContentView: View {
                     selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
                     selectedMachine: $selectedMachine,
+                    selectedCluster: $selectedCluster,
                     selectedModel: $selectedModel,
                     selectedSandbox: $selectedSandbox,
                     selectedDNSDomain: $selectedDNSDomain,
@@ -92,6 +97,7 @@ struct ContentView: View {
                     lastSelectedImage: $lastSelectedImage,
                     lastSelectedMount: $lastSelectedMount,
                     lastSelectedMachine: $lastSelectedMachine,
+                    lastSelectedCluster: $lastSelectedCluster,
                     lastSelectedDNSDomain: $lastSelectedDNSDomain,
                     lastSelectedNetwork: $lastSelectedNetwork,
                     lastSelectedImageTab: $lastSelectedImageTab,
@@ -104,6 +110,7 @@ struct ContentView: View {
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     showAddNetworkSheet: $showAddNetworkSheet,
                     showAddMachineSheet: $showAddMachineSheet,
+                    showCreateClusterSheet: $showCreateClusterSheet,
                     showingItemNavigatorPopover: $showingItemNavigatorPopover,
                     listFocusedTab: _listFocusedTab,
                     windowTitle: "Orchard"
@@ -455,6 +462,7 @@ struct ContentView: View {
         await dnsService.load(showLoading: true)
         await networkService.load(showLoading: true)
         await machineService.load(showLoading: true)
+        await clusterService.probePluginAvailability()
         await modelService.load(showLoading: true)
     }
 

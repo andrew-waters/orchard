@@ -22,6 +22,7 @@ final class AppServices: ObservableObject {
     let systemService: SystemService
     let containerListService: ContainerListService
     let machineService: MachineService
+    let clusterService: ClusterService
     let modelService: ModelService
     let modelServerService: ModelServerService
 
@@ -62,6 +63,8 @@ final class AppServices: ObservableObject {
         self.terminalLauncher = TerminalLauncher(settings: settings, alertCenter: alertCenter)
         let builderService = BuilderService(runner: runner, settings: settings, alertCenter: alertCenter)
         self.builderService = builderService
+        let clusterService = ClusterService(runner: runner, settings: settings, alertCenter: alertCenter)
+        self.clusterService = clusterService
         let networkService = NetworkService(backend: backend, alertCenter: alertCenter)
         self.networkService = networkService
         let imageService = ImageService(backend: backend, alertCenter: alertCenter)
@@ -80,6 +83,8 @@ final class AppServices: ObservableObject {
         self.modelServerService = ModelServerService(engine: modelServerEngine, alertCenter: alertCenter)
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
+        // Cluster lifecycle actions change node containers; refresh the list they derive from.
+        clusterService.reloadContainers = { [weak containerListService] in await containerListService?.loadContainers(showLoading: false) }
         // Stats samples running machines through their backing container (re-keyed to the
         // stable machine id). Supplied lazily so the sampler always sees the current machines.
         statsService.machineStatTargets = { [weak machineService] in

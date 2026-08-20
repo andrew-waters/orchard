@@ -11,6 +11,7 @@ struct DetailContentView: View {
     let selectedMount: String?
     let selectedMounts: Set<String>
     let selectedMachine: String?
+    let selectedCluster: String?
     let selectedModel: String?
     let selectedSandbox: String?
     let selectedDNSDomain: String?
@@ -39,6 +40,14 @@ struct DetailContentView: View {
                 MachineDetailView(machineId: selectedMachine)
             } else {
                 Text("Select a machine")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        case .clusters:
+            if let selectedCluster = selectedCluster {
+                ClusterDetailView(clusterName: selectedCluster)
+            } else {
+                Text("Select a cluster")
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
