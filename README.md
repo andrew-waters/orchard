@@ -141,7 +141,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 | Container machines (native XPC) | ✅ | ❌ | ✅ |
 | Kubernetes clusters on `apple/container` | ✅ | ❌ | ✅ |
 | Local AI models & agent sandboxes | ✅ | ❌ | ❌ |
-| Command palette (fuzzy search + actions) | ✅ | ❌ | ❌ |
+| Command palette (fuzzy search + actions) | ✅ | ➖ <sup>9</sup> | ❌ |
 | Signed & notarized | ✅ | ✅ | ✅ |
 | Multi-pane log viewer | ✅ | ➖ | ➖ <sup>5</sup> |
 | Live container stats (CPU/mem/net/disk) | ✅ | ✅ | ➖ |
@@ -159,6 +159,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 6. General-purpose, multi-runtime tool.
 7. MIT licensed.
 8. Apache-2.0 licensed.
+9. The F1 command palette covers commands and navigation; no fuzzy resource search with per-resource actions.
 
 Orchard is the **native, purpose-built** choice: a lightweight Swift app focused solely on giving Apple's `container` a first-class desktop experience, rather than a heavyweight cross-platform tool that supports it as one runtime among many. (Note: Docker Desktop is a separate container runtime and doesn't manage `apple/container`.)
 
