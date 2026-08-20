@@ -5,6 +5,7 @@ struct ClusterDetailView: View {
     @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
+    @EnvironmentObject var statsService: StatsService
     let clusterName: String
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
@@ -27,7 +28,12 @@ struct ClusterDetailView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        kubectlCard(cluster)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Resource Usage")
+                                .font(.headline)
+                            ClusterStatsPanel(cluster: cluster)
+                        }
+
                         nodesSection(cluster)
                         Spacer(minLength: 20)
                     }
@@ -37,6 +43,8 @@ struct ClusterDetailView: View {
             .sheet(isPresented: $showLoadImageSheet) {
                 LoadImageSheet(clusterName: cluster.name)
             }
+            .onAppear { statsService.beginSampling() }
+            .onDisappear { statsService.endSampling() }
             .confirmationDialog(
                 "Delete '\(cluster.name)'? This permanently removes the cluster's node containers and any workloads running on them.",
                 isPresented: $showDeleteConfirmation
@@ -90,6 +98,30 @@ struct ClusterDetailView: View {
                     }
                     .buttonStyle(BorderedButtonStyle())
 
+                    Button(kubeconfigWritten ? "Kubeconfig ✓" : "Write Kubeconfig") {
+                        Task {
+                            if await clusterService.writeConfig(cluster: cluster.name) {
+                                kubeconfigWritten = true
+                                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                kubeconfigWritten = false
+                            }
+                        }
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .disabled(kubeconfigWritten)
+
+                    Button(copiedPath ? "Copied ✓" : "Copy Kubeconfig Path") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(ClusterService.kubeconfigPath, forType: .string)
+                        copiedPath = true
+                        Task {
+                            try? await Task.sleep(nanoseconds: 2_500_000_000)
+                            copiedPath = false
+                        }
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .help(ClusterService.kubeconfigPath)
+
                     Button("Load Image…") { showLoadImageSheet = true }
                         .buttonStyle(BorderedButtonStyle())
                         .disabled(clusterService.isLoadingImage)
@@ -102,52 +134,6 @@ struct ClusterDetailView: View {
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
-    }
-
-    // MARK: - kubectl access
-
-    private func kubectlCard(_ cluster: K8sCluster) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("kubectl Access")
-                .font(.headline)
-
-            Text("`container k8s write-config` merges this cluster's context (named `\(cluster.name)`) into your kubeconfig.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 10) {
-                Button(kubeconfigWritten ? "Kubeconfig Written ✓" : "Write Kubeconfig") {
-                    Task {
-                        if await clusterService.writeConfig(cluster: cluster.name) {
-                            kubeconfigWritten = true
-                            try? await Task.sleep(nanoseconds: 2_500_000_000)
-                            kubeconfigWritten = false
-                        }
-                    }
-                }
-                .disabled(kubeconfigWritten)
-
-                Button(copiedPath ? "Copied ✓" : "Copy Kubeconfig Path") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(ClusterService.kubeconfigPath, forType: .string)
-                    copiedPath = true
-                    Task {
-                        try? await Task.sleep(nanoseconds: 2_500_000_000)
-                        copiedPath = false
-                    }
-                }
-
-                Text(ClusterService.kubeconfigPath)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
     }
 
     // MARK: - Nodes
