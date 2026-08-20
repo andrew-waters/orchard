@@ -7,6 +7,7 @@ struct ThreeColumnLayout: View {
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var machineService: MachineService
+    @EnvironmentObject var clusterService: ClusterService
     @AppStorage("containerSortBy") private var containerSortBy: ContainerSortOption = .name
     @AppStorage("containerSortAscending") private var containerSortAscending: Bool = true
     @AppStorage("containerRunningFirst") private var containerRunningFirst: Bool = true
@@ -262,6 +263,7 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Create Cluster")
+                                    .disabled(clusterService.pluginAvailability != .available)
                                 }
                             }
                         }

@@ -67,8 +67,11 @@ struct K8sCluster: Identifiable, Equatable {
             .sorted { $0.configuration.id < $1.configuration.id }
         var orphanClusters: [String: [Container]] = [:]
         for w in orphans {
-            let clusterName = w.configuration.id
+            // A k8s-labelled container without "-worker-" in its id derives an empty
+            // name; fall back to the id so the row stays selectable.
+            let derived = w.configuration.id
                 .components(separatedBy: "-worker-").dropLast().joined(separator: "-worker-")
+            let clusterName = derived.isEmpty ? w.configuration.id : derived
             orphanClusters[clusterName, default: []].append(w)
         }
         for (clusterName, members) in orphanClusters.sorted(by: { $0.key < $1.key }) {
