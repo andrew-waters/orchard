@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Command palette: press Cmd+K (or View > Command Palette...) to fuzzy-search everything Orchard manages - containers, images, mounts, machines, k8s clusters, AI models, sandboxes, DNS domains and networks - and jump straight to any of them, or run actions from the keyboard: run a container, pull an image, create networks/machines/clusters, start/stop/restart the container system, and per-resource verbs like "stop db", "logs api" or "console web". Results rank with real fuzzy matching (exact prefix beats word-boundary beats scattered match); destructive operations are deliberately not palette-reachable.
 
+### Fixed
+- The AI Models and Sandboxes middle columns no longer render lighter than every other list: they used the sidebar list style, which paints its own source-list background, instead of the plain style the rest of the middle columns use.
+- Searching in the DNS and Networks tabs now actually filters the list; previously the search field rendered but typing did nothing.
+- The search query is cleared when switching tabs, so a query typed in one tab no longer silently filters the next.
+- The containers list now supports Command+A select-all like the other multi-select lists.
+
+### Removed
+- Dead internal code: the never-shipped item navigator popover, its orphaned header component and an unused detail column wrapper.
+
 ## [2.2.0] - 2026-08-20
 
 ### Added

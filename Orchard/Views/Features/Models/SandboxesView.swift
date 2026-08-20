@@ -49,7 +49,7 @@ struct SandboxesListView: View {
                         }
                     }
                 }
-                .listStyle(.sidebar)
+                .listStyle(PlainListStyle())
                 .focused($listFocusedTab, equals: .sandboxes)
             }
         }

@@ -35,6 +35,12 @@ struct ContainersListView: View {
                 }
             }
             .listStyle(PlainListStyle())
+            .background(
+                Button(action: selectAllContainers) {
+                    EmptyView()
+                }
+                .keyboardShortcut("a", modifiers: .command)
+            )
             .animation(.easeInOut(duration: 0.3), value: containerListService.containers)
             .focused($listFocusedTab, equals: .containers)
             .onChange(of: selectedContainer) { _, newValue in
@@ -109,6 +115,10 @@ struct ContainersListView: View {
         guard !container.networks.isEmpty else { return nil }
         let hostname = container.networks.first?.hostname ?? ""
         return hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname
+    }
+
+    private func selectAllContainers() {
+        selectedContainers = Set(filteredContainers.map { $0.configuration.id })
     }
 
     private var filteredContainers: [Container] {
