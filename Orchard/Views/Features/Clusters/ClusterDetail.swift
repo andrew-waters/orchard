@@ -173,12 +173,28 @@ struct ClusterDetailView: View {
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
 
-            // Honest about the current ceiling: the k8s plugin creates single-node
-            // clusters; worker provisioning is in development upstream (#87).
-            Text("Apple container currently supports single-node clusters. Worker nodes will appear here once the k8s plugin can add them.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            singleNodeBanner
         }
+    }
+
+    /// Honest about the current ceiling: the k8s plugin creates single-node clusters;
+    /// worker provisioning is in development upstream (#87). Same banner style as the
+    /// machine detail's init-system warning.
+    private var singleNodeBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Single-node clusters only")
+                    .font(.subheadline).fontWeight(.medium)
+                Text("Apple container's k8s plugin can't add worker nodes yet, so every cluster is one control-plane node that also runs workloads. Worker nodes will appear in this table once the plugin supports adding them.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var nodesHeader: some View {
