@@ -67,6 +67,21 @@ Orchard manages Apple **container machines** natively: persistent, stateful Linu
 
 Machines are driven over Apple's native XPC API (`MachineAPIClient`), not by shelling out. See the [Container Machines guide](https://orchard.andon.dev/machines.html) for a full walkthrough and the pitfalls to avoid.
 
+## Kubernetes Clusters
+
+Orchard manages **local Kubernetes clusters** built on Apple container's `k8s` plugin (container 1.2.2+): cluster nodes are grouped, inspectable and one click from a working `kubectl`.
+
+![A local Kubernetes cluster in Orchard - nodes table with role, IP and resources, and one-click kubectl access](site/assets/screens/clusters.png)
+
+- Node containers are grouped into named clusters, with per-node role, status, IP, CPUs, memory and published ports
+- Create (with resource overrides and a custom node image), start and delete clusters from the app
+- Load any local image into the cluster's containerd, so pods can use it without a registry
+- Write or merge the cluster's context into your kubeconfig, copy its path, or open a terminal with the kubectl context already selected
+- Cluster nodes are badged in the containers list ("k8s · control-plane"), and container and cluster views cross-link both ways
+- Installs without the k8s plugin get an explanatory state with upgrade guidance
+
+Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard hands you a configured context and gets out of the way. See the [Kubernetes Clusters guide](https://orchard.andon.dev/clusters.html) for a walkthrough.
+
 ## Benefits of Apple Containers
 
 - Native support, incredible performance and the engineering resources to make it work.
@@ -78,6 +93,7 @@ Machines are driven over Apple's native XPC API (`MachineAPIClient`), not by she
 
 - Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
+- Kubernetes clusters: create and manage local k8s clusters (container's k8s plugin), load images into them, and get one-click kubectl access
 - Container management: create, start, stop, force stop, delete
 - Image management: pull, delete, search Docker Hub
 - Network and DNS domain management
@@ -118,6 +134,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 | Native macOS app | ✅ <sup>2</sup> | ❌ <sup>3</sup> | ❌ |
 | Native XPC integration (no CLI shelling) | ✅ | ❌ <sup>4</sup> | ✅ |
 | Container machines (native XPC) | ✅ | ❌ | ✅ |
+| Kubernetes clusters on `apple/container` | ✅ | ❌ | ✅ |
 | Local AI models & agent sandboxes | ✅ | ❌ | ❌ |
 | Signed & notarized | ✅ | ✅ | ✅ |
 | Multi-pane log viewer | ✅ | ➖ | ➖ <sup>5</sup> |
