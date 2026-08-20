@@ -144,7 +144,8 @@ struct NetworksListView: View {
     }
 
     private func handleRowTap(id: String) {
-        let orderedIds = networkService.networks.map { $0.id }
+        // Shift-click ranges must be computed over the rows actually on screen.
+        let orderedIds = filteredNetworks.map { $0.id }
         SelectionHandler.handleSelection(
             clickedId: id,
             orderedIds: orderedIds,
