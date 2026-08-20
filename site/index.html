@@ -143,6 +143,7 @@
         <a href="#features">Features</a>
         <a href="#install">Install</a>
         <a href="machines.html">Machines</a>
+        <a href="clusters.html">Clusters</a>
         <a href="ai.html">Local AI</a>
         <a href="https://github.com/andrew-waters/orchard">GitHub</a>
         <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
@@ -177,6 +178,7 @@
         <p class="lede">Orchard puts Apple's container tooling behind a first-class Mac interface - signed, notarized, and native Swift.</p>
         <div class="grid">
           <div class="card"><h3>Container machines</h3><p>Create, run and monitor persistent Linux VMs, with a stop&nbsp;→&nbsp;apply&nbsp;→&nbsp;restart config editor and init-system guardrails. <a href="machines.html">Learn more →</a></p></div>
+          <div class="card"><h3>Kubernetes clusters</h3><p>Create and manage local k8s clusters on the container runtime, load local images into them, and open a kubectl-ready terminal. <a href="clusters.html">Learn more →</a></p></div>
           <div class="card"><h3>Local AI &amp; sandboxes</h3><p>Run MLX models on the host and bridge them into containers, with isolated no-egress sandboxes for agents. <a href="ai.html">Learn more →</a></p></div>
           <div class="card"><h3>Container management</h3><p>Create, start, stop, force-stop and delete containers, with live status and sortable lists.</p></div>
           <div class="card"><h3>Image management</h3><p>Pull, delete and search Docker Hub directly, and run containers straight from an image.</p></div>
@@ -201,6 +203,10 @@
         <div class="feature-row">
           <div class="feature-text"><h3>Persistent Linux machines</h3><p>Create, run and monitor container machines - stateful Linux VMs with your home directory mapped in - with live resource usage, a stop → apply → restart config editor and init-system guardrails. <a href="machines.html">Learn more →</a></p></div>
           <img class="zoomable" src="assets/machine.png" alt="Managing a container machine in Orchard, with live resource usage" />
+        </div>
+        <div class="feature-row">
+          <div class="feature-text"><h3>Local Kubernetes, grouped and clickable</h3><p>Cluster nodes from the container k8s plugin are grouped into named clusters with per-node role, status, IP and resources - create, start and delete clusters, load local images into containerd, and open a terminal with the kubectl context selected. <a href="clusters.html">Learn more →</a></p></div>
+          <img class="zoomable" src="assets/clusters.png" alt="The Clusters view in Orchard: a local Kubernetes cluster with its control-plane node, kubectl access and per-node details" />
         </div>
         <div class="feature-row">
           <div class="feature-text"><h3>Bridge local models into containers</h3><p>Discover MLX, Ollama and LM Studio servers on your Mac - or run your own - and see the endpoint containers use to reach them. Inference stays on the Apple GPU. <a href="ai.html">Learn more →</a></p></div>

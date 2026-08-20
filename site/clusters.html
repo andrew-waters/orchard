@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Container Machines · Orchard</title>
-  <meta name="description" content="Manage Apple container machines (persistent, stateful Linux VMs) from Orchard: create, configure, run, and monitor them natively over XPC. What they are, how to use them, and the pitfalls to avoid." />
-  <meta property="og:title" content="Container Machines · Orchard" />
-  <meta property="og:description" content="Create, configure, run and monitor Apple container machines from a native macOS app." />
-  <meta property="og:image" content="assets/machine.png" />
+  <title>Kubernetes Clusters · Orchard</title>
+  <meta name="description" content="Manage local Kubernetes clusters created with Apple container's k8s plugin from Orchard: create, start and delete clusters, load local images, and get a kubectl-ready terminal in one click." />
+  <meta property="og:title" content="Kubernetes Clusters · Orchard" />
+  <meta property="og:description" content="Local Kubernetes clusters on Apple container, from a native macOS app." />
+  <meta property="og:image" content="assets/clusters.png" />
   <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
   <style>
     :root {
@@ -124,8 +124,8 @@
       <nav class="nav-links">
         <a href="index.html#features">Features</a>
         <a href="index.html#install">Install</a>
-        <a href="machines.html" class="current">Machines</a>
-        <a href="clusters.html">Clusters</a>
+        <a href="machines.html">Machines</a>
+        <a href="clusters.html" class="current">Clusters</a>
         <a href="ai.html">Local AI</a>
         <a href="https://github.com/andrew-waters/orchard">GitHub</a>
         <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
@@ -137,19 +137,19 @@
     <section class="hero">
       <div class="wrap">
         <p class="eyebrow">Guide</p>
-        <h1>Container Machines</h1>
-        <p class="sub">Create, configure, run and monitor Apple container machines (persistent Linux VMs) from Orchard, natively over XPC. No shelling out to the CLI.</p>
-        <span class="pill">Requires Apple <code>container</code> 1.0+ · macOS 26 · Apple silicon</span>
-        <div class="shot"><img src="assets/machine.png" alt="Managing a container machine in Orchard, with live resource usage" /></div>
+        <h1>Kubernetes Clusters</h1>
+        <p class="sub">Create, run and manage local Kubernetes clusters built on Apple container's <code>k8s</code> plugin - grouped nodes, one-click kubeconfig, and a terminal that opens ready for <code>kubectl</code>.</p>
+        <span class="pill">Requires Apple <code>container</code> 1.2.2+ (ships the k8s plugin) · macOS 26 · Apple silicon</span>
+        <div class="shot"><img src="assets/clusters.png" alt="A local Kubernetes cluster in Orchard, with its control-plane node, kubectl access and per-node details" /></div>
       </div>
     </section>
 
     <section>
       <div class="wrap doc">
-        <h2>What is a container machine?</h2>
-        <p>A container machine is a <strong>persistent, stateful Linux VM</strong>: “fast and lightweight like a container, persistent like a virtual machine.” Unlike a container, it boots the image's <strong>init system</strong> (systemd or openrc) as PID&nbsp;1, so long-running services survive. Changes persist across stop/start; deleting a machine removes its storage.</p>
-        <p>Your macOS user, UID/GID and home directory are mapped in automatically (via virtiofs, with passwordless sudo), so it feels like a local Linux box. Under the hood a machine <em>is</em> a container tagged with a special label, so Orchard hides those backing containers from the normal container list to keep it uncluttered.</p>
-        <p class="muted">Orchard talks to the machine service directly through Apple's <code>MachineAPIClient</code> XPC surface (the same API the <code>container</code> CLI uses) rather than shelling out.</p>
+        <h2>What is a container k8s cluster?</h2>
+        <p>Apple container 1.2.2 ships a <code>k8s</code> plugin that bootstraps a <strong>local single-node Kubernetes cluster</strong> from a <code>kindest/node</code> image: the node is an ordinary container running containerd and kubelet, initialised with <code>kubeadm</code> and wired up with the kindnet CNI. The control-plane container's name is the cluster's name, and its API server is published to your Mac.</p>
+        <p>Because cluster nodes are just containers carrying plugin labels, Orchard derives clusters straight from the container list it already watches - the same grouping the CLI's <code>container k8s list</code> uses. Node containers are badged in the containers list too, so a <code>kindest/node</code> row is never a mystery.</p>
+        <p class="muted">The plugin has no XPC API, so lifecycle actions go through the <code>container k8s</code> CLI; node state comes from the container XPC snapshot Orchard already streams.</p>
       </div>
     </section>
 
@@ -157,12 +157,12 @@
       <div class="wrap doc">
         <h2>What Orchard does</h2>
         <div class="grid">
-          <div class="card"><h3>Create &amp; configure</h3><p>Pick an image, set CPUs, memory, home-mount mode, nested virtualization and an optional custom kernel.</p></div>
-          <div class="card"><h3>Lifecycle</h3><p>Start, stop, delete and set-default, with clear in-progress feedback for each action.</p></div>
-          <div class="card"><h3>Edit &amp; restart</h3><p>Change a machine's resources and apply them with a one-click stop, apply and restart.</p></div>
-          <div class="card"><h3>Logs</h3><p>Stream a machine's output and boot logs in the same multi-pane viewer as containers.</p></div>
-          <div class="card"><h3>Resource usage</h3><p>Live CPU, memory, network and disk, in the machine's detail view and on the dashboard.</p></div>
-          <div class="card"><h3>Guardrails</h3><p>Warns before creating from an image with no init system, and explains a machine that stopped because of it.</p></div>
+          <div class="card"><h3>Clusters, grouped</h3><p>Node containers are grouped into named clusters with per-node role, status, IP, CPUs, memory and published ports.</p></div>
+          <div class="card"><h3>Lifecycle</h3><p>Create (with optional CPU/memory overrides and node image), start and delete clusters, with confirmation before anything destructive.</p></div>
+          <div class="card"><h3>Load local images</h3><p>Push any image from Orchard's image list into the cluster's containerd, so pods can use it without a registry.</p></div>
+          <div class="card"><h3>kubectl access</h3><p>Write or merge the cluster's context into your kubeconfig, copy the kubeconfig path, or open a terminal with the context already selected.</p></div>
+          <div class="card"><h3>Plugin badges</h3><p>Cluster nodes show a plugin badge (e.g. "k8s · control-plane") in the containers list and detail header.</p></div>
+          <div class="card"><h3>Guardrails</h3><p>Installs without the k8s plugin get an explanatory state with upgrade guidance instead of broken buttons.</p></div>
         </div>
       </div>
     </section>
@@ -171,30 +171,22 @@
       <div class="wrap doc">
         <h2>Getting started</h2>
 
-        <div class="callout warn">
-          <h4>⚠ Pick an image with an init system first</h4>
-          <p>This is the single most common gotcha. A machine boots the image's <code>/sbin/init</code> (systemd or openrc). <strong>Stock images (<code>ubuntu</code>, <code>alpine</code>, <code>nginx</code>, most base images) have no init</strong>, so the machine boots and then immediately stops.</p>
-          <p>Use an image built to run an init system. A known-good option on Apple silicon:</p>
-          <pre><code>geerlingguy/docker-ubuntu2204-ansible:latest</code></pre>
-          <p><code>redhat/ubi9-init</code> is a lighter, non-Ubuntu alternative. Orchard shows a warning in the create form when the image you enter looks like it lacks an init system.</p>
-        </div>
-
         <ol class="steps">
           <li>
-            <h3>Open the Machines section</h3>
-            <p>Select <strong>Machines</strong> in the sidebar. If your <code>container</code> install predates machine support, the section shows an explanatory empty state instead.</p>
+            <h3>Open the Clusters section</h3>
+            <p>Select <strong>Clusters</strong> in the sidebar. If your <code>container</code> install predates the k8s plugin (before 1.2.2), the section explains that and links to upgrade instructions.</p>
           </li>
           <li>
-            <h3>Create a machine</h3>
-            <p>Click <strong>+</strong> (or “Create Machine”). Enter an init-capable image and a name, then set CPUs and memory with the steppers; both default to about half of your host. Choose a home-mount mode, and optionally enable nested virtualization or a custom kernel. It boots by default.</p>
+            <h3>Create a cluster</h3>
+            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
           </li>
           <li>
-            <h3>Use it</h3>
-            <p>The detail view shows its state, IP, image, resources and mapped user. Start/stop/delete/set-default from the header, watch resource usage below, and open <strong>Logs</strong> for the output and boot streams.</p>
+            <h3>Point kubectl at it</h3>
+            <p>In the cluster's detail view, <strong>Write Kubeconfig</strong> merges the cluster's context into <code>~/.kube/config</code> (named after the cluster), or use <strong>Terminal (kubectl)</strong> to open your preferred terminal with the context already selected.</p>
           </li>
           <li>
-            <h3>Reconfigure when needed</h3>
-            <p><strong>Edit Configuration</strong> changes CPUs, memory, home-mount, virtualization or kernel. These only take effect on the next boot, so for a running machine choose <strong>Apply &amp; Restart</strong> to apply them in one step.</p>
+            <h3>Run your images</h3>
+            <p><strong>Load Image…</strong> exports an image from Orchard's local store into the cluster nodes' containerd. Reference it from a pod spec with <code>imagePullPolicy: Never</code> (or a matching tag) and no registry is needed.</p>
           </li>
         </ol>
       </div>
@@ -205,33 +197,33 @@
         <h2>Pitfalls &amp; things to know</h2>
 
         <div class="callout warn">
-          <h4>The image must have an init system</h4>
-          <p>If a machine shows <em>stopped</em> right after you create it, the image almost certainly has no <code>/sbin/init</code>. The boot log shows <code>exec: /sbin/init: not found</code> and the process exits with status 127. Orchard surfaces this as “Stopped: the image has no init system.” Recreate from an init-enabled image (see above).</p>
-        </div>
-
-        <div class="callout warn">
-          <h4>“Read/Write” home mount exposes your home directory</h4>
-          <p>By default the machine gets <strong>read/write</strong> access to your macOS home directory. That's convenient, but it means anything running in the machine can modify your files. Choose <strong>Read-Only</strong> or <strong>None</strong> when you don't need it.</p>
+          <h4>Upstream: cluster creation currently fails at kubeadm init</h4>
+          <p>Apple container 1.2.2's node preparation calls <code>iptables-nft</code>, which the default node kernel can't serve, so <code>container k8s create</code> fails with <em>"node prep failed"</em> - from the CLI and from Orchard alike. This is upstream <a href="https://github.com/apple/container/issues/2120">apple/container#2120</a>, with a fix in review that falls back to legacy iptables. Until it ships, the failed node is left running and the bootstrap can be completed by hand with <code>iptables-legacy</code> (see the issue for the procedure).</p>
         </div>
 
         <div class="callout info">
-          <h4>Config changes need a restart</h4>
-          <p>Apple's runtime only applies CPU/memory/home-mount/kernel changes on the next boot. Editing a <em>running</em> machine won't change it live, so use <strong>Apply &amp; Restart</strong>, or stop and start it yourself.</p>
+          <h4>Single-node clusters (for now)</h4>
+          <p>The 1.2.2 plugin creates one control-plane node per cluster and untaints it so workloads schedule there. Worker naming (<code>&lt;cluster&gt;-worker-N</code>) is already part of the plugin's model, and Orchard's grouping supports workers as soon as the plugin can create them.</p>
         </div>
 
         <div class="callout info">
-          <h4>Memory defaults to half your host RAM</h4>
-          <p>A new machine reserves roughly half your system memory unless you lower it. It's easy to over-allocate if you run several, so the create form shows your host totals to help you size sensibly.</p>
+          <h4>Creation is slow the first time</h4>
+          <p>The kindest/node image is a large download, and <code>kubeadm init</code> plus CNI rollout takes a while even after it's cached. Orchard shows the create as in-progress; the cluster appears in the list when it's ready.</p>
         </div>
 
         <div class="callout warn">
-          <h4>Delete removes persistent storage</h4>
-          <p>Deleting a machine permanently removes its disk. Orchard asks for confirmation, but there's no undo, and snapshots aren't part of the runtime.</p>
+          <h4>Delete removes workloads</h4>
+          <p>Deleting a cluster deletes its node containers and everything running on them. Orchard asks for confirmation, but there's no undo.</p>
+        </div>
+
+        <div class="callout info">
+          <h4>The API server rides a published port</h4>
+          <p>The cluster's API server is published from the node's 6443 to a host port (6445 upwards). <code>write-config</code> takes care of the endpoint, so kubectl works without thinking about it; the mapping is visible on the node's row.</p>
         </div>
 
         <div class="callout tip">
-          <h4>It's a young feature</h4>
-          <p>Container machines are new in Apple's <code>container</code> 1.0. Some rough edges are upstream (e.g. amd64 machines and DNS can be flaky). Orchard surfaces failures rather than hiding them, and routes machine issues to its diagnostics.</p>
+          <h4>Deploy with the tools you know</h4>
+          <p>Orchard deliberately stops at cluster and node management. Applying manifests, inspecting workloads and port-forwarding are kubectl / k9s / Lens territory - the terminal button drops you there with the right context selected.</p>
         </div>
       </div>
     </section>
@@ -240,11 +232,10 @@
       <div class="wrap doc">
         <h2>Requirements</h2>
         <ul>
-          <li>Apple <code>container</code> <strong>1.0 or later</strong> (the machine API server ships with it).</li>
+          <li>Apple <code>container</code> <strong>1.2.2 or later</strong> - earlier releases don't ship the <code>k8s</code> plugin (1.2.1's package had a packaging bug).</li>
           <li><strong>macOS 26 (Tahoe)</strong> on <strong>Apple silicon</strong>, the same floor Orchard already requires.</li>
-          <li>Nested virtualization additionally needs an <strong>Apple silicon M3 or later</strong> chip, macOS 15+, and a kernel with <code>CONFIG_KVM</code>.</li>
+          <li><code>kubectl</code> on your Mac for the terminal button - the cluster works without it, but that button assumes it's installed.</li>
         </ul>
-        <p class="muted">Machines don't do host port forwarding, so reach a service on its machine IP, shown in the detail view.</p>
         <p><a href="index.html">← Back to Orchard</a></p>
       </div>
     </section>
