@@ -45,7 +45,11 @@ struct DetailContentView: View {
             }
         case .clusters:
             if let selectedCluster = selectedCluster {
-                ClusterDetailView(clusterName: selectedCluster)
+                ClusterDetailView(
+                    clusterName: selectedCluster,
+                    selectedTab: $selectedTabBinding,
+                    selectedContainer: $selectedContainerBinding
+                )
             } else {
                 Text("Select a cluster")
                     .foregroundColor(.secondary)
