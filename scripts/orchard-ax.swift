@@ -54,23 +54,27 @@ func find(_ el: AXUIElement, depth: Int = 0) -> AXUIElement? {
 }
 
 guard let target = find(axApp) else { fputs("element '\(wanted)' not found\n", stderr); exit(4) }
-app.activate()
-usleep(200_000)
-let err = AXUIElementPerformAction(target, kAXPressAction as CFString)
-if err != .success {
-    // SwiftUI rows often expose no AXPress; click their screen position instead.
-    var posV: CFTypeRef?, sizeV: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(target, kAXPositionAttribute as CFString, &posV) == .success,
-          AXUIElementCopyAttributeValue(target, kAXSizeAttribute as CFString, &sizeV) == .success else {
-        fputs("press failed (\(err.rawValue)) and no position\n", stderr); exit(5)
-    }
-    var pos = CGPoint.zero, size = CGSize.zero
-    AXValueGetValue(posV as! AXValue, .cgPoint, &pos)
-    AXValueGetValue(sizeV as! AXValue, .cgSize, &size)
-    let click = CGPoint(x: pos.x + size.width / 2, y: pos.y + size.height / 2)
-    for type in [CGEventType.leftMouseDown, .leftMouseUp] {
-        CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: click, mouseButton: .left)?.post(tap: .cghidEventTap)
-        usleep(60_000)
-    }
+
+// SwiftUI onTapGesture rows accept AXPress without doing anything, so don't trust it:
+// always click the element's screen position with real mouse events (what XCUITest does).
+app.activate(options: [.activateIgnoringOtherApps])
+var windowV: CFTypeRef?
+if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &windowV) == .success {
+    AXUIElementPerformAction(windowV as! AXUIElement, kAXRaiseAction as CFString)
 }
-print("pressed \(wanted)")
+usleep(400_000)
+
+var posV: CFTypeRef?, sizeV: CFTypeRef?
+guard AXUIElementCopyAttributeValue(target, kAXPositionAttribute as CFString, &posV) == .success,
+      AXUIElementCopyAttributeValue(target, kAXSizeAttribute as CFString, &sizeV) == .success else {
+    fputs("element '\(wanted)' has no position\n", stderr); exit(5)
+}
+var pos = CGPoint.zero, size = CGSize.zero
+AXValueGetValue(posV as! AXValue, .cgPoint, &pos)
+AXValueGetValue(sizeV as! AXValue, .cgSize, &size)
+let click = CGPoint(x: pos.x + size.width / 2, y: pos.y + size.height / 2)
+for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+    CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: click, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(80_000)
+}
+print("clicked \(wanted) at \(Int(click.x)),\(Int(click.y))")
