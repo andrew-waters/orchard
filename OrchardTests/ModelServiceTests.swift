@@ -23,13 +23,19 @@ private func makeNetwork(id: String = "default", gateway: String? = "192.168.66.
     )
 }
 
+
+@MainActor
+private func makeModelService(backend: ModelBackend) -> ModelService {
+    ModelService(backend: backend, settings: SettingsStore(alertCenter: AlertCenter(), defaults: ephemeralDefaults()))
+}
+
 // MARK: - load
 
 @Test("Models load: publishes detected providers and clears loading")
 @MainActor
 func modelsLoadSuccess() async {
     let backend = MockModelBackend(providers: [makeProvider()])
-    let service = ModelService(backend: backend)
+    let service = makeModelService(backend: backend)
 
     await service.load()
 
@@ -42,7 +48,7 @@ func modelsLoadSuccess() async {
 @Test("Models load: no providers running publishes an empty list, not an error")
 @MainActor
 func modelsLoadEmpty() async {
-    let service = ModelService(backend: MockModelBackend(providers: []))
+    let service = makeModelService(backend: MockModelBackend(providers: []))
 
     await service.load()
 
@@ -55,7 +61,7 @@ func modelsLoadEmpty() async {
 @Test("Bridge env: resolves the network gateway into an OpenAI base URL")
 @MainActor
 func bridgeEnvResolvesGateway() {
-    let service = ModelService(backend: MockModelBackend())
+    let service = makeModelService(backend: MockModelBackend())
     let env = service.bridgeEnvironment(for: makeProvider(port: 8080, api: .openAI), on: makeNetwork(gateway: "192.168.66.1"))
 
     #expect(env?.first { $0.key == "OPENAI_BASE_URL" }?.value == "http://192.168.66.1:8080/v1")
@@ -64,7 +70,7 @@ func bridgeEnvResolvesGateway() {
 @Test("Bridge env: a network without a gateway yields nil (no route to host)")
 @MainActor
 func bridgeEnvNoGateway() {
-    let service = ModelService(backend: MockModelBackend())
+    let service = makeModelService(backend: MockModelBackend())
 
     #expect(service.bridgeEnvironment(for: makeProvider(), on: makeNetwork(gateway: nil)) == nil)
     #expect(service.bridgeEnvironment(for: makeProvider(), on: makeNetwork(gateway: "")) == nil)

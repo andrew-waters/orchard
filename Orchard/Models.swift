@@ -339,6 +339,9 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
     let api: ModelAPIStyle
     /// Model identifiers the provider advertises, when it exposes a listing endpoint.
     var models: [String]
+    /// The server answered the probe with 401/403: it's running but wants an API key
+    /// before it will list models or serve completions.
+    var requiresAPIKey: Bool = false
 
     /// Stable across refreshes: only one server can listen on a port, and `api` comes
     /// from the probe's static candidate rather than response data - so `kind` being

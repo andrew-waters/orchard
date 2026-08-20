@@ -68,7 +68,7 @@ final class AppServices: ObservableObject {
         let statsService = StatsService(backend: backend, alertCenter: alertCenter, containerList: containerListService)
         self.statsService = statsService
         self.machineService = MachineService(backend: machineBackend, alertCenter: alertCenter)
-        self.modelService = ModelService(backend: modelBackend)
+        self.modelService = ModelService(backend: modelBackend, settings: settings)
         self.modelServerService = ModelServerService(engine: modelServerEngine, alertCenter: alertCenter)
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
