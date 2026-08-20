@@ -14,7 +14,7 @@ for net in frontend backend; do
 done
 
 echo "== Mount sources =="
-mkdir -p "$DEMO_DIR"/{web-html,pg-data,minio-data}
+mkdir -p "$DEMO_DIR"/{web-html,minio-data}
 cat > "$DEMO_DIR/web-html/index.html" <<'HTML'
 <!doctype html><title>Orchard demo</title><h1>Served from a host mount</h1>
 HTML
@@ -23,7 +23,7 @@ echo "== Containers =="
 run --name web      --network frontend -p 8088:80 -v "$DEMO_DIR/web-html:/usr/share/nginx/html" docker.io/library/nginx:alpine
 run --name api      --network frontend -p 8081:80 docker.io/library/caddy:alpine
 run --name cache    --network backend  docker.io/library/redis:alpine
-run --name db       --network backend  -e POSTGRES_PASSWORD=orchard-demo -v "$DEMO_DIR/pg-data:/var/lib/postgresql/data" docker.io/library/postgres:16-alpine
+run --name db       --network backend  -e POSTGRES_PASSWORD=orchard-demo docker.io/library/postgres:16-alpine
 run --name queue    --network backend  docker.io/library/nats:alpine
 run --name sessions --network backend  docker.io/library/memcached:alpine
 run --name metrics  --network backend  -p 9090:9090 docker.io/prom/prometheus:latest
