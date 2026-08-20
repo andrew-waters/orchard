@@ -184,8 +184,18 @@ struct ContainerConfigForm: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Run in detached mode (background)", isOn: $config.detached)
-                    .font(.subheadline)
+                // Recreating from the edit sheet always happens in the background, so the
+                // detached toggle only appears (and only acts) when running a container.
+                if mode == .run {
+                    Toggle("Run in detached mode (background)", isOn: $config.detached)
+                        .font(.subheadline)
+
+                    if !config.detached {
+                        Text("A terminal attached to the container opens once it starts")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
 
                 Toggle("Remove container after it stops", isOn: $config.removeAfterStop)
                     .font(.subheadline)

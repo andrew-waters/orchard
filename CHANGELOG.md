@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Unchecking "Run in detached mode (background)" now does what it says: after the container starts, Orchard opens your preferred terminal attached to it. The toggle no longer appears in the Edit Configuration sheet, where recreation always happens in the background ([#43](https://github.com/andrew-waters/orchard/issues/43)).
 - Opening a container terminal in Terminal.app or iTerm2 no longer fails with "Not authorized to send Apple events" on notarized builds: the app now carries the `com.apple.security.automation.apple-events` entitlement and a usage description, so macOS shows the Automation consent prompt. If permission is denied, the error now points to System Settings → Privacy & Security → Automation instead of dumping the raw AppleScript error ([#64](https://github.com/andrew-waters/orchard/issues/64)).
 
 ## [2.1.4] - 2026-07-23
