@@ -312,6 +312,11 @@ struct ThreeColumnLayout: View {
                 .sheet(isPresented: $showRunContainerSheet) {
                     RunContainerView()
                 }
+                .onReceive(
+                    NotificationCenter.default.publisher(for: NSNotification.Name("ShowRunContainerSheet"))
+                ) { _ in
+                    showRunContainerSheet = true
+                }
             } detail: {
                 // Third Column - Detail view for selected item
                 DetailContentView(

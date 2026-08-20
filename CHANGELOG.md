@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Command palette: press Cmd+K (or View > Command Palette...) to fuzzy-search everything Orchard manages - containers, images, mounts, machines, k8s clusters, AI models, sandboxes, DNS domains and networks - and jump straight to any of them, or run actions from the keyboard: run a container, pull an image, create networks/machines/clusters, start/stop/restart the container system, and per-resource verbs like "stop db", "logs api" or "console web". Results rank with real fuzzy matching (exact prefix beats word-boundary beats scattered match); destructive operations are deliberately not palette-reachable.
+
 ## [2.2.0] - 2026-08-20
 
 ### Added

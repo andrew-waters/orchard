@@ -13,6 +13,8 @@ struct ContentView: View {
     @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var alertCenter: AlertCenter
+    @EnvironmentObject var terminalLauncher: TerminalLauncher
+    @EnvironmentObject var updater: UpdaterService
     @State private var selectedTab: TabSelection = .containers
     @State private var selectedContainer: String?
     @State private var selectedContainers: Set<String> = []
@@ -61,6 +63,9 @@ struct ContentView: View {
     @FocusState private var listFocusedTab: TabSelection?
 
     @State private var showingItemNavigatorPopover = false
+
+    @State private var showingCommandPalette = false
+    @State private var paletteEntries: [PaletteEntry] = []
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openURL) private var openURL
@@ -427,6 +432,20 @@ struct ContentView: View {
         } message: { alert in
             Text(alert.message)
         }
+        .overlay {
+            if showingCommandPalette {
+                CommandPaletteView(
+                    entries: paletteEntries,
+                    onAction: handlePaletteAction,
+                    onDismiss: { showingCommandPalette = false }
+                )
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("ToggleCommandPalette"))
+        ) { _ in
+            toggleCommandPalette()
+        }
         .onAppear {
             // Default tab is already set to containers
         }
@@ -453,6 +472,125 @@ struct ContentView: View {
         }
     }
 
+
+    private func toggleCommandPalette() {
+        if showingCommandPalette {
+            showingCommandPalette = false
+        } else {
+            // Snapshot the catalog on open so the 5s background refresh can't reshuffle
+            // results under the cursor while the palette is up.
+            paletteEntries = buildPaletteEntries()
+            showingCommandPalette = true
+        }
+    }
+
+    private func buildPaletteEntries() -> [PaletteEntry] {
+        CommandPaletteCatalog.entries(
+            containers: containerListService.containers,
+            images: imageService.images,
+            mounts: containerListService.allMounts,
+            machines: machineService.machines,
+            clusters: K8sCluster.group(containers: containerListService.containers),
+            providers: modelService.providers,
+            sandboxes: detectSandboxes(
+                containers: containerListService.containers,
+                networks: networkService.networks),
+            dnsDomains: dnsService.dnsDomains,
+            networks: networkService.networks,
+            systemRunning: systemService.systemStatus == .running)
+    }
+
+    private func handlePaletteAction(_ action: PaletteAction) {
+        switch action {
+        case .navigate(let tab):
+            selectedTab = tab
+
+        case .selectContainer(let id):
+            selectedTab = .containers
+            selectedContainer = id
+            selectedContainers = [id]
+            lastSelectedContainer = id
+        case .selectImage(let reference):
+            selectedTab = .images
+            selectedImage = reference
+            selectedImages = [reference]
+            lastSelectedImage = reference
+        case .selectMount(let id):
+            selectedTab = .mounts
+            selectedMount = id
+            selectedMounts = [id]
+            lastSelectedMount = id
+        case .selectMachine(let id):
+            NotificationCenter.default.post(name: NSNotification.Name("NavigateToMachine"), object: id)
+        case .selectCluster(let name):
+            selectedTab = .clusters
+            selectedCluster = name
+            lastSelectedCluster = name
+        case .selectModel(let id):
+            selectedTab = .models
+            selectedModel = id
+        case .selectSandbox(let id):
+            selectedTab = .sandboxes
+            selectedSandbox = id
+        case .selectDNSDomain(let domain):
+            NotificationCenter.default.post(name: NSNotification.Name("NavigateToDNSDomain"), object: domain)
+        case .selectNetwork(let id):
+            NotificationCenter.default.post(name: NSNotification.Name("NavigateToNetwork"), object: id)
+
+        // Creation sheets are attached inside each tab's list view, so land on the tab
+        // first - the sheet then presents as the list mounts.
+        case .showRunContainerSheet:
+            selectedTab = .containers
+            NotificationCenter.default.post(name: NSNotification.Name("ShowRunContainerSheet"), object: nil)
+        case .showImageSearch:
+            selectedTab = .images
+            showImageSearch = true
+        case .showAddDNSDomainSheet:
+            selectedTab = .dns
+            showAddDNSDomainSheet = true
+        case .showAddNetworkSheet:
+            selectedTab = .networks
+            showAddNetworkSheet = true
+        case .showAddMachineSheet:
+            selectedTab = .machines
+            showAddMachineSheet = true
+        case .showCreateClusterSheet:
+            selectedTab = .clusters
+            showCreateClusterSheet = true
+
+        case .startSystem:
+            Task { await systemService.startSystem() }
+        case .stopSystem:
+            Task { await systemService.stopSystem() }
+        case .restartSystem:
+            Task { await systemService.restartSystem() }
+        case .refreshAll:
+            Task { await performInitialLoad() }
+        case .startBuilder:
+            Task { await builderService.startBuilder() }
+        case .stopBuilder:
+            Task { await builderService.stopBuilder() }
+        case .setRecommendedKernel:
+            Task { await systemService.setRecommendedKernel() }
+        case .checkForUpdates:
+            updater.checkForUpdates()
+
+        case .startContainer(let id):
+            Task { await containerListService.startContainer(id) }
+        case .stopContainer(let id):
+            Task { await containerListService.stopContainer(id) }
+        case .openContainerLogs(let id):
+            openWindow(id: "logs", value: LogTarget.container(id))
+        case .openContainerTerminal(let id):
+            terminalLauncher.openTerminal(for: id)
+        case .bootMachine(let id):
+            Task { await machineService.boot(id) }
+        case .stopMachine(let id):
+            Task { await machineService.stop(id) }
+        case .openMachineLogs(let id):
+            openWindow(id: "logs", value: LogTarget.machine(id))
+        }
+    }
 
     private func performInitialLoad() async {
         await systemService.checkSystemStatus()
