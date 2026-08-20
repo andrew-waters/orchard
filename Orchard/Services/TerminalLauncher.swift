@@ -98,9 +98,35 @@ final class TerminalLauncher: ObservableObject {
 
         if let error = error {
             Log.ui.error("❌ AppleScript error: \(String(describing: error))")
-            alertCenter.error("Failed to open terminal: \(String(describing: error))")
+            alertCenter.error(Self.userMessage(for: error))
         } else if let result = result {
             Log.ui.debug("✓ AppleScript executed: \(String(describing: result))")
+        }
+    }
+
+    /// Translates an `NSAppleScript` error dictionary into something actionable.
+    /// Automation refusals (errAEEventNotPermitted / errAEPrivilegeError) get pointed
+    /// at System Settings instead of dumping the raw error dictionary (#64).
+    nonisolated static func userMessage(for error: NSDictionary) -> String {
+        let code = (error[NSAppleScript.errorNumber] as? Int) ?? 0
+        let appName = (error[NSAppleScript.errorAppName] as? String) ?? "your terminal app"
+
+        switch code {
+        case -1743, -10004: // errAEEventNotPermitted, errAEPrivilegeError
+            return """
+            Orchard isn't authorized to control \(appName). \
+            Allow it under System Settings → Privacy & Security → Automation → Orchard, \
+            then try again.
+            """
+        case -600, -609: // procNotFound, connectionInvalid
+            return "\(appName) isn't running and couldn't be launched. Open it once manually, then try again."
+        default:
+            // Never dump the raw error dictionary at the user; the full details are
+            // already logged. Fall back to a stable message carrying the error code.
+            let message = (error[NSAppleScript.errorBriefMessage] as? String)
+                ?? (error[NSAppleScript.errorMessage] as? String)
+                ?? "An unknown AppleScript error occurred (code \(code))."
+            return "Failed to open terminal: \(message)"
         }
     }
 }

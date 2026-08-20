@@ -166,3 +166,64 @@ func parseDockerHubSearch(data: Data) -> [RegistrySearchResult] {
         )
     }
 }
+
+// MARK: - Command-line splitting
+
+/// Splits a command-line string into argv, honouring single quotes, double quotes,
+/// and backslash escapes (outside single quotes) - so `sh -c "echo hi"` yields three
+/// arguments, not four. Lenient: an unterminated quote consumes to end of string.
+func splitCommandLine(_ line: String) -> [String] {
+    var args: [String] = []
+    var current = ""
+    var inSingle = false
+    var inDouble = false
+    var escaped = false
+    var hasToken = false
+
+    for char in line {
+        if escaped {
+            current.append(char)
+            escaped = false
+            continue
+        }
+        switch char {
+        case "\\" where !inSingle:
+            escaped = true
+            hasToken = true
+        case "'" where !inDouble:
+            inSingle.toggle()
+            hasToken = true
+        case "\"" where !inSingle:
+            inDouble.toggle()
+            hasToken = true
+        case " ", "\t" :
+            if inSingle || inDouble {
+                current.append(char)
+            } else if hasToken {
+                args.append(current)
+                current = ""
+                hasToken = false
+            }
+        default:
+            current.append(char)
+            hasToken = true
+        }
+    }
+    if hasToken { args.append(current) }
+    return args
+}
+
+/// Joins argv back into a command-line string that `splitCommandLine` round-trips:
+/// arguments containing whitespace, quotes, or backslashes are double-quoted with
+/// backslash escapes.
+func joinCommandLine(_ args: [String]) -> String {
+    args.map { arg in
+        if arg.isEmpty { return "\"\"" }
+        let needsQuoting = arg.contains(where: { $0 == " " || $0 == "\t" || $0 == "'" || $0 == "\"" || $0 == "\\" })
+        guard needsQuoting else { return arg }
+        let escaped = arg
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }.joined(separator: " ")
+}

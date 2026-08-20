@@ -4,6 +4,7 @@ import AppKit
 struct RunContainerView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var terminalLauncher: TerminalLauncher
     @Environment(\.dismiss) var dismiss
 
     let imageName: String
@@ -226,10 +227,17 @@ struct RunContainerView: View {
         Task {
             var runConfig = config
             runConfig.image = imageReference
-            await containerListService.runContainer(config: runConfig)
+            let started = await containerListService.runContainer(config: runConfig)
             await MainActor.run {
                 isRunning = false
                 dismiss()
+                // Non-detached run: open the user's preferred terminal attached to the
+                // container. The service uses config.name as the container id (the Run
+                // button is disabled while the name is empty), and the container is
+                // already started by the time runContainer returns (#43).
+                if started && !config.detached {
+                    terminalLauncher.openTerminal(for: config.name)
+                }
             }
         }
     }

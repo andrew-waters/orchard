@@ -10,6 +10,7 @@ struct RunModelContainerView: View {
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var modelServerService: ModelServerService
+    @EnvironmentObject var settings: SettingsStore
     @Environment(\.dismiss) private var dismiss
 
     /// A model id (managed server or detected provider) to preselect, or nil to let the user
@@ -42,7 +43,9 @@ struct RunModelContainerView: View {
         }
         let managedPorts = modelServerService.managedPorts
         let providers = modelService.providers
-            .filter { !managedPorts.contains($0.port) }
+            // A locked provider has no usable key yet - a sandbox wired to it could
+            // never reach its model, so it isn't offered as a target.
+            .filter { !managedPorts.contains($0.port) && !$0.requiresAPIKey }
             .map { Target(id: $0.id, name: $0.kind.displayName, port: $0.port, api: $0.api) }
         return servers + providers
     }
@@ -253,7 +256,7 @@ struct RunModelContainerView: View {
 
     private func run() {
         guard let baseURL, let target else { return }
-        let env = ModelBridge.injectionEnvironment(baseURL: baseURL, api: target.api)
+        let env = ModelBridge.injectionEnvironment(baseURL: baseURL, api: target.api, apiKey: settings.modelAPIKey(port: target.port))
             .map { ContainerRunConfig.EnvironmentVariable(key: $0.key, value: $0.value) }
 
         let config = ContainerRunConfig(
