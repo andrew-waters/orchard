@@ -72,7 +72,7 @@ struct ModelsListView: View {
                         }
                     }
                 }
-                .listStyle(.sidebar)
+                .listStyle(PlainListStyle())
                 .focused($listFocusedTab, equals: .models)
             }
         }

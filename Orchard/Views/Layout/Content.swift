@@ -63,7 +63,6 @@ struct ContentView: View {
 
     @FocusState private var listFocusedTab: TabSelection?
 
-    @State private var showingItemNavigatorPopover = false
 
     @State private var showingCommandPalette = false
     @State private var paletteEntries: [PaletteEntry] = []
@@ -119,7 +118,6 @@ struct ContentView: View {
                     showAddNetworkSheet: $showAddNetworkSheet,
                     showAddMachineSheet: $showAddMachineSheet,
                     showCreateClusterSheet: $showCreateClusterSheet,
-                    showingItemNavigatorPopover: $showingItemNavigatorPopover,
                     listFocusedTab: _listFocusedTab,
                     windowTitle: "Orchard"
                 )
@@ -465,6 +463,11 @@ struct ContentView: View {
                 }
             }
             startRefreshTimer()
+        }
+        .onChange(of: selectedTab) { _, _ in
+            // The filter box is shared across tabs; a query typed in one tab would
+            // otherwise silently filter the next.
+            searchText = ""
         }
         .onChange(of: systemService.systemStatus) { _, newStatus in
             if newStatus == .running {

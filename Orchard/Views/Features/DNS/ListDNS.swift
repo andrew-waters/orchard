@@ -6,6 +6,7 @@ struct DNSListView: View {
     @Binding var selectedDNSDomain: String?
     @Binding var selectedDNSDomains: Set<String>
     @Binding var lastSelectedDNSDomain: String?
+    @Binding var searchText: String
     @Binding var showAddDNSDomainSheet: Bool
     @FocusState var listFocusedTab: TabSelection?
 
@@ -60,7 +61,7 @@ struct DNSListView: View {
 
     private var dnsListView: some View {
         List(selection: $selectedDNSDomains) {
-            ForEach(dnsService.dnsDomains) { domain in
+            ForEach(filteredDomains) { domain in
                 let targetDomains: [String] = {
                     if selectedDNSDomains.count > 1 && selectedDNSDomains.contains(domain.domain) {
                         return selectedDNSDomains.sorted()
@@ -160,8 +161,13 @@ struct DNSListView: View {
         )
     }
 
+    private var filteredDomains: [DNSDomain] {
+        guard !searchText.isEmpty else { return dnsService.dnsDomains }
+        return dnsService.dnsDomains.filter { $0.domain.localizedCaseInsensitiveContains(searchText) }
+    }
+
     private func selectAllDNSDomains() {
-        let orderedIds = dnsService.dnsDomains.map { $0.domain }
+        let orderedIds = filteredDomains.map { $0.domain }
         selectedDNSDomains = Set(orderedIds)
     }
 

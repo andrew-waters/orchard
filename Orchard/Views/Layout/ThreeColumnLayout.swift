@@ -48,7 +48,6 @@ struct ThreeColumnLayout: View {
     @Binding var showAddNetworkSheet: Bool
     @Binding var showAddMachineSheet: Bool
     @Binding var showCreateClusterSheet: Bool
-    @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let windowTitle: String
 
@@ -741,6 +740,7 @@ struct ListColumnView: View {
                     selectedDNSDomain: $selectedDNSDomain,
                         selectedDNSDomains: $selectedDNSDomains,
                     lastSelectedDNSDomain: .constant(lastSelectedDNSDomain),
+                    searchText: $searchText,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     listFocusedTab: _listFocusedTab
                 )
@@ -749,6 +749,7 @@ struct ListColumnView: View {
                     selectedNetwork: $selectedNetwork,
                         selectedNetworks: $selectedNetworks,
                     lastSelectedNetwork: .constant(lastSelectedNetwork),
+                    searchText: $searchText,
                     showAddNetworkSheet: $showAddNetworkSheet,
                     listFocusedTab: _listFocusedTab
                 )
@@ -779,71 +780,6 @@ struct ListColumnView: View {
 }
 
 // MARK: - Detail Column View (Third Column)
-struct DetailColumnView: View {
-    let selectedTab: TabSelection
-    let selectedContainer: String?
-    let selectedImage: String?
-    let selectedImages: Set<String>
-    let selectedMount: String?
-    let selectedMounts: Set<String>
-    let selectedMachine: String?
-    let selectedCluster: String?
-    let selectedModel: String?
-    let selectedSandbox: String?
-    let selectedDNSDomain: String?
-    let selectedDNSDomains: Set<String>
-    let selectedNetwork: String?
-    let selectedNetworks: Set<String>
-    @Binding var lastSelectedImageTab: String
-    @Binding var lastSelectedMountTab: String
-    @Binding var selectedTabBinding: TabSelection
-    @Binding var selectedContainerBinding: String?
-    @Binding var selectedNetworkBinding: String?
-    @Binding var selectedClusterBinding: String?
-    @Binding var selectedSandboxBinding: String?
-    @Binding var showingItemNavigatorPopover: Bool
-    @State private var selectedContainersLocal: Set<String> = []
-    @State private var selectedImagesLocal: Set<String> = []
-    @State private var selectedMountsLocal: Set<String> = []
-    @State private var selectedDNSDomainsLocal: Set<String> = []
-    @State private var selectedNetworksLocal: Set<String> = []
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Detail content without header (header is now in ThreeColumnLayout)
-            DetailContentView(
-                selectedTab: selectedTab,
-                selectedContainer: selectedContainer,
-                selectedContainers: selectedContainersLocal,
-                selectedImage: selectedImage,
-                    selectedImages: selectedImages,
-                selectedMount: selectedMount,
-                    selectedMounts: selectedMounts,
-                    selectedMachine: selectedMachine,
-                    selectedCluster: selectedCluster,
-                    selectedModel: selectedModel,
-                    selectedSandbox: selectedSandbox,
-                selectedDNSDomain: selectedDNSDomain,
-                    selectedDNSDomains: selectedDNSDomains,
-                selectedNetwork: selectedNetwork,
-                    selectedNetworks: selectedNetworks,
-                selectedTabBinding: $selectedTabBinding,
-                selectedContainerBinding: $selectedContainerBinding,
-                selectedContainersBinding: $selectedContainersLocal,
-                selectedImagesBinding: $selectedImagesLocal,
-                selectedMountsBinding: $selectedMountsLocal,
-                selectedDNSDomainsBinding: $selectedDNSDomainsLocal,
-                selectedNetworksBinding: $selectedNetworksLocal,
-                selectedNetworkBinding: $selectedNetworkBinding,
-                selectedClusterBinding: $selectedClusterBinding,
-                selectedSandboxBinding: $selectedSandboxBinding
-            )
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-    }
-}
-
 // MARK: - Empty State View
 struct EmptyStateView: View {
     let title: String

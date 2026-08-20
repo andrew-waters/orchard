@@ -6,6 +6,7 @@ struct NetworksListView: View {
     @Binding var selectedNetwork: String?
     @Binding var selectedNetworks: Set<String>
     @Binding var lastSelectedNetwork: String?
+    @Binding var searchText: String
     @Binding var showAddNetworkSheet: Bool
     @FocusState var listFocusedTab: TabSelection?
 
@@ -60,7 +61,7 @@ struct NetworksListView: View {
 
     private var networksListView: some View {
         List(selection: $selectedNetworks) {
-            ForEach(Array(networkService.networks), id: \.id) { network in
+            ForEach(filteredNetworks, id: \.id) { network in
                 let targetNetworks: [String] = {
                     if selectedNetworks.contains(network.id) && selectedNetworks.count > 1 {
                         return Array(selectedNetworks)
@@ -152,8 +153,13 @@ struct NetworksListView: View {
         )
     }
 
+    private var filteredNetworks: [ContainerNetwork] {
+        guard !searchText.isEmpty else { return networkService.networks }
+        return networkService.networks.filter { $0.id.localizedCaseInsensitiveContains(searchText) }
+    }
+
     private func selectAllNetworks() {
-        let orderedIds = networkService.networks.map { $0.id }
+        let orderedIds = filteredNetworks.map { $0.id }
         selectedNetworks = Set(orderedIds)
     }
 

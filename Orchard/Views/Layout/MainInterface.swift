@@ -37,7 +37,6 @@ struct MainInterfaceView: View {
     @Binding var showAddNetworkSheet: Bool
     @Binding var showAddMachineSheet: Bool
     @Binding var showCreateClusterSheet: Bool
-    @Binding var showingItemNavigatorPopover: Bool
     @FocusState var listFocusedTab: TabSelection?
     let windowTitle: String
 
@@ -145,7 +144,6 @@ struct MainInterfaceView: View {
             showAddNetworkSheet: $showAddNetworkSheet,
             showAddMachineSheet: $showAddMachineSheet,
             showCreateClusterSheet: $showCreateClusterSheet,
-            showingItemNavigatorPopover: $showingItemNavigatorPopover,
             listFocusedTab: _listFocusedTab,
             windowTitle: windowTitle
         )
