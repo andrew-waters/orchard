@@ -31,7 +31,11 @@ struct CommandPaletteView: View {
                 .padding(.top, 110)
         }
         .onAppear {
-            searchFocused = true
+            // Drop whatever field currently holds first responder (on reopen it's the
+            // middle-column filter box, re-focused by the tab switch) before claiming
+            // focus - otherwise the palette loses the race and keystrokes land there.
+            NSApp.keyWindow?.makeFirstResponder(nil)
+            DispatchQueue.main.async { searchFocused = true }
             installKeyMonitor()
         }
         .onDisappear { removeKeyMonitor() }
@@ -169,7 +173,24 @@ struct CommandPaletteView: View {
                     query = ""
                 }
                 return nil
+            case 51: // delete: route to the query while the field is still grabbing focus
+                if !searchFocused, !query.isEmpty {
+                    query.removeLast()
+                    return nil
+                }
+                return event
             default:
+                // In the instant between the palette opening and its field taking first
+                // responder, plain typing would fall through to whatever field is behind
+                // (e.g. the middle-column filter box). Swallow it into the query instead.
+                if !searchFocused,
+                   !event.modifierFlags.contains(.command),
+                   let characters = event.characters,
+                   !characters.isEmpty,
+                   characters.allSatisfy({ !$0.isNewline && ($0.isLetter || $0.isNumber || $0.isPunctuation || $0.isSymbol || $0 == " ") }) {
+                    query += characters
+                    return nil
+                }
                 return event
             }
         }
