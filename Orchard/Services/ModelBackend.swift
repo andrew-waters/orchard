@@ -109,11 +109,26 @@ struct LiveModelBackend: ModelBackend {
             return nil
         }
         return ModelProvider(
-            kind: candidate.kind,
+            kind: refineKind(candidate.kind, data: data, api: candidate.api),
             port: candidate.port,
             api: candidate.api,
             models: parseModels(data, api: candidate.api)
         )
+    }
+
+    /// oMLX serves the same OpenAI-style API on the same conventional port (8000) as
+    /// `mlx_lm.server`, so the port alone can't tell them apart. Its models listing
+    /// stamps `"owned_by": "omlx"` on every model - that's the fingerprint used here.
+    static func refineKind(_ kind: ModelProvider.Kind, data: Data, api: ModelAPIStyle) -> ModelProvider.Kind {
+        guard api == .openAI,
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let models = obj["data"] as? [[String: Any]] else {
+            return kind
+        }
+        if models.contains(where: { ($0["owned_by"] as? String) == "omlx" }) {
+            return .omlx
+        }
+        return kind
     }
 
     func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage]) async throws -> String {

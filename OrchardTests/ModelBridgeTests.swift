@@ -50,6 +50,26 @@ func parseOllamaModels() {
     #expect(LiveModelBackend.parseModels(json, api: .ollama) == ["llama3.1:latest", "mistral:7b"])
 }
 
+@Test("Refine: an oMLX models listing (owned_by \"omlx\") reclassifies the provider")
+func refineKindOMLX() {
+    let json = Data(#"{"object":"list","data":[{"id":"llama-3.2-1b","owned_by":"omlx"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.mlxServer, data: json, api: .openAI) == .omlx)
+}
+
+@Test("Refine: other owned_by values and non-OpenAI APIs keep the candidate's kind")
+func refineKindPassthrough() {
+    let mlx = Data(#"{"object":"list","data":[{"id":"llama-3.2-1b","owned_by":"mlx"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.mlxServer, data: mlx, api: .openAI) == .mlxServer)
+
+    let noOwner = Data(#"{"object":"list","data":[{"id":"llama-3.2-1b"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.lmStudio, data: noOwner, api: .openAI) == .lmStudio)
+
+    let ollama = Data(#"{"models":[{"name":"llama3.1:latest"}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(.ollama, data: ollama, api: .ollama) == .ollama)
+
+    #expect(LiveModelBackend.refineKind(.mlxServer, data: Data("not json".utf8), api: .openAI) == .mlxServer)
+}
+
 @Test("Parse: malformed or empty JSON yields no models rather than throwing")
 func parseGarbage() {
     #expect(LiveModelBackend.parseModels(Data("not json".utf8), api: .openAI).isEmpty)
