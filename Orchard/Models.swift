@@ -318,6 +318,7 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
         case ollama
         case lmStudio
         case mlxServer
+        case omlx
         case custom
 
         var displayName: String {
@@ -325,6 +326,7 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
             case .ollama: return "Ollama"
             case .lmStudio: return "LM Studio"
             case .mlxServer: return "MLX Server"
+            case .omlx: return "oMLX"
             case .custom: return "Custom"
             }
         }
@@ -337,9 +339,15 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
     let api: ModelAPIStyle
     /// Model identifiers the provider advertises, when it exposes a listing endpoint.
     var models: [String]
+    /// The server answered the probe with 401/403: it's running but wants an API key
+    /// before it will list models or serve completions.
+    var requiresAPIKey: Bool = false
 
-    /// Stable across refreshes: a provider is identified by its kind and port.
-    var id: String { "\(kind.rawValue):\(port)" }
+    /// Stable across refreshes: only one server can listen on a port, and `api` comes
+    /// from the probe's static candidate rather than response data - so `kind` being
+    /// refined from the models listing (e.g. oMLX) can't flap identity-based UI state
+    /// if a listing is transiently missing or malformed.
+    var id: String { "\(api.rawValue):\(port)" }
 
     /// The base URL reachable *from the host* (e.g. `http://127.0.0.1:11434`). Distinct
     /// from the container-reachable URL, which goes through the network gateway - see
@@ -737,6 +745,22 @@ struct ContainerRunConfig: Equatable {
     var network: String = ""
     /// Labels to stamp on the container at creation (e.g. the sandbox marker).
     var labels: [String: String] = [:]
+    /// Resource allocation applied at create time. Defaults match the runtime's own
+    /// (4 CPUs, 1 GB) so an untouched form behaves exactly as before. Memory is carried
+    /// in bytes so a value that isn't a whole number of GB (e.g. a CLI-created 1.5 GB
+    /// container) survives edit and recovery untouched; the form edits it in whole GB.
+    var cpus: Int = 4
+    var memoryBytes: UInt64 = ContainerRunConfig.bytesPerGiB
+
+    static let bytesPerGiB: UInt64 = 1_073_741_824
+
+    /// Whole-GB view of `memoryBytes` for the form's stepper: reads rounded to the
+    /// nearest GB (never below 1), writes exact whole GB. Only a user edit goes through
+    /// the setter, so an untouched non-integral value keeps its exact byte count.
+    var memoryGiB: Int {
+        get { max(1, Int(clamping: (memoryBytes + Self.bytesPerGiB / 2) / Self.bytesPerGiB)) }
+        set { memoryBytes = UInt64(max(1, newValue)) * Self.bytesPerGiB }
+    }
 
     struct EnvironmentVariable: Identifiable, Equatable {
         let id = UUID()

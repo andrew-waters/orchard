@@ -184,14 +184,59 @@ struct ContainerConfigForm: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Run in detached mode (background)", isOn: $config.detached)
-                    .font(.subheadline)
+                // Recreating from the edit sheet always happens in the background, so the
+                // detached toggle only appears (and only acts) when running a container.
+                if mode == .run {
+                    Toggle("Run in detached mode (background)", isOn: $config.detached)
+                        .font(.subheadline)
+
+                    if !config.detached {
+                        Text("A terminal attached to the container opens once it starts")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
 
                 Toggle("Remove container after it stops", isOn: $config.removeAfterStop)
                     .font(.subheadline)
             }
 
+            resourcesConfigView
+
             Spacer()
+        }
+    }
+
+    /// CPU/memory allocation, mirroring the machine forms. The runtime applies these at
+    /// create time only, so editing goes through the usual stop/recreate flow.
+    private var resourcesConfigView: some View {
+        let hostCores = ProcessInfo.processInfo.processorCount
+        let hostGiB = max(1, Int(ProcessInfo.processInfo.physicalMemory / 1_073_741_824))
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Resources")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            HStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CPUs")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    NumericStepperField(value: $config.cpus, range: 1...hostCores)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Memory")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    NumericStepperField(value: $config.memoryGiB, range: 1...hostGiB, unit: "GB")
+                }
+            }
+
+            Text("Cores and RAM allocated to the container's VM (host has \(hostCores) cores, \(hostGiB) GB)")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 

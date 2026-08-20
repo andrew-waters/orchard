@@ -9,3 +9,7 @@ TestResults
 *.xcresult
 coverage.json
 badge/
+
+# Local agent/session artifacts
+.omo/
+UITestResults/
