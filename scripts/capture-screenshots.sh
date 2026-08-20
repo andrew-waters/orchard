@@ -37,6 +37,10 @@ TABS="dashboard containers clusters machines sandboxes models images mounts dns 
 for tab in $TABS; do
   "$AX" press "sidebar-$tab" || { echo "skip $tab"; continue; }
   sleep 1.5   # let the tab load and charts settle
+  if [[ "$tab" == "containers" ]]; then
+    # The k8s node has the liveliest charts and shows the plugin badge + cluster banner.
+    "$AX" press-text "k8s-dev" 2>/dev/null && sleep 2
+  fi
   WID=$("$AX" window-id)
   if ! screencapture -x -l "$WID" "$OUT/$tab.png" 2>/dev/null || [[ ! -s "$OUT/$tab.png" ]]; then
     echo

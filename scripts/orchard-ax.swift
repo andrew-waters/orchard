@@ -21,7 +21,10 @@ if args[1] == "window-id" {
     fputs("no main window\n", stderr); exit(2)
 }
 
-guard args[1] == "press", args.count == 3 else { print("usage: press <id> | window-id"); exit(64) }
+guard ["press", "press-text"].contains(args[1]), args.count == 3 else {
+    print("usage: press <ax-identifier> | press-text <visible-text> | window-id"); exit(64)
+}
+let byText = args[1] == "press-text"
 let wanted = args[2]
 
 guard AXIsProcessTrusted() else {
@@ -44,9 +47,23 @@ func identifier(_ el: AXUIElement) -> String? {
     return value as? String
 }
 
+func stringAttr(_ el: AXUIElement, _ attr: String) -> String? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(el, attr as CFString, &value) == .success else { return nil }
+    return value as? String
+}
+
+func matches(_ el: AXUIElement) -> Bool {
+    if byText {
+        return stringAttr(el, kAXValueAttribute as String) == wanted
+            || stringAttr(el, kAXTitleAttribute as String) == wanted
+    }
+    return identifier(el) == wanted
+}
+
 func find(_ el: AXUIElement, depth: Int = 0) -> AXUIElement? {
-    if depth > 25 { return nil }
-    if identifier(el) == wanted { return el }
+    if depth > 30 { return nil }
+    if matches(el) { return el }
     for child in children(el) {
         if let hit = find(child, depth: depth + 1) { return hit }
     }
