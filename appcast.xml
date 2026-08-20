@@ -3,20 +3,24 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.1.7</title>
-      <sparkle:version>47</sparkle:version>
-      <sparkle:shortVersionString>2.1.7</sparkle:shortVersionString>
+      <title>Version 2.2.0</title>
+      <sparkle:version>49</sparkle:version>
+      <sparkle:shortVersionString>2.2.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.1.7</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.2.0</link>
       <description><![CDATA[
-<h3>Changed</h3>
+<h3>Added</h3>
 <ul>
-<li>Orchard now links the Apple container 1.2.2 client libraries (previously 1.1.0), restoring compatibility with current container installs (<a href="https://github.com/andrew-waters/orchard/issues/54">#54</a>).</li>
-<li>When the installed container release doesn&#x27;t match the client Orchard links, the app now shows the version-incompatibility screen with upgrade guidance instead of reporting the system as stopped with a raw health-check decode error (<a href="https://github.com/andrew-waters/orchard/issues/37">#37</a>, <a href="https://github.com/andrew-waters/orchard/issues/39">#39</a>).</li>
+<li>Containers owned by a container plugin (such as k8s cluster nodes) are badged in the containers list and detail header with the owning plugin and their role, e.g. &quot;k8s · control-plane&quot;, so kindest/node containers aren&#x27;t mystery rows.</li>
+<li>Clusters: a new sidebar section for local Kubernetes clusters created with the <code>container k8s</code> plugin (container 1.2.2+). Node containers are grouped into clusters with per-node role, status, IP, CPUs, memory, and published ports; clusters can be created, started, and deleted from the UI, local images can be loaded into a cluster&#x27;s containerd, and the kubeconfig can be written or its path copied, with a one-click terminal preconfigured for kubectl. Installs without the plugin get an explanatory state with upgrade guidance.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>With the sidebar hidden, the Dashboard (and other full-width pages) no longer render underneath the macOS window controls (<a href="https://github.com/andrew-waters/orchard/issues/88">#88</a>).</li>
 </ul>
 ]]></description>
-      <pubDate>Thu, 20 Aug 2026 12:49:58 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.1.7/Orchard-2.1.7.dmg" type="application/octet-stream" sparkle:edSignature="FE42TLMl3X1I+VOlkBzSLUwSIJZVwT1Y3U4Z875JJ0wKSPzjJ6Uy6zeNbc6mP+mNyD6X4c9zL7LERWW0c9jBAg==" length="28925505" />
+      <pubDate>Thu, 20 Aug 2026 15:13:06 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.2.0/Orchard-2.2.0.dmg" type="application/octet-stream" sparkle:edSignature="/Bwp+4srFaJBL2AtsYK2gvMIjS+0Zvt2/QaiU/nnLoNvM8WULaq4Mhqmmzs7bUQXyKSuofWKTr4sZoQC5oKJCg==" length="29165456" />
     </item>
   </channel>
 </rss>
