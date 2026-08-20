@@ -38,7 +38,15 @@ for tab in $TABS; do
   "$AX" press "sidebar-$tab" || { echo "skip $tab"; continue; }
   sleep 1.5   # let the tab load and charts settle
   WID=$("$AX" window-id)
-  screencapture -x -l "$WID" "$OUT/$tab.png"
+  if ! screencapture -x -l "$WID" "$OUT/$tab.png" 2>/dev/null || [[ ! -s "$OUT/$tab.png" ]]; then
+    echo
+    echo "Capture failed ('could not create image from window' means the Screen"
+    echo "Recording permission is missing). Grant it to your terminal app under"
+    echo "System Settings → Privacy & Security → Screen & System Audio Recording,"
+    echo "then QUIT AND REOPEN the terminal app - the grant only applies after a"
+    echo "restart - and re-run this script."
+    exit 1
+  fi
   echo "captured $OUT/$tab.png"
 done
 echo
