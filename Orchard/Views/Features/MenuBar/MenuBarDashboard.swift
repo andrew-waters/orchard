@@ -160,7 +160,7 @@ struct MenuBarView: View {
                 .font(.callout)
             }
 
-            // Only surface system status when it's stopped — with a way to start it.
+            // Surface a system control whenever the status is actionable: Start when stopped, Pause when running.
             if systemService.systemStatus == .stopped {
                 card {
                     HStack(spacing: 8) {
@@ -169,6 +169,18 @@ struct MenuBarView: View {
                         Spacer()
                         Button("Start") {
                             Task { @MainActor in await systemService.startSystem() }
+                        }
+                        .disabled(systemService.isSystemLoading)
+                    }
+                }
+            } else if systemService.systemStatus == .running {
+                card {
+                    HStack(spacing: 8) {
+                        Circle().fill(systemService.systemStatus.color).frame(width: 8, height: 8)
+                        Text("Containers is running").font(.subheadline)
+                        Spacer()
+                        Button("Pause") {
+                            Task { @MainActor in await systemService.stopSystem() }
                         }
                         .disabled(systemService.isSystemLoading)
                     }
