@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Menu-bar System analytics no longer stays stuck on "Collecting…" when container stats fail. The menu-bar hover popover now distinguishes four explicit states: collecting during the initial two-tick baseline, available with real CPU/memory history, "No running containers" when the system has none to sample, and "Stats unavailable" with a short reason when the XPC service is unreachable or every stats call failed. Per-container stats failures are now logged via `Log.xpc` so diagnostics aren't blind, and the existing dashboard, container, and machine stats paths are unchanged. No new macOS permission is required.
+- Container service-unavailable failures in the menu-bar sampling tick are now logged only once per tick via `Log.xpc`; subsequent outcomes in the same tick fold in silently while the first error is retained, so a single tick with several unreachable containers no longer produces one log line per outcome.
+
 ## [2.2.1] - 2026-08-20
 
 ### Added
@@ -18,8 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Searching in the DNS and Networks tabs now actually filters the list; previously the search field rendered, but typing did nothing.
 - The search query is cleared when switching tabs, so a query typed in one tab no longer silently filters the next.
 - The containers list now supports Command+A select-all like the other multi-select lists.
-- Menu-bar System analytics no longer stays stuck on "Collecting…" when container stats fail. The menu-bar hover popover now distinguishes four explicit states: collecting during the initial two-tick baseline, available with real CPU/memory history, "No running containers" when the system has none to sample, and "Stats unavailable" with a short reason when the XPC service is unreachable or every stats call failed. Per-container stats failures are now logged via `Log.xpc` so diagnostics aren't blind, and the existing dashboard, container, and machine stats paths are unchanged. No new macOS permission is required.
-- Container service-unavailable failures in the menu-bar sampling tick are now logged only once per tick via `Log.xpc`; subsequent outcomes in the same tick fold in silently while the first error is retained, so a single tick with several unreachable containers no longer produces one log line per outcome.
 
 ### Removed
 - Dead internal code: the never-shipped item navigator popover, its orphaned header component and an unused detail column wrapper.
