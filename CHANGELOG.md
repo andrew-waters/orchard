@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The menu bar popup now exposes a Stop control for the container system alongside the existing Start control, so the system can be shut down without opening the main window or going through the command palette. The button is gated on a running system and disabled while a transition is in flight; calling `stopSystem()` while a transition is already in flight is a no-op at the service layer.
+
 ### Fixed
 - Menu-bar System analytics no longer stays stuck on "Collecting…" when container stats fail. The menu-bar hover popover now distinguishes four explicit states: collecting during the initial two-tick baseline, available with real CPU/memory history, "No running containers" when the system has none to sample, and "Stats unavailable" with a short reason when the XPC service is unreachable or every stats call failed. Per-container stats failures are now logged via `Log.xpc` so diagnostics aren't blind, and the existing dashboard, container, and machine stats paths are unchanged. No new macOS permission is required.
 - Container service-unavailable failures in the menu-bar sampling tick are now logged only once per tick via `Log.xpc`; subsequent outcomes in the same tick fold in silently while the first error is retained, so a single tick with several unreachable containers no longer produces one log line per outcome.
