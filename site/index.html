@@ -91,6 +91,7 @@
 
     .badges { margin-top: 26px; display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
     .badges img { display: inline-block; height: 20px; width: auto; }
+    .dl-count { margin: 10px 0 0; font-size: 14px; color: #a9b7d0; }
 
     .shot { margin: 40px auto 0; max-width: 920px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 50px -25px rgba(0,0,0,.35); }
 
@@ -168,6 +169,7 @@
           <a href="https://github.com/andrew-waters/orchard/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/andrew-waters/orchard?color=2f80ed&label=stars" /></a>
           <a href="https://formulae.brew.sh/cask/orchard"><img alt="Homebrew installs" src="https://img.shields.io/homebrew/cask/installs/dm/orchard?color=2f80ed&label=homebrew%20installs" /></a>
         </div>
+        <p class="dl-count" id="dl-count" hidden></p>
         <div class="shot"><img class="zoomable" src="assets/screens/containers.png" alt="Orchard - container detail with CPU, memory, network and disk over time" /></div>
       </div>
     </section>
@@ -323,6 +325,34 @@
         localStorage.setItem('theme', next);
         render();
       });
+    })();
+  </script>
+
+  <script>
+    (function () {
+      var el = document.getElementById('dl-count');
+      var total = 0;
+      function fetchPage(page) {
+        return fetch('https://api.github.com/repos/andrew-waters/orchard/releases?per_page=100&page=' + page)
+          .then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          })
+          .then(function (releases) {
+            releases.forEach(function (r) {
+              r.assets.forEach(function (a) { total += a.download_count; });
+            });
+            if (releases.length === 100 && page < 5) return fetchPage(page + 1);
+          });
+      }
+      // Stays hidden unless the count arrives, so a rate-limited or offline
+      // fetch degrades to nothing rather than a broken zero.
+      fetchPage(1).then(function () {
+        if (total > 0) {
+          el.textContent = total.toLocaleString() + ' downloads';
+          el.hidden = false;
+        }
+      }).catch(function () {});
     })();
   </script>
 </body>

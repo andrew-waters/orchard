@@ -1,6 +1,7 @@
 ![Banner - Orchard](assets/banner.png)
 
 [![GitHub stars](https://img.shields.io/github/stars/andrew-waters/orchard?color=e8590c&label=stars)](https://github.com/andrew-waters/orchard/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/andrew-waters/orchard/total?color=e8590c&label=downloads)](https://github.com/andrew-waters/orchard/releases)
 [![Homebrew installs](https://img.shields.io/homebrew/cask/installs/dm/orchard?color=e8590c&label=homebrew%20installs)](https://formulae.brew.sh/cask/orchard)
 [![Homebrew cask version](https://img.shields.io/homebrew/cask/v/orchard?color=e8590c&label=homebrew)](https://formulae.brew.sh/cask/orchard)
 [![License: MIT](https://img.shields.io/github/license/andrew-waters/orchard?color=e8590c)](LICENSE)
