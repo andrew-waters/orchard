@@ -161,9 +161,37 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 8. Apache-2.0 licensed.
 9. The F1 command palette covers commands and navigation; no fuzzy resource search with per-resource actions.
 
-Orchard is the **native, purpose-built** choice: a lightweight Swift app focused solely on giving Apple's `container` a first-class desktop experience, rather than a heavyweight cross-platform tool that supports it as one runtime among many. (Note: Docker Desktop is a separate container runtime and doesn't manage `apple/container`.)
+Orchard is the **native, purpose-built** choice: a lightweight Swift app focused solely on giving Apple's `container` a first-class desktop experience, rather than a heavyweight cross-platform tool that supports it as one runtime among many. (Note: OrbStack and Docker Desktop are separate container runtimes and don't manage `apple/container` - see [Choosing a runtime](#choosing-a-runtime) below.)
 
 Being native goes beyond the UI: Orchard talks to the container daemon over the same typed XPC API the `container` CLI uses internally, rather than spawning the CLI and parsing its output. That means structured data instead of screen-scraping (no breakage when CLI wording changes), no child processes on every refresh, real log streams feeding the multi-pane viewer, and typed errors instead of exit codes.
+
+### Choosing a runtime
+
+The table above compares apps that manage Apple's `container` runtime. OrbStack and Docker Desktop are a different decision: they're separate container runtimes with their own apps. If you're choosing a stack rather than a frontend:
+
+| | Orchard + `apple/container` | OrbStack | Docker Desktop |
+| :-- | :--: | :--: | :--: |
+| Isolation model | VM per container | Shared VM & kernel <sup>1</sup> | Shared VM & kernel |
+| Built on Apple's Virtualization.framework | ✅ | ➖ <sup>2</sup> | ❌ |
+| Native macOS app | ✅ | ✅ | ❌ <sup>3</sup> |
+| Docker API & ecosystem compatibility | ➖ <sup>4</sup> | ✅ | ✅ |
+| Kubernetes | ✅ multi-node <sup>5</sup> | ➖ single-node | ➖ single-node |
+| Local AI models & agent sandboxes | ✅ | ❌ | ➖ <sup>6</sup> |
+| Free for commercial use | ✅ | ❌ <sup>7</sup> | ➖ <sup>8</sup> |
+| Open source | ✅ MIT + Apache-2.0 | ❌ <sup>9</sup> | ➖ <sup>10</sup> |
+
+1. All containers share one Linux VM and kernel; OrbStack's docs note its isolated machines are "not a substitute for a full VM against actively malicious code."
+2. Native Swift app, but on a custom proprietary virtualization stack.
+3. The Docker Desktop dashboard is built on Electron.
+4. Runs standard OCI images; does not expose a Docker-compatible API socket.
+5. Experimental, via the `container k8s` plugin (control plane + workers).
+6. Docker Model Runner runs local models; no agent-sandbox workflow.
+7. Free for personal, non-commercial use; commercial use requires Pro ($8/user/month).
+8. Free only for personal use, education, and companies under 250 employees **and** $10M annual revenue.
+9. Closed-source core with some open-source components.
+10. Engine, CLI, and Compose are Apache-2.0; Docker Desktop itself is proprietary.
+
+Different trade-offs, honestly stated: OrbStack and Docker Desktop win on Docker ecosystem compatibility today. Orchard's stack wins on isolation, openness, and being built the way Apple builds things.
 
 ## Requirements
 
