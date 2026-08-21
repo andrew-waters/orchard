@@ -94,6 +94,7 @@ final class SystemService: ObservableObject {
     }
 
     func startSystem() async {
+        if isSystemLoading { return }
         isSystemLoading = true
         alertCenter.dismiss()
 
@@ -154,6 +155,7 @@ final class SystemService: ObservableObject {
     }
 
     func stopSystem() async {
+        if isSystemLoading { return }
         isSystemLoading = true
         alertCenter.dismiss()
 
