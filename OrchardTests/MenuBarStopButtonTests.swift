@@ -41,10 +41,10 @@ func stopSystemTogglesLoadingFlag() async {
 
     let observed = LockedBox<Bool?>(nil)
     runner.runHandler = { _, _ in
-        // The CLI handler runs off the main actor; capture the loading flag by
-        // scheduling a main-actor hop. The assignment is awaited so the test can
-        // safely read `observed.value` after `stopSystem()` returns.
-        MainActor.assumeIsolated {
+        // The CLI handler runs off the main actor; capture the loading flag via an
+        // awaited main-actor hop so the test can safely read `observed.value` after
+        // `stopSystem()` returns.
+        await MainActor.run {
             observed.set(service.systemService.isSystemLoading)
         }
         return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
@@ -63,6 +63,36 @@ private final class LockedBox<T> {
     var value: T { lock.withLock { _value } }
     init(_ value: T) { self._value = value }
     func set(_ value: T) { lock.withLock { self._value = value } }
+}
+
+/// A one-shot awaitable gate for tests: `wait()` suspends without blocking a thread until
+/// `open()` is called. Once open, later `wait()`s return immediately. Replaces the
+/// semaphore pattern, whose blocking waits are unsafe in `@MainActor` async tests.
+private final class TestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let resumeNow = lock.withLock { () -> Bool in
+                if isOpen { return true }
+                waiters.append(continuation)
+                return false
+            }
+            if resumeNow { continuation.resume() }
+        }
+    }
+
+    func open() {
+        let pending = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            isOpen = true
+            let pending = waiters
+            waiters.removeAll()
+            return pending
+        }
+        pending.forEach { $0.resume() }
+    }
 }
 
 @MainActor
@@ -127,11 +157,11 @@ func stopSystemIgnoresStaleStatusPing() async {
     // afterwards must NOT let its stale `.running` result overwrite .stopped.
     let runner = MockCommandRunner()
     let backend = MockContainerBackend()
-    let pingStarted = DispatchSemaphore(value: 0)
-    let releasePing = DispatchSemaphore(value: 0)
+    let pingStarted = TestGate()
+    let releasePing = TestGate()
     backend.pingHandler = {
-        pingStarted.signal()
-        releasePing.wait()
+        pingStarted.open()
+        await releasePing.wait()
         return SystemHealthInfo(apiServerVersion: "test")
     }
     let service = makeService(backend: backend, runner: runner)
@@ -139,14 +169,14 @@ func stopSystemIgnoresStaleStatusPing() async {
 
     // Kick off the stale check and let it reach the held ping.
     let checkTask = Task { @MainActor in await service.systemService.checkSystemStatus() }
-    pingStarted.wait()   // confirm the ping is actually in flight before we Stop
+    await pingStarted.wait()   // confirm the ping is actually in flight before we Stop
 
     // Stop completes synchronously here (default MockCommandRunner returns success).
     await service.systemService.stopSystem()
     #expect(service.systemService.systemStatus == .stopped)
 
     // Release the held ping; the stale check resumes and would otherwise re-set .running.
-    releasePing.signal()
+    releasePing.open()
     await checkTask.value
 
     #expect(service.systemService.systemStatus == .stopped)
