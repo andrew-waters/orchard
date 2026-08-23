@@ -50,6 +50,11 @@ final class SystemService: ObservableObject {
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
 
+    /// Bumped on every lifecycle call (start/stop/restart). A `checkSystemStatus`
+    /// pinged before the bump completes after it; its stale `.running` result would
+    /// otherwise overwrite the new `.stopped` state.
+    private var lifecycleGeneration: UInt64 = 0
+
     /// Refresh the container list after the system starts. Set by the owner.
     var onSystemStarted: () async -> Void = {}
     /// Clear the container list after the system stops. Set by the owner.
@@ -67,13 +72,19 @@ final class SystemService: ObservableObject {
     }
 
     func checkSystemStatus() async {
+        // Capture the generation at the start of the ping; if a lifecycle op bumps it
+        // while the ping is in flight, drop this stale result rather than overwrite
+        // the new state.
+        let generation = lifecycleGeneration
         do {
             let health = try await backend.ping()
+            guard lifecycleGeneration == generation else { return }
             self.containerVersion = health.apiServerVersion
             self.parsedContainerVersion = health.apiServerVersion
             self.systemStatus = .running
             self.systemStatusError = nil
         } catch {
+            guard lifecycleGeneration == generation else { return }
             self.containerVersion = nil
             self.parsedContainerVersion = nil
             // A health check the linked client can't decode isn't an outage: the daemon
@@ -95,6 +106,7 @@ final class SystemService: ObservableObject {
 
     func startSystem() async {
         if isSystemLoading { return }
+        lifecycleGeneration &+= 1
         isSystemLoading = true
         alertCenter.dismiss()
 
@@ -156,6 +168,7 @@ final class SystemService: ObservableObject {
 
     func stopSystem() async {
         if isSystemLoading { return }
+        lifecycleGeneration &+= 1
         isSystemLoading = true
         alertCenter.dismiss()
 
@@ -181,6 +194,7 @@ final class SystemService: ObservableObject {
     }
 
     func restartSystem() async {
+        lifecycleGeneration &+= 1
         isSystemLoading = true
         alertCenter.dismiss()
 

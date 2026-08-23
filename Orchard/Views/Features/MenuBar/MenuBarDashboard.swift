@@ -399,7 +399,12 @@ struct MenuBarView: View {
         refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
-                await systemService.checkSystemStatus()
+                // A start/stop click owns `systemStatus` while it's in flight; skip the
+                // status refresh so a stale ping started before the click doesn't land
+                // after `.stopped` and flip the state back to `.running`.
+                if !systemService.isSystemLoading {
+                    await systemService.checkSystemStatus()
+                }
                 await containerListService.loadContainers(showLoading: false)
                 await builderService.loadBuilders()
                 await dnsService.load(showLoading: false)
