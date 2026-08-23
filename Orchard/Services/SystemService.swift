@@ -194,6 +194,7 @@ final class SystemService: ObservableObject {
     }
 
     func restartSystem() async {
+        if isSystemLoading { return }
         lifecycleGeneration &+= 1
         isSystemLoading = true
         alertCenter.dismiss()
