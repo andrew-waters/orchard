@@ -116,35 +116,34 @@ func stopSystemThrownErrorAlertsAndReDerives() async {
 @MainActor
 @Test("stopSystem: a second call while the first is in flight does not re-invoke the CLI")
 func stopSystemGuardsAgainstDoubleDispatch() async {
-    // Drive the runner to hang on a semaphore so we can issue a second stopSystem()
-    // while the first is still pending, and confirm the runner was only called once.
-    // The menu bar Stop button is `.disabled(isSystemLoading)`, but the service's
-    // own isSystemLoading short-circuit is the underlying guard against duplicate
-    // dispatch — useful for any future caller that bypasses the view layer.
+    // Hold the runner on a gate so we can issue a second stopSystem() while the first
+    // is still pending, and confirm the runner was only called once. The menu bar Stop
+    // button is `.disabled(isSystemLoading)`, but the service's own isSystemLoading
+    // short-circuit is the underlying guard against duplicate dispatch — useful for
+    // any future caller that bypasses the view layer.
     let runner = MockCommandRunner()
-    let hang = DispatchSemaphore(value: 0)
-    var invocations = 0
+    let handlerEntered = TestGate()
+    let releaseRunner = TestGate()
     runner.runHandler = { _, _ in
-        invocations += 1
-        hang.wait()   // blocks the runner until the test releases it
+        handlerEntered.open()
+        await releaseRunner.wait()   // holds the runner until the test releases it
         return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
     }
     let service = makeService(runner: runner)
     service.systemService.systemStatus = .running
 
     let first = Task { @MainActor in await service.systemService.stopSystem() }
-    // Yield to let the first task reach the runner's blocking wait.
-    await Task.yield()
-    await Task.yield()
+    // Suspends until the first task is actually inside the runner — no yield guessing.
+    // isSystemLoading was set before the runner await, and the call is already recorded.
+    await handlerEntered.wait()
     #expect(service.systemService.isSystemLoading == true)
 
     // Second call should be a no-op while isSystemLoading is true.
     await service.systemService.stopSystem()
 
-    #expect(invocations == 1)
     #expect(runner.calls == [["system", "stop"]])
 
-    hang.signal()   // release the first task so the test can complete
+    releaseRunner.open()   // release the first task so the test can complete
     await first.value
 }
 
