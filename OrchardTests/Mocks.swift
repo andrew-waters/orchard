@@ -20,14 +20,14 @@ func makeError(_ message: String) -> NSError {
 final class MockCommandRunner: CommandRunner, @unchecked Sendable {
     private let lock = NSLock()
     private var _defaultResult = ProcessResult(exitCode: 0, stdout: "", stderr: nil)
-    private var _runHandler: (@Sendable (String, [String]) throws -> ProcessResult)?
+    private var _runHandler: (@Sendable (String, [String]) async throws -> ProcessResult)?
     private var _calls: [[String]] = []
 
     var defaultResult: ProcessResult {
         get { lock.withLock { _defaultResult } }
         set { lock.withLock { _defaultResult = newValue } }
     }
-    var runHandler: (@Sendable (String, [String]) throws -> ProcessResult)? {
+    var runHandler: (@Sendable (String, [String]) async throws -> ProcessResult)? {
         get { lock.withLock { _runHandler } }
         set { lock.withLock { _runHandler = newValue } }
     }
@@ -35,7 +35,7 @@ final class MockCommandRunner: CommandRunner, @unchecked Sendable {
 
     func run(program: String, arguments: [String]) async throws -> ProcessResult {
         lock.withLock { _calls.append(arguments) }
-        if let handler = runHandler { return try handler(program, arguments) }
+        if let handler = runHandler { return try await handler(program, arguments) }
         return defaultResult
     }
 
