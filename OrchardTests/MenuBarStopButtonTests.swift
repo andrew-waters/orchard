@@ -36,18 +36,33 @@ func stopSystemSuccess() async {
 @Test("stopSystem: isSystemLoading is true for the duration of the call")
 func stopSystemTogglesLoadingFlag() async {
     let runner = MockCommandRunner()
-    var observedLoading = false
-    runner.runHandler = { _, _ in
-        observedLoading = true   // set so we can assert later that the handler ran
-        return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
-    }
     let service = makeService(runner: runner)
     service.systemService.systemStatus = .running
 
+    let observed = LockedBox<Bool?>(nil)
+    runner.runHandler = { _, _ in
+        // The CLI handler runs off the main actor; capture the loading flag by
+        // scheduling a main-actor hop. The assignment is awaited so the test can
+        // safely read `observed.value` after `stopSystem()` returns.
+        MainActor.assumeIsolated {
+            observed.set(service.systemService.isSystemLoading)
+        }
+        return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
+    }
+
     await service.systemService.stopSystem()
 
-    #expect(observedLoading == true)              // the handler was actually invoked
+    #expect(observed.value == true)               // handler ran while loading flag was set
     #expect(service.systemService.isSystemLoading == false)   // flag cleared after the call
+}
+
+/// Locked box for one observation captured by a `@Sendable` test handler.
+private final class LockedBox<T> {
+    private let lock = NSLock()
+    private var _value: T
+    var value: T { lock.withLock { _value } }
+    init(_ value: T) { self._value = value }
+    func set(_ value: T) { lock.withLock { self._value = value } }
 }
 
 @MainActor
@@ -101,4 +116,38 @@ func stopSystemGuardsAgainstDoubleDispatch() async {
 
     hang.signal()   // release the first task so the test can complete
     await first.value
+}
+
+@MainActor
+@Test("stopSystem: a stale in-flight checkSystemStatus ping doesn't flip .stopped back to .running")
+func stopSystemIgnoresStaleStatusPing() async {
+    // Simulates the menu-bar race: a 5s status-refresh tick starts a `checkSystemStatus`
+    // (a `backend.ping()`) before the user clicks Pause. While that ping is held in
+    // flight, Stop completes and transitions the state to .stopped. Releasing the ping
+    // afterwards must NOT let its stale `.running` result overwrite .stopped.
+    let runner = MockCommandRunner()
+    let backend = MockContainerBackend()
+    let pingStarted = DispatchSemaphore(value: 0)
+    let releasePing = DispatchSemaphore(value: 0)
+    backend.pingHandler = {
+        pingStarted.signal()
+        releasePing.wait()
+        return SystemHealthInfo(apiServerVersion: "test")
+    }
+    let service = makeService(backend: backend, runner: runner)
+    service.systemService.systemStatus = .running
+
+    // Kick off the stale check and let it reach the held ping.
+    let checkTask = Task { @MainActor in await service.systemService.checkSystemStatus() }
+    pingStarted.wait()   // confirm the ping is actually in flight before we Stop
+
+    // Stop completes synchronously here (default MockCommandRunner returns success).
+    await service.systemService.stopSystem()
+    #expect(service.systemService.systemStatus == .stopped)
+
+    // Release the held ping; the stale check resumes and would otherwise re-set .running.
+    releasePing.signal()
+    await checkTask.value
+
+    #expect(service.systemService.systemStatus == .stopped)
 }

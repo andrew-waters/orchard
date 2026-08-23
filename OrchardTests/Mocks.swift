@@ -65,6 +65,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _deleteContainerError: Error?
     private var _pingError: Error?
     private var _pingCount = 0
+    private var _pingHandler: (@Sendable () async throws -> SystemHealthInfo)?
     private var _bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)?
     private var _statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
 
@@ -140,6 +141,12 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     }
     /// Number of `ping()` calls, for asserting how often a poll retried.
     var pingCount: Int { lock.withLock { _pingCount } }
+    /// Test-supplied ping handler. When set, takes over from the default success/throw
+    /// path so a test can hold the ping in flight across a lifecycle op.
+    var pingHandler: (@Sendable () async throws -> SystemHealthInfo)? {
+        get { lock.withLock { _pingHandler } }
+        set { lock.withLock { _pingHandler = newValue } }
+    }
     /// Called with the 1-based attempt count; throw to simulate a failed start.
     var bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)? {
         get { lock.withLock { _bootstrapAndStartHandler } }
@@ -217,6 +224,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     }
     func ping() async throws -> SystemHealthInfo {
         lock.withLock { _pingCount += 1 }
+        if let handler = lock.withLock({ _pingHandler }) {
+            return try await handler()
+        }
         if let pingError { throw pingError }
         return SystemHealthInfo(apiServerVersion: "test")
     }
