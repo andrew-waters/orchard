@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-08-25
+
 ### Added
 - The menu bar popup now exposes a Stop control for the container system alongside the existing Start control, so the system can be shut down without opening the main window or going through the command palette. The button is gated on a running system and disabled while a transition is in flight; calling `stopSystem()` while a transition is already in flight is a no-op at the service layer.
 
