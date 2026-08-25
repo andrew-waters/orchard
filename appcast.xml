@@ -3,31 +3,24 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.2.1</title>
-      <sparkle:version>50</sparkle:version>
-      <sparkle:shortVersionString>2.2.1</sparkle:shortVersionString>
+      <title>Version 2.2.2</title>
+      <sparkle:version>51</sparkle:version>
+      <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.2.1</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.2.2</link>
       <description><![CDATA[
 <h3>Added</h3>
 <ul>
-<li>Command palette: press Cmd+K (or View &gt; Command Palette...) to fuzzy-search everything Orchard manages - containers, images, mounts, machines, k8s clusters, AI models, sandboxes, DNS domains and networks - and jump straight to any of them, or run actions from the keyboard: run a container, pull an image, create networks/machines/clusters, start/stop/restart the container system, and per-resource verbs like &quot;stop db&quot;, &quot;logs api&quot; or &quot;console web&quot;. Results rank with real fuzzy matching (exact prefix beats word-boundary beats scattered match); destructive operations are deliberately not palette-reachable.</li>
-<li>The Dock icon can now be hidden (Settings &gt; General &gt; &quot;Hide Dock icon&quot;): Orchard switches to a menu-bar accessory, staying reachable from the menu bar, and the preference applies immediately and persists across launches. Note that macOS also removes accessory apps from the Cmd-Tab switcher.</li>
+<li>The menu bar popup now exposes a Stop control for the container system alongside the existing Start control, so the system can be shut down without opening the main window or going through the command palette. The button is gated on a running system and disabled while a transition is in flight; calling <code>stopSystem()</code> while a transition is already in flight is a no-op at the service layer.</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>The AI Models and Sandboxes middle columns no longer render lighter than every other list: they used the sidebar list style, which paints its own source-list background, instead of the plain style the rest of the middle columns use.</li>
-<li>Searching in the DNS and Networks tabs now actually filters the list; previously the search field rendered, but typing did nothing.</li>
-<li>The search query is cleared when switching tabs, so a query typed in one tab no longer silently filters the next.</li>
-<li>The containers list now supports Command+A select-all like the other multi-select lists.</li>
-</ul>
-<h3>Removed</h3>
-<ul>
-<li>Dead internal code: the never-shipped item navigator popover, its orphaned header component and an unused detail column wrapper.</li>
+<li>Menu-bar System analytics no longer stays stuck on &quot;Collecting…&quot; when container stats fail. The menu-bar hover popover now distinguishes four explicit states: collecting during the initial two-tick baseline, available with real CPU/memory history, &quot;No running containers&quot; when the system has none to sample, and &quot;Stats unavailable&quot; with a short reason when the XPC service is unreachable or every stats call failed. Per-container stats failures are now logged via <code>Log.xpc</code> so diagnostics aren&#x27;t blind, and the existing dashboard, container, and machine stats paths are unchanged. No new macOS permission is required.</li>
+<li>Container service-unavailable failures in the menu-bar sampling tick are now logged only once per tick via <code>Log.xpc</code>; subsequent outcomes in the same tick fold in silently while the first error is retained, so a single tick with several unreachable containers no longer produces one log line per outcome.</li>
 </ul>
 ]]></description>
-      <pubDate>Thu, 20 Aug 2026 21:46:32 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.2.1/Orchard-2.2.1.dmg" type="application/octet-stream" sparkle:edSignature="sJ2/jnmIGpKnva0L4j0adZWJpop3tgp97xLfT7h+GavC4GVDxW2jVbXFmtQyluA+6FS8Z945d+Gl39VeH4BQAw==" length="29323493" />
+      <pubDate>Tue, 25 Aug 2026 08:27:25 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.2.2/Orchard-2.2.2.dmg" type="application/octet-stream" sparkle:edSignature="MMkimdcBh9vsW6+ZS6OScBlIsgxhuxQ09w/gvD1iskYq3Rz1UkRxFsWxVj/5zFL21unKcx5xVy96f5Sr/qcRCQ==" length="29340534" />
     </item>
   </channel>
 </rss>
