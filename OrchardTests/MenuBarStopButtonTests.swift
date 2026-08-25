@@ -151,7 +151,7 @@ func stopSystemGuardsAgainstDoubleDispatch() async {
 @Test("stopSystem: a stale in-flight checkSystemStatus ping doesn't flip .stopped back to .running")
 func stopSystemIgnoresStaleStatusPing() async {
     // Simulates the menu-bar race: a 5s status-refresh tick starts a `checkSystemStatus`
-    // (a `backend.ping()`) before the user clicks Pause. While that ping is held in
+    // (a `backend.ping()`) before the user clicks Stop. While that ping is held in
     // flight, Stop completes and transitions the state to .stopped. Releasing the ping
     // afterwards must NOT let its stale `.running` result overwrite .stopped.
     let runner = MockCommandRunner()
