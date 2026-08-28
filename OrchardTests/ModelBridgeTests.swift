@@ -119,7 +119,8 @@ func probeClassifiesLocked(status: Int) {
     #expect(provider?.kind == .mlxServer)   // can't refine without a listing
 }
 
-@Test("Probe: other statuses are not a provider", arguments: [404, 500, 302])
+@Test("Probe: other statuses - redirects included - are not a provider",
+      arguments: [404, 500, 301, 302, 307, 308])
 func probeClassifiesOther(status: Int) {
     #expect(LiveModelBackend.provider(from: status, data: Data(), candidate: omlxCandidate) == nil)
 }
@@ -131,4 +132,112 @@ func bridgeEnvWithKey() {
 
     let open = ModelBridge.injectionEnvironment(baseURL: "http://192.168.64.1:8000/v1", api: .openAI)
     #expect(open.contains { $0.key == "OPENAI_API_KEY" && $0.value == "not-needed" })
+}
+
+// MARK: - Probe transport (redirects are not followed)
+
+/// Canned transport for probe tests. Replies from a per-URL script and records every URL
+/// the session asks for, so a test can assert what was *not* requested. Redirects are
+/// announced via `wasRedirectedTo:` so the session's real redirect machinery - and hence
+/// the task delegate - is exercised, rather than the 3xx being handed back as a plain
+/// response.
+final class ProbeStubProtocol: URLProtocol, @unchecked Sendable {
+    struct Reply: Sendable {
+        var status: Int
+        var location: String?
+        var body: Data = Data()
+    }
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var script: [String: Reply] = [:]
+    nonisolated(unsafe) private static var requested: [String] = []
+
+    /// Installs `script` (keyed by absolute URL) and returns a session wired to this stub.
+    static func session(script: [String: Reply]) -> URLSession {
+        lock.lock()
+        self.script = script
+        requested = []
+        lock.unlock()
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ProbeStubProtocol.self]
+        return URLSession(configuration: config)
+    }
+
+    static var requestedURLs: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requested
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        guard let url = request.url else { return }
+
+        Self.lock.lock()
+        Self.requested.append(url.absoluteString)
+        let reply = Self.script[url.absoluteString] ?? Reply(status: 404)
+        Self.lock.unlock()
+
+        var headers: [String: String] = [:]
+        if let location = reply.location { headers["Location"] = location }
+        guard let response = HTTPURLResponse(
+            url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: headers
+        ) else {
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+
+        if let location = reply.location, let next = URL(string: location) {
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: next), redirectResponse: response)
+            // Also complete the task. A refused redirect otherwise leaves this protocol
+            // instance loading until the request deadline, which would make the test spend
+            // the probe's full timeout proving a point about the delegate.
+        }
+
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: reply.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
+private let mlx8080 = LiveModelBackend.Candidate(kind: .mlxServer, port: 8080, api: .openAI, listPath: "/v1/models")
+
+/// Serialized: the stub keeps its script and its request log in static state.
+@Suite("Probe transport", .serialized)
+struct ProbeTransportTests {
+    /// The shape that froze a Rails dev server: an app on 8080 running with `force_ssl`
+    /// redirects the probe to its TLS port, which answers something that parses as a model
+    /// listing. The probe must stop at the redirect and never open the second connection.
+    @Test("Probe: a redirect is refused, so the target is never requested")
+    func probeDoesNotFollowRedirect() async {
+        let listing = Data(#"{"object":"list","data":[{"id":"not-a-model-server"}]}"#.utf8)
+        let session = ProbeStubProtocol.session(script: [
+            "http://127.0.0.1:8080/v1/models": .init(status: 301, location: "https://127.0.0.1:8443/v1/models"),
+            "https://127.0.0.1:8443/v1/models": .init(status: 200, body: listing),
+        ])
+
+        let provider = await LiveModelBackend.probe(mlx8080, session: session, apiKey: nil)
+
+        #expect(provider == nil)
+        #expect(ProbeStubProtocol.requestedURLs == ["http://127.0.0.1:8080/v1/models"])
+    }
+
+    /// Guards the test above: without this, a stub that never serves anything would make
+    /// the redirect assertion pass for the wrong reason.
+    @Test("Probe: a 200 listing on the candidate port is a provider")
+    func probeAcceptsDirectListing() async {
+        let listing = Data(#"{"object":"list","data":[{"id":"qwen3-4b"}]}"#.utf8)
+        let session = ProbeStubProtocol.session(script: [
+            "http://127.0.0.1:8080/v1/models": .init(status: 200, body: listing),
+        ])
+
+        let provider = await LiveModelBackend.probe(mlx8080, session: session, apiKey: nil)
+
+        #expect(provider?.models == ["qwen3-4b"])
+        #expect(ProbeStubProtocol.requestedURLs == ["http://127.0.0.1:8080/v1/models"])
+    }
 }
