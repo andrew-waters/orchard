@@ -63,6 +63,25 @@ protocol ModelBackend: Sendable {
 
 // MARK: - Live implementation
 
+/// Refuses every HTTP redirect. Probes aim at conventional ports, which are routinely
+/// owned by something other than a model server - an ordinary dev server on 8080 will
+/// happily 301 the probe onto another port or host. Following that spends the 1.5s probe
+/// deadline on an unrelated endpoint and, when it expires, abandons a half-finished
+/// connection there. A real provider answers 200 directly, so a redirect means no more
+/// than "not a provider". Stateless, hence safe to share across concurrent probes.
+private final class ProbeRedirectBlocker: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest
+    ) async -> URLRequest? {
+        nil
+    }
+}
+
+private let probeRedirectBlocker = ProbeRedirectBlocker()
+
 /// `ModelBackend` that discovers providers by probing their conventional loopback ports
 /// over HTTP. An unreachable port simply means "that provider isn't running."
 struct LiveModelBackend: ModelBackend {
@@ -104,14 +123,16 @@ struct LiveModelBackend: ModelBackend {
         }
     }
 
-    private static func probe(_ candidate: Candidate, session: URLSession, apiKey: String?) async -> ModelProvider? {
+    /// Probe one candidate. Non-private so the redirect and classification behaviour is
+    /// testable against a stub transport.
+    static func probe(_ candidate: Candidate, session: URLSession, apiKey: String?) async -> ModelProvider? {
         guard let url = URL(string: "http://127.0.0.1:\(candidate.port)\(candidate.listPath)") else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 1.5
         if let apiKey {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
-        guard let (data, response) = try? await session.data(for: request),
+        guard let (data, response) = try? await session.data(for: request, delegate: probeRedirectBlocker),
               let http = response as? HTTPURLResponse else {
             return nil
         }

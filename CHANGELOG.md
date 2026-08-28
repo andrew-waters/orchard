@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Local-model detection no longer follows HTTP redirects when probing for providers. The probe targets conventional ports (11434, 1234, 8080, 8000), which are often owned by something else entirely; a dev server on 8080 that redirects to its TLS port would take the probe with it, so Orchard opened a connection to an unrelated endpoint every five seconds and abandoned it when the 1.5s probe deadline expired. Against a Rails app running with `force_ssl` this leaked a socket per probe until the server's accept loop stopped and it served nothing at all. A real provider answers 200 directly, so a redirect is now simply classified as "not a provider" - which also stops a redirecting server from being misreported as a model server.
+
 ## [2.2.2] - 2026-08-25
 
 ### Added
