@@ -114,7 +114,7 @@ func mapContainerError(_ error: Error) -> Error {
 
 /// The apple/container release Orchard's client libraries are built against. Keep in
 /// sync with the container package pin in project.pbxproj when bumping.
-let supportedContainerVersion = "1.2.2"
+let supportedContainerVersion = "1.3.1"
 
 /// A ping reply the linked client cannot decode means the installed daemon speaks a
 /// different protocol revision than the client libraries Orchard links.

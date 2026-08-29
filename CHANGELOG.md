@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Orchard now links the Apple container 1.3.1 client libraries (previously 1.2.2), restoring compatibility with current container installs. 1.3.1 also patches six security advisories in the containerization package that Orchard's image operations link directly, including path traversal in the local content store and a `RegistryClient` that followed `WWW-Authenticate` realms without validating the host.
+- Image pulls now default to `https` for all registries, matching container 1.3.0's removal of the `auto` registry scheme. Pulls from localhost or private-IP registries no longer silently downgrade to plain http; a local http registry needs `registry.scheme = "http"` in the container configuration, same as the `container` CLI.
+
 ### Fixed
 - Local-model detection no longer follows HTTP redirects when probing for providers. The probe targets conventional ports (11434, 1234, 8080, 8000), which are often owned by something else entirely; a dev server on 8080 that redirects to its TLS port would take the probe with it, so Orchard opened a connection to an unrelated endpoint every five seconds and abandoned it when the 1.5s probe deadline expired. Against a Rails app running with `force_ssl` this leaked a socket per probe until the server's accept loop stopped and it served nothing at all. A real provider answers 200 directly, so a redirect is now simply classified as "not a provider" - which also stops a redirecting server from being misreported as a model server.
 
