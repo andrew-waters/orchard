@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-29
+
 ### Changed
 - Orchard now links the Apple container 1.3.1 client libraries (previously 1.2.2), restoring compatibility with current container installs. 1.3.1 also patches six security advisories in the containerization package that Orchard's image operations link directly, including path traversal in the local content store and a `RegistryClient` that followed `WWW-Authenticate` realms without validating the host.
 - Image pulls now default to `https` for all registries, matching container 1.3.0's removal of the `auto` registry scheme. Pulls from localhost or private-IP registries no longer silently downgrade to plain http; a local http registry needs `registry.scheme = "http"` in the container configuration, same as the `container` CLI.
