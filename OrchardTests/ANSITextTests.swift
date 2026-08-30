@@ -63,6 +63,12 @@ func ansiStripsOtherSequences() {
     #expect(ANSIText.plain("\u{1B}[2Kleast\u{1B}[1Award") == "leastward")
     #expect(ANSIText.plain("\u{1B}]0;window title\u{07}visible") == "visible")
     #expect(ANSIText.plain("\u{1B}]8;;https://x\u{1B}\\link") == "link")
+    // An OSC terminated by a new escape sequence (not ST): the terminator must
+    // be reparsed, not leaked into the text.
+    #expect(ANSIText.plain("\u{1B}]0;title\u{1B}[31mred") == "red")
+    let reparse = ANSIText.segments("\u{1B}]0;title\u{1B}[31mred")
+    #expect(reparse.count == 1)
+    #expect(reparse[0].style.foreground != nil)
 }
 
 @Test("ANSIText: carriage-return overwrite keeps the final content")

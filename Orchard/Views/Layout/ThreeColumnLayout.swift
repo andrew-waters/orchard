@@ -18,11 +18,13 @@ struct ThreeColumnLayout: View {
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
 
     /// Label keys offered by "Group by Label": every key on a listed container
-    /// except the internal `com.apple.container.*` bookkeeping labels (plugin
-    /// ownership already has its own badge treatment).
+    /// except the internal namespaces (runtime bookkeeping and Orchard's own
+    /// markers - the same prefixes the label editor hides).
     private var containerLabelKeys: [String] {
         Set(containerListService.containers.flatMap { $0.configuration.labels.keys })
-            .filter { !$0.hasPrefix("com.apple.container.") }
+            .filter { key in
+                !ContainerRunConfig.internalLabelPrefixes.contains { key.hasPrefix($0) }
+            }
             .sorted()
     }
     @Binding var selectedTab: TabSelection

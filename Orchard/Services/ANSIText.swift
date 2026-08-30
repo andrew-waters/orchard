@@ -83,7 +83,12 @@ enum ANSIText {
                         }
                         if line[j] == "\u{1B}" {
                             let k = line.index(after: j)
-                            j = (k < line.endIndex && line[k] == "\\") ? line.index(after: k) : k
+                            // ST is ESC \. Any other ESC ends the OSC and starts
+                            // a new escape sequence, so leave j on it for the
+                            // outer loop to reparse instead of swallowing it.
+                            if k < line.endIndex, line[k] == "\\" {
+                                j = line.index(after: k)
+                            }
                             break
                         }
                         j = line.index(after: j)

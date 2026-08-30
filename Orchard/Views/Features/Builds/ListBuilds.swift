@@ -37,6 +37,16 @@ struct BuildsListView: View {
         .sheet(isPresented: $showBuildImage) {
             BuildImageView()
         }
+        // selectTab only auto-selects on tab entry; reconcile when the registry
+        // changes underneath an open tab (first build started while the list
+        // was empty, or the selected record was removed). Keyed on ids so the
+        // per-line transcript appends don't trigger comparisons of whole
+        // records.
+        .onChange(of: buildService.builds.map(\.id)) { _, ids in
+            if selectedBuild == nil || !ids.contains(where: { $0 == selectedBuild }) {
+                selectedBuild = ids.first
+            }
+        }
     }
 
     private var filteredBuilds: [ImageBuild] {
