@@ -3,19 +3,19 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.3.1</title>
-      <sparkle:version>53</sparkle:version>
-      <sparkle:shortVersionString>2.3.1</sparkle:shortVersionString>
+      <title>Version 2.3.2</title>
+      <sparkle:version>54</sparkle:version>
+      <sparkle:shortVersionString>2.3.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.3.1</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.3.2</link>
       <description><![CDATA[
 <h3>Fixed</h3>
 <ul>
-<li>Image sizes now match <code>container image ls -v</code> (#98). Orchard was showing the size of each variant&#x27;s manifest *descriptor* — a couple of kilobytes of JSON — instead of the image content, so every image listed as &quot;1 KB&quot;–&quot;3 KB&quot;. Variant sizes are now computed the same way the CLI computes FULL SIZE: manifest descriptor plus config blob plus the sum of the compressed layers. The container detail&#x27;s Image section and the multi-select image cards previously showed the raw index descriptor size as &quot;Size&quot;; both now use the same resolved size as the images list, and the image Technical Details row is relabeled &quot;Index Size (bytes)&quot; since that value genuinely is the index descriptor size.</li>
+<li>The GUI now tracks the container system when it is stopped and started from the CLI (#100). The 5-second status poll was torn down by the main interface&#x27;s <code>onDisappear</code>, which also fires when the system stops and the &quot;not running&quot; screen swaps in. After that, nothing polled, so a <code>container system start</code> run in a terminal was never noticed and Orchard stayed on &quot;Container is not currently running&quot; until the power button was clicked. The same dead end was reachable by launching Orchard while the system was stopped. The poll&#x27;s lifetime now matches the window rather than one branch of the state view, so external stops appear within a poll tick (a stop can still lag while <code>container system stop</code> drains running containers, since the API server answers until it deregisters) and an external start restores the full interface automatically.</li>
 </ul>
 ]]></description>
-      <pubDate>Sun, 30 Aug 2026 13:26:02 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.3.1/Orchard-2.3.1.dmg" type="application/octet-stream" sparkle:edSignature="ki0GwIpfF+iVB0do1LknPfm0vYJUbwKmhZUM8ipFX17JycAfW3h25rp/zvky2MRO7x5NQCdoc9jRR7iwOhItDQ==" length="29378193" />
+      <pubDate>Sun, 30 Aug 2026 14:05:11 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.3.2/Orchard-2.3.2.dmg" type="application/octet-stream" sparkle:edSignature="B7ezwwHbpec/vzsed1SdXLXTFSTAE9khyUjJeDpRtQoLod1DABA5+3kiTkJ33Z2ZKGVQnWrv4ftbaXNDbuwoAA==" length="29377328" />
     </item>
   </channel>
 </rss>
