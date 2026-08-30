@@ -96,8 +96,10 @@ Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard
 - Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
 - Kubernetes clusters: create and manage local k8s clusters (container's k8s plugin), load images into them, and get one-click kubectl access
-- Container management: create, start, stop, force stop, delete
-- Image management: pull, delete, search Docker Hub
+- Container management: create, start, stop, force stop, delete, export as tar, label at launch, group by label
+- Image management: pull with live byte/blob progress, delete, search Docker Hub
+- Image builds: build from any Dockerfile with a streamed BuildKit log, tracked in a Builds tab whose records survive restarts and cross-link to their images and containers
+- Deep links: `orchard://` URLs jump to any tab or resource
 - Network and DNS domain management
 - Real-time container stats with sortable columns
 - Sortable container and image lists with persistent preferences
@@ -116,7 +118,27 @@ Per-container detail with CPU, memory, network and disk over time, cross-links t
 
 ![image management](site/assets/screens/images.png)
 
-Browse, pull, and delete container images. Search Docker Hub directly from the app and inspect image metadata without dropping to the CLI.
+Browse, pull, and delete container images. Search Docker Hub directly from the app - pulls show live download progress with byte and blob counts - and inspect image metadata without dropping to the CLI.
+
+![Builds - a completed image build with its streamed log and the containers running it](site/assets/screens/builds.png)
+
+Build images from any Dockerfile (the hammer on the Images tab, or `+` on Builds): pick the file, name the image, choose arm64 or amd64, and watch the BuildKit log stream live. Every build Orchard starts is recorded in the Builds tab - records and logs survive restarts - with cancel for in-flight builds, and a completed build cross-links both ways: launch the image, jump to it in Images, or click straight through to the containers running it. Builds run concurrently, and closing the sheet never kills one.
+
+### Deep links
+
+Orchard registers the `orchard://` URL scheme, so scripts, docs, and other tools can link straight into the app:
+
+| URL | Opens |
+|---|---|
+| `orchard://<tab>` | Any sidebar tab, e.g. `orchard://dashboard`, `orchard://builds` |
+| `orchard://container/<id>` | A container's detail |
+| `orchard://image/<reference>` | An image (slashes in the reference are fine: `orchard://image/docker.io/library/nginx:latest`) |
+| `orchard://machine/<id>` | A container machine |
+| `orchard://mount/<id>` | A mount |
+| `orchard://dns/<domain>` | A DNS domain |
+| `orchard://network/<id>` | A network |
+
+A resource link whose target is still loading selects it as soon as it appears, and a noun without an identifier (`orchard://container`) falls back to its tab. Try it: `open orchard://builds`.
 
 ![container logs](assets/logs.png)
 
