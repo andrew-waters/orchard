@@ -102,6 +102,22 @@ func pullProgressMetricsDisplay() {
     #expect(progress.fraction == 1.0)
 }
 
+@Test("Run resolution: a locally built tag runs under its stored reference, never a registry rewrite")
+func resolveRunImageReferenceLocal() {
+    let local = ["mono2:latest", "docker.io/library/nginx:latest", "registry.local/team/app:v1"]
+
+    // A locally built bare tag resolves to its stored :latest form.
+    #expect(resolveRunImageReference("mono2", localReferences: local) == "mono2:latest")
+    #expect(resolveRunImageReference("mono2:latest", localReferences: local) == "mono2:latest")
+    // Short Docker Hub names still find their canonical local entry.
+    #expect(resolveRunImageReference("nginx", localReferences: local) == "docker.io/library/nginx:latest")
+    // Exact explicit-registry match.
+    #expect(resolveRunImageReference("registry.local/team/app:v1", localReferences: local) == "registry.local/team/app:v1")
+    // No local match falls back to the canonical pullable form.
+    #expect(resolveRunImageReference("redis:7", localReferences: local) == "docker.io/library/redis:7")
+    #expect(resolveRunImageReference("  mono2  ", localReferences: []) == "docker.io/library/mono2")
+}
+
 @Test("Image references canonicalize Docker Hub names and preserve explicit registries")
 func imageReferenceCanonicalization() {
     #expect(canonicalImageReference("nginx") == "docker.io/library/nginx")

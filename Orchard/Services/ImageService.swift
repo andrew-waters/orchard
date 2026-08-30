@@ -43,6 +43,30 @@ func canonicalImageReference(_ ref: String) -> String {
     return "docker.io/library/\(trimmed)"
 }
 
+/// Resolves a user-entered image reference for running a container. A locally
+/// stored image wins and is returned exactly as the store names it - a locally
+/// built tag like "mono2:latest" must not be rewritten to
+/// "docker.io/library/mono2" and pulled (there is nothing to pull; the registry
+/// answers 401 for repositories that don't exist there). Only when no local
+/// image matches does the canonical registry form come back, signalling the
+/// backend to fetch it.
+func resolveRunImageReference(_ input: String, localReferences: [String]) -> String {
+    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return trimmed }
+
+    var candidates = [trimmed, canonicalImageReference(trimmed)]
+    let lastSegment = trimmed.split(separator: "/").last.map(String.init) ?? trimmed
+    if !lastSegment.contains(":") && !lastSegment.contains("@") {
+        candidates += candidates.map { "\($0):latest" }
+    }
+    for candidate in candidates {
+        if let match = localReferences.first(where: { $0 == candidate }) {
+            return match
+        }
+    }
+    return canonicalImageReference(trimmed)
+}
+
 /// Picks the variant matching this host's platform; falls back to the first variant.
 func hostVariantSize(_ variants: [ImageInspection.Variant]) -> Int64 {
     let target = "linux/\(hostContainerArchitecture)"
