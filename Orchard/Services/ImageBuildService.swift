@@ -1,16 +1,20 @@
 import Foundation
 import SwiftUI
 
-/// One tracked `container build` run. Records are app-session-scoped: the
-/// builder shim's gRPC surface is just info() + a build stream, so there is no
-/// host-reachable BuildKit history to enumerate - Orchard can only know about
-/// builds it started.
-struct ImageBuild: Identifiable, Equatable {
-    enum Phase: Equatable {
+/// One tracked `container build` run. The registry persists across launches,
+/// but only holds builds Orchard itself started: the builder shim's gRPC
+/// surface is just info() + a build stream, so there is no host-reachable
+/// BuildKit history to enumerate.
+struct ImageBuild: Identifiable, Equatable, Codable {
+    enum Phase: Equatable, Codable {
         case building
         case succeeded
         case failed(String)
         case cancelled
+        /// The app quit while this build was running. The spawned CLI was
+        /// orphaned, so the outcome was never observed - the image may still
+        /// have been produced.
+        case interrupted
 
         var isFinished: Bool { self != .building }
     }
@@ -38,7 +42,7 @@ struct ImageBuild: Identifiable, Equatable {
 @MainActor
 final class ImageBuildService: ObservableObject {
 
-    struct Request: Equatable {
+    struct Request: Equatable, Codable {
         var dockerfile: String
         var contextDir: String
         var tag: String
@@ -48,7 +52,8 @@ final class ImageBuildService: ObservableObject {
     }
 
     /// Newest first. Finished builds are kept (capped) so their logs stay
-    /// reviewable from the Builds menu until cleared.
+    /// reviewable from the Builds menu until cleared, and the registry is
+    /// persisted so records survive a relaunch.
     @Published private(set) var builds: [ImageBuild] = []
 
     var runningCount: Int { builds.lazy.filter { $0.phase == .building }.count }
@@ -58,6 +63,7 @@ final class ImageBuildService: ObservableObject {
 
     private let runner: CommandRunner
     private let settings: SettingsStore
+    private let persistence: BuildsPersistence
     private var tasks: [UUID: Task<Void, Never>] = [:]
 
     /// Finished builds kept in the registry before the oldest are dropped.
@@ -66,9 +72,21 @@ final class ImageBuildService: ObservableObject {
     /// re-renders on every change.
     private static let maxTranscriptLines = 4000
 
-    init(runner: CommandRunner, settings: SettingsStore) {
+    init(runner: CommandRunner, settings: SettingsStore, persistence: BuildsPersistence = BuildsPersistence()) {
         self.runner = runner
         self.settings = settings
+        self.persistence = persistence
+        // Restore prior records. Anything still marked building belonged to a
+        // previous process: its CLI child was orphaned at quit and the outcome
+        // never observed, so mark it interrupted rather than leave it lying.
+        builds = persistence.load().map { build in
+            guard build.phase == .building else { return build }
+            var build = build
+            build.phase = .interrupted
+            build.finishedAt = build.finishedAt ?? Date()
+            build.outputLines.append("Orchard quit while this build was running; the result was not tracked (the image may still have been built).")
+            return build
+        }
     }
 
     func build(id: UUID) -> ImageBuild? {
@@ -144,6 +162,8 @@ final class ImageBuildService: ObservableObject {
         let arguments = Self.arguments(for: request)
         let runner = runner
 
+        persist()
+
         tasks[buildID] = Task { [weak self] in
             do {
                 let result = try await runner.runStreaming(program: program, arguments: arguments) { line in
@@ -178,6 +198,7 @@ final class ImageBuildService: ObservableObject {
     /// Drop finished builds from the registry (running ones stay).
     func clearFinished() {
         builds.removeAll { $0.phase.isFinished }
+        persist()
     }
 
     // MARK: - Registry mutation
@@ -201,6 +222,18 @@ final class ImageBuildService: ObservableObject {
         mutate(id) { build in
             build.phase = phase
             build.finishedAt = Date()
+        }
+        persist()
+    }
+
+    /// Write the registry to disk. Called on lifecycle edges (start, finish,
+    /// cancel, clear) - never per output line, so a running build's transcript
+    /// only hits disk when it finishes.
+    private func persist() {
+        do {
+            try persistence.save(builds)
+        } catch {
+            Log.containers.error("Failed to persist build records: \(error.localizedDescription)")
         }
     }
 

@@ -237,6 +237,13 @@ struct BuildStatusLine: View {
                 SwiftUI.Image(systemName: "slash.circle").foregroundStyle(.secondary)
                 Text("Build cancelled").font(.subheadline).foregroundStyle(.secondary)
             }
+        case .interrupted:
+            HStack(alignment: .top, spacing: 8) {
+                SwiftUI.Image(systemName: "questionmark.circle").foregroundStyle(.orange)
+                Text("Interrupted: Orchard quit while this build was running. The image may still have been built.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

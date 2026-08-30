@@ -450,6 +450,12 @@ struct ContentView: View {
         ) { _ in
             toggleCommandPalette()
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("ShowBuildImageSheet"))
+        ) { _ in
+            selectedTab = .images
+            showBuildImage = true
+        }
         .onOpenURL { url in
             guard let link = DeepLink.parse(url) else { return }
             switch link {

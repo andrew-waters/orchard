@@ -260,8 +260,6 @@ struct ThreeColumnLayout: View {
                                     .buttonStyle(.plain)
                                     .help("Run Container")
                                 } else if selectedTab == .images {
-                                    BuildsMenuButton()
-
                                     Button(action: { showBuildImage = true }) {
                                         SwiftUI.Image(systemName: "hammer")
                                             .foregroundColor(.primary)
