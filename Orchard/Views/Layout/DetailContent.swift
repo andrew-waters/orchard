@@ -29,6 +29,7 @@ struct DetailContentView: View {
     @Binding var selectedNetworkBinding: String?
     @Binding var selectedClusterBinding: String?
     @Binding var selectedSandboxBinding: String?
+    @Binding var selectedBuildBinding: UUID?
 
     var body: some View {
         switch selectedTab {
@@ -40,7 +41,8 @@ struct DetailContentView: View {
             BuildDetailView(
                 buildID: selectedBuild,
                 selectedTab: $selectedTabBinding,
-                selectedContainer: $selectedContainerBinding
+                selectedContainer: $selectedContainerBinding,
+                selectedImages: $selectedImagesBinding
             )
         case .mounts:
             mountDetailView
@@ -148,7 +150,8 @@ struct DetailContentView: View {
                 ContainerImageDetailView(
                     image: image,
                     selectedTab: $selectedTabBinding,
-                    selectedContainer: $selectedContainerBinding
+                    selectedContainer: $selectedContainerBinding,
+                    selectedBuild: $selectedBuildBinding
                 )
             }
         }

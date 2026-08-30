@@ -3,8 +3,11 @@ import SwiftUI
 // MARK: - Image Detail Header
 struct ImageDetailHeader: View {
     let image: ContainerImage
+    @Binding var selectedTab: TabSelection
+    @Binding var selectedBuild: UUID?
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var imageBuildService: ImageBuildService
     @State private var showRunContainer = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
@@ -45,6 +48,17 @@ struct ImageDetailHeader: View {
 
             // Action buttons
             HStack(spacing: 12) {
+                // This image came out of an Orchard build - jump to its record
+                // (the inverse of the build detail's View Image).
+                if let build = imageBuildService.build(forImageReference: image.reference) {
+                    Button("View Build") {
+                        selectedTab = .builds
+                        selectedBuild = build.id
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .help("Show the build that produced this image")
+                }
+
                 // Run Container button
                 Button("Launch image") {
                     showRunContainer = true
