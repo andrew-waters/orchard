@@ -123,9 +123,6 @@ struct ContentView: View {
                 )
                 .navigationTitle("")
                 .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-                .onDisappear {
-                    stopRefreshTimer()
-                }
             }
         }
     }
@@ -463,6 +460,13 @@ struct ContentView: View {
                 }
             }
             startRefreshTimer()
+        }
+        // The timer's lifetime must match the window, not one branch of `baseView`:
+        // tearing it down from MainInterfaceView.onDisappear killed polling the moment
+        // the system stopped and NotRunningView swapped in, so an external
+        // `container system start` was never noticed (#100).
+        .onDisappear {
+            stopRefreshTimer()
         }
         .onChange(of: selectedTab) { _, _ in
             // The filter box is shared across tabs; a query typed in one tab would
