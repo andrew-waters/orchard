@@ -27,6 +27,7 @@ struct BuildImageView: View {
                         HStack(spacing: 8) {
                             TextField("/path/to/Dockerfile", text: $dockerfile)
                                 .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("build-image-dockerfile")
                             Button("Choose…") { chooseDockerfile() }
                         }
                     }
@@ -35,6 +36,7 @@ struct BuildImageView: View {
                         HStack(spacing: 8) {
                             TextField("/path/to/project", text: $contextDir)
                                 .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("build-image-context")
                             Button("Choose…") { chooseContextDir() }
                         }
                     }
@@ -42,6 +44,7 @@ struct BuildImageView: View {
                     field(title: "Image Name", caption: "Lowercase repository name with an optional :tag.") {
                         TextField("e.g., myapp:latest", text: $tag)
                             .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("build-image-tag")
                     }
 
                     field(title: "Platform", caption: arch == "amd64"
@@ -139,6 +142,7 @@ struct BuildImageView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(!canBuild)
                     .keyboardShortcut(canRetryAsDefault ? .defaultAction : nil)
+                    .accessibilityIdentifier("build-image-start")
             }
         }
         .padding()
