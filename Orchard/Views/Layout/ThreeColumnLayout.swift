@@ -266,6 +266,7 @@ struct ThreeColumnLayout: View {
                                             .font(.system(size: 14, weight: .medium))
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityIdentifier("images-build-button")
                                     .help("Build Image from Dockerfile")
 
                                     Button(action: { showImageSearch = true }) {
