@@ -95,7 +95,6 @@ struct LogPaneView: View {
     @State private var filterText: String = ""
     @State private var refreshTimer: Timer?
     @State private var isLoading: Bool = false
-    @State private var hasScrolledToBottom: Bool = false
     @State private var isPaused: Bool = false
 
     var body: some View {
@@ -189,52 +188,25 @@ struct LogPaneView: View {
             Divider()
 
             // Log stream
-            ScrollViewReader { proxy in
-                ScrollView {
-                    if isLoading && logLines.isEmpty {
-                        HStack {
-                            Spacer()
-                            ProgressView("Loading logs...")
-                                .foregroundColor(Color(white: 0.85))
-                                .padding()
-                            Spacer()
-                        }
-                    } else if selectedTarget == nil {
-                        HStack {
-                            Spacer()
-                            Text("Select a container or machine above")
-                                .foregroundColor(Color(white: 0.5))
-                                .padding()
-                            Spacer()
-                        }
-                    } else if logLines.isEmpty {
-                        HStack {
-                            Spacer()
-                            Text("No logs available")
-                                .foregroundColor(Color(white: 0.5))
-                                .padding()
-                            Spacer()
-                        }
-                    } else {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
-                                logLineView(line)
-                                    .id(index)
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .background(Color.black.opacity(0.85))
-                .onChange(of: logLines.count) {
-                    if !hasScrolledToBottom && !logLines.isEmpty {
-                        hasScrolledToBottom = true
-                        proxy.scrollTo(displayLines.count - 1, anchor: .bottom)
-                    }
+            ZStack {
+                if isLoading && logLines.isEmpty {
+                    ProgressView("Loading logs...")
+                        .foregroundColor(Color(white: 0.85))
+                        .padding()
+                } else if selectedTarget == nil {
+                    Text("Select a container or machine above")
+                        .foregroundColor(Color(white: 0.5))
+                        .padding()
+                } else if logLines.isEmpty {
+                    Text("No logs available")
+                        .foregroundColor(Color(white: 0.5))
+                        .padding()
+                } else {
+                    LogConsoleView(lines: displayLines, filterText: filterText)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.85))
         }
         .onAppear {
             // The target this window was opened for, else the first running container.
@@ -252,12 +224,10 @@ struct LogPaneView: View {
         }
         .onChange(of: selectedTarget) {
             logLines = []
-            hasScrolledToBottom = false
             Task { await fetchLogs() }
         }
         .onChange(of: showBootLog) {
             logLines = []
-            hasScrolledToBottom = false
             Task { await fetchLogs() }
         }
     }
@@ -266,43 +236,10 @@ struct LogPaneView: View {
         if filterText.isEmpty {
             return logLines
         }
+        // Match against the escape-stripped text so a filter can't hit (or
+        // miss) because of bytes inside a color code.
         let search = filterText.lowercased()
-        return logLines.filter { $0.lowercased().contains(search) }
-    }
-
-    @ViewBuilder
-    private func logLineView(_ line: String) -> some View {
-        if filterText.isEmpty {
-            Text(line)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundColor(Color(white: 0.85))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 1)
-        } else {
-            Text(highlightMatches(in: line))
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundColor(Color(white: 0.85))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 1)
-        }
-    }
-
-    private func highlightMatches(in text: String) -> AttributedString {
-        var attributed = AttributedString(text)
-        let searchLower = filterText.lowercased()
-        let textLower = text.lowercased()
-
-        var searchRange = textLower.startIndex..<textLower.endIndex
-        while let range = textLower.range(of: searchLower, range: searchRange) {
-            if let attrRange = Range(range, in: attributed) {
-                attributed[attrRange].backgroundColor = .yellow.opacity(0.7)
-                attributed[attrRange].foregroundColor = .black
-            }
-            searchRange = range.upperBound..<textLower.endIndex
-        }
-        return attributed
+        return logLines.filter { ANSIText.plain($0).lowercased().contains(search) }
     }
 
     private func startRefresh() {

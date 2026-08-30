@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Log views now render ANSI colours and support selection across lines. Container and machine logs were previously drawn as one SwiftUI `Text` per line, which printed colour escape codes as literal garbage and scoped text selection to a single line. Both the detail Logs tab and the log viewer window now share a single `NSTextView`-backed console: SGR styles (16-colour, bright, 256-colour, truecolour, bold/italic/underline) are rendered, other escape sequences are stripped, carriage-return progress lines show their final state, and click-drag or Cmd+A/Cmd+C works across the whole log. Filtering now matches the escape-stripped text, so a filter term can no longer hit or miss because of bytes inside a colour code, and the console follows the tail only while scrolled to the bottom (scrolling up to read no longer fights the 2s refresh, which previously only auto-scrolled on first load).
+
 ## [2.3.2] - 2026-08-30
 
 ### Fixed
