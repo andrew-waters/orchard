@@ -49,8 +49,25 @@ struct ContainerDetailView: View {
         .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private static let wellSpacing: CGFloat = 12
+
+    /// Below this pane width the wells stop pairing up and stack instead. Two wells side
+    /// by side each need roughly 320 points to keep a key/value row intact: measured on
+    /// this page, a 333-point well still fits the key, its value and both controls; at
+    /// 277 points "Show" and "Copy" wrap one letter per line; and by the ~440-point pane
+    /// of a 1024-point window the controls drop out of the row altogether.
+    private static let twoColumnMinimumPaneWidth: CGFloat = 684
+
     // One scrolling page — the former Overview, Environment and Mounts tabs merged.
+    // The geometry reader measures the pane, not the content, so it can't feed its own
+    // height back into layout.
     private var content: some View {
+        GeometryReader { proxy in
+            scrollingContent(twoColumn: proxy.size.width >= Self.twoColumnMinimumPaneWidth)
+        }
+    }
+
+    private func scrollingContent(twoColumn: Bool) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 // Membership banners: a node container belongs to a cluster, a sandbox
@@ -79,22 +96,27 @@ struct ContainerDetailView: View {
                 // Stats master–detail; mounts sit beneath the disk stats.
                 ContainerStatsPanel(container: container)
 
-                // The rest of the configuration, two per row (paired to balance heights).
+                // The rest of the configuration, two per row (paired to balance heights)
+                // while the pane is wide enough for two.
+                //
                 // These rows are laid out eagerly: inside a LazyVGrid, placing a row whose
                 // wells contain selectable text re-entered the grid's own placement, and
                 // the main thread spun in nested sizeThatFits until the app stopped
                 // responding. Six wells cost nothing to lay out up front.
-                VStack(spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: Self.wellSpacing) {
+                    wellRow(twoColumn: twoColumn) {
                         sectionWell("Overview") { containerOverviewSection(container: container) }
+                    } trailing: {
                         sectionWell("Environment") { containerEnvironmentSection(container: container) }
                     }
-                    HStack(alignment: .top, spacing: 12) {
+                    wellRow(twoColumn: twoColumn) {
                         sectionWell("Image") { containerImageSection(container: container) }
+                    } trailing: {
                         sectionWell("Process") { containerProcessSection(container: container) }
                     }
-                    HStack(alignment: .top, spacing: 12) {
+                    wellRow(twoColumn: twoColumn) {
                         sectionWell("Network") { containerNetworkSection(container: container) }
+                    } trailing: {
                         sectionWell("Labels") { containerLabelsSection(container: container) }
                     }
                 }
@@ -106,6 +128,25 @@ struct ContainerDetailView: View {
     }
 
     // MARK: - Detail Sections
+
+    /// A paired row of configuration wells: side by side when the pane can carry two,
+    /// stacked when it can't.
+    @ViewBuilder
+    private func wellRow<Leading: View, Trailing: View>(
+        twoColumn: Bool,
+        @ViewBuilder leading: () -> Leading,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        if twoColumn {
+            HStack(alignment: .top, spacing: Self.wellSpacing) {
+                leading()
+                trailing()
+            }
+        } else {
+            leading()
+            trailing()
+        }
+    }
 
     @ViewBuilder
     private func sectionWell<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

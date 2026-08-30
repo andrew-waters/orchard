@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Scrolling a container's detail pane no longer hangs the app (#103). The six configuration wells sat in a `LazyVGrid`, and placing a row whose wells hold selectable text re-entered the grid's own placement: the main thread spun in over a thousand nested `sizeThatFits` frames at 100% CPU with memory climbing about 13 MB a second, and the window never recovered. The same two-column layout is now built eagerly from stacked rows, which six wells cost nothing to lay out up front. Long environment-variable and OCI-label keys also cap their column rather than sizing to the longest key without limit, so a namespaced key wraps instead of pushing the value and its Show/Copy controls out of the row.
+- Scrolling a container's detail pane no longer hangs the app (#103). The six configuration wells sat in a `LazyVGrid`, and placing a row whose wells hold selectable text re-entered the grid's own placement: the main thread spun in over a thousand nested `sizeThatFits` frames at 100% CPU with memory climbing about 13 MB a second, and the window never recovered. The same two-column layout is now built eagerly from stacked rows, which six wells cost nothing to lay out up front. The wells also pair up only while the pane is wide enough to carry two and stack below that: at a 1024-point window two columns left a key/value row so little width that its value and Show/Copy controls fell out of the row entirely. Long environment-variable and OCI-label keys additionally cap their column rather than sizing to the longest key without limit, so a namespaced key wraps instead of crowding out its own value.
 
 ## [2.3.3] - 2026-08-30
 
