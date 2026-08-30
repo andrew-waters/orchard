@@ -11,27 +11,30 @@ struct ContainersListView: View {
     @AppStorage("containerSortBy") private var sortBy: ContainerSortOption = .name
     @AppStorage("containerSortAscending") private var sortAscending: Bool = true
     @AppStorage("containerRunningFirst") private var runningFirst: Bool = true
+    @AppStorage("containerGroupLabelKey") private var groupLabelKey: String = ""
+    @State private var collapsedGroups: Set<String> = []
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
         VStack(spacing: 0) {
             // Container list
             List(selection: $selectedContainers) {
-                ForEach(filteredContainers, id: \.configuration.id) { container in
-                    ListItemRow(
-                        icon: "cube",
-                        iconColor: container.status.lowercased() == "running" ? .green : .secondary,
-                        primaryText: container.configuration.id,
-                        secondaryLeftText: networkAddress(for: container) ?? "-",
-                        secondaryRightText: hostname(for: container),
-                        isSelected: selectedContainers.contains(container.configuration.id),
-                        showSandboxBadge: container.isSandbox,
-                        pluginBadge: container.pluginBadgeText
-                    )
-                    .contextMenu {
-                        contextMenu(for: container)
+                if groupLabelKey.isEmpty {
+                    ForEach(filteredContainers, id: \.configuration.id) { container in
+                        containerRow(for: container)
                     }
-                    .tag(container.configuration.id)
+                } else {
+                    ForEach(labelGroups, id: \.name) { group in
+                        Section {
+                            if !collapsedGroups.contains(group.name) {
+                                ForEach(group.containers, id: \.configuration.id) { container in
+                                    containerRow(for: container)
+                                }
+                            }
+                        } header: {
+                            groupHeader(for: group)
+                        }
+                    }
                 }
             }
             .listStyle(PlainListStyle())
@@ -47,6 +50,118 @@ struct ContainersListView: View {
                 lastSelectedContainer = newValue
             }
         }
+    }
+
+    private func containerRow(for container: Container) -> some View {
+        ListItemRow(
+            icon: "cube",
+            iconColor: container.status.lowercased() == "running" ? .green : .secondary,
+            primaryText: container.configuration.id,
+            secondaryLeftText: networkAddress(for: container) ?? "-",
+            secondaryRightText: hostname(for: container),
+            isSelected: selectedContainers.contains(container.configuration.id),
+            showSandboxBadge: container.isSandbox,
+            pluginBadge: container.pluginBadgeText
+        )
+        .contextMenu {
+            contextMenu(for: container)
+        }
+        .tag(container.configuration.id)
+    }
+
+    // MARK: - Label grouping
+
+    private struct LabelGroup {
+        let name: String
+        let containers: [Container]
+    }
+
+    /// The heading for containers missing the grouping label. Chosen to sort
+    /// after typical label values and read clearly as a fallback bucket.
+    private static let ungroupedName = "No label"
+
+    private var labelGroups: [LabelGroup] {
+        let key = groupLabelKey
+        var byValue: [String: [Container]] = [:]
+        var ungrouped: [Container] = []
+        for container in filteredContainers {
+            if let value = container.configuration.labels[key], !value.isEmpty {
+                byValue[value, default: []].append(container)
+            } else {
+                ungrouped.append(container)
+            }
+        }
+        var groups = byValue.keys.sorted().map { LabelGroup(name: $0, containers: byValue[$0]!) }
+        if !ungrouped.isEmpty {
+            groups.append(LabelGroup(name: Self.ungroupedName, containers: ungrouped))
+        }
+        return groups
+    }
+
+    private func groupHeader(for group: LabelGroup) -> some View {
+        let collapsed = collapsedGroups.contains(group.name)
+        let stopped = group.containers.filter { $0.status.lowercased() != "running" }
+        let running = group.containers.filter { $0.status.lowercased() == "running" }
+
+        return HStack(spacing: 6) {
+            Button {
+                if collapsed {
+                    collapsedGroups.remove(group.name)
+                } else {
+                    collapsedGroups.insert(group.name)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    SwiftUI.Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Text(group.name)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Text("\(group.containers.count)")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Menu {
+                Button("Start All (\(stopped.count))") {
+                    let ids = stopped.map { $0.configuration.id }
+                    Task {
+                        for id in ids {
+                            await containerListService.startContainer(id)
+                        }
+                    }
+                }
+                .disabled(stopped.isEmpty)
+
+                Button("Stop All (\(running.count))") {
+                    let ids = running.map { $0.configuration.id }
+                    Task {
+                        for id in ids {
+                            await containerListService.stopContainer(id)
+                        }
+                    }
+                }
+                .disabled(running.isEmpty)
+            } label: {
+                SwiftUI.Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: 22)
+            .help("Group actions")
+        }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
