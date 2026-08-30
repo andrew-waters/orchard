@@ -220,7 +220,12 @@ struct RunContainerView: View {
         nameValidationError = ContainerConfigForm.validationError(
             for: config.name, existing: containerListService.containers
         )
-        let imageReference = canonicalImageReference(config.image)
+        // A local image (e.g. one just built) must run under the exact
+        // reference the store knows; canonicalizing "mono2" to
+        // docker.io/library/mono2 would trigger a doomed registry pull.
+        let imageReference = resolveRunImageReference(
+            config.image, localReferences: imageService.images.map(\.reference)
+        )
         guard nameValidationError == nil, !imageReference.isEmpty else { return }
 
         isRunning = true
