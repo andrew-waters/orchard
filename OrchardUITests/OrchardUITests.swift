@@ -64,6 +64,33 @@ final class OrchardUITests: XCTestCase {
             app.buttons["Logs"].waitForExistence(timeout: 10),
             "The selected container's detail pane (with its header actions) should render"
         )
+
+        let detailScrollPoint = app.buttons["Logs"]
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: 0, dy: 220))
+        let longEnvironmentValueToggle = app.buttons["environment-value-toggle-0"]
+
+        // Scroll from a known point inside the detail pane. Querying the entire SwiftUI
+        // ScrollView asks XCTest to snapshot the full detail hierarchy and can mask the
+        // regression behind a framework timeout. Bounded wheel deltas also avoid waiting
+        // for the inertial animation produced by a synthetic swipe gesture and tolerate
+        // different window sizes and content heights.
+        for _ in 0..<8 {
+            if longEnvironmentValueToggle.exists && longEnvironmentValueToggle.isHittable {
+                break
+            }
+            detailScrollPoint.scroll(byDeltaX: 0, deltaY: -150)
+        }
+        XCTAssertTrue(
+            longEnvironmentValueToggle.waitForExistence(timeout: 10),
+            "The long environment key's value control should render after scrolling"
+        )
+        XCTAssertTrue(
+            longEnvironmentValueToggle.isHittable,
+            "The value control beside a long environment key should remain onscreen and clickable"
+        )
+        longEnvironmentValueToggle.click()
+        XCTAssertEqual(longEnvironmentValueToggle.label, "Hide")
     }
 
     /// The #54 class: a failed user action must be visible. With the stub set to fail
