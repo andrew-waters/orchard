@@ -153,7 +153,7 @@ struct ContainerDetailView: View {
                 )
                 InfoRow(
                     label: "Size",
-                    value: ByteFormat.string(container.configuration.image.descriptor.size))
+                    value: imageService.sizeText(forReference: container.configuration.image.reference))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -617,7 +617,7 @@ struct ContainerImageDetailView: View {
                         image.descriptor.digest.replacingOccurrences(of: "sha256:", with: "")
                             .prefix(12))
                 )
-                InfoRow(label: "Size (bytes)", value: "\(image.descriptor.size)")
+                InfoRow(label: "Index Size (bytes)", value: "\(image.descriptor.size)")
             }
         }
     }
