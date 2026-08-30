@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-08-30
+
 ### Fixed
 - Image sizes now match `container image ls -v` (#98). Orchard was showing the size of each variant's manifest *descriptor* — a couple of kilobytes of JSON — instead of the image content, so every image listed as "1 KB"–"3 KB". Variant sizes are now computed the same way the CLI computes FULL SIZE: manifest descriptor plus config blob plus the sum of the compressed layers. The container detail's Image section and the multi-select image cards previously showed the raw index descriptor size as "Size"; both now use the same resolved size as the images list, and the image Technical Details row is relabeled "Index Size (bytes)" since that value genuinely is the index descriptor size.
 
