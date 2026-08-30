@@ -79,12 +79,10 @@ struct ContainerDetailView: View {
                 // Stats master–detail; mounts sit beneath the disk stats.
                 ContainerStatsPanel(container: container)
 
-                // The rest of the configuration, two per row (paired to balance heights).
-                LazyVGrid(
-                    columns: [GridItem(.flexible(), spacing: 12, alignment: .top),
-                              GridItem(.flexible(), alignment: .top)],
-                    spacing: 12
-                ) {
+                // There are only six configuration wells, so eager layout is inexpensive
+                // and avoids SwiftUI's lazy-grid sizing loop with selectable text. Keeping
+                // every well full-width also leaves room for long keys and row controls.
+                VStack(alignment: .leading, spacing: 12) {
                     sectionWell("Overview") { containerOverviewSection(container: container) }
                     sectionWell("Environment") { containerEnvironmentSection(container: container) }
                     sectionWell("Image") { containerImageSection(container: container) }
@@ -294,6 +292,19 @@ struct ContainerDetailView: View {
 
 // MARK: - Environment Variables Table
 
+/// Shared sizing policy for the two key/value tables on the container detail page.
+/// Environment variables and OCI labels commonly contain long, namespaced keys; their
+/// intrinsic widths must not be allowed to consume the whole card.
+enum DetailKeyValueTableLayout {
+    static let maximumKeyColumnWidth: CGFloat = 160
+
+    static func keyColumnWidth(for keys: [String]) -> CGFloat {
+        let longestKey = keys.max { $0.count < $1.count } ?? ""
+        let estimatedWidth = CGFloat(longestKey.count) * 7.5 + 20
+        return min(estimatedWidth, maximumKeyColumnWidth)
+    }
+}
+
 struct EnvironmentVariablesTable: View {
     let environment: [String]
     @State private var revealedValues: Set<Int> = []
@@ -307,12 +318,7 @@ struct EnvironmentVariablesTable: View {
     }
 
     private var maxKeyWidth: CGFloat {
-        let keys = parsedEnvironment.map { $0.key }
-        let maxKey = keys.max { $0.count < $1.count } ?? ""
-
-        // Approximate character width for monospaced font at subheadline size
-        // This is a rough estimation - actual width may vary
-        return CGFloat(maxKey.count) * 7.5 + 20 // 7.5 points per character + padding
+        DetailKeyValueTableLayout.keyColumnWidth(for: parsedEnvironment.map { $0.key })
     }
 
     var body: some View {
@@ -391,6 +397,7 @@ struct EnvironmentVariablesTable: View {
                             .buttonStyle(.plain)
                             .font(.caption)
                             .foregroundColor(.blue)
+                            .accessibilityIdentifier("environment-value-toggle-\(index)")
                             Spacer()
                             CopyButton(text: envPair.value, label: "Copy value")
                         }
@@ -426,11 +433,7 @@ struct LabelsTable: View {
     }
 
     private var maxKeyWidth: CGFloat {
-        let keys = sortedLabels.map { $0.key }
-        let maxKey = keys.max { $0.count < $1.count } ?? ""
-
-        // Approximate character width for monospaced font at subheadline size
-        return CGFloat(maxKey.count) * 7.5 + 20 // 7.5 points per character + padding
+        DetailKeyValueTableLayout.keyColumnWidth(for: sortedLabels.map { $0.key })
     }
 
     var body: some View {

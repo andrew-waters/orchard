@@ -30,7 +30,10 @@ struct UITestBackend: ContainerBackend {
                 runtimeHandler: "vm",
                 initProcess: initProcess(
                     terminal: false,
-                    environment: ["PATH=/usr/bin"],
+                    environment: [
+                        "ORCHARD_CONTAINER_DETAIL_REPRODUCTION_ENVIRONMENT_VARIABLE_WITH_A_VERY_LONG_NAME=192.168.64.1/32",
+                        "PATH=/usr/bin",
+                    ],
                     workingDirectory: "/",
                     arguments: ["nginx", "-g", "daemon off;"],
                     executable: "/usr/sbin/nginx",

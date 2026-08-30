@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Container details now use a stable full-width configuration layout that prevents scrolling from hanging, while long environment-variable or label keys wrap within a bounded column instead of pushing values and controls off-screen.
+
 ## [2.3.3] - 2026-08-30
 
 ### Fixed
