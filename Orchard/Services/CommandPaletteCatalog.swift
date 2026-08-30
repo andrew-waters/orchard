@@ -51,6 +51,7 @@ enum PaletteAction: Equatable {
 
     case showRunContainerSheet
     case showImageSearch
+    case showBuildImage
     case showAddDNSDomainSheet
     case showAddNetworkSheet
     case showAddMachineSheet
@@ -286,6 +287,14 @@ enum CommandPaletteCatalog {
                 subtitle: "Search Docker Hub or pull by reference",
                 keywords: "pull download image docker hub registry search explore",
                 action: .showImageSearch),
+            PaletteEntry(
+                id: "action:buildImage",
+                section: .actions,
+                icon: "hammer",
+                title: "Build an Image...",
+                subtitle: "From a Dockerfile via container build",
+                keywords: "build image dockerfile containerfile buildkit bake compile",
+                action: .showBuildImage),
             PaletteEntry(
                 id: "action:addDNS",
                 section: .actions,

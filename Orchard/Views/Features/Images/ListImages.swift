@@ -9,6 +9,7 @@ struct ImagesListView: View {
     @Binding var searchText: String
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showImageSearch: Bool
+    @Binding var showBuildImage: Bool
     @AppStorage("imageSortBy") private var sortBy: ImageSortOption = .name
     @AppStorage("imageSortAscending") private var sortAscending: Bool = true
     @FocusState var listFocusedTab: TabSelection?
@@ -24,6 +25,9 @@ struct ImagesListView: View {
         .sheet(isPresented: $showImageSearch) {
             ImageSearchView()
                 .environmentObject(imageService)
+        }
+        .sheet(isPresented: $showBuildImage) {
+            BuildImageView()
         }
     }
 

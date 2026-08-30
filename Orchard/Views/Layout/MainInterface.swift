@@ -32,6 +32,7 @@ struct MainInterfaceView: View {
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
+    @Binding var showBuildImage: Bool
     @Binding var showRunContainerSheet: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
@@ -139,6 +140,7 @@ struct MainInterfaceView: View {
             showOnlyImagesInUse: $showOnlyImagesInUse,
             showOnlyMountsInUse: $showOnlyMountsInUse,
             showImageSearch: $showImageSearch,
+            showBuildImage: $showBuildImage,
             showRunContainerSheet: $showRunContainerSheet,
             showAddDNSDomainSheet: $showAddDNSDomainSheet,
             showAddNetworkSheet: $showAddNetworkSheet,
