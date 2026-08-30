@@ -450,6 +450,28 @@ struct ContentView: View {
         ) { _ in
             toggleCommandPalette()
         }
+        .onOpenURL { url in
+            guard let link = DeepLink.parse(url) else { return }
+            switch link {
+            case .tab(let tab):
+                selectedTab = tab
+            // Resource links reuse the navigation notifications the menu bar
+            // and command palette already post, so pending-selection handling
+            // (a target not yet in a freshly loaded list) comes for free.
+            case .container(let id):
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToContainer"), object: id)
+            case .image(let reference):
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToImage"), object: reference)
+            case .mount(let id):
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToMount"), object: id)
+            case .machine(let id):
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToMachine"), object: id)
+            case .dnsDomain(let domain):
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToDNSDomain"), object: domain)
+            case .network(let id):
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToNetwork"), object: id)
+            }
+        }
         .onAppear {
             // Default tab is already set to containers
         }
