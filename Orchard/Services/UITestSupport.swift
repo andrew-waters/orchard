@@ -30,8 +30,10 @@ struct UITestBackend: ContainerBackend {
                 runtimeHandler: "vm",
                 initProcess: initProcess(
                     terminal: false,
+                    // The long key is deliberate: it is what pushes the value column's
+                    // controls off the row when the key column is unbounded.
                     environment: [
-                        "ORCHARD_CONTAINER_DETAIL_REPRODUCTION_ENVIRONMENT_VARIABLE_WITH_A_VERY_LONG_NAME=192.168.64.1/32",
+                        "ORCHARD_UI_TEST_LONG_ENVIRONMENT_VARIABLE_KEY=192.168.64.1/32",
                         "PATH=/usr/bin",
                     ],
                     workingDirectory: "/",

@@ -64,33 +64,42 @@ final class OrchardUITests: XCTestCase {
             app.buttons["Logs"].waitForExistence(timeout: 10),
             "The selected container's detail pane (with its header actions) should render"
         )
+    }
 
-        let detailScrollPoint = app.buttons["Logs"]
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .withOffset(CGVector(dx: 0, dy: 220))
-        let longEnvironmentValueToggle = app.buttons["environment-value-toggle-0"]
+    /// A long environment key must not push its own row's controls out of the pane: the key
+    /// column is capped, so the key wraps and Show/Copy stay reachable. The seeded container
+    /// carries `ORCHARD_UI_TEST_LONG_ENVIRONMENT_VARIABLE_KEY` for exactly this.
+    @MainActor
+    func testLongEnvironmentKeyKeepsItsRowControlsReachable() throws {
+        let app = launchedApp()
+        openContainersTab(app)
+        XCTAssertTrue(app.staticTexts["uitest-web"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Logs"].waitForExistence(timeout: 10))
 
-        // Scroll from a known point inside the detail pane. Querying the entire SwiftUI
-        // ScrollView asks XCTest to snapshot the full detail hierarchy and can mask the
-        // regression behind a framework timeout. Bounded wheel deltas also avoid waiting
-        // for the inertial animation produced by a synthetic swipe gesture and tolerate
-        // different window sizes and content heights.
-        for _ in 0..<8 {
-            if longEnvironmentValueToggle.exists && longEnvironmentValueToggle.isHittable {
-                break
-            }
-            detailScrollPoint.scroll(byDeltaX: 0, deltaY: -150)
+        // Scroll from a point inside the detail pane rather than querying the SwiftUI
+        // ScrollView: resolving that element asks XCTest to snapshot the whole detail
+        // hierarchy, which is slow enough to time out. Wheel deltas also avoid the inertia
+        // a synthetic swipe adds, and the normalised anchor holds at any window size.
+        let detailPane = app.windows.firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.6))
+        let toggle = app.buttons["environment-value-toggle-ORCHARD_UI_TEST_LONG_ENVIRONMENT_VARIABLE_KEY"]
+
+        for _ in 0..<8 where !(toggle.exists && toggle.isHittable) {
+            detailPane.scroll(byDeltaX: 0, deltaY: -150)
         }
         XCTAssertTrue(
-            longEnvironmentValueToggle.waitForExistence(timeout: 10),
+            toggle.waitForExistence(timeout: 10),
             "The long environment key's value control should render after scrolling"
         )
         XCTAssertTrue(
-            longEnvironmentValueToggle.isHittable,
+            toggle.isHittable,
             "The value control beside a long environment key should remain onscreen and clickable"
         )
-        longEnvironmentValueToggle.click()
-        XCTAssertEqual(longEnvironmentValueToggle.label, "Hide")
+
+        // The label flips only once SwiftUI has re-rendered the row, so wait for it.
+        toggle.click()
+        let revealed = expectation(for: NSPredicate(format: "label == %@", "Hide"), evaluatedWith: toggle)
+        wait(for: [revealed], timeout: 10)
     }
 
     /// The #54 class: a failed user action must be visible. With the stub set to fail

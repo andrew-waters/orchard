@@ -79,16 +79,24 @@ struct ContainerDetailView: View {
                 // Stats master–detail; mounts sit beneath the disk stats.
                 ContainerStatsPanel(container: container)
 
-                // There are only six configuration wells, so eager layout is inexpensive
-                // and avoids SwiftUI's lazy-grid sizing loop with selectable text. Keeping
-                // every well full-width also leaves room for long keys and row controls.
-                VStack(alignment: .leading, spacing: 12) {
-                    sectionWell("Overview") { containerOverviewSection(container: container) }
-                    sectionWell("Environment") { containerEnvironmentSection(container: container) }
-                    sectionWell("Image") { containerImageSection(container: container) }
-                    sectionWell("Process") { containerProcessSection(container: container) }
-                    sectionWell("Network") { containerNetworkSection(container: container) }
-                    sectionWell("Labels") { containerLabelsSection(container: container) }
+                // The rest of the configuration, two per row (paired to balance heights).
+                // These rows are laid out eagerly: inside a LazyVGrid, placing a row whose
+                // wells contain selectable text re-entered the grid's own placement, and
+                // the main thread spun in nested sizeThatFits until the app stopped
+                // responding. Six wells cost nothing to lay out up front.
+                VStack(spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        sectionWell("Overview") { containerOverviewSection(container: container) }
+                        sectionWell("Environment") { containerEnvironmentSection(container: container) }
+                    }
+                    HStack(alignment: .top, spacing: 12) {
+                        sectionWell("Image") { containerImageSection(container: container) }
+                        sectionWell("Process") { containerProcessSection(container: container) }
+                    }
+                    HStack(alignment: .top, spacing: 12) {
+                        sectionWell("Network") { containerNetworkSection(container: container) }
+                        sectionWell("Labels") { containerLabelsSection(container: container) }
+                    }
                 }
 
                 Spacer(minLength: 20)
@@ -293,8 +301,11 @@ struct ContainerDetailView: View {
 // MARK: - Environment Variables Table
 
 /// Shared sizing policy for the two key/value tables on the container detail page.
-/// Environment variables and OCI labels commonly contain long, namespaced keys; their
-/// intrinsic widths must not be allowed to consume the whole card.
+/// The column is sized from the longest key, estimated at 7.5 points per character for
+/// the monospaced subheadline the tables draw in, plus padding. Environment variables
+/// and OCI labels routinely carry long namespaced keys, so the estimate is capped:
+/// past the cap the key wraps instead of squeezing the value and its Show/Copy controls
+/// out of the row.
 enum DetailKeyValueTableLayout {
     static let maximumKeyColumnWidth: CGFloat = 160
 
@@ -397,7 +408,7 @@ struct EnvironmentVariablesTable: View {
                             .buttonStyle(.plain)
                             .font(.caption)
                             .foregroundColor(.blue)
-                            .accessibilityIdentifier("environment-value-toggle-\(index)")
+                            .accessibilityIdentifier("environment-value-toggle-\(envPair.key)")
                             Spacer()
                             CopyButton(text: envPair.value, label: "Copy value")
                         }
