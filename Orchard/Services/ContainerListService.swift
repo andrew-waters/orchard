@@ -458,7 +458,7 @@ final class ContainerListService: ObservableObject {
                 // enforced: the runtime accepts overcommitted VMs.
                 cpus: max(1, config.cpus),
                 memoryBytes: max(1_048_576, config.memoryBytes),
-                labels: config.labels
+                labels: config.effectiveLabels
             )
             try await backend.createContainer(spec)
 

@@ -501,6 +501,36 @@ struct ContainerConfigForm: View {
                     .foregroundColor(.secondary)
             }
 
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Labels")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    Spacer()
+
+                    Button(action: addLabelPair) {
+                        HStack(spacing: 4) {
+                            SwiftUI.Image(systemName: "plus.circle.fill")
+                            Text("Add Label")
+                        }
+                        .font(.subheadline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Text("Key/value metadata stamped on the container at creation - the containers list can group by any label key.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                ForEach($config.labelPairs) { $pair in
+                    LabelPairRow(
+                        pair: $pair,
+                        onDelete: { deleteLabelPair(pair) }
+                    )
+                }
+            }
+
             Spacer()
         }
     }
@@ -550,6 +580,14 @@ struct ContainerConfigForm: View {
 
     private func deleteEnvironmentVariable(_ envVar: ContainerRunConfig.EnvironmentVariable) {
         config.environmentVariables.removeAll { $0.id == envVar.id }
+    }
+
+    private func addLabelPair() {
+        config.labelPairs.append(ContainerRunConfig.LabelPair(key: "", value: ""))
+    }
+
+    private func deleteLabelPair(_ pair: ContainerRunConfig.LabelPair) {
+        config.labelPairs.removeAll { $0.id == pair.id }
     }
 
     // MARK: - Name validation (run mode)
@@ -644,6 +682,34 @@ struct VolumeMappingRow: View {
                     .font(.caption)
                 Spacer()
             }
+        }
+        .padding(12)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+}
+
+struct LabelPairRow: View {
+    @Binding var pair: ContainerRunConfig.LabelPair
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            TextField("key", text: $pair.key)
+                .textFieldStyle(.roundedBorder)
+                .frame(minWidth: 150)
+
+            Text("=")
+                .foregroundColor(.secondary)
+
+            TextField("value", text: $pair.value)
+                .textFieldStyle(.roundedBorder)
+
+            Button(action: onDelete) {
+                SwiftUI.Image(systemName: "trash")
+                    .foregroundColor(.red)
+            }
+            .buttonStyle(.plain)
         }
         .padding(12)
         .background(Color(NSColor.controlBackgroundColor))

@@ -42,3 +42,22 @@ func nameValidationDuplicate() throws {
     #expect(ContainerConfigForm.validationError(for: "web", existing: existing)?.contains("already exists") == true)
     #expect(ContainerConfigForm.validationError(for: "other", existing: existing) == nil)
 }
+
+// MARK: - Labels
+
+@Test("effectiveLabels: form rows merge over programmatic labels, trimmed, empty keys dropped")
+func effectiveLabelsMerge() {
+    var config = ContainerRunConfig(name: "t", image: "img")
+    config.labels = ["com.orchard.sandbox": "true", "env": "prod"]
+    config.labelPairs = [
+        .init(key: "  team ", value: " infra "),
+        .init(key: "env", value: "dev"),       // row wins over programmatic
+        .init(key: "   ", value: "ignored"),   // empty key dropped
+    ]
+
+    let merged = config.effectiveLabels
+    #expect(merged["team"] == "infra")
+    #expect(merged["env"] == "dev")
+    #expect(merged["com.orchard.sandbox"] == "true")
+    #expect(merged.count == 3)
+}
