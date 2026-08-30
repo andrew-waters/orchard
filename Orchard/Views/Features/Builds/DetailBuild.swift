@@ -5,10 +5,34 @@ import SwiftUI
 /// previous launches).
 struct BuildDetailView: View {
     @EnvironmentObject var buildService: ImageBuildService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var containerListService: ContainerListService
+    @State private var showRunContainer = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
     let buildID: UUID?
 
     private var build: ImageBuild? {
         buildID.flatMap { buildService.build(id: $0) }
+    }
+
+    /// The built image's reference as the image list knows it. A build tag like
+    /// "myapp:latest" may be stored verbatim or canonicalized, and a bare
+    /// repository gets :latest - try the variants.
+    private var builtImageReference: String? {
+        guard let build else { return nil }
+        var candidates = [build.tag, canonicalImageReference(build.tag)]
+        if !(build.tag.split(separator: "/").last ?? "").contains(":") {
+            candidates += candidates.map { "\($0):latest" }
+        }
+        return imageService.images.first { candidates.contains($0.reference) }?.reference
+    }
+
+    private var containersUsingImage: [Container] {
+        guard let reference = builtImageReference else { return [] }
+        return containerListService.containers.filter {
+            $0.configuration.image.reference == reference
+        }
     }
 
     var body: some View {
@@ -20,6 +44,10 @@ struct BuildDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
+
+                if !containersUsingImage.isEmpty {
+                    containersSection
+                }
 
                 if build.outputLines.isEmpty {
                     Text("No output yet")
@@ -69,10 +97,93 @@ struct BuildDetailView: View {
             if build.phase == .building {
                 Button("Cancel Build") { buildService.cancel(build.id) }
                     .buttonStyle(BorderedButtonStyle())
+            } else {
+                if let reference = builtImageReference {
+                    Button("Launch image") { showRunContainer = true }
+                        .buttonStyle(BorderedButtonStyle())
+                        .sheet(isPresented: $showRunContainer) {
+                            RunContainerView(imageName: reference)
+                        }
+                }
+
+                // Deleting removes the record and, when it still exists, the
+                // built image - blocked while containers use it, same as the
+                // image detail's Delete.
+                Button("Delete", role: .destructive) { showDeleteConfirmation = true }
+                    .buttonStyle(BorderedButtonStyle())
+                    .disabled(isDeleting || !containersUsingImage.isEmpty)
+                    .help(containersUsingImage.isEmpty
+                        ? "Delete this build record\(builtImageReference != nil ? " and the built image" : "")"
+                        : "Remove the containers using this image first")
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 20)
         .padding(.bottom, 12)
+        .alert("Delete Build?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { deleteBuildAndImage(build) }
+        } message: {
+            if let reference = builtImageReference {
+                Text("This deletes the build record and the image '\(reference)'. This action cannot be undone.")
+            } else {
+                Text("This deletes the build record. The image no longer exists (or was never produced), so only the record is removed.")
+            }
+        }
+    }
+
+    private func deleteBuildAndImage(_ build: ImageBuild) {
+        isDeleting = true
+        let reference = builtImageReference
+        let id = build.id
+        Task { @MainActor in
+            defer { isDeleting = false }
+            if let reference {
+                await imageService.delete(reference)
+                // delete() alerts on failure without reporting it; the image
+                // still being listed is the tell. Keep the record in that case.
+                guard !imageService.images.contains(where: { $0.reference == reference }) else { return }
+            }
+            buildService.remove(id)
+        }
+    }
+
+    /// Containers running (or created from) the image this build produced,
+    /// each navigating to the container on click - mirroring the usage
+    /// affordance on the image detail.
+    private var containersSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Containers using this image")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            ForEach(containersUsingImage, id: \.configuration.id) { container in
+                Button {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("NavigateToContainer"),
+                        object: container.configuration.id
+                    )
+                } label: {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(container.status.lowercased() == "running" ? Color.green : Color.secondary)
+                            .frame(width: 8, height: 8)
+                        Text(container.configuration.id)
+                            .font(.system(size: 12))
+                        Text(container.status.lowercased())
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        SwiftUI.Image(systemName: "chevron.right")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Show this container")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
     }
 }
