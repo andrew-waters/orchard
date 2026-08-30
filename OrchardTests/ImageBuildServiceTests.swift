@@ -113,10 +113,20 @@ private func awaitFinished(_ service: ImageBuildService, _ id: UUID) async {
     }
 }
 
+/// A persistence target in a throwaway location, so tests never touch the real
+/// Application Support registry.
+private func ephemeralPersistence() -> BuildsPersistence {
+    BuildsPersistence(fileURL: FileManager.default.temporaryDirectory
+        .appendingPathComponent("orchard-builds-test-\(UUID().uuidString).json"))
+}
+
 @MainActor
-private func makeBuildService(_ runner: MockCommandRunner) -> ImageBuildService {
+private func makeBuildService(
+    _ runner: MockCommandRunner,
+    persistence: BuildsPersistence? = nil
+) -> ImageBuildService {
     let services = makeService(runner: runner)
-    return ImageBuildService(runner: runner, settings: services.settings)
+    return ImageBuildService(runner: runner, settings: services.settings, persistence: persistence ?? ephemeralPersistence())
 }
 
 @MainActor
@@ -207,6 +217,75 @@ func buildCancelLifecycle() async throws {
     try? await Task.sleep(nanoseconds: 50_000_000)
     #expect(service.build(id: id)?.phase == .cancelled)
     #expect(service.runningCount == 0)
+}
+
+// MARK: - Persistence
+
+@MainActor
+@Test("ImageBuildService: records survive a relaunch, with running builds marked interrupted")
+func buildRegistryPersists() async throws {
+    let persistence = ephemeralPersistence()
+    defer { try? FileManager.default.removeItem(at: persistence.fileURL) }
+
+    let (dockerfile, context) = try temporaryBuildContext()
+    defer { try? FileManager.default.removeItem(atPath: context) }
+
+    // First "launch": one finished build, one still running at quit.
+    let finishRunner = MockCommandRunner()
+    finishRunner.defaultResult = ProcessResult(exitCode: 0, stdout: "done", stderr: nil)
+    let first = makeBuildService(finishRunner, persistence: persistence)
+    let finishedID = first.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "done:1", arch: "arm64", noCache: false))
+    await awaitFinished(first, finishedID)
+
+    let hangRunner = MockCommandRunner()
+    hangRunner.runHandler = { _, _ in
+        while !Task.isCancelled { try await Task.sleep(nanoseconds: 5_000_000) }
+        throw CancellationError()
+    }
+    let stillRunning = makeBuildService(hangRunner, persistence: persistence)
+    stillRunning.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "hung:1", arch: "arm64", noCache: false))
+    // (Quit here: nothing finalizes the running record.)
+
+    // Second "launch" reloads the registry.
+    let restored = makeBuildService(MockCommandRunner(), persistence: persistence)
+    let phasesByTag = Dictionary(uniqueKeysWithValues: restored.builds.map { ($0.tag, $0.phase) })
+    #expect(phasesByTag["hung:1"] == .interrupted)
+    #expect(restored.builds.first { $0.tag == "hung:1" }?.outputLines.last?.contains("quit while this build was running") == true)
+    #expect(restored.builds.first { $0.tag == "hung:1" }?.finishedAt != nil)
+    #expect(restored.runningCount == 0)
+
+    // The second instance loaded the first's records before adding its own,
+    // so the finished build carried through both relaunches.
+    #expect(phasesByTag["done:1"] == .succeeded)
+    #expect(restored.builds.map(\.tag) == ["hung:1", "done:1"])
+}
+
+@Test("BuildsPersistence: round-trips records and trims persisted transcripts")
+func buildsPersistenceRoundTrip() throws {
+    let persistence = ephemeralPersistence()
+    defer { try? FileManager.default.removeItem(at: persistence.fileURL) }
+
+    var build = ImageBuild(
+        id: UUID(),
+        request: .init(dockerfile: "/d", contextDir: "/c", tag: "t:1", arch: "arm64", noCache: true),
+        startedAt: Date(timeIntervalSince1970: 1_000_000)
+    )
+    build.phase = .failed("boom")
+    build.finishedAt = Date(timeIntervalSince1970: 1_000_060)
+    build.outputLines = (0..<(BuildsPersistence.persistedTranscriptLines + 500)).map { "line \($0)" }
+
+    try persistence.save([build])
+    let loaded = persistence.load()
+
+    #expect(loaded.count == 1)
+    #expect(loaded[0].id == build.id)
+    #expect(loaded[0].phase == .failed("boom"))
+    #expect(loaded[0].request == build.request)
+    #expect(loaded[0].outputLines.count == BuildsPersistence.persistedTranscriptLines)
+    #expect(loaded[0].outputLines.last == "line \(BuildsPersistence.persistedTranscriptLines + 499)")
+
+    // Missing file and version mismatch both load as empty.
+    #expect(BuildsPersistence(fileURL: persistence.fileURL.appendingPathExtension("missing")).load().isEmpty)
 }
 
 /// Tiny reference box for observing a callback from a Sendable closure in tests.
