@@ -4,6 +4,7 @@ import AppKit
 struct ThreeColumnLayout: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var imageBuildService: ImageBuildService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var machineService: MachineService
@@ -28,6 +29,7 @@ struct ThreeColumnLayout: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedBuild: UUID?
     @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
@@ -64,7 +66,7 @@ struct ThreeColumnLayout: View {
 
     private var needsMiddleColumn: Bool {
         switch selectedTab {
-        case .containers, .images, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+        case .containers, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
             return true
         case .registries, .systemLogs, .dashboard:
             return false
@@ -83,6 +85,7 @@ struct ThreeColumnLayout: View {
                     selectedTab: $selectedTab,
                     selectedContainer: $selectedContainer,
                     selectedImage: $selectedImage,
+                    selectedBuild: $selectedBuild,
                         selectedImages: $selectedImages,
                     selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
@@ -276,6 +279,14 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Add Image")
+                                } else if selectedTab == .builds {
+                                    Button(action: { showBuildImage = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.primary)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Build Image from Dockerfile")
                                 } else if selectedTab == .dns {
                                     Button(action: { showAddDNSDomainSheet = true }) {
                                         SwiftUI.Image(systemName: "plus")
@@ -322,6 +333,7 @@ struct ThreeColumnLayout: View {
                         selectedContainer: $selectedContainer,
                         selectedContainers: $selectedContainers,
                         selectedImage: $selectedImage,
+                        selectedBuild: $selectedBuild,
                         selectedImages: $selectedImages,
                         selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
@@ -365,6 +377,7 @@ struct ThreeColumnLayout: View {
                     selectedContainer: selectedContainer,
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
+                    selectedBuild: selectedBuild,
                     selectedImages: selectedImages,
                     selectedMount: selectedMount,
                     selectedMounts: selectedMounts,
@@ -396,6 +409,7 @@ struct ThreeColumnLayout: View {
                     selectedTab: $selectedTab,
                     selectedContainer: $selectedContainer,
                     selectedImage: $selectedImage,
+                    selectedBuild: $selectedBuild,
                         selectedImages: $selectedImages,
                     selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
@@ -417,6 +431,7 @@ struct ThreeColumnLayout: View {
                     selectedContainer: selectedContainer,
                     selectedContainers: selectedContainers,
                     selectedImage: selectedImage,
+                    selectedBuild: selectedBuild,
                     selectedImages: selectedImages,
                     selectedMount: selectedMount,
                     selectedMounts: selectedMounts,
@@ -458,6 +473,7 @@ struct ThreeColumnLayout: View {
 struct TabColumnView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var imageBuildService: ImageBuildService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var machineService: MachineService
@@ -466,6 +482,7 @@ struct TabColumnView: View {
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedImage: String?
+    @Binding var selectedBuild: UUID?
     @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
@@ -492,7 +509,7 @@ struct TabColumnView: View {
         .onAppear {
             // Set initial focus when view appears
             switch selectedTab {
-            case .containers, .images, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+            case .containers, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
@@ -533,6 +550,7 @@ struct TabColumnView: View {
            Section {
                sidebarRow(for: .models)
                sidebarRow(for: .images)
+               sidebarRow(for: .builds)
                sidebarRow(for: .mounts)
            } header: {
                HStack {
@@ -611,6 +629,10 @@ struct TabColumnView: View {
             if selectedImage == nil && !imageService.images.isEmpty {
                 selectedImage = imageService.images.first?.reference
             }
+        case .builds:
+            if selectedBuild == nil {
+                selectedBuild = imageBuildService.builds.first?.id
+            }
         case .mounts:
             if selectedMount == nil && !containerListService.allMounts.isEmpty {
                 selectedMount = containerListService.allMounts.first?.id
@@ -643,6 +665,7 @@ struct TabColumnView: View {
             // Clear all selections for tabs without second columns
             selectedContainer = nil
             selectedImage = nil
+            selectedBuild = nil
             selectedMount = nil
             selectedMachine = nil
             selectedCluster = nil
@@ -655,7 +678,7 @@ struct TabColumnView: View {
         listFocusedTab = nil
         DispatchQueue.main.async {
             switch tab {
-            case .containers, .images, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+            case .containers, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 self.listFocusedTab = tab
             case .registries, .systemLogs, .dashboard:
                 self.listFocusedTab = nil
@@ -677,6 +700,8 @@ struct TabColumnView: View {
             return containerListService.containers.count
         case .images:
             return imageService.images.count
+        case .builds:
+            return imageBuildService.builds.count
         case .mounts:
             return containerListService.allMounts.count
         case .machines:
@@ -704,6 +729,7 @@ struct ListColumnView: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedBuild: UUID?
     @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
@@ -756,6 +782,13 @@ struct ListColumnView: View {
                     searchText: $searchText,
                     showOnlyImagesInUse: $showOnlyImagesInUse,
                     showImageSearch: $showImageSearch,
+                    showBuildImage: $showBuildImage,
+                    listFocusedTab: _listFocusedTab
+                )
+            case .builds:
+                BuildsListView(
+                    selectedBuild: $selectedBuild,
+                    searchText: $searchText,
                     showBuildImage: $showBuildImage,
                     listFocusedTab: _listFocusedTab
                 )

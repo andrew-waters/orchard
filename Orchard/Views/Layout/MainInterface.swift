@@ -7,6 +7,7 @@ struct MainInterfaceView: View {
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
     @Binding var selectedImage: String?
+    @Binding var selectedBuild: UUID?
     @Binding var selectedImages: Set<String>
     @Binding var selectedMount: String?
     @Binding var selectedMounts: Set<String>
@@ -94,6 +95,8 @@ struct MainInterfaceView: View {
             return ""
         case .sandboxes:
             return ""
+        case .builds:
+            return ""
         }
     }
 
@@ -115,6 +118,7 @@ struct MainInterfaceView: View {
             selectedContainer: $selectedContainer,
             selectedContainers: $selectedContainers,
             selectedImage: $selectedImage,
+            selectedBuild: $selectedBuild,
             selectedImages: $selectedImages,
             selectedMount: $selectedMount,
             selectedMounts: $selectedMounts,

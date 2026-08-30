@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var selectedContainer: String?
     @State private var selectedContainers: Set<String> = []
     @State private var selectedImage: String?
+    @State private var selectedBuild: UUID?
     @State private var selectedImages: Set<String> = []
     @State private var selectedMount: String?
     @State private var selectedMounts: Set<String> = []
@@ -89,6 +90,7 @@ struct ContentView: View {
                     selectedContainer: $selectedContainer,
                     selectedContainers: $selectedContainers,
                     selectedImage: $selectedImage,
+                    selectedBuild: $selectedBuild,
                     selectedImages: $selectedImages,
                     selectedMount: $selectedMount,
                     selectedMounts: $selectedMounts,
@@ -450,12 +452,6 @@ struct ContentView: View {
         ) { _ in
             toggleCommandPalette()
         }
-        .onReceive(
-            NotificationCenter.default.publisher(for: NSNotification.Name("ShowBuildImageSheet"))
-        ) { _ in
-            selectedTab = .images
-            showBuildImage = true
-        }
         .onOpenURL { url in
             guard let link = DeepLink.parse(url) else { return }
             switch link {
@@ -594,7 +590,7 @@ struct ContentView: View {
             selectedTab = .images
             showImageSearch = true
         case .showBuildImage:
-            selectedTab = .images
+            selectedTab = .builds
             showBuildImage = true
         case .showAddDNSDomainSheet:
             selectedTab = .dns

@@ -7,6 +7,7 @@ struct DetailContentView: View {
     let selectedContainer: String?
     let selectedContainers: Set<String>
     let selectedImage: String?
+    let selectedBuild: UUID?
     let selectedImages: Set<String>
     let selectedMount: String?
     let selectedMounts: Set<String>
@@ -35,6 +36,8 @@ struct DetailContentView: View {
             containerDetailView
         case .images:
             imageDetailView
+        case .builds:
+            BuildDetailView(buildID: selectedBuild)
         case .mounts:
             mountDetailView
         case .machines:
