@@ -634,7 +634,10 @@ struct TabColumnView: View {
                 selectedImage = imageService.images.first?.reference
             }
         case .builds:
-            if selectedBuild == nil {
+            // Also drop a stale id: the selected build can be removed while
+            // another tab is frontmost (Clear Finished, Remove Record).
+            if selectedBuild == nil
+                || !imageBuildService.builds.contains(where: { $0.id == selectedBuild }) {
                 selectedBuild = imageBuildService.builds.first?.id
             }
         case .mounts:

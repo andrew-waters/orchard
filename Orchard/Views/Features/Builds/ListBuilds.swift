@@ -41,10 +41,11 @@ struct BuildsListView: View {
         // changes underneath an open tab (first build started while the list
         // was empty, or the selected record was removed). Keyed on ids so the
         // per-line transcript appends don't trigger comparisons of whole
-        // records.
+        // records. The fallback comes from the filtered list, so an active
+        // search can't select a row it is hiding (nil when nothing matches).
         .onChange(of: buildService.builds.map(\.id)) { _, ids in
             if selectedBuild == nil || !ids.contains(where: { $0 == selectedBuild }) {
-                selectedBuild = ids.first
+                selectedBuild = filteredBuilds.first?.id
             }
         }
     }
