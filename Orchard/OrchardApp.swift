@@ -84,6 +84,7 @@ extension View {
             .environmentObject(s.builderService)
             .environmentObject(s.networkService)
             .environmentObject(s.imageService)
+            .environmentObject(s.imageBuildService)
             .environmentObject(s.statsService)
             .environmentObject(s.dnsService)
             .environmentObject(s.systemService)

@@ -52,6 +52,7 @@ struct ContentView: View {
     @State private var showOnlyImagesInUse: Bool = false
     @State private var showOnlyMountsInUse: Bool = false
     @State private var showImageSearch: Bool = false
+    @State private var showBuildImage: Bool = false
     @State private var showRunContainerSheet: Bool = false
     @State private var showAddDNSDomainSheet: Bool = false
     @State private var showAddNetworkSheet: Bool = false
@@ -113,6 +114,7 @@ struct ContentView: View {
                     showOnlyImagesInUse: $showOnlyImagesInUse,
                     showOnlyMountsInUse: $showOnlyMountsInUse,
                     showImageSearch: $showImageSearch,
+                    showBuildImage: $showBuildImage,
                     showRunContainerSheet: $showRunContainerSheet,
                     showAddDNSDomainSheet: $showAddDNSDomainSheet,
                     showAddNetworkSheet: $showAddNetworkSheet,
@@ -563,6 +565,9 @@ struct ContentView: View {
         case .showImageSearch:
             selectedTab = .images
             showImageSearch = true
+        case .showBuildImage:
+            selectedTab = .images
+            showBuildImage = true
         case .showAddDNSDomainSheet:
             selectedTab = .dns
             showAddDNSDomainSheet = true

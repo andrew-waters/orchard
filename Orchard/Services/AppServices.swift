@@ -17,6 +17,7 @@ final class AppServices: ObservableObject {
     let builderService: BuilderService
     let networkService: NetworkService
     let imageService: ImageService
+    let imageBuildService: ImageBuildService
     let statsService: StatsService
     let dnsService: DNSService
     let systemService: SystemService
@@ -69,6 +70,10 @@ final class AppServices: ObservableObject {
         self.networkService = networkService
         let imageService = ImageService(backend: backend, alertCenter: alertCenter)
         self.imageService = imageService
+        let imageBuildService = ImageBuildService(runner: runner, settings: settings)
+        self.imageBuildService = imageBuildService
+        // A finished build produces a new image; refresh the list that shows it.
+        imageBuildService.onImageBuilt = { [weak imageService] in await imageService?.load() }
         let dnsService = DNSService(runner: runner, settings: settings, alertCenter: alertCenter)
         self.dnsService = dnsService
         let systemService = SystemService(backend: backend, runner: runner, settings: settings, alertCenter: alertCenter)

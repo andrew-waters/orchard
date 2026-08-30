@@ -43,6 +43,7 @@ struct ThreeColumnLayout: View {
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
+    @Binding var showBuildImage: Bool
     @Binding var showRunContainerSheet: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
@@ -223,6 +224,14 @@ struct ThreeColumnLayout: View {
                                     .buttonStyle(.plain)
                                     .help("Run Container")
                                 } else if selectedTab == .images {
+                                    Button(action: { showBuildImage = true }) {
+                                        SwiftUI.Image(systemName: "hammer")
+                                            .foregroundColor(.primary)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Build Image from Dockerfile")
+
                                     Button(action: { showImageSearch = true }) {
                                         SwiftUI.Image(systemName: "plus")
                                             .foregroundColor(.primary)
@@ -299,6 +308,7 @@ struct ThreeColumnLayout: View {
                         showOnlyImagesInUse: $showOnlyImagesInUse,
                         showOnlyMountsInUse: $showOnlyMountsInUse,
                         showImageSearch: $showImageSearch,
+                        showBuildImage: $showBuildImage,
                         showAddDNSDomainSheet: $showAddDNSDomainSheet,
                         showAddNetworkSheet: $showAddNetworkSheet,
                         showAddMachineSheet: $showAddMachineSheet,
@@ -680,6 +690,7 @@ struct ListColumnView: View {
     @Binding var showOnlyImagesInUse: Bool
     @Binding var showOnlyMountsInUse: Bool
     @Binding var showImageSearch: Bool
+    @Binding var showBuildImage: Bool
     @Binding var showAddDNSDomainSheet: Bool
     @Binding var showAddNetworkSheet: Bool
     @Binding var showAddMachineSheet: Bool
@@ -708,6 +719,7 @@ struct ListColumnView: View {
                     searchText: $searchText,
                     showOnlyImagesInUse: $showOnlyImagesInUse,
                     showImageSearch: $showImageSearch,
+                    showBuildImage: $showBuildImage,
                     listFocusedTab: _listFocusedTab
                 )
             case .mounts:
