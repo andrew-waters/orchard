@@ -75,3 +75,63 @@ func bridgeEnvNoGateway() {
     #expect(service.bridgeEnvironment(for: makeProvider(), on: makeNetwork(gateway: nil)) == nil)
     #expect(service.bridgeEnvironment(for: makeProvider(), on: makeNetwork(gateway: "")) == nil)
 }
+
+// MARK: - Refresh-tick backoff
+
+@MainActor
+@Test("refreshTick: with no providers, probes back off to the idle interval")
+func refreshTickIdleBackoff() async {
+    let backend = MockModelBackend()   // nothing listening
+    let service = ModelService(
+        backend: backend,
+        settings: SettingsStore(alertCenter: AlertCenter(), defaults: ephemeralDefaults(), secrets: InMemorySecretsStore()),
+        idleProbeInterval: 3600        // effectively "never again" within this test
+    )
+
+    await service.refreshTick()        // first tick probes (nothing probed yet)
+    await service.refreshTick()        // inside the idle window: skipped
+    await service.refreshTick()
+    #expect(backend.detectCount == 1)
+}
+
+@MainActor
+@Test("refreshTick: while a provider is detected, every tick probes")
+func refreshTickActiveCadence() async {
+    let backend = MockModelBackend(providers: [makeProvider()])
+    let service = ModelService(
+        backend: backend,
+        settings: SettingsStore(alertCenter: AlertCenter(), defaults: ephemeralDefaults(), secrets: InMemorySecretsStore()),
+        idleProbeInterval: 3600
+    )
+
+    await service.load(showLoading: false)   // discovers the provider
+    await service.refreshTick()
+    await service.refreshTick()
+    #expect(backend.detectCount == 3)
+
+    // The provider goes away: the next tick still probes (providers were
+    // non-empty), notices the loss, and only then backs off.
+    backend.providers = []
+    await service.refreshTick()
+    #expect(backend.detectCount == 4)
+    #expect(service.providers.isEmpty)
+    await service.refreshTick()
+    #expect(backend.detectCount == 4)        // now idle: skipped
+}
+
+@MainActor
+@Test("refreshTick: an explicit load resets the idle window")
+func refreshTickExplicitLoadWins() async {
+    let backend = MockModelBackend()
+    let service = ModelService(
+        backend: backend,
+        settings: SettingsStore(alertCenter: AlertCenter(), defaults: ephemeralDefaults(), secrets: InMemorySecretsStore()),
+        idleProbeInterval: 3600
+    )
+
+    await service.refreshTick()
+    #expect(backend.detectCount == 1)
+    // Opening the Models tab (or the bridge picker) always probes.
+    await service.load(showLoading: false)
+    #expect(backend.detectCount == 2)
+}

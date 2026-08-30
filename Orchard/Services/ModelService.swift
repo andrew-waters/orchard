@@ -12,19 +12,37 @@ final class ModelService: ObservableObject {
 
     private let backend: ModelBackend
     private let settings: SettingsStore
+    /// Minimum gap between background probes while no provider is detected.
+    private let idleProbeInterval: TimeInterval
+    private var lastProbeAt: Date = .distantPast
 
-    init(backend: ModelBackend, settings: SettingsStore) {
+    init(backend: ModelBackend, settings: SettingsStore, idleProbeInterval: TimeInterval = 30) {
         self.backend = backend
         self.settings = settings
+        self.idleProbeInterval = idleProbeInterval
     }
 
     func load(showLoading: Bool = true) async {
         if showLoading { isLoading = true }
+        lastProbeAt = Date()
         let providers = await backend.detectProviders(apiKeys: settings.allModelAPIKeys())
         if providers != self.providers {
             self.providers = providers
         }
         self.isLoading = false
+    }
+
+    /// Detection for the shared refresh timer. While providers exist, every
+    /// tick probes so a stopped server disappears promptly; while none do,
+    /// probing four ports every 5s just sprays connection-refused errors into
+    /// the console (CFNetwork logs each failed task), so the tick backs off to
+    /// `idleProbeInterval`. Surfaces that need fresh results now - the Models
+    /// tab, the run form's model bridge - call `load()` directly.
+    func refreshTick() async {
+        if providers.isEmpty, Date().timeIntervalSince(lastProbeAt) < idleProbeInterval {
+            return
+        }
+        await load(showLoading: false)
     }
 
     /// Send a chat conversation to a provider running on the host and return its reply.
