@@ -44,9 +44,6 @@ struct OrchardApp: App {
                     }
                 }
             }
-            CommandMenu("Builds") {
-                BuildsMenuCommands(buildService: services.imageBuildService)
-            }
         }
 
 
@@ -57,12 +54,6 @@ struct OrchardApp: App {
         }
         .defaultSize(width: 900, height: 600)
         .windowToolbarStyle(.unified(showsTitle: false))
-
-        WindowGroup(id: "build-log", for: UUID.self) { $buildID in
-            BuildLogWindow(buildID: buildID)
-                .injectServices(services)
-        }
-        .defaultSize(width: 680, height: 460)
 
         MenuBarExtra {
             MenuBarView()

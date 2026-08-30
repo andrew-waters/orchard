@@ -3,6 +3,7 @@ import Foundation
 enum TabSelection: String, CaseIterable {
     case containers = "containers"
     case images = "images"
+    case builds = "builds"
     case mounts = "mounts"
     case machines = "machines"
     case clusters = "clusters"
@@ -20,6 +21,8 @@ enum TabSelection: String, CaseIterable {
             return "cube"
         case .images:
             return "cube.transparent"
+        case .builds:
+            return "hammer"
         case .mounts:
             return "externaldrive"
         case .machines:
@@ -49,6 +52,8 @@ enum TabSelection: String, CaseIterable {
             return "Containers"
         case .images:
             return "Images"
+        case .builds:
+            return "Builds"
         case .mounts:
             return "Mounts"
         case .machines:

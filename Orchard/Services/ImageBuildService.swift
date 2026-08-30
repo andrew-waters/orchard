@@ -201,6 +201,13 @@ final class ImageBuildService: ObservableObject {
         persist()
     }
 
+    /// Remove one finished record; a running build must be cancelled first.
+    func remove(_ id: UUID) {
+        guard build(id: id)?.phase.isFinished == true else { return }
+        builds.removeAll { $0.id == id }
+        persist()
+    }
+
     // MARK: - Registry mutation
 
     private func mutate(_ id: UUID, _ change: (inout ImageBuild) -> Void) {
