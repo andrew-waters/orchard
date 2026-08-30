@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-08-30
+
 ### Fixed
 - Local-model detection no longer probes every 5 seconds when nothing is listening. Each probe of the four conventional ports (11434, 1234, 8080, 8000) with no server behind them produced a connection-refused URLSession task, and CFNetwork logs every one - dozens of `NSURLErrorDomain -1004` console lines per minute on an idle machine. The background tick now backs off to 30s while no provider is detected; while one is detected, the 5s cadence stays so a stopped server disappears promptly, and opening the Models tab or the run form's model bridge still probes immediately.
 - Editing a container no longer silently strips its labels. The edit sheet's prefill omitted labels entirely, so the recreation that applies an edit dropped every label on the container, including Orchard's own sandbox markers (a sandbox stopped being recognised as one after any edit). Labels now carry through: internal ones untouched, the rest editable in the new labels editor.
