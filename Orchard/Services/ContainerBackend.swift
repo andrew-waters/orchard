@@ -4,12 +4,26 @@ import ContainerResource
 import ContainerizationOCI
 import ContainerizationExtras
 import ContainerPersistence
+import TerminalProgress
 
 // MARK: - Boundary value types
 
 /// System health returned by `ping()`.
 struct SystemHealthInfo: Sendable {
     let apiServerVersion: String
+}
+
+/// A snapshot of image pull progress, folded from the client library's update
+/// events into an app-owned type so views and tests never see TerminalProgress.
+struct ImagePullMetrics: Equatable, Sendable {
+    var bytesDownloaded: Int64 = 0
+    var totalBytes: Int64 = 0
+    var itemsCompleted: Int = 0
+    var totalItems: Int = 0
+    /// What an "item" is for the current phase; the registry client reports "blobs".
+    var itemsName: String = "blobs"
+    /// Phase label, e.g. "Fetching image".
+    var phase: String = ""
 }
 
 /// Everything needed to create and start a container, expressed in app-owned types so
@@ -96,7 +110,7 @@ protocol ContainerBackend: Sendable {
     func stats(id: String) async throws -> Orchard.ContainerStats
     func createContainer(_ spec: ContainerCreateSpec) async throws
     func listImages() async throws -> [ContainerImage]
-    func pullImage(reference: String) async throws
+    func pullImage(reference: String, onProgress: (@Sendable (ImagePullMetrics) -> Void)?) async throws
     func deleteImage(reference: String) async throws
     func inspectImage(reference: String) async throws -> ImageInspection
     func listNetworks() async throws -> [ContainerNetwork]
@@ -305,10 +319,55 @@ struct LiveContainerBackend: ContainerBackend {
         } catch { throw mapContainerError(error) }
     }
 
-    func pullImage(reference: String) async throws {
+    func pullImage(reference: String, onProgress: (@Sendable (ImagePullMetrics) -> Void)?) async throws {
         do {
-            _ = try await ClientImage.pull(reference: reference, containerSystemConfig: try await loadContainerSystemConfig())
+            let folder = onProgress.map { PullProgressFolder(onProgress: $0) }
+            _ = try await ClientImage.pull(
+                reference: reference,
+                containerSystemConfig: try await loadContainerSystemConfig(),
+                progressUpdate: folder.map { folder in { events in folder.handle(events) } }
+            )
         } catch { throw mapContainerError(error) }
+    }
+
+    /// Folds `TerminalProgress` pull events into `ImagePullMetrics` snapshots.
+    /// Byte-count-only updates arrive per network chunk, so they're throttled to
+    /// ~10 Hz; structural changes (phase, item counts, totals) emit immediately.
+    private final class PullProgressFolder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var metrics = ImagePullMetrics()
+        private var lastEmit = Date.distantPast
+        private let onProgress: @Sendable (ImagePullMetrics) -> Void
+
+        init(onProgress: @escaping @Sendable (ImagePullMetrics) -> Void) {
+            self.onProgress = onProgress
+        }
+
+        func handle(_ events: [ProgressUpdateEvent]) {
+            lock.lock()
+            var structural = false
+            for event in events {
+                switch event {
+                case .setDescription(let text): metrics.phase = text; structural = true
+                case .setItemsName(let name): metrics.itemsName = name; structural = true
+                case .addItems(let n): metrics.itemsCompleted += n; structural = true
+                case .setItems(let n): metrics.itemsCompleted = n; structural = true
+                case .addTotalItems(let n): metrics.totalItems += n; structural = true
+                case .setTotalItems(let n): metrics.totalItems = n; structural = true
+                case .addSize(let n): metrics.bytesDownloaded += n
+                case .setSize(let n): metrics.bytesDownloaded = n
+                case .addTotalSize(let n): metrics.totalBytes += n; structural = true
+                case .setTotalSize(let n): metrics.totalBytes = n; structural = true
+                default: break
+                }
+            }
+            let now = Date()
+            let due = structural || now.timeIntervalSince(lastEmit) >= 0.1
+            if due { lastEmit = now }
+            let snapshot = metrics
+            lock.unlock()
+            if due { onProgress(snapshot) }
+        }
     }
 
     func deleteImage(reference: String) async throws {

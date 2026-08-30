@@ -55,6 +55,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _listContainersError: Error?
     private var _listImagesError: Error?
     private var _pullImageError: Error?
+    private var _pullProgressEvents: [ImagePullMetrics]?
     private var _deleteImageError: Error?
     private var _listNetworksError: Error?
     private var _createNetworkError: Error?
@@ -102,6 +103,12 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var pullImageError: Error? {
         get { lock.withLock { _pullImageError } }
         set { lock.withLock { _pullImageError = newValue } }
+    }
+    /// When set, `pullImage` replays these metric snapshots to its onProgress
+    /// callback before returning.
+    var pullProgressEvents: [ImagePullMetrics]? {
+        get { lock.withLock { _pullProgressEvents } }
+        set { lock.withLock { _pullProgressEvents = newValue } }
     }
     var deleteImageError: Error? {
         get { lock.withLock { _deleteImageError } }
@@ -201,8 +208,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         if let listImagesError { throw listImagesError }
         return images
     }
-    func pullImage(reference: String) async throws {
+    func pullImage(reference: String, onProgress: (@Sendable (ImagePullMetrics) -> Void)?) async throws {
         if let pullImageError { throw pullImageError }
+        if let events = pullProgressEvents {
+            events.forEach { onProgress?($0) }
+        }
         lock.withLock { _pulledReferences.append(reference) }
     }
     func deleteImage(reference: String) async throws {

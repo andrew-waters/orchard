@@ -424,8 +424,19 @@ struct PullProgressRow: View {
             }
 
             if progress.status == .pulling {
-                ProgressView()
-                    .progressViewStyle(.linear)
+                if let fraction = progress.fraction {
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                }
+                if let detail = progress.detailText {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
             }
         }
         .padding()
