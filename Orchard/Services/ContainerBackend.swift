@@ -325,14 +325,21 @@ struct LiveContainerBackend: ContainerBackend {
             let index = try await image.index()
 
             var variants: [ImageInspection.Variant] = []
-            for manifest in index.manifests {
-                guard let platform = manifest.platform else { continue }
+            for manifestDescriptor in index.manifests {
+                guard let platform = manifestDescriptor.platform else { continue }
                 // Config blobs for non-local architectures may be absent; skip config
                 // details rather than failing the whole inspection.
                 let config = (try? await image.config(for: platform))?.config
+                // Full size matches `container image ls -v`: manifest descriptor plus
+                // config blob plus compressed layers. Manifest blobs for non-local
+                // architectures may be absent; those variants keep the descriptor size.
+                var size = manifestDescriptor.size
+                if let manifest = try? await image.manifest(for: platform) {
+                    size += manifest.config.size + manifest.layers.reduce(0) { $0 + $1.size }
+                }
                 variants.append(ImageInspection.Variant(
                     platform: "\(platform.os)/\(platform.architecture)",
-                    size: manifest.size,
+                    size: size,
                     entrypoint: config?.entrypoint,
                     cmd: config?.cmd,
                     env: config?.env,

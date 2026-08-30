@@ -78,7 +78,7 @@ private struct ImageSummaryCard: View {
     let onOpen: () -> Void
 
     private var sizeText: String {
-        ByteCountFormatter().string(fromByteCount: Int64(image.descriptor.size))
+        imageService.sizeText(for: image)
     }
 
     private var inUse: Bool {

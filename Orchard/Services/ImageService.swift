@@ -212,7 +212,11 @@ final class ImageService: ObservableObject {
     }
 
     func sizeText(for image: ContainerImage) -> String {
-        switch imageSizes[image.reference] {
+        sizeText(forReference: image.reference)
+    }
+
+    func sizeText(forReference reference: String) -> String {
+        switch imageSizes[reference] {
         case .known(let size):
             return ByteFormat.string(size)
         case .loading, .none:
