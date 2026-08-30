@@ -107,14 +107,21 @@ struct BuildDetailView: View {
                 }
 
                 // Deleting removes the record and, when it still exists, the
-                // built image - blocked while containers use it, same as the
+                // built image - blocked while containers use it. Red prominent
+                // when actionable, plain bordered when disabled, matching the
                 // image detail's Delete.
-                Button("Delete", role: .destructive) { showDeleteConfirmation = true }
-                    .buttonStyle(BorderedButtonStyle())
-                    .disabled(isDeleting || !containersUsingImage.isEmpty)
-                    .help(containersUsingImage.isEmpty
-                        ? "Delete this build record\(builtImageReference != nil ? " and the built image" : "")"
-                        : "Remove the containers using this image first")
+                if containersUsingImage.isEmpty {
+                    Button("Delete", role: .destructive) { showDeleteConfirmation = true }
+                        .buttonStyle(BorderedProminentButtonStyle())
+                        .tint(.red)
+                        .disabled(isDeleting)
+                        .help("Delete this build record\(builtImageReference != nil ? " and the built image" : "")")
+                } else {
+                    Button("Delete", role: .destructive) { showDeleteConfirmation = true }
+                        .buttonStyle(BorderedButtonStyle())
+                        .disabled(true)
+                        .help("Remove the containers using this image first")
+                }
             }
         }
         .padding(.horizontal, 16)
