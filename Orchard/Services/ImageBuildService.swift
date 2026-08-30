@@ -1,10 +1,40 @@
 import Foundation
 import SwiftUI
 
-/// Drives `container build` for the Build Image sheet. The CLI owns the hard
-/// parts (starting or restarting the BuildKit builder, dialing it, unpacking
-/// the result), so Orchard shells out and streams the build log; `--progress
-/// plain` keeps the output line-oriented for the console view.
+/// One tracked `container build` run. Records are app-session-scoped: the
+/// builder shim's gRPC surface is just info() + a build stream, so there is no
+/// host-reachable BuildKit history to enumerate - Orchard can only know about
+/// builds it started.
+struct ImageBuild: Identifiable, Equatable {
+    enum Phase: Equatable {
+        case building
+        case succeeded
+        case failed(String)
+        case cancelled
+
+        var isFinished: Bool { self != .building }
+    }
+
+    let id: UUID
+    let request: ImageBuildService.Request
+    let startedAt: Date
+    var phase: Phase = .building
+    var outputLines: [String] = []
+    var finishedAt: Date?
+
+    var tag: String { request.tag }
+
+    var duration: TimeInterval {
+        (finishedAt ?? Date()).timeIntervalSince(startedAt)
+    }
+}
+
+/// Drives `container build` and keeps a registry of the builds this app
+/// session started. The CLI owns the hard parts (starting or restarting the
+/// BuildKit builder, dialing it, unpacking the result), so Orchard shells out
+/// and streams each build log; `--progress plain` keeps output line-oriented
+/// for the console view. Builds may run concurrently - BuildKit queues and
+/// interleaves them itself.
 @MainActor
 final class ImageBuildService: ObservableObject {
 
@@ -17,28 +47,32 @@ final class ImageBuildService: ObservableObject {
         var noCache: Bool
     }
 
-    enum Phase: Equatable {
-        case idle
-        case building
-        case succeeded(tag: String)
-        case failed(String)
-    }
+    /// Newest first. Finished builds are kept (capped) so their logs stay
+    /// reviewable from the Builds menu until cleared.
+    @Published private(set) var builds: [ImageBuild] = []
 
-    @Published private(set) var phase: Phase = .idle
-    @Published private(set) var outputLines: [String] = []
-
-    var isBuilding: Bool { phase == .building }
+    var runningCount: Int { builds.lazy.filter { $0.phase == .building }.count }
 
     /// Refresh the image list after a successful build. Set by the owner.
     var onImageBuilt: () async -> Void = {}
 
     private let runner: CommandRunner
     private let settings: SettingsStore
-    private var buildTask: Task<Void, Never>?
+    private var tasks: [UUID: Task<Void, Never>] = [:]
+
+    /// Finished builds kept in the registry before the oldest are dropped.
+    private static let maxFinishedBuilds = 20
+    /// Transcript cap per build: BuildKit can be chatty and the console
+    /// re-renders on every change.
+    private static let maxTranscriptLines = 4000
 
     init(runner: CommandRunner, settings: SettingsStore) {
         self.runner = runner
         self.settings = settings
+    }
+
+    func build(id: UUID) -> ImageBuild? {
+        builds.first { $0.id == id }
     }
 
     // MARK: - Pure request handling (unit-tested)
@@ -87,69 +121,6 @@ final class ImageBuildService: ObservableObject {
         return nil
     }
 
-    // MARK: - Lifecycle
-
-    func build(_ request: Request) {
-        guard !isBuilding else { return }
-
-        phase = .building
-        outputLines = []
-
-        let program = settings.safeContainerBinaryPath()
-        let arguments = Self.arguments(for: request)
-        let runner = runner
-
-        buildTask = Task { [weak self] in
-            do {
-                let result = try await runner.runStreaming(program: program, arguments: arguments) { line in
-                    Task { @MainActor [weak self] in
-                        self?.append(line)
-                    }
-                }
-                guard let self, !Task.isCancelled else { return }
-                if result.failed {
-                    self.phase = .failed(Self.failureSummary(from: result))
-                } else {
-                    self.phase = .succeeded(tag: request.tag)
-                    await self.onImageBuilt()
-                }
-            } catch {
-                guard let self else { return }
-                if Task.isCancelled {
-                    self.append("Build cancelled.")
-                    self.phase = .idle
-                } else {
-                    self.phase = .failed(error.localizedDescription)
-                }
-            }
-        }
-    }
-
-    func cancel() {
-        guard isBuilding else { return }
-        buildTask?.cancel()
-        buildTask = nil
-        append("Build cancelled.")
-        phase = .idle
-    }
-
-    /// Clear finished state when the sheet is reopened; a running build is
-    /// deliberately left alone so closing the sheet doesn't kill it.
-    func resetIfFinished() {
-        guard !isBuilding else { return }
-        phase = .idle
-        outputLines = []
-    }
-
-    private func append(_ line: String) {
-        outputLines.append(line)
-        // Keep a long but bounded transcript: BuildKit can be chatty and the
-        // console re-renders on every change.
-        if outputLines.count > 4000 {
-            outputLines.removeFirst(outputLines.count - 4000)
-        }
-    }
-
     /// The most useful line to headline a failure: the last non-empty stderr
     /// line if any, else the exit code.
     nonisolated static func failureSummary(from result: ProcessResult) -> String {
@@ -158,5 +129,85 @@ final class ImageBuildService: ObservableObject {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .last { !$0.isEmpty }
         return lastError ?? "Build failed with exit code \(result.exitCode)."
+    }
+
+    // MARK: - Lifecycle
+
+    /// Start a build and return its registry id.
+    @discardableResult
+    func startBuild(_ request: Request) -> UUID {
+        let buildID = UUID()
+        builds.insert(ImageBuild(id: buildID, request: request, startedAt: Date()), at: 0)
+        pruneFinished()
+
+        let program = settings.safeContainerBinaryPath()
+        let arguments = Self.arguments(for: request)
+        let runner = runner
+
+        tasks[buildID] = Task { [weak self] in
+            do {
+                let result = try await runner.runStreaming(program: program, arguments: arguments) { line in
+                    Task { @MainActor [weak self] in
+                        self?.append(line, to: buildID)
+                    }
+                }
+                guard let self else { return }
+                // A cancel() already finalized the record; don't overwrite it.
+                guard self.build(id: buildID)?.phase == .building else { return }
+                if result.failed {
+                    self.finish(buildID, as: .failed(Self.failureSummary(from: result)))
+                } else {
+                    self.finish(buildID, as: .succeeded)
+                    await self.onImageBuilt()
+                }
+            } catch {
+                guard let self, self.build(id: buildID)?.phase == .building else { return }
+                self.finish(buildID, as: .failed(error.localizedDescription))
+            }
+        }
+        return buildID
+    }
+
+    func cancel(_ id: UUID) {
+        guard build(id: id)?.phase == .building else { return }
+        tasks[id]?.cancel()
+        append("Build cancelled.", to: id)
+        finish(id, as: .cancelled)
+    }
+
+    /// Drop finished builds from the registry (running ones stay).
+    func clearFinished() {
+        builds.removeAll { $0.phase.isFinished }
+    }
+
+    // MARK: - Registry mutation
+
+    private func mutate(_ id: UUID, _ change: (inout ImageBuild) -> Void) {
+        guard let index = builds.firstIndex(where: { $0.id == id }) else { return }
+        change(&builds[index])
+    }
+
+    private func append(_ line: String, to id: UUID) {
+        mutate(id) { build in
+            build.outputLines.append(line)
+            if build.outputLines.count > Self.maxTranscriptLines {
+                build.outputLines.removeFirst(build.outputLines.count - Self.maxTranscriptLines)
+            }
+        }
+    }
+
+    private func finish(_ id: UUID, as phase: ImageBuild.Phase) {
+        tasks.removeValue(forKey: id)
+        mutate(id) { build in
+            build.phase = phase
+            build.finishedAt = Date()
+        }
+    }
+
+    private func pruneFinished() {
+        let finished = builds.filter { $0.phase.isFinished }
+        guard finished.count > Self.maxFinishedBuilds else { return }
+        let dropIDs = Set(finished.suffix(finished.count - Self.maxFinishedBuilds).map(\.id))
+        builds.removeAll { dropIDs.contains($0.id) }
     }
 }

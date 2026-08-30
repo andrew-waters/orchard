@@ -107,49 +107,106 @@ func buildFailureSummary() {
 // MARK: - Build lifecycle (mock runner)
 
 @MainActor
-private func awaitPhaseChange(_ service: ImageBuildService) async {
-    for _ in 0..<200 where service.isBuilding {
+private func awaitFinished(_ service: ImageBuildService, _ id: UUID) async {
+    for _ in 0..<200 where service.build(id: id)?.phase == .building {
         try? await Task.sleep(nanoseconds: 10_000_000)
     }
 }
 
 @MainActor
-@Test("ImageBuildService: a successful build reports succeeded and refreshes images")
+private func makeBuildService(_ runner: MockCommandRunner) -> ImageBuildService {
+    let services = makeService(runner: runner)
+    return ImageBuildService(runner: runner, settings: services.settings)
+}
+
+@MainActor
+@Test("ImageBuildService: a successful build finishes its record and refreshes images")
 func buildSuccessLifecycle() async throws {
     let runner = MockCommandRunner()
     runner.defaultResult = ProcessResult(exitCode: 0, stdout: "#1 building\n#1 DONE", stderr: nil)
-    let services = makeService(runner: runner)
-    let service = ImageBuildService(runner: runner, settings: services.settings)
+    let service = makeBuildService(runner)
 
     let refreshed = SendableBox(false)
     service.onImageBuilt = { refreshed.value = true }
 
     let (dockerfile, context) = try temporaryBuildContext()
     defer { try? FileManager.default.removeItem(atPath: context) }
-    service.build(.init(dockerfile: dockerfile, contextDir: context, tag: "t", arch: "arm64", noCache: false))
-    #expect(service.isBuilding)
+    let id = service.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "t", arch: "arm64", noCache: false))
+    #expect(service.build(id: id)?.phase == .building)
+    #expect(service.runningCount == 1)
 
-    await awaitPhaseChange(service)
-    #expect(service.phase == .succeeded(tag: "t"))
+    await awaitFinished(service, id)
+    #expect(service.build(id: id)?.phase == .succeeded)
+    #expect(service.build(id: id)?.finishedAt != nil)
     #expect(refreshed.value)
-    #expect(service.outputLines.contains("#1 DONE"))
+    #expect(service.build(id: id)?.outputLines.contains("#1 DONE") == true)
     #expect(runner.calls.first?.first == "build")
 }
 
 @MainActor
-@Test("ImageBuildService: a failing build surfaces the last stderr line")
+@Test("ImageBuildService: a failing build surfaces the last stderr line on its record")
 func buildFailureLifecycle() async throws {
     let runner = MockCommandRunner()
     runner.defaultResult = ProcessResult(exitCode: 1, stdout: nil, stderr: "ERROR: exit code 127")
-    let services = makeService(runner: runner)
-    let service = ImageBuildService(runner: runner, settings: services.settings)
+    let service = makeBuildService(runner)
 
     let (dockerfile, context) = try temporaryBuildContext()
     defer { try? FileManager.default.removeItem(atPath: context) }
-    service.build(.init(dockerfile: dockerfile, contextDir: context, tag: "t", arch: "arm64", noCache: false))
+    let id = service.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "t", arch: "arm64", noCache: false))
 
-    await awaitPhaseChange(service)
-    #expect(service.phase == .failed("ERROR: exit code 127"))
+    await awaitFinished(service, id)
+    #expect(service.build(id: id)?.phase == .failed("ERROR: exit code 127"))
+}
+
+@MainActor
+@Test("ImageBuildService: builds run concurrently and keep separate records")
+func buildRegistryConcurrent() async throws {
+    let runner = MockCommandRunner()
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: "ok", stderr: nil)
+    let service = makeBuildService(runner)
+
+    let (dockerfile, context) = try temporaryBuildContext()
+    defer { try? FileManager.default.removeItem(atPath: context) }
+    let first = service.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "one", arch: "arm64", noCache: false))
+    let second = service.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "two", arch: "arm64", noCache: false))
+
+    // Newest first, distinct records.
+    #expect(service.builds.map(\.tag) == ["two", "one"])
+    await awaitFinished(service, first)
+    await awaitFinished(service, second)
+    #expect(service.builds.allSatisfy { $0.phase == .succeeded })
+
+    // clearFinished drops both, leaving an empty registry.
+    service.clearFinished()
+    #expect(service.builds.isEmpty)
+}
+
+@MainActor
+@Test("ImageBuildService: cancel finalizes the record as cancelled, not failed")
+func buildCancelLifecycle() async throws {
+    let runner = MockCommandRunner()
+    // A handler that never returns until cancelled keeps the build in flight.
+    runner.runHandler = { _, _ in
+        while !Task.isCancelled {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        throw CancellationError()
+    }
+    let service = makeBuildService(runner)
+
+    let (dockerfile, context) = try temporaryBuildContext()
+    defer { try? FileManager.default.removeItem(atPath: context) }
+    let id = service.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "t", arch: "arm64", noCache: false))
+    #expect(service.build(id: id)?.phase == .building)
+
+    service.cancel(id)
+    #expect(service.build(id: id)?.phase == .cancelled)
+    #expect(service.build(id: id)?.outputLines.last == "Build cancelled.")
+
+    // The abandoned task must not overwrite the cancelled record.
+    try? await Task.sleep(nanoseconds: 50_000_000)
+    #expect(service.build(id: id)?.phase == .cancelled)
+    #expect(service.runningCount == 0)
 }
 
 /// Tiny reference box for observing a callback from a Sendable closure in tests.
