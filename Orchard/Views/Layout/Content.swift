@@ -675,7 +675,7 @@ struct ContentView: View {
                 await dnsService.load(showLoading: false)
                 await networkService.load(showLoading: false)
                 await machineService.load(showLoading: false)
-                await modelService.load(showLoading: false)
+                await modelService.refreshTick()
             }
         }
     }
