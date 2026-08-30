@@ -11,9 +11,19 @@ struct ThreeColumnLayout: View {
     @AppStorage("containerSortBy") private var containerSortBy: ContainerSortOption = .name
     @AppStorage("containerSortAscending") private var containerSortAscending: Bool = true
     @AppStorage("containerRunningFirst") private var containerRunningFirst: Bool = true
+    @AppStorage("containerGroupLabelKey") private var containerGroupLabelKey: String = ""
     @AppStorage("imageSortBy") private var imageSortBy: ImageSortOption = .name
     @AppStorage("imageSortAscending") private var imageSortAscending: Bool = true
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
+
+    /// Label keys offered by "Group by Label": every key on a listed container
+    /// except the internal `com.apple.container.*` bookkeeping labels (plugin
+    /// ownership already has its own badge treatment).
+    private var containerLabelKeys: [String] {
+        Set(containerListService.containers.flatMap { $0.configuration.labels.keys })
+            .filter { !$0.hasPrefix("com.apple.container.") }
+            .sorted()
+    }
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -167,6 +177,32 @@ struct ThreeColumnLayout: View {
                                         Divider()
 
                                         Toggle("Running containers first", isOn: $containerRunningFirst)
+
+                                        Divider()
+
+                                        Menu("Group by Label") {
+                                            Button(action: { containerGroupLabelKey = "" }) {
+                                                HStack {
+                                                    Text("None")
+                                                    if containerGroupLabelKey.isEmpty {
+                                                        SwiftUI.Image(systemName: "checkmark")
+                                                    }
+                                                }
+                                            }
+                                            if !containerLabelKeys.isEmpty {
+                                                Divider()
+                                            }
+                                            ForEach(containerLabelKeys, id: \.self) { key in
+                                                Button(action: { containerGroupLabelKey = key }) {
+                                                    HStack {
+                                                        Text(key)
+                                                        if containerGroupLabelKey == key {
+                                                            SwiftUI.Image(systemName: "checkmark")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     } label: {
                                         SwiftUI.Image(systemName: "arrow.up.arrow.down.circle")
                                             .foregroundColor(.secondary)
