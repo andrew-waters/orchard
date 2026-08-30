@@ -124,6 +124,9 @@ struct LogPaneView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                // Without labelsHidden, the empty-string label still reserves
+                // a label column and shoves the control off the leading edge.
+                .labelsHidden()
                 .frame(maxWidth: 250)
 
                 // Machines expose a separate boot log; containers do not.
@@ -133,6 +136,7 @@ struct LogPaneView: View {
                         Text("Boot").tag(true)
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                     .frame(width: 150)
                 }
 
