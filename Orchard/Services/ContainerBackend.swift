@@ -202,10 +202,14 @@ struct LiveContainerBackend: ContainerBackend {
             try await ContainerClient().export(id: id, archive: archive)
         } catch { throw mapContainerError(error) }
 
+        // Replace atomically: remove-then-move would lose the existing archive
+        // (and, via the deferred scratch cleanup, the new one too) if the move
+        // failed after the removal.
         if FileManager.default.fileExists(atPath: destination.path) {
-            try FileManager.default.removeItem(at: destination)
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: archive)
+        } else {
+            try FileManager.default.moveItem(at: archive, to: destination)
         }
-        try FileManager.default.moveItem(at: archive, to: destination)
     }
 
     func deleteContainer(id: String, force: Bool) async throws {

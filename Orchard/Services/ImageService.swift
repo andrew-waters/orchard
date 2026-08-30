@@ -60,7 +60,12 @@ func resolveRunImageReference(_ input: String, localReferences: [String]) -> Str
         candidates += candidates.map { "\($0):latest" }
     }
     for candidate in candidates {
-        if let match = localReferences.first(where: { $0 == candidate }) {
+        // Compare canonical forms so the inverse spelling also matches (input
+        // "docker.io/library/mono2" against a local "mono2:latest"), but always
+        // return the reference exactly as the store names it.
+        if let match = localReferences.first(where: {
+            $0 == candidate || canonicalImageReference($0) == canonicalImageReference(candidate)
+        }) {
             return match
         }
     }

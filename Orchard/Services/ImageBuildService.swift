@@ -150,8 +150,10 @@ final class ImageBuildService: ObservableObject {
         if request.tag.isEmpty {
             return "Name the image (e.g. myapp:latest)."
         }
-        // The repository half must be lowercase; a tag half may be mixed case.
-        let pattern = "^[a-z0-9][a-z0-9._/-]*(:[A-Za-z0-9._-]+)?$"
+        // Optional registry host (which may carry a :port), then the lowercase
+        // repository path, then an optional mixed-case :tag - so a local
+        // registry form like localhost:5000/myapp:v1 validates.
+        let pattern = "^([a-z0-9][a-z0-9.-]*(:[0-9]+)?/)?[a-z0-9][a-z0-9._/-]*(:[A-Za-z0-9._-]+)?$"
         if request.tag.range(of: pattern, options: .regularExpression) == nil {
             return "Invalid image name. Use lowercase letters, digits, separators, and an optional :tag."
         }

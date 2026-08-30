@@ -88,13 +88,16 @@ struct LogConsoleView: NSViewRepresentable {
         }
 
         private func highlighted(_ line: NSAttributedString, filter: String) -> NSAttributedString {
-            let text = line.string.lowercased()
-            let needle = filter.lowercased()
-            guard text.contains(needle) else { return line }
+            // Search the original string case-insensitively rather than a
+            // lowercased copy: full Unicode case mapping can change lengths
+            // (e.g. U+0130 lowercases to two scalars), so ranges found in the
+            // copy could land outside the original and crash addAttributes.
+            let text = line.string
+            guard text.range(of: filter, options: .caseInsensitive) != nil else { return line }
 
             let mutable = NSMutableAttributedString(attributedString: line)
             var searchRange = text.startIndex..<text.endIndex
-            while let range = text.range(of: needle, range: searchRange) {
+            while let range = text.range(of: filter, options: .caseInsensitive, range: searchRange) {
                 let nsRange = NSRange(range, in: text)
                 mutable.addAttributes([
                     .backgroundColor: NSColor.yellow.withAlphaComponent(0.7),

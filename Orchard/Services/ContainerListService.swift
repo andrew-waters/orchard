@@ -399,6 +399,9 @@ final class ContainerListService: ObservableObject {
             workingDirectory: config.initProcess.workingDirectory,
             dnsDomain: config.dns.domain ?? "",
             network: snapshot.networks.first?.network ?? "",
+            // Recovery recreates the container; without these it would strip
+            // every label (sandbox markers included).
+            labels: config.labels,
             cpus: config.resources.cpus,
             // Exact bytes, not a GB round-trip: recovery must never resize a container.
             memoryBytes: UInt64(clamping: config.resources.memoryInBytes)
@@ -550,7 +553,9 @@ final class ContainerListService: ObservableObject {
                 workingDirectory: oldConfig.initProcess.workingDirectory,
                 commandOverride: oldConfig.initProcess.arguments.joined(separator: " "),
                 dnsDomain: oldConfig.dns.domain ?? "",
-                network: container.networks.first?.network ?? ""
+                network: container.networks.first?.network ?? "",
+                // The mount-removal recreate must carry labels through too.
+                labels: oldConfig.labels
             )
             
             do {

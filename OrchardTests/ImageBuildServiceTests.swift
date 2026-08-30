@@ -86,7 +86,7 @@ func validationRejects() throws {
         #expect(ImageBuildService.validationError(for: request) != nil, "expected rejection for \(badTag)")
     }
 
-    for goodTag in ["myapp", "myapp:latest", "registry.local/team/app:V1.2-rc_3"] {
+    for goodTag in ["myapp", "myapp:latest", "registry.local/team/app:V1.2-rc_3", "localhost:5000/myapp:v1", "registry.local:443/team/app"] {
         request = valid
         request.tag = goodTag
         #expect(ImageBuildService.validationError(for: request) == nil, "expected acceptance for \(goodTag)")

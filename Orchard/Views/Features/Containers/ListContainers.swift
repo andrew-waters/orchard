@@ -24,9 +24,9 @@ struct ContainersListView: View {
                         containerRow(for: container)
                     }
                 } else {
-                    ForEach(labelGroups, id: \.name) { group in
+                    ForEach(labelGroups, id: \.id) { group in
                         Section {
-                            if !collapsedGroups.contains(group.name) {
+                            if !collapsedGroups.contains(group.id) {
                                 ForEach(group.containers, id: \.configuration.id) { container in
                                     containerRow(for: container)
                                 }
@@ -72,6 +72,9 @@ struct ContainersListView: View {
     // MARK: - Label grouping
 
     private struct LabelGroup {
+        /// Identity separate from the display name: a label whose value is
+        /// literally "No label" must not merge with the fallback bucket.
+        let id: String
         let name: String
         let containers: [Container]
     }
@@ -91,24 +94,26 @@ struct ContainersListView: View {
                 ungrouped.append(container)
             }
         }
-        var groups = byValue.keys.sorted().map { LabelGroup(name: $0, containers: byValue[$0]!) }
+        var groups = byValue.keys.sorted().map {
+            LabelGroup(id: "value:\($0)", name: $0, containers: byValue[$0]!)
+        }
         if !ungrouped.isEmpty {
-            groups.append(LabelGroup(name: Self.ungroupedName, containers: ungrouped))
+            groups.append(LabelGroup(id: "ungrouped", name: Self.ungroupedName, containers: ungrouped))
         }
         return groups
     }
 
     private func groupHeader(for group: LabelGroup) -> some View {
-        let collapsed = collapsedGroups.contains(group.name)
+        let collapsed = collapsedGroups.contains(group.id)
         let stopped = group.containers.filter { $0.status.lowercased() != "running" }
         let running = group.containers.filter { $0.status.lowercased() == "running" }
 
         return HStack(spacing: 6) {
             Button {
                 if collapsed {
-                    collapsedGroups.remove(group.name)
+                    collapsedGroups.remove(group.id)
                 } else {
-                    collapsedGroups.insert(group.name)
+                    collapsedGroups.insert(group.id)
                 }
             } label: {
                 HStack(spacing: 6) {

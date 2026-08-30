@@ -69,11 +69,14 @@ struct LogsView: View {
             // Logs content
             ZStack {
                 if isLoading && logLines.isEmpty {
+                    // Explicit light colours: the container is near-black in
+                    // both appearances, so system defaults vanish in light mode.
                     ProgressView("Loading logs...")
+                        .foregroundColor(Color(white: 0.85))
                         .padding()
                 } else if logLines.isEmpty {
                     Text("No logs available")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(white: 0.5))
                         .padding()
                 } else {
                     LogConsoleView(lines: displayLines, filterText: filterText)

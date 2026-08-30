@@ -113,6 +113,10 @@ func resolveRunImageReferenceLocal() {
     #expect(resolveRunImageReference("nginx", localReferences: local) == "docker.io/library/nginx:latest")
     // Exact explicit-registry match.
     #expect(resolveRunImageReference("registry.local/team/app:v1", localReferences: local) == "registry.local/team/app:v1")
+    // The inverse spelling matches too: a canonical input finds the local
+    // short-form image and runs it under the store's own reference.
+    #expect(resolveRunImageReference("docker.io/library/mono2", localReferences: local) == "mono2:latest")
+    #expect(resolveRunImageReference("docker.io/library/mono2:latest", localReferences: local) == "mono2:latest")
     // No local match falls back to the canonical pullable form.
     #expect(resolveRunImageReference("redis:7", localReferences: local) == "docker.io/library/redis:7")
     #expect(resolveRunImageReference("  mono2  ", localReferences: []) == "docker.io/library/mono2")
