@@ -501,6 +501,7 @@ struct ContainerImageDetailView: View {
     let image: ContainerImage
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @Binding var selectedBuild: UUID?
     @State private var inspection: ImageInspection?
     @State private var isInspecting: Bool = false
 
@@ -533,7 +534,7 @@ struct ContainerImageDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ImageDetailHeader(image: image)
+            ImageDetailHeader(image: image, selectedTab: $selectedTab, selectedBuild: $selectedBuild)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {

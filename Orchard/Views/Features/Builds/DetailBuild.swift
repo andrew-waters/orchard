@@ -13,6 +13,7 @@ struct BuildDetailView: View {
     let buildID: UUID?
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @Binding var selectedImages: Set<String>
 
     private var build: ImageBuild? {
         buildID.flatMap { buildService.build(id: $0) }
@@ -23,10 +24,7 @@ struct BuildDetailView: View {
     /// repository gets :latest - try the variants.
     private var builtImageReference: String? {
         guard let build else { return nil }
-        var candidates = [build.tag, canonicalImageReference(build.tag)]
-        if !(build.tag.split(separator: "/").last ?? "").contains(":") {
-            candidates += candidates.map { "\($0):latest" }
-        }
+        let candidates = ImageBuildService.referenceCandidates(forTag: build.tag)
         return imageService.images.first { candidates.contains($0.reference) }?.reference
     }
 
@@ -106,6 +104,14 @@ struct BuildDetailView: View {
                         .sheet(isPresented: $showRunContainer) {
                             RunContainerView(imageName: reference)
                         }
+
+                    // The inverse of the image detail's View Build.
+                    Button("View Image") {
+                        selectedTab = .images
+                        selectedImages = [reference]
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .help("Show this build's image in the Images tab")
                 }
 
                 // Deleting removes the record and, when it still exists, the

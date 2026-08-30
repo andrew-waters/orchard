@@ -398,7 +398,8 @@ struct ThreeColumnLayout: View {
                     selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork,
                     selectedClusterBinding: $selectedCluster,
-                    selectedSandboxBinding: $selectedSandbox
+                    selectedSandboxBinding: $selectedSandbox,
+                    selectedBuildBinding: $selectedBuild
                 )
                 .ignoresSafeArea(.container, edges: .top)
             }
@@ -452,7 +453,8 @@ struct ThreeColumnLayout: View {
                     selectedNetworksBinding: $selectedNetworks,
                     selectedNetworkBinding: $selectedNetwork,
                     selectedClusterBinding: $selectedCluster,
-                    selectedSandboxBinding: $selectedSandbox
+                    selectedSandboxBinding: $selectedSandbox,
+                    selectedBuildBinding: $selectedBuild
                 )
                 // With the sidebar hidden this column is leftmost and the traffic
                 // lights float over it; inset below them, like the middle column's

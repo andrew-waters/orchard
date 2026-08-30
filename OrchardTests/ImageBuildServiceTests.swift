@@ -219,6 +219,43 @@ func buildCancelLifecycle() async throws {
     #expect(service.runningCount == 0)
 }
 
+// MARK: - Image cross-reference
+
+@Test("ImageBuildService: reference candidates cover verbatim, canonical, and :latest forms")
+func buildReferenceCandidates() {
+    let bare = ImageBuildService.referenceCandidates(forTag: "mono2")
+    #expect(bare.contains("mono2"))
+    #expect(bare.contains("mono2:latest"))
+    #expect(bare.contains("docker.io/library/mono2"))
+    #expect(bare.contains("docker.io/library/mono2:latest"))
+
+    // A tagged reference gets no :latest variants bolted on.
+    let tagged = ImageBuildService.referenceCandidates(forTag: "team/app:v1")
+    #expect(tagged.contains("team/app:v1"))
+    #expect(tagged.contains("docker.io/team/app:v1"))
+    #expect(!tagged.contains("team/app:v1:latest"))
+}
+
+@MainActor
+@Test("ImageBuildService: an image reference maps back to its newest successful build")
+func buildForImageReference() async throws {
+    let runner = MockCommandRunner()
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: "ok", stderr: nil)
+    let service = makeBuildService(runner)
+
+    let (dockerfile, context) = try temporaryBuildContext()
+    defer { try? FileManager.default.removeItem(atPath: context) }
+    let older = service.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "mono2", arch: "arm64", noCache: false))
+    await awaitFinished(service, older)
+    let newer = service.startBuild(.init(dockerfile: dockerfile, contextDir: context, tag: "mono2", arch: "arm64", noCache: false))
+    await awaitFinished(service, newer)
+
+    // The newest successful build wins for the stored reference form.
+    #expect(service.build(forImageReference: "mono2:latest")?.id == newer)
+    #expect(service.build(forImageReference: "docker.io/library/mono2:latest")?.id == newer)
+    #expect(service.build(forImageReference: "unrelated:latest") == nil)
+}
+
 // MARK: - Persistence
 
 @MainActor

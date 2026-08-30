@@ -93,6 +93,25 @@ final class ImageBuildService: ObservableObject {
         builds.first { $0.id == id }
     }
 
+    /// Reference spellings a build tag may be stored under in the image list:
+    /// verbatim, canonicalized, and (for a bare repository) :latest variants.
+    nonisolated static func referenceCandidates(forTag tag: String) -> [String] {
+        var candidates = [tag, canonicalImageReference(tag)]
+        let lastSegment = tag.split(separator: "/").last.map(String.init) ?? tag
+        if !lastSegment.contains(":") && !lastSegment.contains("@") {
+            candidates += candidates.map { "\($0):latest" }
+        }
+        return candidates
+    }
+
+    /// The newest successful build whose tag resolves to `reference` - the
+    /// build that produced (or most recently reproduced) that image.
+    func build(forImageReference reference: String) -> ImageBuild? {
+        builds.first {
+            $0.phase == .succeeded && Self.referenceCandidates(forTag: $0.tag).contains(reference)
+        }
+    }
+
     // MARK: - Pure request handling (unit-tested)
 
     /// The `container` CLI arguments for a build request. The context directory
