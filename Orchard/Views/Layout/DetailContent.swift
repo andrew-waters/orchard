@@ -37,7 +37,11 @@ struct DetailContentView: View {
         case .images:
             imageDetailView
         case .builds:
-            BuildDetailView(buildID: selectedBuild)
+            BuildDetailView(
+                buildID: selectedBuild,
+                selectedTab: $selectedTabBinding,
+                selectedContainer: $selectedContainerBinding
+            )
         case .mounts:
             mountDetailView
         case .machines:

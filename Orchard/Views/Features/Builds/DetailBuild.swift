@@ -11,6 +11,8 @@ struct BuildDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
     let buildID: UUID?
+    @Binding var selectedTab: TabSelection
+    @Binding var selectedContainer: String?
 
     private var build: ImageBuild? {
         buildID.flatMap { buildService.build(id: $0) }
@@ -45,7 +47,7 @@ struct BuildDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
 
-                if !containersUsingImage.isEmpty {
+                if builtImageReference != nil {
                     containersSection
                 }
 
@@ -155,42 +157,22 @@ struct BuildDetailView: View {
         }
     }
 
-    /// Containers running (or created from) the image this build produced,
-    /// each navigating to the container on click - mirroring the usage
-    /// affordance on the image detail.
+    /// Containers created from the image this build produced - the same table
+    /// the image detail shows, with clickable container/IP/hostname cells.
     private var containersSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Containers using this image")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            ForEach(containersUsingImage, id: \.configuration.id) { container in
-                Button {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("NavigateToContainer"),
-                        object: container.configuration.id
-                    )
-                } label: {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(container.status.lowercased() == "running" ? Color.green : Color.secondary)
-                            .frame(width: 8, height: 8)
-                        Text(container.configuration.id)
-                            .font(.system(size: 12))
-                        Text(container.status.lowercased())
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        SwiftUI.Image(systemName: "chevron.right")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Show this container")
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Used By Containers")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            ContainerTable(
+                containers: containersUsingImage,
+                selectedTab: $selectedTab,
+                selectedContainer: $selectedContainer,
+                emptyStateMessage: "No containers are currently using this image"
+            )
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .padding(.bottom, 12)
     }
 }
