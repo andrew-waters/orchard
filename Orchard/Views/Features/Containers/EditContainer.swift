@@ -31,6 +31,21 @@ struct EditContainerView: View {
             )
         }
 
+        // Carry labels through the recreate - previously the prefill omitted
+        // them, so an edit silently stripped every label (sandbox markers
+        // included). Internal bookkeeping keys ride along hidden; the rest
+        // are editable rows in the form's Advanced tab.
+        let allLabels = container.configuration.labels
+        let hiddenLabels = allLabels.filter { key, _ in
+            ContainerRunConfig.internalLabelPrefixes.contains { key.hasPrefix($0) }
+        }
+        let editableLabelPairs = allLabels
+            .filter { key, _ in
+                !ContainerRunConfig.internalLabelPrefixes.contains { key.hasPrefix($0) }
+            }
+            .sorted { $0.key < $1.key }
+            .map { ContainerRunConfig.LabelPair(key: $0.key, value: $0.value) }
+
         _config = State(initialValue: ContainerRunConfig(
             name: container.configuration.id,
             image: container.configuration.image.reference,
@@ -45,6 +60,8 @@ struct EditContainerView: View {
             commandOverride: joinCommandLine(
                 [container.configuration.initProcess.executable] + container.configuration.initProcess.arguments
             ),
+            labels: hiddenLabels,
+            labelPairs: editableLabelPairs,
             cpus: container.configuration.resources.cpus,
             // Exact bytes: a non-integral allocation only changes if the user edits it.
             memoryBytes: UInt64(clamping: container.configuration.resources.memoryInBytes)

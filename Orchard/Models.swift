@@ -772,6 +772,8 @@ struct ContainerRunConfig: Equatable {
     var network: String = ""
     /// Labels to stamp on the container at creation (e.g. the sandbox marker).
     var labels: [String: String] = [:]
+    /// Label rows edited in the config form; see `effectiveLabels`.
+    var labelPairs: [LabelPair] = []
     /// Resource allocation applied at create time. Defaults match the runtime's own
     /// (4 CPUs, 1 GB) so an untouched form behaves exactly as before. Memory is carried
     /// in bytes so a value that isn't a whole number of GB (e.g. a CLI-created 1.5 GB
@@ -793,6 +795,31 @@ struct ContainerRunConfig: Equatable {
         let id = UUID()
         var key: String
         var value: String
+    }
+
+    /// Label namespaces owned by the runtime or Orchard itself; hidden from
+    /// the form's label rows and carried through edits untouched.
+    static let internalLabelPrefixes = ["com.apple.container.", "com.orchard."]
+
+    /// A user-edited label row in the config form. Kept separate from `labels`
+    /// (programmatic, e.g. the sandbox marker) and merged over it at create
+    /// time via `effectiveLabels`.
+    struct LabelPair: Identifiable, Equatable {
+        let id = UUID()
+        var key: String
+        var value: String
+    }
+
+    /// Programmatic labels plus the form's rows (trimmed; empty keys dropped;
+    /// on a key collision the form row wins).
+    var effectiveLabels: [String: String] {
+        var merged = labels
+        for pair in labelPairs {
+            let key = pair.key.trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty else { continue }
+            merged[key] = pair.value.trimmingCharacters(in: .whitespaces)
+        }
+        return merged
     }
 
     struct PortMapping: Identifiable, Equatable {
