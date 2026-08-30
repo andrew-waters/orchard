@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The GUI now tracks the container system when it is stopped and started from the CLI (#100). The 5-second status poll was torn down by the main interface's `onDisappear`, which also fires when the system stops and the "not running" screen swaps in. After that, nothing polled, so a `container system start` run in a terminal was never noticed and Orchard stayed on "Container is not currently running" until the power button was clicked. The same dead end was reachable by launching Orchard while the system was stopped. The poll's lifetime now matches the window rather than one branch of the state view, so external stops appear within a poll tick (a stop can still lag while `container system stop` drains running containers, since the API server answers until it deregisters) and an external start restores the full interface automatically.
+
 ## [2.3.1] - 2026-08-30
 
 ### Fixed
