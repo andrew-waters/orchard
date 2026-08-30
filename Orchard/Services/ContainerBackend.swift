@@ -107,6 +107,9 @@ protocol ContainerBackend: Sendable {
     func deleteContainer(id: String, force: Bool) async throws
     func bootstrapAndStart(id: String) async throws
     func containerLogs(id: String) async throws -> [FileHandle]
+    /// Export the container's filesystem as a tar archive at `destination`,
+    /// replacing any existing file there.
+    func exportContainer(id: String, to destination: URL) async throws
     func stats(id: String) async throws -> Orchard.ContainerStats
     func createContainer(_ spec: ContainerCreateSpec) async throws
     func listImages() async throws -> [ContainerImage]
@@ -183,6 +186,26 @@ struct LiveContainerBackend: ContainerBackend {
         do {
             try await ContainerClient().kill(id: id, signal: String(signal))
         } catch { throw mapContainerError(error) }
+    }
+
+    func exportContainer(id: String, to destination: URL) async throws {
+        // Mirror the CLI: have the daemon write into a scratch directory, then
+        // move the archive into place so a failed export never leaves a partial
+        // file at the user's chosen path.
+        let scratchDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("orchard-export-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: scratchDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratchDir) }
+
+        let archive = scratchDir.appendingPathComponent("archive.tar")
+        do {
+            try await ContainerClient().export(id: id, archive: archive)
+        } catch { throw mapContainerError(error) }
+
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.moveItem(at: archive, to: destination)
     }
 
     func deleteContainer(id: String, force: Bool) async throws {

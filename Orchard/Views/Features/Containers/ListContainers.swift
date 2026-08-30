@@ -93,6 +93,10 @@ struct ContainersListView: View {
             Button("View in Log Viewer") {
                 openWindow(id: "logs", value: LogTarget.container(targetIds.first ?? ""))
             }
+            Button("Export Filesystem…") {
+                ContainerExportFlow.run(containerId: container.configuration.id, service: containerListService)
+            }
+            .disabled(containerListService.exportingContainers.contains(container.configuration.id))
         }
 
         Divider()

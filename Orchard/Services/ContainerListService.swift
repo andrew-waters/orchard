@@ -16,6 +16,9 @@ final class ContainerListService: ObservableObject {
     /// Containers whose automatic recovery failed - drives the persistent "Recreate"
     /// affordance, which must outlive the transient alert. Cleared on a successful start.
     @Published var recoveryFailedContainerIDs: Set<String> = []
+    /// Containers with a filesystem export in flight - drives the per-container
+    /// "Exporting…" affordance.
+    @Published private(set) var exportingContainers: Set<String> = []
 
     private let backend: ContainerBackend
     private let alertCenter: AlertCenter
@@ -291,6 +294,24 @@ final class ContainerListService: ObservableObject {
     func removeContainers(_ ids: [String]) async {
         for id in ids {
             await removeContainer(id)
+        }
+    }
+
+    /// Export a container's filesystem to a tar archive. Returns true on
+    /// success so callers can reveal the file; failures alert and log.
+    @discardableResult
+    func exportContainer(_ id: String, to destination: URL) async -> Bool {
+        exportingContainers.insert(id)
+        defer { exportingContainers.remove(id) }
+
+        do {
+            try await backend.exportContainer(id: id, to: destination)
+            Log.containers.debug("Container \(id) exported to \(destination.path)")
+            return true
+        } catch {
+            self.alertCenter.error("Failed to export container: \(error.localizedDescription)")
+            Log.containers.error("Error exporting container: \(error.localizedDescription)")
+            return false
         }
     }
 

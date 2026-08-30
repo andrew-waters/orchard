@@ -154,6 +154,10 @@ struct ContainerDetailHeader: View {
         }
     }
 
+    private func exportContainer() {
+        ContainerExportFlow.run(containerId: container.configuration.id, service: containerListService)
+    }
+
     private func deleteContainer() {
         guard !isDeleting else { return }
         isDeleting = true
@@ -237,6 +241,24 @@ struct ContainerDetailHeader: View {
                     openWindow(id: "logs", value: LogTarget.container(container.configuration.id))
                 }
                 .buttonStyle(BorderedButtonStyle())
+
+                if containerListService.exportingContainers.contains(container.configuration.id) {
+                    Button {
+                    } label: {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Exporting…")
+                        }
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .disabled(true)
+                } else {
+                    Button("Export…") {
+                        exportContainer()
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .help("Save the container's filesystem as a tar archive")
+                }
             }
         }
         .padding(.horizontal, 16)

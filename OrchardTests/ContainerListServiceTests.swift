@@ -277,3 +277,36 @@ func recreateContainerFailureAlerts() async {
     #expect(alert.current != nil)
     #expect(backend.createdSpecs.isEmpty)   // never reached runContainer
 }
+
+// MARK: - exportContainer
+
+@MainActor
+@Test("exportContainer: success passes id and destination through and reports true")
+func exportContainerSuccess() async {
+    let backend = MockContainerBackend()
+    let (service, alert) = makeListService(backend)
+    let destination = URL(fileURLWithPath: "/tmp/web.tar")
+
+    let ok = await service.exportContainer("web", to: destination)
+
+    #expect(ok)
+    #expect(backend.exportedContainers.map(\.id) == ["web"])
+    #expect(backend.exportedContainers.first?.destination == destination)
+    #expect(service.exportingContainers.isEmpty)
+    #expect(alert.current == nil)
+}
+
+@MainActor
+@Test("exportContainer: failure alerts, reports false, and clears the in-flight flag")
+func exportContainerFailure() async {
+    let backend = MockContainerBackend()
+    backend.exportContainerError = NotConfigured()
+    let (service, alert) = makeListService(backend)
+
+    let ok = await service.exportContainer("web", to: URL(fileURLWithPath: "/tmp/web.tar"))
+
+    #expect(!ok)
+    #expect(backend.exportedContainers.isEmpty)
+    #expect(service.exportingContainers.isEmpty)
+    #expect(alert.current != nil)
+}

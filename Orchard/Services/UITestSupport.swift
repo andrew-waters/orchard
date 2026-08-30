@@ -74,6 +74,7 @@ struct UITestBackend: ContainerBackend {
     func deleteContainer(id: String, force: Bool) async throws {}
     func bootstrapAndStart(id: String) async throws {}
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
+    func exportContainer(id: String, to destination: URL) async throws {}
     func stats(id: String) async throws -> ContainerStats {
         ContainerStats(id: id, cpuUsageUsec: 0, memoryUsageBytes: 0, memoryLimitBytes: 0,
                        blockReadBytes: 0, blockWriteBytes: 0, networkRxBytes: 0, networkTxBytes: 0, numProcesses: 1)
