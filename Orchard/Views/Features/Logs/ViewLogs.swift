@@ -9,7 +9,6 @@ struct LogsView: View {
     @State private var isLoading: Bool = false
     @State private var refreshTimer: Timer?
     @State private var filterText: String = ""
-    @State private var hasScrolledToBottom: Bool = false
     @State private var isPaused: Bool = false
 
     var body: some View {
@@ -68,43 +67,20 @@ struct LogsView: View {
             Divider()
 
             // Logs content
-            ScrollViewReader { proxy in
-                ScrollView {
-                    if isLoading && logLines.isEmpty {
-                        HStack {
-                            Spacer()
-                            ProgressView("Loading logs...")
-                                .padding()
-                            Spacer()
-                        }
-                    } else if logLines.isEmpty {
-                        HStack {
-                            Spacer()
-                            Text("No logs available")
-                                .foregroundColor(.secondary)
-                                .padding()
-                            Spacer()
-                        }
-                    } else {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
-                                logLineView(line)
-                                    .id(index)
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .background(Color.black.opacity(0.85))
-                .onChange(of: logLines.count) {
-                    if !hasScrolledToBottom && !logLines.isEmpty {
-                        hasScrolledToBottom = true
-                        proxy.scrollTo(displayLines.count - 1, anchor: .bottom)
-                    }
+            ZStack {
+                if isLoading && logLines.isEmpty {
+                    ProgressView("Loading logs...")
+                        .padding()
+                } else if logLines.isEmpty {
+                    Text("No logs available")
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    LogConsoleView(lines: displayLines, filterText: filterText)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.85))
         }
         .onAppear {
             startLogRefresh()
@@ -118,44 +94,10 @@ struct LogsView: View {
         if filterText.isEmpty {
             return logLines
         }
+        // Match against the escape-stripped text so a filter can't hit (or
+        // miss) because of bytes inside a color code.
         let search = filterText.lowercased()
-        return logLines.filter { $0.lowercased().contains(search) }
-    }
-
-    @ViewBuilder
-    private func logLineView(_ line: String) -> some View {
-        if filterText.isEmpty {
-            Text(line)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundColor(Color(white: 0.85))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 1)
-        } else {
-            Text(highlightMatches(in: line))
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundColor(Color(white: 0.85))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 1)
-        }
-    }
-
-    private func highlightMatches(in line: String) -> AttributedString {
-        var attributed = AttributedString(line)
-        let searchLower = filterText.lowercased()
-        let lineLower = line.lowercased()
-
-        var searchRange = lineLower.startIndex..<lineLower.endIndex
-        while let range = lineLower.range(of: searchLower, range: searchRange) {
-            if let attrRange = Range(range, in: attributed) {
-                attributed[attrRange].backgroundColor = .yellow.opacity(0.7)
-                attributed[attrRange].foregroundColor = .black
-            }
-            searchRange = range.upperBound..<lineLower.endIndex
-        }
-
-        return attributed
+        return logLines.filter { ANSIText.plain($0).lowercased().contains(search) }
     }
 
     private func startLogRefresh() {
