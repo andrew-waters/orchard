@@ -3,24 +3,19 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.3.0</title>
-      <sparkle:version>52</sparkle:version>
-      <sparkle:shortVersionString>2.3.0</sparkle:shortVersionString>
+      <title>Version 2.3.1</title>
+      <sparkle:version>53</sparkle:version>
+      <sparkle:shortVersionString>2.3.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.3.0</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.3.1</link>
       <description><![CDATA[
-<h3>Changed</h3>
-<ul>
-<li>Orchard now links the Apple container 1.3.1 client libraries (previously 1.2.2), restoring compatibility with current container installs. 1.3.1 also patches six security advisories in the containerization package that Orchard&#x27;s image operations link directly, including path traversal in the local content store and a <code>RegistryClient</code> that followed <code>WWW-Authenticate</code> realms without validating the host.</li>
-<li>Image pulls now default to <code>https</code> for all registries, matching container 1.3.0&#x27;s removal of the <code>auto</code> registry scheme. Pulls from localhost or private-IP registries no longer silently downgrade to plain http; a local http registry needs <code>registry.scheme = &quot;http&quot;</code> in the container configuration, same as the <code>container</code> CLI.</li>
-</ul>
 <h3>Fixed</h3>
 <ul>
-<li>Local-model detection no longer follows HTTP redirects when probing for providers. The probe targets conventional ports (11434, 1234, 8080, 8000), which are often owned by something else entirely; a dev server on 8080 that redirects to its TLS port would take the probe with it, so Orchard opened a connection to an unrelated endpoint every five seconds and abandoned it when the 1.5s probe deadline expired. Against a Rails app running with <code>force_ssl</code> this leaked a socket per probe until the server&#x27;s accept loop stopped and it served nothing at all. A real provider answers 200 directly, so a redirect is now simply classified as &quot;not a provider&quot; - which also stops a redirecting server from being misreported as a model server.</li>
+<li>Image sizes now match <code>container image ls -v</code> (#98). Orchard was showing the size of each variant&#x27;s manifest *descriptor* — a couple of kilobytes of JSON — instead of the image content, so every image listed as &quot;1 KB&quot;–&quot;3 KB&quot;. Variant sizes are now computed the same way the CLI computes FULL SIZE: manifest descriptor plus config blob plus the sum of the compressed layers. The container detail&#x27;s Image section and the multi-select image cards previously showed the raw index descriptor size as &quot;Size&quot;; both now use the same resolved size as the images list, and the image Technical Details row is relabeled &quot;Index Size (bytes)&quot; since that value genuinely is the index descriptor size.</li>
 </ul>
 ]]></description>
-      <pubDate>Sat, 29 Aug 2026 13:20:09 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.3.0/Orchard-2.3.0.dmg" type="application/octet-stream" sparkle:edSignature="gI8NwrFacLe5/fsK3nMi6d8bWd3gx7okAdm7pQB14IF0zbgByXYsVEEGVToPy4dHwY5QNoHdmUXDsLf/41O2Ag==" length="29378529" />
+      <pubDate>Sun, 30 Aug 2026 13:26:02 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.3.1/Orchard-2.3.1.dmg" type="application/octet-stream" sparkle:edSignature="ki0GwIpfF+iVB0do1LknPfm0vYJUbwKmhZUM8ipFX17JycAfW3h25rp/zvky2MRO7x5NQCdoc9jRR7iwOhItDQ==" length="29378193" />
     </item>
   </channel>
 </rss>
