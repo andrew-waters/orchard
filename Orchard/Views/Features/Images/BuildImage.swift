@@ -5,7 +5,9 @@ import UniformTypeIdentifiers
 /// Build an image from a Dockerfile via `container build`. The Dockerfile is
 /// picked with a file panel (so non-default names like `Dockerfile.dev` are
 /// discoverable), the context defaults to the Dockerfile's folder, and the
-/// build log streams into the shared ANSI console.
+/// build log streams into the shared ANSI console. Each build registers with
+/// the service's builds list, so closing the sheet leaves it running and the
+/// Builds menu can reopen its log.
 struct BuildImageView: View {
     @EnvironmentObject var buildService: ImageBuildService
     @Environment(\.dismiss) private var dismiss
@@ -16,6 +18,14 @@ struct BuildImageView: View {
     @State private var arch: String = hostContainerArchitecture
     @State private var noCache: Bool = false
     @State private var validationError: String?
+    /// The build this sheet started; its record drives the status/console.
+    @State private var currentBuildID: UUID?
+
+    private var currentBuild: ImageBuild? {
+        currentBuildID.flatMap { buildService.build(id: $0) }
+    }
+
+    private var isBuilding: Bool { currentBuild?.phase == .building }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -66,10 +76,10 @@ struct BuildImageView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    if buildService.phase != .idle {
-                        buildStatus
+                    if let build = currentBuild {
+                        BuildStatusLine(build: build)
 
-                        LogConsoleView(lines: buildService.outputLines, filterText: "")
+                        LogConsoleView(lines: build.outputLines, filterText: "")
                             .frame(height: 220)
                             .background(Color.black.opacity(0.85))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -80,47 +90,17 @@ struct BuildImageView: View {
 
             footer
         }
-        .frame(width: 560, height: buildService.phase == .idle ? 520 : 700)
+        .frame(width: 560, height: currentBuild == nil ? 520 : 700)
         .background(Color(NSColor.windowBackgroundColor))
-        .onAppear {
-            buildService.resetIfFinished()
-        }
-    }
-
-    @ViewBuilder
-    private var buildStatus: some View {
-        switch buildService.phase {
-        case .idle:
-            EmptyView()
-        case .building:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Building… the first build also starts the BuildKit builder, which can take a minute.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        case .succeeded(let tag):
-            HStack(spacing: 8) {
-                SwiftUI.Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text("Built \(tag)").font(.subheadline).fontWeight(.medium)
-            }
-        case .failed(let message):
-            HStack(alignment: .top, spacing: 8) {
-                SwiftUI.Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                Text(message)
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            }
-        }
     }
 
     private var header: some View {
         HStack {
             Text("Build Image").font(.title2).fontWeight(.semibold)
             Spacer()
-            Button(buildService.isBuilding ? "Close" : "Cancel") { dismiss() }
+            Button(isBuilding ? "Close" : "Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-                .help(buildService.isBuilding ? "The build keeps running; reopen this sheet to check on it." : "")
+                .help(isBuilding ? "The build keeps running; check on it from the Builds menu on the Images tab." : "")
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
@@ -130,18 +110,20 @@ struct BuildImageView: View {
     private var footer: some View {
         HStack {
             Spacer()
-            if buildService.isBuilding {
-                Button("Cancel Build") { buildService.cancel() }
-            } else if case .succeeded = buildService.phase {
-                Button("Done") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-            }
-            if !buildService.isBuilding {
-                Button(retryTitle) { startBuild() }
+            if isBuilding {
+                Button("Cancel Build") {
+                    currentBuildID.map { buildService.cancel($0) }
+                }
+            } else {
+                if currentBuild?.phase == .succeeded {
+                    Button("Done") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
+                Button(buildButtonTitle) { startBuild() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canBuild)
-                    .keyboardShortcut(canRetryAsDefault ? .defaultAction : nil)
+                    .keyboardShortcut(currentBuild?.phase == .succeeded ? nil : .defaultAction)
                     .accessibilityIdentifier("build-image-start")
             }
         }
@@ -150,17 +132,12 @@ struct BuildImageView: View {
         .overlay(Rectangle().frame(height: 1).foregroundStyle(Color(NSColor.separatorColor)), alignment: .top)
     }
 
-    private var retryTitle: String {
-        switch buildService.phase {
-        case .failed: return "Retry Build"
+    private var buildButtonTitle: String {
+        switch currentBuild?.phase {
+        case .failed, .cancelled: return "Retry Build"
         case .succeeded: return "Build Again"
         default: return "Build"
         }
-    }
-
-    private var canRetryAsDefault: Bool {
-        if case .succeeded = buildService.phase { return false }
-        return true
     }
 
     @ViewBuilder
@@ -225,6 +202,41 @@ struct BuildImageView: View {
             return
         }
         validationError = nil
-        buildService.build(request)
+        currentBuildID = buildService.startBuild(request)
+    }
+}
+
+/// One-line status for a build record: spinner/check/cross plus a headline.
+/// Shared by the Build Image sheet and the build log sheet.
+struct BuildStatusLine: View {
+    let build: ImageBuild
+
+    var body: some View {
+        switch build.phase {
+        case .building:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Building… the first build also starts the BuildKit builder, which can take a minute.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        case .succeeded:
+            HStack(spacing: 8) {
+                SwiftUI.Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Text("Built \(build.tag)").font(.subheadline).fontWeight(.medium)
+            }
+        case .failed(let message):
+            HStack(alignment: .top, spacing: 8) {
+                SwiftUI.Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                Text(message)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+        case .cancelled:
+            HStack(spacing: 8) {
+                SwiftUI.Image(systemName: "slash.circle").foregroundStyle(.secondary)
+                Text("Build cancelled").font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
     }
 }
