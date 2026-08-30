@@ -75,6 +75,33 @@ func imagePullFailureAlerts() async {
     #expect(alert.current != nil)
 }
 
+@Test("Pull progress: fraction and detail derive from metrics, absent without totals")
+func pullProgressMetricsDisplay() {
+    var progress = ImagePullProgress(
+        imageName: "docker.io/library/nginx:latest", status: .pulling, progress: 0, message: ""
+    )
+    // No metrics yet: indeterminate.
+    #expect(progress.fraction == nil)
+    #expect(progress.detailText == nil)
+
+    progress.metrics = ImagePullMetrics(
+        bytesDownloaded: 256 * 1024 * 1024, totalBytes: 512 * 1024 * 1024,
+        itemsCompleted: 3, totalItems: 8, itemsName: "blobs", phase: "Fetching image"
+    )
+    #expect(progress.fraction == 0.5)
+    #expect(progress.detailText?.contains("/") == true)
+    #expect(progress.detailText?.contains("3/8 blobs") == true)
+
+    // Zero/unknown total stays indeterminate even with bytes counted.
+    progress.metrics = ImagePullMetrics(bytesDownloaded: 100, totalBytes: 0)
+    #expect(progress.fraction == nil)
+    #expect(progress.detailText == nil)
+
+    // An over-reported byte count clamps rather than overflowing the bar.
+    progress.metrics = ImagePullMetrics(bytesDownloaded: 600, totalBytes: 500)
+    #expect(progress.fraction == 1.0)
+}
+
 @Test("Image references canonicalize Docker Hub names and preserve explicit registries")
 func imageReferenceCanonicalization() {
     #expect(canonicalImageReference("nginx") == "docker.io/library/nginx")

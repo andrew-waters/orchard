@@ -279,6 +279,20 @@ final class ImageService: ObservableObject {
         pullProgress.removeValue(forKey: imageName)
     }
 
+    /// Fold a progress snapshot into the pull's row. Mutates in place so the
+    /// row's identity (and the completion auto-dismiss keyed on it) is stable.
+    private func applyPullMetrics(_ imageName: String, _ metrics: ImagePullMetrics) {
+        guard var current = pullProgress[imageName], current.status == .pulling else { return }
+        current.metrics = metrics
+        if let fraction = current.fraction {
+            current.progress = fraction
+        }
+        if !metrics.phase.isEmpty {
+            current.message = metrics.phase
+        }
+        pullProgress[imageName] = current
+    }
+
     func pull(_ imageName: String) async {
         let cleanImageName = canonicalImageReference(imageName)
         guard !cleanImageName.isEmpty else { return }
@@ -288,7 +302,11 @@ final class ImageService: ObservableObject {
         )
 
         do {
-            try await backend.pullImage(reference: cleanImageName)
+            try await backend.pullImage(reference: cleanImageName) { [weak self] metrics in
+                Task { @MainActor [weak self] in
+                    self?.applyPullMetrics(cleanImageName, metrics)
+                }
+            }
 
             let completedProgress = ImagePullProgress(
                 imageName: cleanImageName, status: .completed, progress: 1.0, message: "Pull completed successfully"

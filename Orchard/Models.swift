@@ -604,11 +604,30 @@ struct ImagePullProgress: Identifiable, Equatable {
     var status: PullStatus
     var progress: Double
     var message: String
+    /// Byte/item counts folded from the pull's progress events; nil until the
+    /// first event arrives (and always nil for a backend without progress).
+    var metrics: ImagePullMetrics?
 
     enum PullStatus: Equatable {
         case pulling
         case completed
         case failed(String)
+    }
+
+    /// 0…1 when the total download size is known, else nil (indeterminate).
+    var fraction: Double? {
+        guard let metrics, metrics.totalBytes > 0 else { return nil }
+        return min(1.0, Double(metrics.bytesDownloaded) / Double(metrics.totalBytes))
+    }
+
+    /// e.g. "245 MB / 512 MB · 3/8 blobs"
+    var detailText: String? {
+        guard let metrics, metrics.totalBytes > 0 else { return nil }
+        var parts = ["\(ByteFormat.string(metrics.bytesDownloaded)) / \(ByteFormat.string(metrics.totalBytes))"]
+        if metrics.totalItems > 0 {
+            parts.append("\(metrics.itemsCompleted)/\(metrics.totalItems) \(metrics.itemsName)")
+        }
+        return parts.joined(separator: " · ")
     }
 }
 

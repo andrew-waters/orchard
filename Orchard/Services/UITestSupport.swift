@@ -86,7 +86,7 @@ struct UITestBackend: ContainerBackend {
             reference: UITestSeed.imageReference
         )]
     }
-    func pullImage(reference: String) async throws {}
+    func pullImage(reference: String, onProgress: (@Sendable (ImagePullMetrics) -> Void)?) async throws {}
     func deleteImage(reference: String) async throws {}
     func inspectImage(reference: String) async throws -> ImageInspection {
         throw OrchardError.generic("inspect unavailable in UI-test mode")

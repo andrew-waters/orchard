@@ -10,6 +10,7 @@
 		AAAA0000000000000000AA03 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA02 /* Sparkle */; };
 		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
 		C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5D2F86944400E6D0B2 /* MachineAPIClient */; };
+		C201AD5E2F86944400E6D0B2 /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5F2F86944400E6D0B2 /* TerminalProgress */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,6 +61,7 @@
 			files = (
 				C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */,
 				C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */,
+				C201AD5E2F86944400E6D0B2 /* TerminalProgress in Frameworks */,
 				AAAA0000000000000000AA03 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -123,6 +125,7 @@
 			packageProductDependencies = (
 				C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */,
 				C201AD5D2F86944400E6D0B2 /* MachineAPIClient */,
+				C201AD5F2F86944400E6D0B2 /* TerminalProgress */,
 				AAAA0000000000000000AA02 /* Sparkle */,
 			);
 			productName = Orchard;
@@ -642,6 +645,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
 			productName = MachineAPIClient;
+		};
+		C201AD5F2F86944400E6D0B2 /* TerminalProgress */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */;
+			productName = TerminalProgress;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
