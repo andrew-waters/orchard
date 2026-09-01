@@ -254,6 +254,7 @@ header {
 }
 .hero-split h1 { margin: 0 0 var(--s4); }
 .hero-split p.sub { margin: 0; max-width: 520px; }
+.hero-split p.sub + p.sub { margin-top: var(--s4); }
 .hero-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }
 .hero-actions .cta { justify-content: flex-start; }
 .hero-actions .brew { margin: 0; }
@@ -390,6 +391,7 @@ h2 em { font-style: normal; color: var(--neutral-fg-3); display: block; }
 .install-cell .eyebrow { color: var(--neutral-fg-3); margin: 0 0 var(--s3); }
 .install-cell h3 { margin: 0 0 var(--s2); font-size: 17px; font-weight: 600; }
 .install-cell p { margin: 0; color: var(--neutral-fg-2); font-size: 14px; }
+.install-cell .brew { margin: var(--s2) 0 0; }
 .install-cell code {
   font-family: "JetBrains Mono", monospace; font-size: 13px;
   background: var(--bg-2); border: 1px solid var(--neutral-outline-1);

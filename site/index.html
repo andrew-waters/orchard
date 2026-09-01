@@ -22,8 +22,6 @@
         <span class="name">Orchard<i>.</i></span>
       </a>
       <nav class="nav-links">
-        <a class="nav-link" href="#features">Features</a>
-        <a class="nav-link" href="#install">Install</a>
         <a class="nav-link" href="machines.html">Machines</a>
         <a class="nav-link" href="clusters.html">Clusters</a>
         <a class="nav-link" href="ai.html">Local AI</a>
@@ -40,7 +38,8 @@
         <div class="hero-split">
           <div class="hero-copy">
             <h1>The native UI<br /><em>for Apple Containers</em></h1>
-            <p class="sub">Orchard is a native macOS app for Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling. Manage containers and machines, bridge local AI models into them, and run agents in isolated sandboxes, all without dropping to the CLI.</p>
+            <p class="sub">Orchard is the best app for Apple's <a href="https://github.com/apple/container"><code>container</code></a> tooling. It allows you to manage containers and machines, local kubernetes clusters, bridge local AI models into them, and run agents in isolated sandboxes, all without needing to drop to the CLI.</p>
+            <p class="sub">It is being used by engineers at Apple, Microsoft, NVIDIA, IBM, Stripe, LinkedIn, Uber, GitHub, Amazon, VMware, Alibaba, Tencent, MongoDB, Honeycomb and Vercel amongst many others.</p>
           </div>
           <div class="hero-actions">
             <div class="hero-meta">
@@ -73,43 +72,43 @@
       <div class="wrap">
         <div class="split-header">
           <h2><em>Built for the desktop:</em>fast, focused, native</h2>
-          <p>No Electron, no web views. Orchard is a native Swift app that keeps itself up to date via Sparkle, with signed updates delivered in place.</p>
+          <p>Orchard is a native Swift app that uses the XPC protocol for efficiency, and is fully signed. No Electron, no web views, no performance issues from shelling to the CLI.</p>
         </div>
         <div class="feature-frame">
         <div class="feature-grid">
           <div class="feature-item feature-item--wide">
             <div class="feature-item-content">
-              <h3>Container management</h3>
+              <h3>Containers</h3>
               <img class="zoomable" src="assets/screens/containers.png" data-light="assets/screens/light/containers.png" alt="Container management in Orchard" />
-              <p>Create, start, stop, force-stop and delete containers, with live status and sortable lists.</p>
+              <p>Manage your containers live, with filtering, grouping and bulk actions.</p>
             </div>
           </div>
           <div class="feature-item">
             <div class="feature-item-content">
-              <h3>Container machines</h3>
+              <h3>Machines</h3>
               <img class="zoomable" src="assets/screens/machines.png" data-light="assets/screens/light/machines.png" alt="Managing a container machine in Orchard, with live resource usage" />
-              <p>Create, run and monitor persistent Linux VMs, with a stop&nbsp;→&nbsp;apply&nbsp;→&nbsp;restart config editor and init-system guardrails. <a href="machines.html">Learn more →</a></p>
+              <p>Create, run and monitor persistent Linux VMs on your Mac. <a href="machines.html">Learn more →</a></p>
             </div>
           </div>
           <div class="feature-item">
             <div class="feature-item-content">
               <h3>Kubernetes clusters</h3>
               <img class="zoomable" src="assets/screens/clusters.png" data-light="assets/screens/light/clusters.png" alt="A local Kubernetes cluster in Orchard with kubectl access" />
-              <p>Create and manage local k8s clusters on the container runtime, load local images into them, and open a kubectl-ready terminal. <a href="clusters.html">Learn more →</a></p>
+              <p>Create and manage local k8s clusters on the container runtime. <a href="clusters.html">Learn more →</a></p>
             </div>
           </div>
           <div class="feature-item">
             <div class="feature-item-content">
               <h3>Local AI models</h3>
               <img class="zoomable" src="assets/screens/models.png" data-light="assets/screens/light/models.png" alt="The AI Models view in Orchard: a local model server with its container-reachable endpoint" />
-              <p>Discover MLX, Ollama and LM Studio servers on your Mac - or run your own - and bridge them into containers. Inference stays on the Apple GPU. <a href="ai.html">Learn more →</a></p>
+              <p>Discover MLX, Ollama and LM Studio servers on your Mac - and bridge them into your containers. Inference stays on the Silicon. <a href="ai.html">Learn more →</a></p>
             </div>
           </div>
           <div class="feature-item">
             <div class="feature-item-content">
               <h3>Sandboxes</h3>
               <img class="zoomable" src="assets/screens/sandboxes.png" data-light="assets/screens/light/sandboxes.png" alt="A sandboxed agent in Orchard with the Isolated badge and model endpoint" />
-              <p>A sandbox is a container wired to a local model on a host-only network: it can reach the model but not the internet, with a kill-switch when you're done. <a href="ai.html">Learn more →</a></p>
+              <p>A sandbox is a container wired to a local model on a host-only network: it can reach the model but not the internet, with a kill-switch. Run your own agents safely. <a href="ai.html">Learn more →</a></p>
             </div>
           </div>
           <div class="feature-item feature-item--wide">
@@ -130,14 +129,14 @@
             <div class="feature-item-content">
               <h3>Multi-pane logs</h3>
               <img class="zoomable" src="assets/screens/logs.png" data-light="assets/screens/light/logs.png" alt="Multi-container logs in Orchard" />
-              <p>Stream logs from several containers side by side, with split panes, filtering and per-container colour.</p>
+              <p>Stream logs from several containers side by side, with split panes and line filtering.</p>
             </div>
           </div>
           <div class="feature-item">
             <div class="feature-item-content">
               <h3>Networks</h3>
               <img class="zoomable" src="assets/screens/networks.png" data-light="assets/screens/light/networks.png" alt="Network management in Orchard" />
-              <p>Every container gets its own IP. See addresses and hostnames per network, and create or remove networks from the app.</p>
+              <p>Every container gets its own local IP. Control your networks of containers, machines, clusters and sandboxes.</p>
             </div>
           </div>
           <div class="feature-item">
@@ -158,14 +157,14 @@
             <div class="feature-item-content">
               <h3>Menu bar</h3>
               <img class="zoomable crop-top" src="assets/screens/menubar.png" data-light="assets/screens/light/menubar.png" alt="Menu bar panel in Orchard, with a container's resource history popover" />
-              <p>CPU and memory rings across running containers, per-container start/stop controls, and one-click access back to the app.</p>
+              <p>One click in your memory bar and you can see what's running and how it's using resources.</p>
             </div>
           </div>
           <div class="feature-item">
             <div class="feature-item-content">
-              <h3>Live stats</h3>
+              <h3>Dashboard</h3>
               <img class="zoomable" src="assets/screens/dashboard.png" data-light="assets/screens/light/dashboard.png" alt="System dashboard in Orchard with per-container utilisation" />
-              <p>Watch CPU, memory, disk and network usage in real time, with sortable columns.</p>
+              <p>A helicopter view of everything container is running.</p>
             </div>
           </div>
         </div>
@@ -175,14 +174,17 @@
 
     <section id="install">
       <div class="wrap">
-        <h2 class="ta-center"><em>Get started</em>in minutes</h2>
+        <h2 class="ta-center">Get started in seconds</h2>
         <p class="lede ta-center">Every release is code-signed with a registered Apple Developer ID and notarised by Apple, so it installs cleanly with no Gatekeeper warnings.</p>
         <div class="install-grid lined">
           <span class="dot dot--tl"></span><span class="dot dot--tr"></span><span class="dot dot--bl"></span><span class="dot dot--br"></span>
           <div class="install-cell">
             <p class="eyebrow mono-xs">Recommended</p>
             <h3>Homebrew</h3>
-            <p><code>brew install orchard</code></p>
+            <div class="brew">
+              <code>brew install orchard</code>
+              <button onclick="navigator.clipboard.writeText('brew install orchard'); this.textContent='Copied'; setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
+            </div>
           </div>
           <div class="install-cell">
             <p class="eyebrow mono-xs">Manual</p>
