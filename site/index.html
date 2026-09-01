@@ -292,7 +292,7 @@
       }
       fetchPage(1).then(function () {
         if (total > 0) {
-          parts.downloads = total.toLocaleString() + ' downloads';
+          parts.downloads = compact(total) + ' downloads';
           render();
         }
       }).catch(function () {});
