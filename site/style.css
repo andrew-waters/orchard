@@ -247,6 +247,18 @@ header {
 .hero .pill-row { margin-top: var(--s6); display: flex; justify-content: center; }
 .cta { display: flex; gap: var(--s3); justify-content: center; flex-wrap: wrap; align-items: center; }
 
+/* Landing hero: copy on the left, actions on the right. */
+.hero-split {
+  display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--s10);
+  align-items: center; text-align: left;
+}
+.hero-split h1 { margin: 0 0 var(--s4); }
+.hero-split p.sub { margin: 0; max-width: 520px; }
+.hero-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }
+.hero-actions .cta { justify-content: flex-start; }
+.hero-actions .brew { margin: 0; }
+.hero-actions .oss-badge { margin-bottom: 0; }
+
 .brew {
   display: inline-flex; align-items: center; gap: var(--s3);
   background: var(--bg-0);
@@ -268,9 +280,12 @@ header {
 }
 .brew button:hover { background: var(--bg-3); color: var(--neutral-fg-1); }
 
-.shields { margin-top: var(--s5); display: flex; gap: var(--s2); justify-content: center; align-items: center; flex-wrap: wrap; }
-.shields img { display: inline-block; height: 20px; width: auto; }
-.dl-count { margin: var(--s3) 0 0; color: var(--neutral-fg-3); }
+.hero-meta { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
+.hero-stats { margin: 0; color: var(--neutral-fg-3); text-transform: none; }
+.hero-divider {
+  width: 100%; margin: var(--s1) 0;
+  border: 0; border-top: 1px dashed var(--neutral-outline-2);
+}
 
 /* ---------- Lined containers with corner dots ---------- */
 .lined {
@@ -310,20 +325,35 @@ h2 em { font-style: normal; color: var(--neutral-fg-3); display: block; }
 .lede { color: var(--neutral-fg-2); max-width: 600px; margin: 0 auto var(--s10); }
 
 /* ---------- Feature bento grid ---------- */
+/* Every cell draws a dashed right + bottom border; the frame clips the outer
+   edges, so the dividers stay correct for any span layout at any breakpoint. */
+.feature-frame { border-top: 1px dashed var(--neutral-outline-2); overflow: hidden; }
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border-top: 1px dashed var(--neutral-outline-2);
+  margin: 0 -1px -1px 0;
 }
 .feature-item {
   display: flex; flex-direction: column;
   border-right: 1px dashed var(--neutral-outline-2);
   border-bottom: 1px dashed var(--neutral-outline-2);
 }
-.feature-item:nth-child(3n) { border-right: none; }
-.feature-item:nth-last-child(-n+3) { border-bottom: none; }
+.feature-item--wide { grid-column: span 2; }
 .feature-item-content { padding: var(--s8); }
 .feature-item-content h3 { margin: 0 0 var(--s1); font-size: 17px; font-weight: 600; }
+.feature-item-content img {
+  margin: var(--s3) 0;
+  border: 1px solid var(--neutral-outline-1);
+  border-radius: var(--radius);
+  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
+}
+/* Crop tall shots (the menu bar panel) to the same shape as the window shots. */
+.feature-item-content img.crop-top {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  object-position: top;
+}
 .feature-item-content p { margin: 0; color: var(--neutral-fg-2); font-size: 14px; line-height: 1.5; }
 
 /* ---------- Screenshot cards ---------- */
@@ -480,20 +510,16 @@ img.zoomable { cursor: zoom-in; }
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .feature-grid { grid-template-columns: 1fr 1fr; }
-  .feature-item:nth-child(3n) { border-right: 1px dashed var(--neutral-outline-2); }
-  .feature-item:nth-child(2n) { border-right: none; }
-  .feature-item:nth-last-child(-n+3) { border-bottom: 1px dashed var(--neutral-outline-2); }
-  .feature-item:nth-last-child(-n+2) { border-bottom: none; }
 }
 @media (max-width: 744px) {
   .nav-links a.nav-link { display: none; }
+  .hero-split { grid-template-columns: 1fr; }
   .split-header { grid-template-columns: 1fr; align-items: start; }
   .split-header p { justify-self: start; }
   .shot-card { grid-template-columns: 1fr; }
   .shot-card:nth-child(even) > div { order: 0; }
   .feature-grid { grid-template-columns: 1fr; }
-  .feature-item { border-right: none !important; border-bottom: 1px dashed var(--neutral-outline-2) !important; }
-  .feature-item:last-child { border-bottom: none !important; }
+  .feature-item--wide { grid-column: auto; }
   .install-grid { grid-template-columns: 1fr; }
   .install-cell { border-right: none; border-bottom: 1px dashed var(--neutral-outline-2); }
   .install-cell:last-child { border-bottom: none; }
