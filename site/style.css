@@ -247,12 +247,12 @@ header {
 .hero .pill-row { margin-top: var(--s6); display: flex; justify-content: center; }
 .cta { display: flex; gap: var(--s3); justify-content: center; flex-wrap: wrap; align-items: center; }
 
-/* Landing hero: copy on the left, actions on the right. */
+/* Landing hero: full-width title, then description left / actions right. */
+.hero .hero-title { text-align: left; margin: 0 0 var(--s8); max-width: none; }
 .hero-split {
   display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--s10);
-  align-items: center; text-align: left;
+  align-items: start; text-align: left;
 }
-.hero-split h1 { margin: 0 0 var(--s4); }
 .hero-split p.sub { margin: 0; max-width: 520px; }
 .hero-split p.sub + p.sub { margin-top: var(--s4); }
 .hero-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s5); }
@@ -281,7 +281,7 @@ header {
 }
 .brew button:hover { background: var(--bg-3); color: var(--neutral-fg-1); }
 
-.hero-meta { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; margin-bottom: var(--s5); }
+.hero-meta { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
 .hero-stats { margin: 0; color: var(--neutral-fg-3); text-transform: none; }
 .hero-divider {
   width: 100%; margin: var(--s1) 0;
