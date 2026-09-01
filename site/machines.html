@@ -8,127 +8,26 @@
   <meta property="og:title" content="Container Machines · Orchard" />
   <meta property="og:description" content="Create, configure, run and monitor Apple container machines from a native macOS app." />
   <meta property="og:image" content="assets/screens/machines.png" />
-  <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
-  <style>
-    :root {
-      --accent: #4a97ff;
-      --accent-dark: #2f80ed;
-      --green: #34c759;
-      --amber: #f5a623;
-      --navy: #0e2138;
-      --bg: #0b1626;
-      --bg-soft: #0f1d33;
-      --ink: #e7edf6;
-      --muted: #9fb0c9;
-      --line: rgba(255,255,255,.10);
-      --card: #12233c;
-      --radius: 12px;
-      --maxw: 1040px;
-      --docw: 760px;
-    }
-    [data-theme="light"] {
-      --accent: #2f80ed;
-      --accent-dark: #2668c9;
-      --bg: #ffffff;
-      --bg-soft: #f7f8fa;
-      --ink: #1d2127;
-      --muted: #626975;
-      --line: #e6e8eb;
-      --card: #ffffff;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--ink);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      transition: background .2s ease, color .2s ease;
-    }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    img { max-width: 100%; height: auto; display: block; }
-    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
-
-    header {
-      position: sticky; top: 0; z-index: 10;
-      background: var(--navy);
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-    .logo { height: 30px; width: auto; display: block; }
-    .nav-links { display: flex; align-items: center; }
-    .nav-links a { color: #c3cfe2; margin-left: 24px; font-size: 15px; font-weight: 500; }
-    .nav-links a:hover { color: #fff; text-decoration: none; }
-    .nav-links a.current { color: #fff; }
-    .theme-btn { margin-left: 24px; background: transparent; border: 0; color: #c3cfe2; font-size: 17px; cursor: pointer; line-height: 1; padding: 4px; }
-    .theme-btn:hover { color: #fff; }
-
-    .hero { padding: 64px 0 48px; text-align: center; background: var(--navy); color: #eef3fb; }
-    .hero .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 13px; font-weight: 600; color: #7fb0ff; margin: 0 0 12px; }
-    .hero h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; color: #fff; }
-    .hero p.sub { font-size: clamp(16px, 2.4vw, 19px); color: #a9b7d0; max-width: 640px; margin: 0 auto; }
-    .hero .pill { display: inline-block; margin-top: 22px; padding: 6px 14px; border-radius: 999px; background: rgba(74,151,255,.15); color: #9cc4ff; font-size: 13px; font-weight: 600; }
-    .shot { margin: 40px auto 0; max-width: 900px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 50px -25px rgba(0,0,0,.45); }
-
-    section { padding: 56px 0; }
-    section.alt { background: var(--bg-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-
-    .doc { max-width: var(--docw); margin: 0 auto; }
-    .doc h2 { font-size: clamp(22px, 3vw, 28px); letter-spacing: -.02em; margin: 0 0 14px; }
-    .doc h3 { font-size: 19px; margin: 34px 0 8px; }
-    .doc p { color: var(--ink); margin: 0 0 16px; }
-    .doc ul { color: var(--ink); margin: 0 0 16px; padding-left: 22px; }
-    .doc li { margin: 6px 0; }
-    .doc strong { font-weight: 650; }
-    .doc code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: rgba(127,150,190,.16); padding: 1px 6px; border-radius: 5px; }
-    .doc .muted { color: var(--muted); }
-
-    pre { background: #0f1115; color: #e8eaed; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13.5px; line-height: 1.5; margin: 0 0 18px; border: 1px solid rgba(255,255,255,.06); }
-    pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
-
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin: 8px 0 4px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-    .card h3 { margin: 0 0 6px; font-size: 16px; }
-    .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
-
-    .callout { border-radius: var(--radius); padding: 16px 18px; margin: 0 0 18px; border: 1px solid var(--line); border-left-width: 4px; background: var(--card); }
-    .callout h4 { margin: 0 0 6px; font-size: 15px; }
-    .callout p { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
-    .callout p:last-child { margin-bottom: 0; }
-    .callout.warn { border-left-color: var(--amber); }
-    .callout.warn h4 { color: var(--amber); }
-    .callout.info { border-left-color: var(--accent); }
-    .callout.info h4 { color: var(--accent); }
-    .callout.tip { border-left-color: var(--green); }
-    .callout.tip h4 { color: var(--green); }
-
-    .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; }
-    .steps > li { position: relative; padding-left: 44px; margin: 0 0 20px; }
-    .steps > li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: -2px; width: 28px; height: 28px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; }
-    .steps h3 { margin: 2px 0 6px; font-size: 17px; }
-    .steps p { margin: 0; color: var(--muted); font-size: 15px; }
-
-    footer { padding: 40px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
-    .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-    .foot a { color: var(--muted); margin-left: 18px; }
-    .foot a:hover { color: var(--accent); }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body id="top">
   <header>
     <div class="wrap nav">
-      <a href="index.html" aria-label="Orchard"><img class="logo" src="logo.svg" alt="Orchard" /></a>
+      <a href="index.html" class="brand" aria-label="Orchard">
+        <img src="logo-mark.svg" alt="" />
+        <span class="name">Orchard<i>.</i></span>
+      </a>
       <nav class="nav-links">
-        <a href="index.html#features">Features</a>
-        <a href="index.html#install">Install</a>
-        <a href="machines.html" class="current">Machines</a>
-        <a href="clusters.html">Clusters</a>
-        <a href="ai.html">Local AI</a>
-        <a href="https://github.com/andrew-waters/orchard">GitHub</a>
-        <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
+        <a class="nav-link" href="index.html#features">Features</a>
+        <a class="nav-link" href="index.html#install">Install</a>
+        <a class="nav-link current" href="machines.html">Machines</a>
+        <a class="nav-link" href="clusters.html">Clusters</a>
+        <a class="nav-link" href="ai.html">Local AI</a>
+        <a class="nav-link" href="https://github.com/andrew-waters/orchard">GitHub</a>
+        <a class="button" href="https://github.com/andrew-waters/orchard/releases/latest">Download</a>
       </nav>
     </div>
   </header>
@@ -136,11 +35,14 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <p class="eyebrow">Guide</p>
+        <p class="eyebrow mono-xs">Guide</p>
         <h1>Container Machines</h1>
         <p class="sub">Create, configure, run and monitor Apple container machines (persistent Linux VMs) from Orchard, natively over XPC. No shelling out to the CLI.</p>
-        <span class="pill">Requires Apple <code>container</code> 1.0+ · macOS 26 · Apple silicon</span>
-        <div class="shot"><img src="assets/screens/machines.png" alt="Managing a container machine in Orchard, with live resource usage" /></div>
+        <div class="pill-row"><span class="badge badge--primary">Requires Apple <code>container</code> 1.0+ · macOS 26 · Apple silicon</span></div>
+        <div class="hero-shot lined">
+          <span class="dot dot--tl"></span><span class="dot dot--tr"></span><span class="dot dot--bl"></span><span class="dot dot--br"></span>
+          <img src="assets/screens/machines.png" alt="Managing a container machine in Orchard, with live resource usage" />
+        </div>
       </div>
     </section>
 
@@ -261,20 +163,5 @@
     </div>
   </footer>
 
-  <script>
-    (function () {
-      var root = document.documentElement;
-      var btn = document.getElementById('theme-toggle');
-      function theme() { return root.getAttribute('data-theme') || 'dark'; }
-      function render() { btn.textContent = theme() === 'dark' ? '☀︎' : '☾'; }
-      render();
-      btn.addEventListener('click', function () {
-        var next = theme() === 'dark' ? 'light' : 'dark';
-        root.setAttribute('data-theme', next);
-        localStorage.setItem('theme', next);
-        render();
-      });
-    })();
-  </script>
 </body>
 </html>
