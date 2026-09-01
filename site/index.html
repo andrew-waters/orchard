@@ -260,11 +260,18 @@
         if (line) { el.textContent = line; el.hidden = false; }
       }
 
+      // GitHub-style rounding: 1450 and 1475 both read "1.5k", 2000 reads "2k".
+      function compact(n) {
+        if (n < 1000) return String(n);
+        var k = Math.round(n / 100) / 10;
+        return (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + 'k';
+      }
+
       fetch('https://api.github.com/repos/andrew-waters/orchard')
         .then(function (res) { if (!res.ok) throw new Error(res.status); return res.json(); })
         .then(function (repo) {
           if (repo.stargazers_count > 0) {
-            parts.stars = repo.stargazers_count.toLocaleString() + ' stars';
+            parts.stars = compact(repo.stargazers_count) + ' stars';
             render();
           }
         }).catch(function () {});
