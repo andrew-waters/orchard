@@ -8,6 +8,7 @@
   <meta property="og:title" content="Kubernetes Clusters · Orchard" />
   <meta property="og:description" content="Local Kubernetes clusters on Apple container, from a native macOS app." />
   <meta property="og:image" content="assets/screens/clusters.png" />
+  <script>(function(){var t;try{t=localStorage.getItem('theme')}catch(e){}if(!t&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet" />
@@ -28,6 +29,7 @@
         <a class="nav-link" href="ai.html">Local AI</a>
         <a class="nav-link" href="https://github.com/andrew-waters/orchard">GitHub</a>
         <a class="button" href="https://github.com/andrew-waters/orchard/releases/latest">Download</a>
+        <button id="theme-toggle" class="theme-btn" aria-label="Toggle dark and light theme">☀︎</button>
       </nav>
     </div>
   </header>
@@ -41,7 +43,7 @@
         <div class="pill-row"><span class="badge badge--primary">Requires Apple <code>container</code> 1.2.2+ (ships the k8s plugin) · macOS 26 · Apple silicon</span></div>
         <div class="hero-shot lined">
           <span class="dot dot--tl"></span><span class="dot dot--tr"></span><span class="dot dot--bl"></span><span class="dot dot--br"></span>
-          <img src="assets/screens/clusters.png" alt="A local Kubernetes cluster in Orchard, with its control-plane node, kubectl access and per-node details" />
+          <img src="assets/screens/clusters.png" data-light="assets/screens/light/clusters.png" alt="A local Kubernetes cluster in Orchard, with its control-plane node, kubectl access and per-node details" />
         </div>
       </div>
     </section>
@@ -154,5 +156,6 @@
     </div>
   </footer>
 
+  <script src="theme.js" defer></script>
 </body>
 </html>

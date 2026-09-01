@@ -45,6 +45,10 @@
   --color-warning-outline: #ffe066;
   --color-warning-surface: #fff5cc;
 
+  --primary-surface: #f4f7fd;
+  --header-bg: rgba(250, 250, 248, 0.9);
+  color-scheme: light;
+
   /* Aliases used by the guide pages' inline SVG diagrams */
   --accent: var(--primary-fg);
   --green: var(--color-success);
@@ -69,6 +73,53 @@
     0 -1px 0 0 rgba(0, 0, 0, 0.08) inset,
     0 0 0 1px rgba(0, 0, 0, 0.16),
     0 1px 2px 0 rgba(0, 0, 0, 0.08);
+}
+
+/* Dark theme: the same warm palette inverted. A head script resolves
+   localStorage/system preference into data-theme before first paint. */
+[data-theme="dark"] {
+  --tan-bg: #141412;
+  --bg-0: #1c1c1a;
+  --bg-0-hover: #232321;
+  --bg-1: #191917;
+  --bg-2: #1f1f1d;
+  --bg-3: #272725;
+  --bg-contrast: #0a0a09;
+
+  --neutral-fg-1: #fafaf8;
+  --neutral-fg-2: #a3a093;
+  --neutral-fg-3: #7a786e;
+
+  --neutral-outline-1: #272725;
+  --neutral-outline-2: #353533;
+  --neutral-outline-3: #52504a;
+
+  --primary-fg: #99b4eb;
+  --primary-badge-bg: #001b52;
+  --primary-badge-outline: #0036a3;
+
+  --color-success: #99ccb3;
+  --color-success-outline: #006633;
+  --color-success-surface: #00331a;
+
+  --color-warning: #ffe066;
+  --color-warning-outline: #665200;
+  --color-warning-surface: #332900;
+
+  --primary-surface: #10182b;
+  --header-bg: rgba(20, 20, 18, 0.88);
+  color-scheme: dark;
+
+  --button-neutral-shadow:
+    0px -2px 0px 0px rgba(0, 0, 0, 0.4) inset,
+    0px 0px 0px 1px rgba(255, 255, 255, 0.16),
+    0px 1px 2px 0px rgba(0, 0, 0, 0.16),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.16);
+  --dot-shadow:
+    0 -1px 0 0 #000 inset,
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 1px 2px 0 rgba(0, 0, 0, 0.16),
+    0 2px 4px 0 rgba(0, 0, 0, 0.16);
 }
 
 * { box-sizing: border-box; }
@@ -99,7 +150,7 @@ img { max-width: 100%; height: auto; display: block; }
 /* ---------- Nav ---------- */
 header {
   position: sticky; top: 0; z-index: 10;
-  background: rgba(250, 250, 248, 0.9);
+  background: var(--header-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--neutral-outline-2);
@@ -114,6 +165,11 @@ header {
 .nav-links a.nav-link { color: var(--neutral-fg-2); font-size: 14px; font-weight: 500; }
 .nav-links a.nav-link:hover { color: var(--neutral-fg-1); text-decoration: none; }
 .nav-links a.nav-link.current { color: var(--neutral-fg-1); }
+.theme-btn {
+  background: transparent; border: 0; padding: 4px;
+  color: var(--neutral-fg-2); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.theme-btn:hover { color: var(--neutral-fg-1); }
 
 /* ---------- Buttons ---------- */
 .button {
@@ -266,50 +322,9 @@ h2 em { font-style: normal; color: var(--neutral-fg-3); display: block; }
 }
 .feature-item:nth-child(3n) { border-right: none; }
 .feature-item:nth-last-child(-n+3) { border-bottom: none; }
-.feature-item .illo {
-  flex: 1;
-  display: flex; flex-direction: column; gap: var(--s2);
-  align-items: stretch; justify-content: center;
-  padding: var(--s6) var(--s8) 0;
-  min-height: 120px;
-}
 .feature-item-content { padding: var(--s8); }
 .feature-item-content h3 { margin: 0 0 var(--s1); font-size: 17px; font-weight: 600; }
 .feature-item-content p { margin: 0; color: var(--neutral-fg-2); font-size: 14px; line-height: 1.5; }
-
-.illustration-card {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
-  background: var(--bg-0);
-  border: 1px solid var(--neutral-outline-1);
-  border-radius: var(--radius);
-  padding: var(--s2) var(--s3);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  color: var(--neutral-fg-2);
-  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.03);
-}
-.statbar { display: flex; align-items: center; gap: var(--s3); font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--neutral-fg-2); }
-.statbar .track { flex: 1; height: 6px; border-radius: 999px; background: var(--bg-3); overflow: hidden; }
-.statbar .fill { height: 100%; border-radius: 999px; background: var(--primary-blue-bg); }
-.palette-illo {
-  background: var(--bg-0);
-  border: 1px solid var(--neutral-outline-1);
-  border-radius: var(--radius);
-  box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.03);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
-  color: var(--neutral-fg-2);
-  overflow: hidden;
-}
-.palette-illo .search {
-  display: flex; align-items: center; gap: var(--s2);
-  padding: var(--s2) var(--s3);
-  border-bottom: 1px dashed var(--neutral-outline-1);
-  color: var(--neutral-fg-1);
-}
-.palette-illo .search::before { content: "⌘K"; color: var(--neutral-fg-3); }
-.palette-illo .row { display: flex; justify-content: space-between; padding: var(--s2) var(--s3); }
-.palette-illo .row.sel { background: var(--primary-badge-bg); color: var(--primary-fg); }
 
 /* ---------- Screenshot cards ---------- */
 .split-header {
@@ -402,7 +417,7 @@ pre code { background: none; border: none; padding: 0; color: inherit; font-size
 .callout.warn { border-left-color: var(--color-warning-outline); background: var(--color-warning-surface); border-color: var(--color-warning-outline); }
 .callout.warn h4 { color: var(--color-warning); }
 .callout.warn p { color: var(--neutral-fg-2); }
-.callout.info { border-left-color: var(--primary-badge-outline); background: #f4f7fd; border-color: var(--primary-badge-outline); }
+.callout.info { border-left-color: var(--primary-badge-outline); background: var(--primary-surface); border-color: var(--primary-badge-outline); }
 .callout.info h4 { color: var(--primary-fg); }
 .callout.tip { border-left-color: var(--color-success-outline); background: var(--color-success-surface); border-color: var(--color-success-outline); }
 .callout.tip h4 { color: var(--color-success); }
