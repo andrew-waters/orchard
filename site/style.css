@@ -281,7 +281,7 @@ header {
 }
 .brew button:hover { background: var(--bg-3); color: var(--neutral-fg-1); }
 
-.hero-meta { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
+.hero-meta { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; margin-bottom: var(--s5); }
 .hero-stats { margin: 0; color: var(--neutral-fg-3); text-transform: none; }
 .hero-divider {
   width: 100%; margin: var(--s1) 0;
