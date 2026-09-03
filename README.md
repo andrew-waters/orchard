@@ -140,7 +140,7 @@ Orchard registers the `orchard://` URL scheme, so scripts, docs, and other tools
 
 A resource link whose target is still loading selects it as soon as it appears, and a noun without an identifier (`orchard://container`) falls back to its tab. Try it: `open orchard://builds`.
 
-![container logs](assets/logs.png)
+![container logs](site/assets/screens/logs.png)
 
 Stream logs from multiple containers side by side. Split panes, filter by text, and use per-container colour coding to keep output readable when debugging across services.
 
@@ -148,7 +148,7 @@ Stream logs from multiple containers side by side. Split panes, filter by text, 
 
 Manage networks and DNS domains without touching the CLI - see every container's IP address and hostname at a glance, set the default DNS domain, and create or remove domains and networks.
 
-![menu bar](assets/menubar.png)
+![menu bar](site/assets/screens/menubar.png)
 
 Keep an eye on things from the menu bar: CPU and memory usage rings across all running containers, a per-container list with start/stop controls, and one-click access back to the app.
 
