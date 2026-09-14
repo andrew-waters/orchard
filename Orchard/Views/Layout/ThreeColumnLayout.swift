@@ -3,6 +3,7 @@ import AppKit
 
 struct ThreeColumnLayout: View {
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var imageBuildService: ImageBuildService
     @EnvironmentObject var dnsService: DNSService
@@ -68,7 +69,7 @@ struct ThreeColumnLayout: View {
 
     private var needsMiddleColumn: Bool {
         switch selectedTab {
-        case .containers, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+        case .containers, .compose, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
             return true
         case .registries, .systemLogs, .dashboard:
             return false
@@ -313,6 +314,14 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Create Machine")
+                                } else if selectedTab == .compose {
+                                    Button(action: { ComposeAddFlow.present(service: composeService) }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.primary)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Add Compose Project")
                                 } else if selectedTab == .clusters {
                                     Button(action: { showCreateClusterSheet = true }) {
                                         SwiftUI.Image(systemName: "plus")
@@ -476,6 +485,7 @@ struct ThreeColumnLayout: View {
 // MARK: - Tab Column View (First Column)
 struct TabColumnView: View {
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var imageBuildService: ImageBuildService
     @EnvironmentObject var dnsService: DNSService
@@ -513,7 +523,7 @@ struct TabColumnView: View {
         .onAppear {
             // Set initial focus when view appears
             switch selectedTab {
-            case .containers, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+            case .containers, .compose, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
@@ -537,6 +547,7 @@ struct TabColumnView: View {
            // (containers wired to a local model).
            Section {
                sidebarRow(for: .containers)
+               sidebarRow(for: .compose)
                sidebarRow(for: .machines)
                sidebarRow(for: .clusters)
                sidebarRow(for: .sandboxes)
@@ -651,6 +662,13 @@ struct TabColumnView: View {
             if selectedCluster == nil {
                 selectedCluster = K8sCluster.group(containers: containerListService.containers).first?.name
             }
+        case .compose:
+            if composeService.selectedProject == nil {
+                composeService.selectedProject = ComposeProject.group(
+                    containers: containerListService.containers,
+                    records: composeService.records
+                ).first?.name
+            }
         case .dns:
             if selectedDNSDomain == nil && !dnsService.dnsDomains.isEmpty {
                 selectedDNSDomain = dnsService.dnsDomains.first?.domain
@@ -684,7 +702,7 @@ struct TabColumnView: View {
         listFocusedTab = nil
         DispatchQueue.main.async {
             switch tab {
-            case .containers, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+            case .containers, .compose, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 self.listFocusedTab = tab
             case .registries, .systemLogs, .dashboard:
                 self.listFocusedTab = nil
@@ -714,6 +732,11 @@ struct TabColumnView: View {
             return machineService.machines.count
         case .clusters:
             return K8sCluster.group(containers: containerListService.containers).count
+        case .compose:
+            return ComposeProject.group(
+                containers: containerListService.containers,
+                records: composeService.records
+            ).count
         case .models:
             return modelServerService.servers.count
                 + modelService.providers.filter { !modelServerService.managedPorts.contains($0.port) }.count
@@ -813,6 +836,11 @@ struct ListColumnView: View {
                     lastSelectedMachine: .constant(lastSelectedMachine),
                     searchText: $searchText,
                     showAddMachineSheet: $showAddMachineSheet,
+                    listFocusedTab: _listFocusedTab
+                )
+            case .compose:
+                ComposeProjectsListView(
+                    searchText: $searchText,
                     listFocusedTab: _listFocusedTab
                 )
             case .clusters:

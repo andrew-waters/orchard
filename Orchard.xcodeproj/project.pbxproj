@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		AAAA0000000000000000AA03 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA02 /* Sparkle */; };
+		C0FFEE0000000000000000B2 /* ComposeModel in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE0000000000000000A2 /* ComposeModel */; };
+		C0FFEE0000000000000000B3 /* ComposeParser in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE0000000000000000A3 /* ComposeParser */; };
+		C0FFEE0000000000000000B4 /* ComposePlanner in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE0000000000000000A4 /* ComposePlanner */; };
 		C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */; };
 		C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5D2F86944400E6D0B2 /* MachineAPIClient */; };
 		C201AD5E2F86944400E6D0B2 /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = C201AD5F2F86944400E6D0B2 /* TerminalProgress */; };
@@ -62,6 +65,9 @@
 				C201AD5B2F86944400E6D0B2 /* ContainerAPIClient in Frameworks */,
 				C201AD5C2F86944400E6D0B2 /* MachineAPIClient in Frameworks */,
 				C201AD5E2F86944400E6D0B2 /* TerminalProgress in Frameworks */,
+				C0FFEE0000000000000000B2 /* ComposeModel in Frameworks */,
+				C0FFEE0000000000000000B3 /* ComposeParser in Frameworks */,
+				C0FFEE0000000000000000B4 /* ComposePlanner in Frameworks */,
 				AAAA0000000000000000AA03 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -126,6 +132,9 @@
 				C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */,
 				C201AD5D2F86944400E6D0B2 /* MachineAPIClient */,
 				C201AD5F2F86944400E6D0B2 /* TerminalProgress */,
+				C0FFEE0000000000000000A2 /* ComposeModel */,
+				C0FFEE0000000000000000A3 /* ComposeParser */,
+				C0FFEE0000000000000000A4 /* ComposePlanner */,
 				AAAA0000000000000000AA02 /* Sparkle */,
 			);
 			productName = Orchard;
@@ -213,6 +222,7 @@
 			packageReferences = (
 				C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */,
 				AAAA0000000000000000AA01 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				C0FFEE0000000000000000A1 /* XCRemoteSwiftPackageReference "compose" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C25FE6E82E00C69400A8CD32 /* Products */;
@@ -620,6 +630,14 @@
 				minimumVersion = 2.9.4;
 			};
 		};
+		C0FFEE0000000000000000A1 /* XCRemoteSwiftPackageReference "compose" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/container-compose/compose.git";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
 		C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/container.git";
@@ -635,6 +653,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AAAA0000000000000000AA01 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		C0FFEE0000000000000000A2 /* ComposeModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0FFEE0000000000000000A1 /* XCRemoteSwiftPackageReference "compose" */;
+			productName = ComposeModel;
+		};
+		C0FFEE0000000000000000A3 /* ComposeParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0FFEE0000000000000000A1 /* XCRemoteSwiftPackageReference "compose" */;
+			productName = ComposeParser;
+		};
+		C0FFEE0000000000000000A4 /* ComposePlanner */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0FFEE0000000000000000A1 /* XCRemoteSwiftPackageReference "compose" */;
+			productName = ComposePlanner;
 		};
 		C201AD5A2F86944400E6D0B2 /* ContainerAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;

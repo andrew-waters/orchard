@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainInterfaceView: View {
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var systemService: SystemService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
@@ -83,6 +84,8 @@ struct MainInterfaceView: View {
             return isConfigurationMode ? "Configuration" : ""
         case .machines:
             return selectedMachine ?? ""
+        case .compose:
+            return composeService.selectedProject ?? ""
         case .clusters:
             return selectedCluster ?? ""
         case .registries:

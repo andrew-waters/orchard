@@ -48,6 +48,10 @@ struct Container: Codable, Equatable {
 struct ContainerConfiguration: Codable, Equatable {
     let id: String
     let hostname: String?
+    /// The network the container is configured to join. Unlike `Container.networks`, which
+    /// is the live attachment and empty while the container is stopped, this survives a stop,
+    /// so a stopped container still says which network it belongs to.
+    let networkName: String?
     let runtimeHandler: String
     let initProcess: initProcess
     let mounts: [Mount]
@@ -66,6 +70,7 @@ struct ContainerConfiguration: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id
         case hostname
+        case networkName
         case runtimeHandler
         case initProcess
         case mounts
@@ -778,10 +783,15 @@ struct ContainerRunConfig: Equatable {
     /// (4 CPUs, 1 GB) so an untouched form behaves exactly as before. Memory is carried
     /// in bytes so a value that isn't a whole number of GB (e.g. a CLI-created 1.5 GB
     /// container) survives edit and recovery untouched; the form edits it in whole GB.
-    var cpus: Int = 4
-    var memoryBytes: UInt64 = ContainerRunConfig.bytesPerGiB
+    var cpus: Int = ContainerRunConfig.defaultCPUs
+    var memoryBytes: UInt64 = ContainerRunConfig.defaultMemoryBytes
 
     static let bytesPerGiB: UInt64 = 1_073_741_824
+    /// What a container gets when nothing asks for anything: the runtime's own defaults.
+    /// Named so that the Run form and a compose file with no `deploy.resources` agree without
+    /// either of them repeating the number.
+    static let defaultCPUs: Int = 4
+    static let defaultMemoryBytes: UInt64 = ContainerRunConfig.bytesPerGiB
 
     /// Whole-GB view of `memoryBytes` for the form's stepper: reads rounded to the
     /// nearest GB (never below 1), writes exact whole GB. Only a user edit goes through

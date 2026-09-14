@@ -309,13 +309,13 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
 /// Decode a minimal `Container` fixture with the given id and status.
 // Shared JSON fragments for the Container / Builder fixtures (their configuration
 // shapes differ, but these sub-objects are identical).
-private let fixturePlatformJSON = #"{ "os": "linux", "architecture": "arm64" }"#
-private let fixtureDNSJSON = #"{ "nameservers": [], "searchDomains": [], "options": [] }"#
-private let fixtureInitProcessJSON = """
+let fixturePlatformJSON = #"{ "os": "linux", "architecture": "arm64" }"#
+let fixtureDNSJSON = #"{ "nameservers": [], "searchDomains": [], "options": [] }"#
+let fixtureInitProcessJSON = """
 { "terminal": false, "environment": [], "workingDirectory": "/", "arguments": [], \
 "executable": "/bin/sh", "user": {}, "rlimits": [], "supplementalGroups": [] }
 """
-private func fixtureImageJSON(_ reference: String) -> String {
+func fixtureImageJSON(_ reference: String) -> String {
     #"{ "reference": "\#(reference)", "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 } }"#
 }
 

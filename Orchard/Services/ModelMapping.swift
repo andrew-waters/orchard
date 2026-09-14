@@ -19,6 +19,7 @@ func mapContainerConfiguration(_ config: ContainerResource.ContainerConfiguratio
     ContainerConfiguration(
         id: config.id,
         hostname: config.networks.first?.options.hostname,
+        networkName: config.networks.first?.network,
         runtimeHandler: config.runtimeHandler,
         initProcess: mapProcessConfiguration(config.initProcess),
         mounts: config.mounts.map { mapFilesystem($0) },

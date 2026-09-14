@@ -38,6 +38,10 @@ struct ContainerCreateSpec: Sendable {
         let hostPort: UInt16
         let containerPort: UInt16
         let transportProtocol: String
+        /// The host interface to publish on. `0.0.0.0` unless something asked for one:
+        /// a port published to `127.0.0.1` is deliberately not on the network, and
+        /// widening it silently would be a security change nobody asked for.
+        var hostAddress: String = "0.0.0.0"
     }
 
     let id: String
@@ -268,7 +272,7 @@ struct LiveContainerBackend: ContainerBackend {
             for pm in spec.publishedPorts {
                 let proto = PublishProtocol(pm.transportProtocol) ?? .tcp
                 ports.append(try PublishPort(
-                    hostAddress: try IPAddress("0.0.0.0"),
+                    hostAddress: try IPAddress(pm.hostAddress),
                     hostPort: pm.hostPort,
                     containerPort: pm.containerPort,
                     proto: proto,

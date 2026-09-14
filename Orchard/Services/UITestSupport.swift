@@ -27,6 +27,7 @@ struct UITestBackend: ContainerBackend {
             configuration: ContainerConfiguration(
                 id: id,
                 hostname: id,
+                networkName: "default",
                 runtimeHandler: "vm",
                 initProcess: initProcess(
                     terminal: false,

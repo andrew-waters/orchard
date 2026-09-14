@@ -1,5 +1,5 @@
 {
-  "originHash" : "1662382dd50b8bdfef945b0c1bb75758bc375f5c7da786e2872a042d835e5992",
+  "originHash" : "820192e697b70abbb0009deb8dd7d1471847d07428fbe30546f89ac495fb7bd9",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "3a5b74a58782c3b4c1f0bc75e9b67b10c2494e8f",
         "version" : "1.33.1"
+      }
+    },
+    {
+      "identity" : "compose",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/container-compose/compose.git",
+      "state" : {
+        "revision" : "900e9256daa69943fc63dc6a2678cf8d70a73d8b",
+        "version" : "0.1.0"
       }
     },
     {

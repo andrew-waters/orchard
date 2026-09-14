@@ -24,6 +24,7 @@ final class AppServices: ObservableObject {
     let containerListService: ContainerListService
     let machineService: MachineService
     let clusterService: ClusterService
+    let composeService: ComposeService
     let modelService: ModelService
     let modelServerService: ModelServerService
 
@@ -86,11 +87,27 @@ final class AppServices: ObservableObject {
         self.machineService = MachineService(backend: machineBackend, alertCenter: alertCenter)
         self.modelService = ModelService(backend: modelBackend, settings: settings)
         self.modelServerService = ModelServerService(engine: modelServerEngine, alertCenter: alertCenter)
+        // Compose runs plans through the same backend as everything else, and its builds
+        // through the same build service as the Images tab, so a compose build shows up in
+        // the Builds tab with its log.
+        let composeService = ComposeService(
+            backend: backend,
+            buildService: imageBuildService,
+            alertCenter: alertCenter
+        )
+        self.composeService = composeService
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
         // Reclaiming a container's free blocks changes what the daemon reports as used.
         containerListService.reloadDiskUsage = { [weak systemService] in
             await systemService?.loadSystemDiskUsage(showLoading: false)
+        }
+        // A compose run creates and removes containers; refresh the list projects derive from.
+        composeService.reloadContainers = { [weak containerListService] in
+            await containerListService?.loadContainers(showLoading: false)
+        }
+        composeService.reloadNetworks = { [weak networkService] in
+            await networkService?.load(showLoading: false)
         }
         // Cluster lifecycle actions change node containers; refresh the list they derive from.
         clusterService.reloadContainers = { [weak containerListService] in await containerListService?.loadContainers(showLoading: false) }
