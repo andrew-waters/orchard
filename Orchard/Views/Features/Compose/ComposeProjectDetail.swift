@@ -198,7 +198,12 @@ struct ComposeProjectDetailView: View {
             ContainerTable(
                 containers: orderedContainers(project),
                 placeholders: placeholders(project),
-                note: { note(forService: $0.composeServiceName) },
+                // What a plan is doing to this service right now, falling back to the
+                // container's own state when nothing is happening to it.
+                note: {
+                    note(forService: $0.composeServiceName)
+                        ?? ResourceTable.Note($0.status.capitalized)
+                },
                 selectedTab: $selectedTab,
                 selectedContainer: $selectedContainer,
                 emptyStateMessage: project.hasFile
@@ -245,56 +250,52 @@ struct ComposeProjectDetailView: View {
                 .map { parse.identity.containerName(for: $0) } ?? service
             return ContainerTable.Placeholder(
                 name: name,
-                note: note(forService: service) ?? ContainerTable.Note("Not created")
+                note: note(forService: service) ?? ResourceTable.Note("Not created")
             )
         }
     }
 
     /// What the run in progress is doing to a service, if anything.
-    private func note(forService service: String?) -> ContainerTable.Note? {
+    private func note(forService service: String?) -> ResourceTable.Note? {
         guard let service, let run else { return nil }
         if let step = run.steps.last(where: { $0.service == service && $0.state == .running }) {
-            return ContainerTable.Note(step.detail.map { "\(step.activity) \($0)" } ?? "\(step.activity)…")
+            return ResourceTable.Note(step.detail.map { "\(step.activity) \($0)" } ?? "\(step.activity)…")
         }
         if run.steps.contains(where: { $0.service == service && $0.state.failureMessage != nil }) {
-            return ContainerTable.Note("Failed", isError: true)
+            return ResourceTable.Note("Failed", isError: true)
         }
         return nil
     }
 
     // MARK: - Networks
 
-    /// The networks the stack wants, which the container table has no column for and which a
-    /// plan creates and removes like anything else.
+    /// The networks the stack wants, in the same table as its containers, because they are
+    /// created and removed by the same plan and a footnote would not say so.
     ///
-    /// There is no DNS equivalent: a compose file's `dns:` key is not honoured, and compose has
-    /// no concept that maps onto a DNS domain, so there would be nothing true to show.
+    /// There is no DNS equivalent: a compose file's `dns:` key is not honoured, and compose
+    /// has no concept that maps onto a DNS domain, so there would be nothing true to show.
     @ViewBuilder
     private func networksSection(_ project: ComposeProject) -> some View {
         let names = networkNames(project)
         if !names.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Networks")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                ForEach(names, id: \.self) { name in
-                    HStack(spacing: 8) {
-                        SwiftUI.Image(systemName: "arrow.down.left.arrow.up.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button(name) {
-                            selectedNetwork = name
-                            selectedTab = .networks
-                        }
-                        .buttonStyle(.link)
-                        if let note = networkNote(name) {
-                            Text(note.text)
-                                .font(.caption)
-                                .foregroundStyle(note.isError ? Color.red : Color.secondary)
-                        }
-                        Spacer()
-                    }
-                }
+                    .font(.headline)
+                NetworkTable(
+                    networks: networkService.networks.filter { names.contains($0.id) },
+                    placeholders: names
+                        .filter { name in !networkService.networks.contains { $0.id == name } }
+                        .map {
+                            NetworkTable.Placeholder(
+                                name: $0,
+                                note: networkNote($0) ?? ResourceTable.Note("Not created")
+                            )
+                        },
+                    note: { networkNote($0.id) ?? ResourceTable.Note($0.state.capitalized) },
+                    selectedTab: $selectedTab,
+                    selectedNetwork: $selectedNetwork,
+                    emptyStateMessage: "This project uses no networks."
+                )
             }
         }
     }
@@ -308,12 +309,12 @@ struct ComposeProjectDetailView: View {
         return Set(project.containers.compactMap { $0.configuration.networkName }).sorted()
     }
 
-    private func networkNote(_ name: String) -> ContainerTable.Note? {
-        if let run, let step = run.steps.last(where: { $0.network == name && $0.state == .running }) {
-            return ContainerTable.Note("\(step.activity)…")
-        }
-        if networkService.networks.contains(where: { $0.id == name }) { return nil }
-        return ContainerTable.Note("Not created")
+    /// What the run in progress is doing to a network, if anything.
+    private func networkNote(_ name: String) -> ResourceTable.Note? {
+        guard let run,
+              let step = run.steps.last(where: { $0.network == name && $0.state == .running })
+        else { return nil }
+        return ResourceTable.Note("\(step.activity)…")
     }
 
     // MARK: - Banner

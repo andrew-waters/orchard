@@ -1,16 +1,8 @@
 import SwiftUI
 
 struct ContainerTable: View {
-    /// A short trailing note on a row: what is happening to it, or why it is not there.
-    struct Note: Equatable {
-        let text: String
-        var isError: Bool = false
-
-        init(_ text: String, isError: Bool = false) {
-            self.text = text
-            self.isError = isError
-        }
-    }
+    /// The same note the other resource tables use.
+    typealias Note = ResourceTable.Note
 
     /// A row for something that should exist and does not yet, such as a compose service
     /// nothing has created. Shown after the real containers, greyed, so a stack reads as a
@@ -24,61 +16,20 @@ struct ContainerTable: View {
 
     let containers: [Container]
     var placeholders: [Placeholder] = []
-    /// What is happening to a container right now, if anything.
-    var note: (Container) -> Note? = { _ in nil }
+    /// What the status column says for a row. By default the container's own state; a caller
+    /// with something more immediate to report, such as a compose plan mid-run, says that
+    /// instead.
+    var note: (Container) -> Note? = { Note($0.status.capitalized) }
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     let emptyStateMessage: String
 
-    /// The trailing column only exists when something has something to say, so every table
-    /// that never passes a note keeps exactly the layout it had.
-    private var showsNotes: Bool {
-        !placeholders.isEmpty || containers.contains { note($0) != nil }
-    }
-
-    private static let noteWidth: CGFloat = 150
-
     var body: some View {
         if containers.isEmpty, placeholders.isEmpty {
-            HStack {
-                SwiftUI.Image(systemName: "cube.transparent")
-                    .foregroundStyle(.secondary)
-                Text(emptyStateMessage)
-                    .foregroundStyle(.secondary)
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
+            ResourceTable.emptyState(emptyStateMessage, icon: "cube.transparent")
         } else {
             VStack(spacing: 0) {
-                // Header
-                HStack(spacing: 0) {
-                    Text("Container")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text("IP Address")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text("Hostname")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if showsNotes {
-                        Text("Status")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .frame(width: Self.noteWidth, alignment: .leading)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(NSColor.separatorColor).opacity(0.5))
+                ResourceTable.header(["Container", "IP Address", "Hostname", "Status"])
 
                 Divider()
 
@@ -144,9 +95,7 @@ struct ContainerTable: View {
                         .buttonStyle(.plain)
                         .disabled(displayHostname == "N/A")
 
-                        if showsNotes {
-                            noteCell(note(container))
-                        }
+                        ResourceTable.statusCell(note(container))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -168,17 +117,9 @@ struct ContainerTable: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text("-")
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Text("-")
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        noteCell(placeholder.note)
+                        ResourceTable.absentCell()
+                        ResourceTable.absentCell()
+                        ResourceTable.statusCell(placeholder.note)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -192,14 +133,5 @@ struct ContainerTable: View {
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
         }
-    }
-
-    @ViewBuilder
-    private func noteCell(_ note: Note?) -> some View {
-        Text(note?.text ?? "")
-            .font(.caption)
-            .foregroundStyle(note?.isError == true ? Color.red : Color.secondary)
-            .lineLimit(1)
-            .frame(width: Self.noteWidth, alignment: .leading)
     }
 }
