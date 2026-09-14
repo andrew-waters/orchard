@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-09-14
+
 Quick none-changelog related note from me - I hope you're finding Orchard useful to you. The last month has seen stargazers on the project double, so it's great to have you here. Please let me know if you're finding this useful and feel free to add any feature requests / bug reports on Github.
 
 The last release had over 3,100 downloads, so please consider giving it a star on Github if you're using it and spreading the word.
