@@ -341,6 +341,10 @@ final class ComposeService: ObservableObject {
         case .buildImage(let build):
             try await self.build(build)
         case .createContainer(let create):
+            let created = try Self.ensureBindSources(of: create)
+            if !created.isEmpty {
+                updateDetail(at: stepIndex, to: "created \(created.joined(separator: ", "))")
+            }
             try await backend.createContainer(Self.createSpec(from: create))
             alreadyStarted.insert(create.containerName)
         case .startContainer(let reference):
@@ -403,6 +407,34 @@ final class ComposeService: ObservableObject {
         default:
             throw ComposeRunError("the build did not finish")
         }
+    }
+
+    /// Create the host directories a service binds that are not there yet, which is what
+    /// compose does and what a file writing `./data/public:/data` expects.
+    ///
+    /// Without this the runtime is handed a mount whose source does not exist, and the failure
+    /// arrives much later and much less clearly, as a container that will not bootstrap with
+    /// `errno 2`.
+    ///
+    /// - Returns: the paths that had to be created, so the step can say so.
+    @discardableResult
+    nonisolated static func ensureBindSources(of operation: CreateOperation) throws -> [String] {
+        var created: [String] = []
+        for mount in operation.mounts where !FileManager.default.fileExists(atPath: mount.hostPath) {
+            do {
+                try FileManager.default.createDirectory(
+                    atPath: mount.hostPath,
+                    withIntermediateDirectories: true
+                )
+            } catch {
+                throw ComposeRunError(
+                    "`\(mount.hostPath)` is mounted at `\(mount.containerPath)` and could not "
+                        + "be created: \(error.localizedDescription)"
+                )
+            }
+            created.append(mount.hostPath)
+        }
+        return created
     }
 
     /// A create operation in the shape Orchard's own create call takes.

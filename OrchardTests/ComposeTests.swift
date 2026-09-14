@@ -244,6 +244,61 @@ struct ComposeCreateSpecTests {
     }
 }
 
+@Suite("Bind mounts")
+struct ComposeBindSourceTests {
+    private func operation(mounts: [CreateOperation.Mount]) -> CreateOperation {
+        CreateOperation(
+            service: "web",
+            containerName: "shop-web",
+            imageReference: "nginx",
+            environment: [],
+            command: [],
+            workingDirectory: nil,
+            mounts: mounts,
+            ports: [],
+            networkName: "shop_default",
+            labels: [:],
+            cpus: nil,
+            memoryBytes: nil
+        )
+    }
+
+    /// A compose file writing `./data/public:/data` expects the directory to be made, the way
+    /// compose makes it. Without this the runtime is handed a mount whose source is not there
+    /// and the container fails to bootstrap with `errno 2`, which tells nobody anything.
+    @Test("A bind source that is not there yet is created, and reported")
+    func createsMissingBindSources() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("compose-binds-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let missing = root.appendingPathComponent("data/public").path
+        let present = root.appendingPathComponent("configs").path
+        try FileManager.default.createDirectory(atPath: present, withIntermediateDirectories: true)
+
+        let created = try ComposeService.ensureBindSources(
+            of: operation(mounts: [
+                .init(hostPath: present, containerPath: "/etc/mono", readOnly: true),
+                .init(hostPath: missing, containerPath: "/data", readOnly: false),
+            ])
+        )
+        // Only the missing one is reported, and intermediate directories come with it.
+        #expect(created == [missing])
+        #expect(FileManager.default.fileExists(atPath: missing))
+    }
+
+    @Test("Nothing to do when every bind source is already there")
+    func existingBindSourcesAreLeftAlone() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("compose-binds-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let created = try ComposeService.ensureBindSources(
+            of: operation(mounts: [.init(hostPath: root.path, containerPath: "/data", readOnly: false)])
+        )
+        #expect(created.isEmpty)
+    }
+}
+
 @Suite("Remembering projects")
 struct ComposeProjectsPersistenceTests {
     @Test("Records survive a round trip")
