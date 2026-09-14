@@ -271,10 +271,13 @@ if args[1] == "capture-panels" {
     exit(0)
 }
 
-guard ["press", "press-text", "hover-text"].contains(args[1]), args.count == 3 else {
-    print("usage: press <ax-identifier> | press-text <visible-text> | hover-text <visible-text> | window-id | menubar-click | panel-id | capture-panels <out.png>"); exit(64)
+guard ["press", "press-text", "press-prefix", "hover-text"].contains(args[1]), args.count == 3 else {
+    print("usage: press <ax-identifier> | press-text <visible-text> | press-prefix <visible-text> | hover-text <visible-text> | window-id | menubar-click | panel-id | capture-panels <out.png>"); exit(64)
 }
 let byText = args[1] != "press"
+// press-prefix exists for labels that carry a number: "Problems (4)" is not a string a
+// script can know in advance, and pressing the wrong control silently captures the wrong view.
+let byPrefix = args[1] == "press-prefix"
 let hover = args[1] == "hover-text"
 let wanted = args[2]
 
@@ -306,9 +309,12 @@ func stringAttr(_ el: AXUIElement, _ attr: String) -> String? {
 
 func matches(_ el: AXUIElement) -> Bool {
     if byText {
-        return stringAttr(el, kAXValueAttribute as String) == wanted
-            || stringAttr(el, kAXTitleAttribute as String) == wanted
-            || stringAttr(el, kAXDescriptionAttribute as String) == wanted
+        let candidates = [
+            stringAttr(el, kAXValueAttribute as String),
+            stringAttr(el, kAXTitleAttribute as String),
+            stringAttr(el, kAXDescriptionAttribute as String),
+        ].compactMap { $0 }
+        return candidates.contains { byPrefix ? $0.hasPrefix(wanted) : $0 == wanted }
     }
     return identifier(el) == wanted
 }
