@@ -49,6 +49,11 @@ final class ImageBuildService: ObservableObject {
         /// "arm64" or "amd64" — the CLI's `--arch` values.
         var arch: String
         var noCache: Bool
+        /// `--build-arg` pairs, as a compose file's `build.args` provides them. Optional so
+        /// that build records written before this field existed still decode.
+        var buildArgs: [String: String]?
+        /// `--target`, the build stage to stop at.
+        var target: String?
     }
 
     /// Newest first. Finished builds are kept (capped) so their logs stay
@@ -126,6 +131,12 @@ final class ImageBuildService: ObservableObject {
         ]
         if request.noCache {
             arguments.append("--no-cache")
+        }
+        for key in (request.buildArgs ?? [:]).keys.sorted() {
+            arguments += ["--build-arg", "\(key)=\(request.buildArgs?[key] ?? "")"]
+        }
+        if let target = request.target, !target.isEmpty {
+            arguments += ["--target", target]
         }
         arguments.append(request.contextDir)
         return arguments
@@ -207,6 +218,14 @@ final class ImageBuildService: ObservableObject {
             }
         }
         return buildID
+    }
+
+    /// Wait for a build to finish, however it finishes.
+    ///
+    /// Compose needs this: a service that builds cannot be created until its image exists, so
+    /// the plan has to stop at the build rather than racing it.
+    func wait(for id: UUID) async {
+        await tasks[id]?.value
     }
 
     func cancel(_ id: UUID) {

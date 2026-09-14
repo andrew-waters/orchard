@@ -2,6 +2,7 @@ import Foundation
 
 enum TabSelection: String, CaseIterable {
     case containers = "containers"
+    case compose = "compose"
     case images = "images"
     case builds = "builds"
     case mounts = "mounts"
@@ -19,6 +20,8 @@ enum TabSelection: String, CaseIterable {
         switch self {
         case .containers:
             return "cube"
+        case .compose:
+            return "square.stack.3d.up"
         case .images:
             return "cube.transparent"
         case .builds:
@@ -50,6 +53,8 @@ enum TabSelection: String, CaseIterable {
         switch self {
         case .containers:
             return "Containers"
+        case .compose:
+            return "Compose"
         case .images:
             return "Images"
         case .builds:

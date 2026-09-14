@@ -177,6 +177,7 @@ struct EditContainerView: View {
         configuration: ContainerConfiguration(
             id: "test-container",
             hostname: "test",
+            networkName: "default",
             runtimeHandler: "vm",
             initProcess: initProcess(
                 terminal: false,

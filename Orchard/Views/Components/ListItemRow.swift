@@ -11,6 +11,10 @@ struct ListItemRow: View {
     let showSandboxBadge: Bool
     /// Plugin + role capsule for plugin-owned containers (e.g. "k8s · control-plane").
     let pluginBadge: String?
+    /// A capsule for something the row is not doing as asked, such as a compose project with
+    /// keys Orchard will not honour. Orange rather than accent-coloured: it is a caveat, not a
+    /// label.
+    let warningBadge: String?
 
     init(
         icon: String,
@@ -20,7 +24,8 @@ struct ListItemRow: View {
         secondaryRightText: String? = nil,
         isSelected: Bool = false,
         showSandboxBadge: Bool = false,
-        pluginBadge: String? = nil
+        pluginBadge: String? = nil,
+        warningBadge: String? = nil
     ) {
         self.icon = icon
         self.iconColor = iconColor
@@ -30,6 +35,7 @@ struct ListItemRow: View {
         self.isSelected = isSelected
         self.showSandboxBadge = showSandboxBadge
         self.pluginBadge = pluginBadge
+        self.warningBadge = warningBadge
     }
 
     var body: some View {
@@ -68,6 +74,16 @@ struct ListItemRow: View {
                             .background(Capsule().fill(Color.accentColor.opacity(0.14)))
                             .lineLimit(1)
                             .help("Managed by a container plugin")
+                    }
+                    if let warningBadge {
+                        Text(warningBadge)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.orange.opacity(0.14)))
+                            .lineLimit(1)
+                            .help("This project asks for something Orchard will not do")
                     }
                 }
 

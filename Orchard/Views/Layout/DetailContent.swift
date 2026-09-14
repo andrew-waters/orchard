@@ -3,6 +3,7 @@ import SwiftUI
 struct DetailContentView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var composeService: ComposeService
     let selectedTab: TabSelection
     let selectedContainer: String?
     let selectedContainers: Set<String>
@@ -51,6 +52,18 @@ struct DetailContentView: View {
                 MachineDetailView(machineId: selectedMachine)
             } else {
                 Text("Select a machine")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        case .compose:
+            if let selectedProject = composeService.selectedProject {
+                ComposeProjectDetailView(
+                    projectName: selectedProject,
+                    selectedTab: $selectedTabBinding,
+                    selectedContainer: $selectedContainerBinding
+                )
+            } else {
+                Text("Select a project")
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

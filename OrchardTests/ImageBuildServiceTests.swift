@@ -30,6 +30,26 @@ func buildArgumentsNoCache() {
     #expect(arguments.last == "/p")
 }
 
+@Test("ImageBuildService: build arguments and a target stage reach the CLI, in a stable order")
+func buildArgumentsAndTarget() {
+    let request = ImageBuildService.Request(
+        dockerfile: "/p/Dockerfile", contextDir: "/p", tag: "a", arch: "arm64", noCache: false,
+        buildArgs: ["VERSION": "1.2", "API_URL": "http://api"], target: "runtime"
+    )
+    #expect(ImageBuildService.arguments(for: request) == [
+        "build",
+        "--file", "/p/Dockerfile",
+        "--tag", "a",
+        "--arch", "arm64",
+        "--progress", "plain",
+        // Sorted, so the same compose file produces the same command every time.
+        "--build-arg", "API_URL=http://api",
+        "--build-arg", "VERSION=1.2",
+        "--target", "runtime",
+        "/p",
+    ])
+}
+
 // MARK: - Validation
 
 private func temporaryBuildContext() throws -> (dockerfile: String, context: String) {
