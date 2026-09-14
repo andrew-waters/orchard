@@ -6,9 +6,11 @@ import SwiftUI
 struct ComposeProjectDetailView: View {
     @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var networkService: NetworkService
     let projectName: String
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
+    @Binding var selectedNetwork: String?
 
     private var project: ComposeProject? {
         ComposeProject.group(
@@ -19,7 +21,7 @@ struct ComposeProjectDetailView: View {
 
     private var isBusy: Bool { composeService.busyProjects.contains(projectName) }
 
-    /// The run to show: only this project's, and only while it is this project's turn.
+    /// The run to show, which is only ever this project's.
     private var run: ComposeRun? {
         guard let run = composeService.run, run.project == projectName else { return nil }
         return run
@@ -36,13 +38,11 @@ struct ComposeProjectDetailView: View {
                                 icon: "questionmark.folder",
                                 tint: .orange,
                                 title: "The compose file is not where it was",
-                                detail: project.fileURL?.path ?? "",
-                                action: nil
+                                detail: project.fileURL?.path ?? ""
                             )
                         }
                         unhandledSection(project)
-                        if let run { runSection(run) }
-                        servicesSection(project)
+                        containersSection(project)
                         Spacer(minLength: 20)
                     }
                     .padding()
@@ -171,155 +171,154 @@ struct ComposeProjectDetailView: View {
         composeService.beginAdd(fileURL: url)
     }
 
-    // MARK: - The run
+    // MARK: - Containers
 
-    private func runSection(_ run: ComposeRun) -> some View {
+    /// Everything the stack wants, in one table: the containers that exist, the ones that do
+    /// not yet, and what is happening to each while a plan runs. A separate list of steps said
+    /// the same thing twice and cost the height to say it.
+    private func containersSection(_ project: ComposeProject) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(run.verb == "up" ? "Bringing Up" : "Taking Down")
+                Text("Containers")
                     .font(.headline)
-                switch run.phase {
-                case .running:
+                if let run, run.phase == .running {
                     ProgressView().controlSize(.small)
-                case .succeeded:
-                    SwiftUI.Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                case .failed:
-                    SwiftUI.Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
+                    Text(run.verb == "up" ? "Bringing up" : "Taking down")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            if run.steps.isEmpty {
-                Text("Everything was already up to date.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            if let failure = runFailure {
+                Text(failure)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(run.steps) { step in
-                HStack(alignment: .top, spacing: 8) {
-                    stepIcon(step.state)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(step.summary)
-                            .font(.callout)
-                            .foregroundStyle(step.state == .skipped ? .secondary : .primary)
-                        if let detail = stepDetail(step) {
-                            Text(detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-            }
+            ContainerTable(
+                containers: orderedContainers(project),
+                placeholders: placeholders(project),
+                note: { note(forService: $0.composeServiceName) },
+                selectedTab: $selectedTab,
+                selectedContainer: $selectedContainer,
+                emptyStateMessage: project.hasFile
+                    ? "Nothing created yet. Bring the project up to create its containers."
+                    : "This project has no containers."
+            )
+            networksSection(project)
         }
     }
 
-    private func stepDetail(_ step: ComposeRun.Step) -> String? {
-        if case .failed(let message) = step.state { return message }
-        return step.detail
+    /// The message from a run that stopped, kept visible after the alert has gone.
+    private var runFailure: String? {
+        guard let run, case .failed(let message) = run.phase else { return nil }
+        return message
     }
 
-    @ViewBuilder
-    private func stepIcon(_ state: ComposeRun.Step.State) -> some View {
-        switch state {
-        case .pending:
-            SwiftUI.Image(systemName: "circle").foregroundStyle(.secondary).font(.caption)
-        case .running:
-            ProgressView().controlSize(.small).scaleEffect(0.6).frame(width: 14, height: 14)
-        case .done:
-            SwiftUI.Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
-        case .failed:
-            SwiftUI.Image(systemName: "xmark.octagon.fill").foregroundStyle(.red).font(.caption)
-        case .skipped:
-            SwiftUI.Image(systemName: "minus.circle").foregroundStyle(.secondary).font(.caption)
+    /// Services in the order the planner would start them, so the table reads the way the
+    /// stack comes up rather than alphabetically.
+    private func serviceOrder(_ project: ComposeProject) -> [String] {
+        guard let file = composeService.parses[project.name]?.file else { return project.serviceNames }
+        if let graph = try? DependencyGraph(services: file.services) {
+            return graph.startOrder
+        }
+        return file.orderedServices.map(\.name)
+    }
+
+    private func orderedContainers(_ project: ComposeProject) -> [Container] {
+        let order = serviceOrder(project)
+        return project.containers.sorted { first, second in
+            let firstIndex = order.firstIndex(of: first.composeServiceName ?? "") ?? Int.max
+            let secondIndex = order.firstIndex(of: second.composeServiceName ?? "") ?? Int.max
+            if firstIndex != secondIndex { return firstIndex < secondIndex }
+            return first.configuration.id < second.configuration.id
         }
     }
 
-    // MARK: - Services
-
-    private func servicesSection(_ project: ComposeProject) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Services")
-                .font(.headline)
-            ForEach(serviceRows(project), id: \.name) { row in
-                serviceRow(row)
-            }
-        }
-    }
-
-    private struct ServiceRow {
-        let name: String
-        let container: Container?
-        let image: String?
-        let dependsOn: [String]
-    }
-
-    /// Services as the file describes them when Orchard has the file, and as the containers
-    /// remember them when it does not.
-    private func serviceRows(_ project: ComposeProject) -> [ServiceRow] {
-        if let file = composeService.parses[project.name]?.file {
-            return file.orderedServices.map { service in
-                ServiceRow(
-                    name: service.name,
-                    container: project.container(forService: service.name),
-                    image: service.image,
-                    dependsOn: service.dependsOn.sorted()
-                )
-            }
-        }
-        return project.serviceNames.map { name in
-            ServiceRow(
+    /// A row for every service the file declares that has no container, named the way the
+    /// planner will name it so the row does not move once it exists.
+    private func placeholders(_ project: ComposeProject) -> [ContainerTable.Placeholder] {
+        guard let parse = composeService.parses[project.name] else { return [] }
+        return serviceOrder(project).compactMap { service in
+            guard project.container(forService: service) == nil else { return nil }
+            let name = parse.file.services[service]
+                .map { parse.identity.containerName(for: $0) } ?? service
+            return ContainerTable.Placeholder(
                 name: name,
-                container: project.container(forService: name),
-                image: project.container(forService: name)?.configuration.image.reference,
-                dependsOn: []
+                note: note(forService: service) ?? ContainerTable.Note("Not created")
             )
         }
     }
 
-    private func serviceRow(_ row: ServiceRow) -> some View {
-        let isRunning = row.container?.status.lowercased() == "running"
-        return HStack(alignment: .center, spacing: 10) {
-            SwiftUI.Image(systemName: "shippingbox")
-                .foregroundStyle(isRunning ? Color.green : Color.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.name)
-                    .font(.callout.weight(.medium))
-                HStack(spacing: 6) {
-                    if let image = row.image {
-                        Text(image)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !row.dependsOn.isEmpty {
-                        Text("after \(row.dependsOn.joined(separator: ", "))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Spacer()
-            if let container = row.container {
-                Text(container.status.capitalized)
-                    .font(.caption)
-                    .foregroundStyle(isRunning ? .green : .secondary)
-                Button {
-                    selectedContainer = container.configuration.id
-                    selectedTab = .containers
-                } label: {
-                    SwiftUI.Image(systemName: "arrow.forward.circle")
-                }
-                .buttonStyle(.borderless)
-                .help("Show this container")
-            } else {
-                Text("Not created")
-                    .font(.caption)
+    /// What the run in progress is doing to a service, if anything.
+    private func note(forService service: String?) -> ContainerTable.Note? {
+        guard let service, let run else { return nil }
+        if let step = run.steps.last(where: { $0.service == service && $0.state == .running }) {
+            return ContainerTable.Note(step.detail.map { "\(step.activity) \($0)" } ?? "\(step.activity)…")
+        }
+        if run.steps.contains(where: { $0.service == service && $0.state.failureMessage != nil }) {
+            return ContainerTable.Note("Failed", isError: true)
+        }
+        return nil
+    }
+
+    // MARK: - Networks
+
+    /// The networks the stack wants, which the container table has no column for and which a
+    /// plan creates and removes like anything else.
+    ///
+    /// There is no DNS equivalent: a compose file's `dns:` key is not honoured, and compose has
+    /// no concept that maps onto a DNS domain, so there would be nothing true to show.
+    @ViewBuilder
+    private func networksSection(_ project: ComposeProject) -> some View {
+        let names = networkNames(project)
+        if !names.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Networks")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
+                ForEach(names, id: \.self) { name in
+                    HStack(spacing: 8) {
+                        SwiftUI.Image(systemName: "arrow.down.left.arrow.up.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(name) {
+                            selectedNetwork = name
+                            selectedTab = .networks
+                        }
+                        .buttonStyle(.link)
+                        if let note = networkNote(name) {
+                            Text(note.text)
+                                .font(.caption)
+                                .foregroundStyle(note.isError ? Color.red : Color.secondary)
+                        }
+                        Spacer()
+                    }
+                }
             }
         }
-        .padding(.vertical, 2)
+    }
+
+    private func networkNames(_ project: ComposeProject) -> [String] {
+        if let parse = composeService.parses[project.name] {
+            return Set(
+                Planner.networkNames(in: parse.file, project: parse.identity).values.compactMap { $0 }
+            ).sorted()
+        }
+        return Set(project.containers.compactMap { $0.configuration.networkName }).sorted()
+    }
+
+    private func networkNote(_ name: String) -> ContainerTable.Note? {
+        if let run, let step = run.steps.last(where: { $0.network == name && $0.state == .running }) {
+            return ContainerTable.Note("\(step.activity)…")
+        }
+        if networkService.networks.contains(where: { $0.id == name }) { return nil }
+        return ContainerTable.Note("Not created")
     }
 
     // MARK: - Banner
 
-    private func banner(icon: String, tint: Color, title: String, detail: String, action: (() -> Void)?) -> some View {
+    private func banner(icon: String, tint: Color, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             SwiftUI.Image(systemName: icon).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {

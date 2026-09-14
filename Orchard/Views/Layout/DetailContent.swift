@@ -60,7 +60,8 @@ struct DetailContentView: View {
                 ComposeProjectDetailView(
                     projectName: selectedProject,
                     selectedTab: $selectedTabBinding,
-                    selectedContainer: $selectedContainerBinding
+                    selectedContainer: $selectedContainerBinding,
+                    selectedNetwork: $selectedNetworkBinding
                 )
             } else {
                 Text("Select a project")

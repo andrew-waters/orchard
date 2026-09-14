@@ -1,13 +1,45 @@
 import SwiftUI
 
 struct ContainerTable: View {
+    /// A short trailing note on a row: what is happening to it, or why it is not there.
+    struct Note: Equatable {
+        let text: String
+        var isError: Bool = false
+
+        init(_ text: String, isError: Bool = false) {
+            self.text = text
+            self.isError = isError
+        }
+    }
+
+    /// A row for something that should exist and does not yet, such as a compose service
+    /// nothing has created. Shown after the real containers, greyed, so a stack reads as a
+    /// whole rather than as the part of it that happens to exist.
+    struct Placeholder: Identifiable {
+        let name: String
+        let note: Note
+
+        var id: String { name }
+    }
+
     let containers: [Container]
+    var placeholders: [Placeholder] = []
+    /// What is happening to a container right now, if anything.
+    var note: (Container) -> Note? = { _ in nil }
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
     let emptyStateMessage: String
 
+    /// The trailing column only exists when something has something to say, so every table
+    /// that never passes a note keeps exactly the layout it had.
+    private var showsNotes: Bool {
+        !placeholders.isEmpty || containers.contains { note($0) != nil }
+    }
+
+    private static let noteWidth: CGFloat = 150
+
     var body: some View {
-        if containers.isEmpty {
+        if containers.isEmpty, placeholders.isEmpty {
             HStack {
                 SwiftUI.Image(systemName: "cube.transparent")
                     .foregroundStyle(.secondary)
@@ -36,6 +68,13 @@ struct ContainerTable: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if showsNotes {
+                        Text("Status")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .frame(width: Self.noteWidth, alignment: .leading)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -104,12 +143,47 @@ struct ContainerTable: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(displayHostname == "N/A")
+
+                        if showsNotes {
+                            noteCell(note(container))
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(Color.clear)
 
-                    if container.configuration.id != containers.last?.configuration.id {
+                    if container.configuration.id != containers.last?.configuration.id || !placeholders.isEmpty {
+                        Divider()
+                            .padding(.leading, 12)
+                    }
+                }
+
+                ForEach(placeholders) { placeholder in
+                    HStack(spacing: 0) {
+                        HStack {
+                            SwiftUI.Image(systemName: "cube")
+                                .foregroundStyle(.tertiary)
+                            Text(placeholder.name)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text("-")
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text("-")
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        noteCell(placeholder.note)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+
+                    if placeholder.id != placeholders.last?.id {
                         Divider()
                             .padding(.leading, 12)
                     }
@@ -118,5 +192,14 @@ struct ContainerTable: View {
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
         }
+    }
+
+    @ViewBuilder
+    private func noteCell(_ note: Note?) -> some View {
+        Text(note?.text ?? "")
+            .font(.caption)
+            .foregroundStyle(note?.isError == true ? Color.red : Color.secondary)
+            .lineLimit(1)
+            .frame(width: Self.noteWidth, alignment: .leading)
     }
 }

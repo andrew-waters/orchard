@@ -8,6 +8,7 @@ struct ContainerDetailView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var statsService: StatsService
+    @EnvironmentObject var composeService: ComposeService
     @Binding var selectedTabBinding: TabSelection
     @Binding var selectedNetwork: String?
     @Binding var selectedCluster: String?
@@ -80,6 +81,18 @@ struct ContainerDetailView: View {
                     ) {
                         selectedTabBinding = .clusters
                         selectedCluster = cluster
+                    }
+                }
+                if let project = container.composeProjectName {
+                    membershipBanner(
+                        icon: "square.stack.3d.up",
+                        text: container.composeServiceName.map {
+                            "This container is the '\($0)' service of the compose project '\(project)'."
+                        } ?? "This container belongs to the compose project '\(project)'.",
+                        linkTitle: "Show Project"
+                    ) {
+                        selectedTabBinding = .compose
+                        composeService.selectedProject = project
                     }
                 }
                 if container.isSandbox {

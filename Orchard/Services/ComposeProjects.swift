@@ -67,6 +67,21 @@ struct ComposeProject: Identifiable, Equatable {
     }
 }
 
+extension Container {
+    /// The compose project this container belongs to, read off the label a compose front end
+    /// stamped on it at create time. `nil` for a container nothing compose-shaped created.
+    var composeProjectName: String? {
+        let name = configuration.labels[ProjectIdentity.projectLabel] ?? ""
+        return name.isEmpty ? nil : name
+    }
+
+    /// Which service of that project this container is.
+    var composeServiceName: String? {
+        let name = configuration.labels[ProjectIdentity.serviceLabel] ?? ""
+        return name.isEmpty ? nil : name
+    }
+}
+
 /// What Orchard remembers about a project between launches.
 ///
 /// Deliberately small: a name, where its file is, and which unhandled keys the user has
@@ -145,14 +160,39 @@ struct ComposeRun: Identifiable, Equatable {
             case failed(String)
             /// The plan stopped before reaching this step.
             case skipped
+
+            var failureMessage: String? {
+                if case .failed(let message) = self { return message }
+                return nil
+            }
         }
 
         let id = UUID()
         let summary: String
+        /// What this step is doing, in a word, for a row that has no room for a sentence.
+        let activity: String
         let service: String?
+        /// The network this step acts on, for the steps that act on one rather than a service.
+        let network: String?
         var state: State = .pending
         /// Live detail for a step that has something to say while it runs, such as a pull.
         var detail: String?
+
+        init(
+            summary: String,
+            activity: String,
+            service: String? = nil,
+            network: String? = nil,
+            state: State = .pending,
+            detail: String? = nil
+        ) {
+            self.summary = summary
+            self.activity = activity
+            self.service = service
+            self.network = network
+            self.state = state
+            self.detail = detail
+        }
     }
 
     let id = UUID()
