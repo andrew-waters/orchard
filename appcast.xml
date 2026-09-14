@@ -3,19 +3,27 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.3.4</title>
-      <sparkle:version>56</sparkle:version>
-      <sparkle:shortVersionString>2.3.4</sparkle:shortVersionString>
+      <title>Version 2.4.0</title>
+      <sparkle:version>57</sparkle:version>
+      <sparkle:shortVersionString>2.4.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.3.4</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.4.0</link>
       <description><![CDATA[
-<h3>Fixed</h3>
+<p>Quick none-changelog related note from me - I hope you&#x27;re finding Orchard useful to you. The last month has seen stargazers on the project double, so it&#x27;s great to have you here. Please let me know if you&#x27;re finding this useful and feel free to add any feature requests / bug reports on Github.</p>
+<p>The last release had over 3,100 downloads, so please consider giving it a star on Github if you&#x27;re using it and spreading the word.</p>
+<p>And a special thanks to everyone who&#x27;s contributed to the project so far!</p>
+<h3>Added</h3>
 <ul>
-<li>Scrolling a container&#x27;s detail pane no longer hangs the app (#103). The six configuration wells sat in a <code>LazyVGrid</code>, and placing a row whose wells hold selectable text re-entered the grid&#x27;s own placement: the main thread spun in over a thousand nested <code>sizeThatFits</code> frames at 100% CPU with memory climbing about 13 MB a second, and the window never recovered. The same two-column layout is now built eagerly from stacked rows, which six wells cost nothing to lay out up front. The wells also pair up only while the pane is wide enough to carry two and stack below that: at a 1024-point window two columns left a key/value row so little width that its value and Show/Copy controls fell out of the row entirely. Long environment-variable and OCI-label keys additionally cap their column rather than sizing to the longest key without limit, so a namespaced key wraps instead of crowding out its own value.</li>
+<li>Reclaim disk space on a running container, from the container detail header (&quot;Reclaim Space&quot;) or the containers list context menu. Deleting files inside a container doesn&#x27;t shrink its host-side disk images on its own, so the space stays claimed until the free blocks are trimmed; this hands them back and refreshes the system disk usage tiles once the daemon reports the trim done. Apple container exposes the operation for running containers only, so the action is offered only while a container runs, and a mixed multi-selection reclaims just the running members. Note that container 1.4.1 cannot yet complete the trim on a container&#x27;s root filesystem: the guest&#x27;s FITRIM ioctl returns &quot;not supported&quot; even though the block device backing the rootfs advertises discard, and the daemon trims &quot;/&quot; for every container that isn&#x27;t read-only, so the operation fails there. Orchard reports that as a plain sentence rather than the daemon&#x27;s three-deep nested error, and the action will start working against a container release that fixes the trim.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Orchard now builds against Apple container 1.4.1 (containerization 0.45.0), up from 1.3.1 (containerization 0.42.0). The client-facing surface is additive between the two releases (a new XPC route and its client method), so nothing Orchard already called has changed shape. The bump also removes the two containerization advisories fixed in 1.4.1 (GHSA-4587-w9mm-xxvh, an OCI layout load that followed symlinks out of the extraction directory, and GHSA-rgqp-277h-gcwj, a socket path length limit longer than the buffer it copied into) from the shipped bundle. Neither was reachable from Orchard: the app has no OCI layout import path and doesn&#x27;t open unix sockets, but there is no reason to ship the code.</li>
+<li>The container system version Orchard displays is now the bare release number. Apple container 1.4.1 changed what its health check reports, from <code>container-apiserver 1.4.1</code> to <code>1.4.1</code>.</li>
 </ul>
 ]]></description>
-      <pubDate>Mon, 31 Aug 2026 08:48:28 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.3.4/Orchard-2.3.4.dmg" type="application/octet-stream" sparkle:edSignature="NNAFj2eSrbHQycSQG1Cxci5R5H/tDB0iiNaqeoj5bJB0quoxnxSkfrqRjKTAugG938bTgPbiBHrbb8WmwD8lCg==" length="29697259" />
+      <pubDate>Mon, 14 Sep 2026 15:10:43 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.4.0/Orchard-2.4.0.dmg" type="application/octet-stream" sparkle:edSignature="mPwB1EL+8Y/Tt08AkWpNlM4blU0UPyZf4QNL408wR8Q2Zbm9CzWnKIIR32X5vxFq4U6V/uQtSDgePbZIVhcsCg==" length="29709022" />
     </item>
   </channel>
 </rss>
