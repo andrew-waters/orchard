@@ -17,8 +17,9 @@ enum OrchardError: Error, LocalizedError, Equatable {
     /// The daemon refused a reclaim because the container isn't running.
     case containerNotRunning(id: String)
     /// The daemon accepted the reclaim but the guest reported the filesystem trim as
-    /// unsupported. See `classifyCleanError` for why this is its own case.
-    case trimUnsupported
+    /// unsupported. See `classifyCleanError` for why this is its own case. Carries the
+    /// id because a multi-selection reclaim can fail per container.
+    case trimUnsupported(id: String)
     /// An error we haven't classified; carries the original message verbatim.
     case generic(String)
 
@@ -50,8 +51,8 @@ enum OrchardError: Error, LocalizedError, Equatable {
             return "Container machines are unavailable. Update your `container` install (1.0 or later) to use machines."
         case .containerNotRunning(let id):
             return "Container \(id) is not running. Only a running container can reclaim disk space."
-        case .trimUnsupported:
-            return "Apple container reported the filesystem trim as unsupported, so no space was reclaimed. This needs a container release that can trim a container's root filesystem; 1.4.1 cannot."
+        case .trimUnsupported(let id):
+            return "Apple container reported the filesystem trim as unsupported, so no space was reclaimed on \(id). This needs a container release that can trim a container's root filesystem; 1.4.1 cannot."
         case .generic(let message):
             return message
         }
@@ -88,7 +89,7 @@ extension OrchardError {
     static func classifyCleanError(_ error: Error, id: String) -> OrchardError {
         let message = error.localizedDescription
         if message.contains("trim failed") || message.contains("filesystemOperation") {
-            return .trimUnsupported
+            return .trimUnsupported(id: id)
         }
         if message.contains("not running") {
             return .containerNotRunning(id: id)

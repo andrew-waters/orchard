@@ -349,6 +349,35 @@ func cleanContainerFailure() async {
 }
 
 @MainActor
+@Test("cleanContainer: a second call for an id already being trimmed is refused")
+func cleanContainerRejectsConcurrentDuplicate() async {
+    let backend = MockContainerBackend()
+    let (service, _) = makeListService(backend)
+    let cleanEntered = TestGate()
+    let releaseClean = TestGate()
+    backend.cleanHandler = {
+        cleanEntered.open()
+        await releaseClean.wait()
+    }
+
+    // First reclaim is held inside the backend, so the id is marked in flight.
+    let first = Task { @MainActor in await service.cleanContainer("web") }
+    await cleanEntered.wait()
+    #expect(service.cleaningContainers.contains("web"))
+
+    // The detail header's reclaim of the same id must not start a second trim, nor clear
+    // the in-flight flag out from under the first.
+    let duplicate = await service.cleanContainer("web")
+    #expect(!duplicate)
+    #expect(service.cleaningContainers.contains("web"))
+
+    releaseClean.open()
+    _ = await first.value
+    #expect(backend.cleanedContainers == ["web"])
+    #expect(service.cleaningContainers.isEmpty)
+}
+
+@MainActor
 @Test("cleanContainers: trims every id it is given, in order")
 func cleanContainersMultiple() async {
     let backend = MockContainerBackend()

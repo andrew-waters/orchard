@@ -96,7 +96,7 @@ Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard
 - Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
 - Kubernetes clusters: create and manage local k8s clusters (container's k8s plugin), load images into them, and get one-click kubectl access
-- Container management: create, start, stop, force stop, delete, export as tar, reclaim disk space, label at launch, group by label
+- Container management: create, start, stop, force stop, delete, export as tar, reclaim disk space (pending a container release that can trim a container's root filesystem), label at launch, group by label
 - Image management: pull with live byte/blob progress, delete, search Docker Hub
 - Image builds: build from any Dockerfile with a streamed BuildKit log, tracked in a Builds tab whose records survive restarts and cross-link to their images and containers
 - Deep links: `orchard://` URLs jump to any tab or resource

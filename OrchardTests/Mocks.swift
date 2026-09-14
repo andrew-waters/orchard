@@ -3,6 +3,36 @@ import Foundation
 
 struct NotConfigured: Error {}
 
+/// A one-shot awaitable gate for tests: `wait()` suspends without blocking a thread until
+/// `open()` is called. Once open, later `wait()`s return immediately. Replaces the
+/// semaphore pattern, whose blocking waits are unsafe in `@MainActor` async tests.
+final class TestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let resumeNow = lock.withLock { () -> Bool in
+                if isOpen { return true }
+                waiters.append(continuation)
+                return false
+            }
+            if resumeNow { continuation.resume() }
+        }
+    }
+
+    func open() {
+        let pending = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            isOpen = true
+            let pending = waiters
+            waiters.removeAll()
+            return pending
+        }
+        pending.forEach { $0.resume() }
+    }
+}
+
 /// An error carrying `message` as its `localizedDescription` - for driving classified
 /// error paths (e.g. OrchardError.classifyStartError matches on the message text).
 func makeError(_ message: String) -> NSError {
@@ -60,6 +90,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _exportedContainers: [(id: String, destination: URL)] = []
     private var _cleanContainerError: Error?
     private var _cleanedContainers: [String] = []
+    private var _cleanHandler: (@Sendable () async -> Void)?
     private var _deleteImageError: Error?
     private var _listNetworksError: Error?
     private var _createNetworkError: Error?
@@ -124,6 +155,12 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         set { lock.withLock { _cleanContainerError = newValue } }
     }
     var cleanedContainers: [String] { lock.withLock { _cleanedContainers } }
+    /// Runs before the clean is recorded, so a test can hold one reclaim in flight and
+    /// observe what a second concurrent call does.
+    var cleanHandler: (@Sendable () async -> Void)? {
+        get { lock.withLock { _cleanHandler } }
+        set { lock.withLock { _cleanHandler = newValue } }
+    }
     var deleteImageError: Error? {
         get { lock.withLock { _deleteImageError } }
         set { lock.withLock { _deleteImageError = newValue } }
@@ -216,6 +253,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     }
 
     func cleanContainer(id: String) async throws {
+        if let handler = lock.withLock({ _cleanHandler }) {
+            await handler()
+        }
         if let cleanContainerError { throw cleanContainerError }
         lock.withLock { _cleanedContainers.append(id) }
     }
