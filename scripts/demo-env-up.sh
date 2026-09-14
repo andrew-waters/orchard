@@ -77,6 +77,79 @@ cat > "$DEMO_DIR/web-html/index.html" <<'HTML'
 <!doctype html><title>Orchard demo</title><h1>Served from a host mount</h1>
 HTML
 
+echo "== A build, so the Builds tab has one =="
+# Orchard's Builds tab lists builds Orchard itself started: the builder shim has no
+# host-reachable history to enumerate, so a build run from a terminal cannot appear there on
+# its own. This runs a real build and then writes its real log into Orchard's registry, which
+# is the only way to have one to look at without clicking through the app.
+BUILD_DIR="$DEMO_DIR/build"
+mkdir -p "$BUILD_DIR"
+cat > "$BUILD_DIR/Dockerfile" <<'DOCKERFILE'
+FROM docker.io/library/alpine:latest
+RUN apk add --no-cache curl
+RUN echo "built for the Orchard demo environment" > /etc/demo-release
+CMD ["sleep", "infinity"]
+DOCKERFILE
+
+# Back the registry up before touching it. It is a live file belonging to a running app, and
+# the demo has no business being the reason someone loses their build history.
+BUILDS_STORE="$HOME/Library/Application Support/Orchard/builds.json"
+if [[ -f "$BUILDS_STORE" && ! -f "$DEMO_DIR/builds.json.backup" ]]; then
+  cp "$BUILDS_STORE" "$DEMO_DIR/builds.json.backup"
+  record buildsbackup "$DEMO_DIR/builds.json.backup"
+  echo "backed up the existing build registry"
+fi
+
+BUILD_LOG="$BUILD_DIR/build.log"
+if container build --tag orchard-demo:latest --file "$BUILD_DIR/Dockerfile" \
+     --arch arm64 --progress plain "$BUILD_DIR" >"$BUILD_LOG" 2>&1; then
+  echo "built orchard-demo:latest"
+  record image orchard-demo:latest
+  if python3 - "$BUILD_DIR" "$BUILD_LOG" <<'PY'
+import json, os, sys, time, uuid
+
+build_dir, log_path = sys.argv[1], sys.argv[2]
+store = os.path.expanduser("~/Library/Application Support/Orchard/builds.json")
+builds = []
+if os.path.exists(store):
+    try:
+        loaded = json.load(open(store))
+        if loaded.get("version") == 1:
+            builds = loaded.get("builds", [])
+    except ValueError:
+        builds = []
+if any(b.get("request", {}).get("tag") == "orchard-demo:latest" for b in builds):
+    sys.exit(1)
+
+lines = [line.rstrip("\n") for line in open(log_path, errors="replace").read().split("\n") if line.strip()]
+started = time.time() - 978307200          # Foundation's reference date
+builds.insert(0, {
+    "id": str(uuid.uuid4()).upper(),
+    "request": {
+        "dockerfile": os.path.join(build_dir, "Dockerfile"),
+        "contextDir": build_dir,
+        "tag": "orchard-demo:latest",
+        "arch": "arm64",
+        "noCache": False,
+    },
+    "startedAt": started - 18,
+    "phase": {"succeeded": {}},
+    "outputLines": lines[-400:],
+    "finishedAt": started,
+})
+os.makedirs(os.path.dirname(store), exist_ok=True)
+json.dump({"version": 1, "builds": builds}, open(store, "w"))
+PY
+  then
+    record buildrecord orchard-demo:latest
+    echo "recorded the build in Orchard's Builds tab"
+  else
+    echo "  (Orchard already has a record for this build; left it alone)"
+  fi
+else
+  echo "  (build failed; see $BUILD_LOG)"
+fi
+
 echo "== Containers =="
 run web      --network frontend -p 8088:80 -v "$DEMO_DIR/web-html:/usr/share/nginx/html" docker.io/library/nginx:alpine
 run api      --network frontend -p 8081:80 docker.io/library/caddy:alpine
@@ -89,9 +162,8 @@ run registry --network backend  -p 5001:5000 docker.io/library/registry:2
 run worker   --network backend  docker.io/library/alpine:latest sleep infinity
 
 # Something running from the built image, so the Builds and Images tabs can show a user for it
-# rather than "No containers are currently using this image" in both. The image itself is not
-# built here: that lives in the branch that added the build to this script, so this is skipped
-# when the image is absent rather than pretending to create it.
+# rather than "No containers are currently using this image" in both. Still guarded on the
+# image existing, because the build above is allowed to fail without taking the rest with it.
 if container image ls 2>/dev/null | awk 'NR>1 && $1=="orchard-demo" {f=1} END {exit !f}'; then
   run demo-api --network backend orchard-demo:latest
 else
@@ -219,6 +291,15 @@ if container machine create --name demo-box --cpus 2 --memory 4G docker.io/geerl
   echo "created machine demo-box"
 else
   echo "demo-box exists or machine create failed (left alone)"
+fi
+# A stopped machine shows nothing worth looking at: no address, no uptime, no stats. There
+# is no `machine start`: a machine boots when something runs in it, so give it something.
+if container machine list 2>/dev/null | grep -q "^demo-box.*running"; then
+  echo "demo-box already running"
+elif container machine run --name demo-box --detach /bin/sleep 86400 >/dev/null 2>&1; then
+  echo "booted machine demo-box"
+else
+  echo "  (demo-box would not boot)"
 fi
 
 echo "== Kubernetes cluster =="
