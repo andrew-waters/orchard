@@ -65,36 +65,6 @@ private final class LockedBox<T> {
     func set(_ value: T) { lock.withLock { self._value = value } }
 }
 
-/// A one-shot awaitable gate for tests: `wait()` suspends without blocking a thread until
-/// `open()` is called. Once open, later `wait()`s return immediately. Replaces the
-/// semaphore pattern, whose blocking waits are unsafe in `@MainActor` async tests.
-private final class TestGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var isOpen = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-
-    func wait() async {
-        await withCheckedContinuation { continuation in
-            let resumeNow = lock.withLock { () -> Bool in
-                if isOpen { return true }
-                waiters.append(continuation)
-                return false
-            }
-            if resumeNow { continuation.resume() }
-        }
-    }
-
-    func open() {
-        let pending = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
-            isOpen = true
-            let pending = waiters
-            waiters.removeAll()
-            return pending
-        }
-        pending.forEach { $0.resume() }
-    }
-}
-
 @MainActor
 @Test("stopSystem: thrown error surfaces an alert and re-derives status from the daemon")
 func stopSystemThrownErrorAlertsAndReDerives() async {

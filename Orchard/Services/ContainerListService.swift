@@ -326,6 +326,12 @@ final class ContainerListService: ObservableObject {
     /// once the daemon reports the trim done. Returns true on success.
     @discardableResult
     func cleanContainer(_ id: String) async -> Bool {
+        // One trim per container at a time. `cleanContainers` suspends between ids, so the
+        // detail header can start its own reclaim of an id the batch hasn't reached yet;
+        // without this guard both run, and whichever finishes first clears the in-flight
+        // flag while the other is still going. The check and the insert share a MainActor
+        // turn, so nothing interleaves between them.
+        guard !cleaningContainers.contains(id) else { return false }
         cleaningContainers.insert(id)
         defer { cleaningContainers.remove(id) }
 

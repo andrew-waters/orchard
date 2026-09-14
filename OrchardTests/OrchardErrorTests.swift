@@ -30,8 +30,10 @@ func cleanErrorTrimUnsupported() {
     let nested = "failed to clean container (cause: \"failed to clean container db "
         + "(cause: \"failed to clean mounts in db: / (internalError: "
         + "\"filesystemOperation trim failed\")\")\")"
-    #expect(OrchardError.classifyCleanError(error(nested), id: "db") == .trimUnsupported)
-    #expect(OrchardError.classifyCleanError(error("filesystemOperation"), id: "db") == .trimUnsupported)
+    #expect(OrchardError.classifyCleanError(error(nested), id: "db") == .trimUnsupported(id: "db"))
+    #expect(OrchardError.classifyCleanError(error("filesystemOperation"), id: "db") == .trimUnsupported(id: "db"))
+    // A multi-selection reclaim alerts per container, so the copy has to name which one.
+    #expect(OrchardError.trimUnsupported(id: "db").errorDescription?.contains("db") == true)
 }
 
 @Test("Clean error: a stopped container classifies as containerNotRunning")
