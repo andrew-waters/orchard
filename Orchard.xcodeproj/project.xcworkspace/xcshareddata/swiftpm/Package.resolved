@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/container-compose/compose.git",
       "state" : {
-        "revision" : "e6c569ba8fc15afe256ca013f6592811e6d5634a",
-        "version" : "0.1.1"
+        "revision" : "146907df118a3cdca97c00e1e66fad5329bdbcdf",
+        "version" : "0.2.0"
       }
     },
     {

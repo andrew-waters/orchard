@@ -635,7 +635,7 @@
 			repositoryURL = "https://github.com/container-compose/compose.git";
 			requirement = {
 				kind = upToNextMinorVersion;
-				minimumVersion = 0.1.0;
+				minimumVersion = 0.2.0;
 			};
 		};
 		C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */ = {
