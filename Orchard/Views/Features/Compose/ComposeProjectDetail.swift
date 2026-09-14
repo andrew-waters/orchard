@@ -19,6 +19,16 @@ struct ComposeProjectDetailView: View {
         ).first { $0.name == projectName }
     }
 
+    /// The two halves of a project: what it is doing, and what it asked for and will not get.
+    /// Separate because the second is a list that can run to a dozen lines on a real file and
+    /// was pushing the first off the top of the pane.
+    private enum ProjectTab: String, CaseIterable {
+        case running = "Running"
+        case problems = "Problems"
+    }
+
+    @State private var tab: ProjectTab = .running
+
     private var isBusy: Bool { composeService.busyProjects.contains(projectName) }
 
     /// The run to show, which is only ever this project's.
@@ -31,23 +41,22 @@ struct ComposeProjectDetailView: View {
         if let project {
             VStack(spacing: 0) {
                 header(project)
+                tabStrip(project)
+                Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        if composeService.fileIsMissing(for: project) {
-                            banner(
-                                icon: "questionmark.folder",
-                                tint: .orange,
-                                title: "The compose file is not where it was",
-                                detail: project.fileURL?.path ?? ""
-                            )
+                        switch tab {
+                        case .running:
+                            containersSection(project)
+                        case .problems:
+                            problemsTab(project)
                         }
-                        unhandledSection(project)
-                        containersSection(project)
                         Spacer(minLength: 20)
                     }
                     .padding()
                 }
             }
+            .id(projectName)
             .onAppear { composeService.refreshParses() }
         } else {
             Text("Project not found")
@@ -111,6 +120,79 @@ struct ComposeProjectDetailView: View {
             }
             .disabled(isBusy || project.containers.isEmpty)
             .help("Stop and remove this project's containers")
+        }
+    }
+
+    // MARK: - Tabs
+
+    private func tabStrip(_ project: ComposeProject) -> some View {
+        HStack(spacing: 16) {
+            ForEach(ProjectTab.allCases, id: \.self) { candidate in
+                tabButton(candidate, count: candidate == .problems ? problemCount(project) : 0)
+            }
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+    }
+
+    private func tabButton(_ candidate: ProjectTab, count: Int) -> some View {
+        Button {
+            tab = candidate
+        } label: {
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    Text(candidate.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(tab == candidate ? .semibold : .regular)
+                        .foregroundStyle(tab == candidate ? Color.primary : Color.secondary)
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.orange.opacity(0.14)))
+                    }
+                }
+                Rectangle()
+                    .fill(tab == candidate ? Color.accentColor : Color.clear)
+                    .frame(height: 2)
+            }
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// What the count on the tab means: things that change what the services do. Cosmetic
+    /// findings are listed on the tab but not counted, or the number would say "nine
+    /// problems" about a file whose only real problem is one.
+    private func problemCount(_ project: ComposeProject) -> Int {
+        findings.filter { $0.severity == .behavioural }.count
+            + (composeService.fileIsMissing(for: project) ? 1 : 0)
+    }
+
+    @ViewBuilder
+    private func problemsTab(_ project: ComposeProject) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if composeService.fileIsMissing(for: project) {
+                banner(
+                    icon: "questionmark.folder",
+                    tint: .orange,
+                    title: "The compose file is not where it was",
+                    detail: project.fileURL?.path ?? ""
+                )
+            }
+            if findings.isEmpty, !composeService.fileIsMissing(for: project) {
+                Label(
+                    project.hasFile
+                        ? "Everything in this file is supported."
+                        : "Orchard has no compose file for this project, so there is nothing to check.",
+                    systemImage: project.hasFile ? "checkmark.circle" : "questionmark.circle"
+                )
+                .foregroundStyle(project.hasFile ? .green : .secondary)
+            }
+            unhandledSection(project)
         }
     }
 
