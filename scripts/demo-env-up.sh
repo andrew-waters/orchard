@@ -128,17 +128,36 @@ services:
     image: docker.io/library/redis:alpine
 YAML
 
-if container compose --help >/dev/null 2>&1; then
-  if (cd "$COMPOSE_DIR" && container compose up); then
-    record compose "$COMPOSE_DIR"
-    echo "brought up the storefront compose project"
-  else
-    echo "  (compose up failed; the project's file is still at $COMPOSE_DIR/compose.yaml)"
-  fi
-else
-  echo "  (skipped: the 'container compose' plugin is not installed)"
-  echo "  install it from github.com/container-compose/compose, then re-run this script"
+# The CLI will not run this file, and that is the point of it: `container compose` refuses
+# anything it cannot honour, because a command in a script has nobody to ask. Orchard is the
+# half that can ask, and proceeding there creates exactly these containers. So the demo
+# creates them the way a proceed would, and leaves the file saying what it says.
+COMPOSE_NETWORK="storefront_default"
+if container network create "$COMPOSE_NETWORK" >/dev/null 2>&1; then
+  record network "$COMPOSE_NETWORK"
+  echo "created network $COMPOSE_NETWORK"
 fi
+
+compose_run() {
+  local service="$1"; shift
+  local name="storefront-$service"
+  if container run --detach --name "$name" \
+      --network "$COMPOSE_NETWORK" \
+      --label com.container-compose.project=storefront \
+      --label com.container-compose.service="$service" \
+      "$@" >/dev/null; then
+    record container "$name"
+    echo "created container $name"
+  else
+    echo "  (skipped: $name failed or already exists)"
+  fi
+}
+
+# No hash label: only a real `up` can compute one, so Orchard will offer to recreate these.
+# That is honest, and invisible in the screenshots this exists for.
+compose_run web       -p 8090:80 docker.io/library/nginx:alpine
+compose_run inventory docker.io/library/alpine:latest sleep infinity
+compose_run cache     docker.io/library/redis:alpine
 
 # Tell Orchard where the file is, the way the file picker would. Without this the project
 # still appears (it is found by the labels on its containers) but Orchard cannot show what
