@@ -81,6 +81,9 @@ K8S_CLUSTER="${K8S_CLUSTER:-k8s-dev}"
 DEMO_DNS_DOMAIN="${DEMO_DNS_DOMAIN:-demo.test}"
 MENUBAR_HOVER="${MENUBAR_HOVER:-$K8S_CLUSTER}"
 COMPOSE_PROJECT="${COMPOSE_PROJECT:-storefront}"
+# The container to open on the Containers tab. A k8s node shows the liveliest charts and the
+# plugin badge, but it only exists when a cluster does; point this at anything that is running.
+CONTAINERS_TARGET="${CONTAINERS_TARGET:-$K8S_CLUSTER}"
 
 # The row each tab should open on. Without these a tab shows whatever its list selected first,
 # which is not a choice anyone made: it put the Images shot on a digest-pinned node image and
@@ -306,7 +309,14 @@ for tab in $TABS; do
   fi
   if [[ "$tab" == "containers" ]]; then
     # The k8s node has the liveliest charts and shows the plugin badge + cluster banner.
-    "$AX" press-text "$K8S_CLUSTER" || { echo "could not select the $K8S_CLUSTER container"; exit 1; }
+    #
+    # Selected through the palette rather than by clicking the row: the list is lazy, so a
+    # container far enough down it is not in the accessibility tree at all, and which ones
+    # those are depends on how many containers happen to exist.
+    "$AX" key escape && sleep 0.3
+    "$AX" key cmd+k && sleep 1
+    "$AX" type "$CONTAINERS_TARGET" && sleep 1.2
+    "$AX" key return || { echo "could not select the $CONTAINERS_TARGET container"; exit 1; }
     sleep 2
   fi
   if [[ "$tab" == "compose" ]]; then

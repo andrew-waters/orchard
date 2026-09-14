@@ -213,10 +213,12 @@ struct ComposeProjectDetailView: View {
                 HStack(alignment: .top, spacing: 10) {
                     SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text("This file has changed since it was added and now asks for something new.")
+                    // Not "this file has changed": it may never have been reviewed at all, as
+                    // when something other than the file picker registered the project.
+                    Text("This file asks for things nobody has looked at yet.")
                         .font(.callout)
                     Spacer()
-                    Button("Review Changes") { reviewCurrentFile() }
+                    Button("Review") { reviewCurrentFile() }
                         .controlSize(.small)
                 }
                 .padding(10)

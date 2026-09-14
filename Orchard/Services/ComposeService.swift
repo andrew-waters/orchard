@@ -138,9 +138,17 @@ final class ComposeService: ObservableObject {
         persist()
     }
 
-    /// Re-read any known file that has changed on disk. Cheap enough to call whenever the
-    /// Compose tab appears: it stats each file and parses only what has moved on.
+    /// Re-read the project list and any known file that has changed on disk. Cheap enough to
+    /// call whenever the Compose tab appears: it reads one small JSON file, stats each compose
+    /// file and parses only what has moved on.
+    ///
+    /// The list is re-read rather than trusted from launch because Orchard is not the only
+    /// thing that writes it: a script, or a second window, can add a project while this one is
+    /// running, and a project that exists but cannot be seen is worse than one that is slow to
+    /// appear.
     func refreshParses() {
+        let onDisk = persistence.load()
+        if onDisk != records { records = onDisk }
         for record in records {
             let modified = modificationDate(of: record.fileURL)
             if let modified, parsedAt[record.name] == modified, parses[record.name] != nil { continue }
