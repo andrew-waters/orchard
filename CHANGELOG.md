@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Quick none-changelog related note from me - I hope you're finding Orchard useful to you. The last month has seen stargazers on the project double, so it's great to have you here. Please let me know if you're finding this useful and feel free to add any feature requests / bug reports on Github.
+
+The last release had over 3,100 downloads, so please consider giving it a star on Github if you're using it and spreading the word.
+
+And a special thanks to everyone who's contributed to the project so far!
+
+### Added
+- Reclaim disk space on a running container, from the container detail header ("Reclaim Space") or the containers list context menu. Deleting files inside a container doesn't shrink its host-side disk images on its own, so the space stays claimed until the free blocks are trimmed; this hands them back and refreshes the system disk usage tiles once the daemon reports the trim done. Apple container exposes the operation for running containers only, so the action is offered only while a container runs, and a mixed multi-selection reclaims just the running members. Note that container 1.4.1 cannot yet complete the trim on a container's root filesystem: the guest's FITRIM ioctl returns "not supported" even though the block device backing the rootfs advertises discard, and the daemon trims "/" for every container that isn't read-only, so the operation fails there. Orchard reports that as a plain sentence rather than the daemon's three-deep nested error, and the action will start working against a container release that fixes the trim.
+
+### Changed
+- Orchard now builds against Apple container 1.4.1 (containerization 0.45.0), up from 1.3.1 (containerization 0.42.0). The client-facing surface is additive between the two releases (a new XPC route and its client method), so nothing Orchard already called has changed shape. The bump also removes the two containerization advisories fixed in 1.4.1 (GHSA-4587-w9mm-xxvh, an OCI layout load that followed symlinks out of the extraction directory, and GHSA-rgqp-277h-gcwj, a socket path length limit longer than the buffer it copied into) from the shipped bundle. Neither was reachable from Orchard: the app has no OCI layout import path and doesn't open unix sockets, but there is no reason to ship the code.
+- The container system version Orchard displays is now the bare release number. Apple container 1.4.1 changed what its health check reports, from `container-apiserver 1.4.1` to `1.4.1`.
+
 ## [2.3.4] - 2026-08-31
 
 ### Fixed

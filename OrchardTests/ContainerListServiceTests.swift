@@ -310,3 +310,53 @@ func exportContainerFailure() async {
     #expect(service.exportingContainers.isEmpty)
     #expect(alert.current != nil)
 }
+
+// MARK: - cleanContainer
+
+@MainActor
+@Test("cleanContainer: success trims the container, refreshes disk usage and clears the flag")
+func cleanContainerSuccess() async {
+    let backend = MockContainerBackend()
+    let (service, alert) = makeListService(backend)
+    var diskUsageReloads = 0
+    service.reloadDiskUsage = { @MainActor in diskUsageReloads += 1 }
+
+    let ok = await service.cleanContainer("web")
+
+    #expect(ok)
+    #expect(backend.cleanedContainers == ["web"])
+    #expect(diskUsageReloads == 1)
+    #expect(service.cleaningContainers.isEmpty)
+    #expect(alert.current == nil)
+}
+
+@MainActor
+@Test("cleanContainer: failure alerts, reports false, and leaves disk usage alone")
+func cleanContainerFailure() async {
+    let backend = MockContainerBackend()
+    backend.cleanContainerError = NotConfigured()
+    let (service, alert) = makeListService(backend)
+    var diskUsageReloads = 0
+    service.reloadDiskUsage = { @MainActor in diskUsageReloads += 1 }
+
+    let ok = await service.cleanContainer("web")
+
+    #expect(!ok)
+    #expect(backend.cleanedContainers.isEmpty)
+    #expect(diskUsageReloads == 0)
+    #expect(service.cleaningContainers.isEmpty)
+    #expect(alert.current != nil)
+}
+
+@MainActor
+@Test("cleanContainers: trims every id it is given, in order")
+func cleanContainersMultiple() async {
+    let backend = MockContainerBackend()
+    let (service, alert) = makeListService(backend)
+
+    await service.cleanContainers(["web", "db"])
+
+    #expect(backend.cleanedContainers == ["web", "db"])
+    #expect(service.cleaningContainers.isEmpty)
+    #expect(alert.current == nil)
+}

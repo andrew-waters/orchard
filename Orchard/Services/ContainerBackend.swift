@@ -110,6 +110,9 @@ protocol ContainerBackend: Sendable {
     /// Export the container's filesystem as a tar archive at `destination`,
     /// replacing any existing file there.
     func exportContainer(id: String, to destination: URL) async throws
+    /// Trim the free blocks in a running container's root filesystem and volumes so
+    /// the host-side disk images shrink back to what the container actually holds.
+    func cleanContainer(id: String) async throws
     func stats(id: String) async throws -> Orchard.ContainerStats
     func createContainer(_ spec: ContainerCreateSpec) async throws
     func listImages() async throws -> [ContainerImage]
@@ -131,7 +134,7 @@ func mapContainerError(_ error: Error) -> Error {
 
 /// The apple/container release Orchard's client libraries are built against. Keep in
 /// sync with the container package pin in project.pbxproj when bumping.
-let supportedContainerVersion = "1.3.1"
+let supportedContainerVersion = "1.4.1"
 
 /// A ping reply the linked client cannot decode means the installed daemon speaks a
 /// different protocol revision than the client libraries Orchard links.
@@ -185,6 +188,14 @@ struct LiveContainerBackend: ContainerBackend {
         // Signal(_:) on the server parses the numeric form.
         do {
             try await ContainerClient().kill(id: id, signal: String(signal))
+        } catch { throw mapContainerError(error) }
+    }
+
+    func cleanContainer(id: String) async throws {
+        // container 1.4.1 added the route; the daemon trims the container's rootfs and
+        // its volumes from inside the workload's mount namespace.
+        do {
+            try await ContainerClient().clean(id: id)
         } catch { throw mapContainerError(error) }
     }
 

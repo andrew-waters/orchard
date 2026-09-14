@@ -14,6 +14,11 @@ enum OrchardError: Error, LocalizedError, Equatable {
     /// The container machine API server (a separate Mach service from the main daemon) is
     /// unreachable — typically an older `container` install without machine support.
     case machineApiUnavailable
+    /// The daemon refused a reclaim because the container isn't running.
+    case containerNotRunning(id: String)
+    /// The daemon accepted the reclaim but the guest reported the filesystem trim as
+    /// unsupported. See `classifyCleanError` for why this is its own case.
+    case trimUnsupported
     /// An error we haven't classified; carries the original message verbatim.
     case generic(String)
 
@@ -43,6 +48,10 @@ enum OrchardError: Error, LocalizedError, Equatable {
             return "No entrypoint or command specified for the container."
         case .machineApiUnavailable:
             return "Container machines are unavailable. Update your `container` install (1.0 or later) to use machines."
+        case .containerNotRunning(let id):
+            return "Container \(id) is not running. Only a running container can reclaim disk space."
+        case .trimUnsupported:
+            return "Apple container reported the filesystem trim as unsupported, so no space was reclaimed. This needs a container release that can trim a container's root filesystem; 1.4.1 cannot."
         case .generic(let message):
             return message
         }
@@ -62,6 +71,27 @@ extension OrchardError {
             || message.contains("invalidState")
             || message.contains("expected to be in created state") {
             return .containerInTransition(id: id)
+        }
+        return .generic(message)
+    }
+
+    /// Classify a raw error thrown while reclaiming a container's disk space. The daemon
+    /// nests the guest's failure three layers deep ("failed to clean container" wrapping
+    /// "failed to clean mounts in <id>: /" wrapping "filesystemOperation trim failed"),
+    /// which is unreadable in an alert.
+    ///
+    /// As of container 1.4.1 the trim always fails on a container's root filesystem: the
+    /// guest's FITRIM ioctl returns EOPNOTSUPP even though the block device backing the
+    /// rootfs advertises discard, and the daemon adds "/" to the target list for every
+    /// container that isn't read-only. So `.trimUnsupported` is the expected outcome
+    /// today, not an edge case, and says so rather than blaming the user's setup.
+    static func classifyCleanError(_ error: Error, id: String) -> OrchardError {
+        let message = error.localizedDescription
+        if message.contains("trim failed") || message.contains("filesystemOperation") {
+            return .trimUnsupported
+        }
+        if message.contains("not running") {
+            return .containerNotRunning(id: id)
         }
         return .generic(message)
     }
