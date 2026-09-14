@@ -287,7 +287,7 @@ final class ComposeService: ObservableObject {
         var live = ComposeRun(
             project: project,
             verb: verb,
-            steps: plan.operations.map { ComposeRun.Step(summary: $0.summary, service: $0.service) }
+            steps: plan.operations.map(Self.step(for:))
         )
         run = live
 
@@ -320,6 +320,38 @@ final class ComposeService: ObservableObject {
 
         live.phase = .succeeded
         run = live
+    }
+
+    /// One operation as a row: what it is doing, and to what.
+    nonisolated static func step(for operation: ComposePlanner.Operation) -> ComposeRun.Step {
+        let activity: String
+        var network: String?
+        switch operation {
+        case .createNetwork(let value):
+            activity = "Creating"
+            network = value.name
+        case .removeNetwork(let value):
+            activity = "Removing"
+            network = value.name
+        case .buildImage:
+            activity = "Building"
+        case .pullImage:
+            activity = "Pulling"
+        case .createContainer:
+            activity = "Creating"
+        case .startContainer:
+            activity = "Starting"
+        case .stopContainer:
+            activity = "Stopping"
+        case .removeContainer:
+            activity = "Removing"
+        }
+        return ComposeRun.Step(
+            summary: operation.summary,
+            activity: activity,
+            service: operation.service,
+            network: network
+        )
     }
 
     private func perform(
