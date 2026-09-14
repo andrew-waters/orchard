@@ -68,6 +68,34 @@ while read -r kind name; do
   container delete "$name" 2>/dev/null && echo "deleted container $name"
 done < "$STATE"
 
+# The build: its registry backup, its record in Orchard's list, and the image itself.
+while read -r kind name; do
+  case "$kind" in
+    buildsbackup)
+      # Put the registry back exactly as it was found, rather than trusting a surgical edit.
+      if [[ -f "$name" ]]; then
+        cp "$name" "$HOME/Library/Application Support/Orchard/builds.json"
+        echo "restored the build registry from $name"
+      fi ;;
+    buildrecord)
+      python3 - "$name" <<'PY'
+import json, os, sys
+store = os.path.expanduser("~/Library/Application Support/Orchard/builds.json")
+if not os.path.exists(store):
+    sys.exit(0)
+try:
+    loaded = json.load(open(store))
+except ValueError:
+    sys.exit(0)
+builds = [b for b in loaded.get("builds", []) if b.get("request", {}).get("tag") != sys.argv[1]]
+json.dump({"version": 1, "builds": builds}, open(store, "w"))
+PY
+      echo "removed the $name build from Orchard's list" ;;
+    image)
+      container image delete "$name" >/dev/null 2>&1 && echo "deleted image $name" ;;
+  esac
+done < "$STATE"
+
 while read -r kind name; do
   case "$kind" in
     machine)
