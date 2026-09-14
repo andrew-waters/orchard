@@ -1,8 +1,8 @@
 #!/bin/bash
 # Bring up a realistic demo environment for screenshots and manual testing:
-# nine distinct lightweight containers across two networks, an AI-agent sandbox,
-# a container machine, a local Kubernetes cluster, host mounts, a DNS domain, and a stub that
-# stands in for local model providers so the AI Models tab is not an empty state. Existing
+# nine distinct lightweight containers across two networks, a compose project, an AI-agent
+# sandbox, a container machine, a local Kubernetes cluster, host mounts, a DNS domain, and a stub
+# that stands in for local model providers so the AI Models tab is not an empty state. Existing
 # resources (traefik, a cluster you already have, anything with a clashing name)
 # are left alone; everything this script actually creates is recorded in a state
 # file so demo-env-down.sh removes exactly that and nothing else.
@@ -96,6 +96,83 @@ if container image ls 2>/dev/null | awk 'NR>1 && $1=="orchard-demo" {f=1} END {e
   run demo-api --network backend orchard-demo:latest
 else
   echo "  (no orchard-demo:latest image, so nothing runs from it)"
+fi
+
+# A compose project, so the Compose tab has something to show. The file deliberately asks
+# for two things that cannot be honoured, one blocked by the runtime and one not built yet,
+# because the Problems tab is half of what the tab is for and an empty one shows nothing.
+echo "== Compose project =="
+COMPOSE_DIR="$DEMO_DIR/compose"
+mkdir -p "$COMPOSE_DIR"
+cat > "$COMPOSE_DIR/compose.yaml" <<'YAML'
+name: storefront
+
+services:
+  web:
+    image: docker.io/library/nginx:alpine
+    ports:
+      - "8090:80"
+    depends_on: [inventory]
+    # The runtime has no restart policy, so this shows under "Not possible on this runtime".
+    restart: always
+
+  inventory:
+    image: docker.io/library/alpine:latest
+    command: sleep infinity
+    # Compose reads a bare port as "publish on any free host port", which nothing here can
+    # allocate: it shows under "Not implemented yet".
+    ports:
+      - "3000"
+
+  cache:
+    image: docker.io/library/redis:alpine
+YAML
+
+if container compose --help >/dev/null 2>&1; then
+  if (cd "$COMPOSE_DIR" && container compose up); then
+    record compose "$COMPOSE_DIR"
+    echo "brought up the storefront compose project"
+  else
+    echo "  (compose up failed; the project's file is still at $COMPOSE_DIR/compose.yaml)"
+  fi
+else
+  echo "  (skipped: the 'container compose' plugin is not installed)"
+  echo "  install it from github.com/container-compose/compose, then re-run this script"
+fi
+
+# Tell Orchard where the file is, the way the file picker would. Without this the project
+# still appears (it is found by the labels on its containers) but Orchard cannot show what
+# the file asks for, or bring it up again.
+if [[ -d "$HOME/Library/Application Support/Orchard" ]] || mkdir -p "$HOME/Library/Application Support/Orchard"; then
+  if python3 - "$COMPOSE_DIR/compose.yaml" <<'PY'
+import json, os, sys, time
+
+path = sys.argv[1]
+store = os.path.expanduser("~/Library/Application Support/Orchard/compose-projects.json")
+projects = []
+if os.path.exists(store):
+    try:
+        loaded = json.load(open(store))
+        if loaded.get("version") == 1:
+            projects = loaded.get("projects", [])
+    except ValueError:
+        projects = []
+if any(p.get("name") == "storefront" for p in projects):
+    sys.exit(1)          # already known; leave the user's own record alone
+projects.append({
+    "name": "storefront",
+    "path": path,
+    "acknowledgedFindings": [],
+    "addedAt": time.time() - 978307200,   # Foundation's reference date
+})
+json.dump({"version": 1, "projects": projects}, open(store, "w"))
+PY
+  then
+    record composeproject storefront
+    echo "registered the storefront project with Orchard"
+  else
+    echo "  (Orchard already knows a 'storefront' project; left it alone)"
+  fi
 fi
 
 echo "== AI agent sandbox =="

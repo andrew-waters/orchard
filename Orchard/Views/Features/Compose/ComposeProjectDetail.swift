@@ -126,42 +126,26 @@ struct ComposeProjectDetailView: View {
     // MARK: - Tabs
 
     private func tabStrip(_ project: ComposeProject) -> some View {
-        HStack(spacing: 16) {
-            ForEach(ProjectTab.allCases, id: \.self) { candidate in
-                tabButton(candidate, count: candidate == .problems ? problemCount(project) : 0)
+        HStack {
+            Picker("", selection: $tab) {
+                ForEach(ProjectTab.allCases, id: \.self) { candidate in
+                    Text(tabTitle(candidate, project: project)).tag(candidate)
+                }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("compose-tabs")
             Spacer()
         }
         .padding(.horizontal)
-        .padding(.bottom, 8)
+        .padding(.bottom, 10)
     }
 
-    private func tabButton(_ candidate: ProjectTab, count: Int) -> some View {
-        Button {
-            tab = candidate
-        } label: {
-            VStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    Text(candidate.rawValue)
-                        .font(.subheadline)
-                        .fontWeight(tab == candidate ? .semibold : .regular)
-                        .foregroundStyle(tab == candidate ? Color.primary : Color.secondary)
-                    if count > 0 {
-                        Text("\(count)")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Capsule().fill(Color.orange.opacity(0.14)))
-                    }
-                }
-                Rectangle()
-                    .fill(tab == candidate ? Color.accentColor : Color.clear)
-                    .frame(height: 2)
-            }
-            .fixedSize()
-        }
-        .buttonStyle(.plain)
+    private func tabTitle(_ candidate: ProjectTab, project: ComposeProject) -> String {
+        guard candidate == .problems else { return candidate.rawValue }
+        let count = problemCount(project)
+        return count > 0 ? "\(candidate.rawValue) (\(count))" : candidate.rawValue
     }
 
     /// What the count on the tab means: things that change what the services do. Cosmetic
@@ -206,30 +190,74 @@ struct ComposeProjectDetailView: View {
         !composeService.unacknowledgedFindings(for: projectName).isEmpty
     }
 
+    /// Keys nobody has ever defined. Checked first: the parser marks them unsupported for
+    /// want of a better case, and they are not a runtime limitation, they are a typo.
+    private var unknownKeys: [Finding] {
+        findings.filter { $0.kind == .unknownKey }
+    }
+
+    /// Things the runtime underneath cannot do, whoever asks it.
+    private var runtimeBlocked: [Finding] {
+        findings.filter { $0.kind != .unknownKey && $0.support.needsRuntimeSupport }
+    }
+
+    /// Things this could do and has not built yet.
+    private var notBuiltYet: [Finding] {
+        findings.filter { $0.kind != .unknownKey && $0.support.isDeferred }
+    }
+
     @ViewBuilder
     private func unhandledSection(_ project: ComposeProject) -> some View {
-        let behavioural = findings.filter { $0.severity == .behavioural }
-        let cosmetic = findings.filter { $0.severity == .cosmetic }
-        if !behavioural.isEmpty || !cosmetic.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Not Honoured")
-                        .font(.headline)
-                    Spacer()
-                    if hasUnreviewedChanges {
-                        Button("Review Changes") { reviewCurrentFile() }
-                            .controlSize(.small)
-                    }
-                }
-                if hasUnreviewedChanges {
-                    Text("This file has changed since it was added and now asks for something new.")
-                        .font(.caption)
+        VStack(alignment: .leading, spacing: 22) {
+            if hasUnreviewedChanges {
+                HStack(alignment: .top, spacing: 10) {
+                    SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
+                    Text("This file has changed since it was added and now asks for something new.")
+                        .font(.callout)
+                    Spacer()
+                    Button("Review Changes") { reviewCurrentFile() }
+                        .controlSize(.small)
                 }
-                // Shown for as long as the project exists, not just at the point of adding it:
-                // nobody remembers three weeks later what they accepted, and the containers
-                // cannot tell them.
-                ForEach(behavioural + cosmetic) { finding in
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.1)))
+            }
+
+            // Grouped by what is actually in the way, because the three are not the same kind
+            // of news and a single list reads as though all of it were this project's doing.
+            findingGroup(
+                title: "Not possible on this runtime",
+                note: "Apple's container runtime has no equivalent, so nothing built on it can "
+                    + "honour these. They will work here when the runtime does.",
+                findings: runtimeBlocked
+            )
+            findingGroup(
+                title: "Not implemented yet",
+                note: "Nothing about the runtime prevents these. They are simply not built yet.",
+                findings: notBuiltYet
+            )
+            findingGroup(
+                title: "Not a compose key",
+                note: "No version of the Compose Specification defines these, so they are as "
+                    + "likely to be a typo as anything else.",
+                findings: unknownKeys
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func findingGroup(title: String, note: String, findings: [Finding]) -> some View {
+        if !findings.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // Behavioural first: a key that changes what the services do outranks one that
+                // changes nothing anybody can see.
+                ForEach(findings.sorted { $0.severity > $1.severity }) { finding in
                     HStack(alignment: .top, spacing: 8) {
                         SwiftUI.Image(
                             systemName: finding.severity == .behavioural

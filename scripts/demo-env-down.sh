@@ -20,6 +20,33 @@ while read -r kind pid; do
   fi
 done < "$STATE"
 
+# The compose project next: its own `down` removes the containers and the network it
+# created, which the loops below know nothing about.
+while read -r kind name; do
+  [[ "$kind" == "compose" ]] || continue
+  if [[ -d "$name" ]] && container compose --help >/dev/null 2>&1; then
+    (cd "$name" && container compose down) && echo "took down the compose project in $name"
+  fi
+done < "$STATE"
+
+# And the record that told Orchard where its file was, leaving any other project alone.
+while read -r kind name; do
+  [[ "$kind" == "composeproject" ]] || continue
+  python3 - "$name" <<'PY'
+import json, os, sys
+store = os.path.expanduser("~/Library/Application Support/Orchard/compose-projects.json")
+if not os.path.exists(store):
+    sys.exit(0)
+try:
+    loaded = json.load(open(store))
+except ValueError:
+    sys.exit(0)
+projects = [p for p in loaded.get("projects", []) if p.get("name") != sys.argv[1]]
+json.dump({"version": 1, "projects": projects}, open(store, "w"))
+PY
+  echo "removed the $name project from Orchard's list"
+done < "$STATE"
+
 # The DNS domain is deliberately not torn down. Deleting one needs administrator rights, the
 # same as creating it, and this script must be able to finish unattended. It is also the one
 # piece of the demo that is harmless to keep: nothing resolves under it once the containers are

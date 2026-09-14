@@ -15,6 +15,9 @@
 # Usage: ./scripts/capture-screenshots.sh [--both|--dark|--light] [--no-wait] [output-dir]
 #   default: --both, into site/assets/screens and site/assets/screens/light
 #
+# Run scripts/demo-env-up.sh first: several shots need something to show, and the compose
+# shots need its demo project in particular. COMPOSE_PROJECT names the project to capture.
+#
 # --both takes each shot in both themes before moving on: the view is posed once, captured
 # dark, the appearance flipped, and captured light. That is the point of it. Capturing a whole
 # set per theme leaves the two five to ten minutes apart, and everything live moves in between
@@ -77,6 +80,7 @@ APPEARANCE_SETTLE="${APPEARANCE_SETTLE:-2}"   # seconds for the app to re-render
 K8S_CLUSTER="${K8S_CLUSTER:-k8s-dev}"
 DEMO_DNS_DOMAIN="${DEMO_DNS_DOMAIN:-demo.test}"
 MENUBAR_HOVER="${MENUBAR_HOVER:-$K8S_CLUSTER}"
+COMPOSE_PROJECT="${COMPOSE_PROJECT:-storefront}"
 
 # The row each tab should open on. Without these a tab shows whatever its list selected first,
 # which is not a choice anyone made: it put the Images shot on a digest-pinned node image and
@@ -265,7 +269,7 @@ elif [[ "$HISTORY_TARGET" != "0" ]] && command -v python3 >/dev/null 2>&1; then
   done
 fi
 
-TABS="dashboard containers clusters machines sandboxes models images builds mounts dns networks"
+TABS="dashboard containers compose clusters machines sandboxes models images builds mounts dns networks"
 for tab in $TABS; do
   # Fail hard: a missed selection would silently save the wrong view under this name.
   "$AX" press "sidebar-$tab" || { echo "could not select the $tab tab"; exit 1; }
@@ -305,7 +309,28 @@ for tab in $TABS; do
     "$AX" press-text "$K8S_CLUSTER" || { echo "could not select the $K8S_CLUSTER container"; exit 1; }
     sleep 2
   fi
+  if [[ "$tab" == "compose" ]]; then
+    # Select the demo project (scripts/demo-env-up.sh creates it) so the tab is not an
+    # empty state. Its Running tab is the default, which is what compose.png should be.
+    "$AX" press-text "$COMPOSE_PROJECT" || {
+      echo "could not select the $COMPOSE_PROJECT compose project"
+      echo "run scripts/demo-env-up.sh first, or set COMPOSE_PROJECT to one you have"
+      exit 1
+    }
+    sleep 1.5
+  fi
   capture_pose "$tab"
+
+  # The compose project has two halves and the second is the interesting one: what the file
+  # asked for that will not happen, grouped by what is actually in the way. Pressed by
+  # prefix because the tab carries a count that this script cannot know.
+  if [[ "$tab" == "compose" ]]; then
+    "$AX" press-prefix "Problems" || { echo "could not open the Problems tab"; exit 1; }
+    sleep 1
+    capture_pose "compose-problems"
+    "$AX" press-text "Running" || true   # leave the tab as it was found
+    sleep 0.5
+  fi
 done
 
 # Menu bar panel: toggle it open via the status item, hover a running container so its
