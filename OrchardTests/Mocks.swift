@@ -58,6 +58,8 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _pullProgressEvents: [ImagePullMetrics]?
     private var _exportContainerError: Error?
     private var _exportedContainers: [(id: String, destination: URL)] = []
+    private var _cleanContainerError: Error?
+    private var _cleanedContainers: [String] = []
     private var _deleteImageError: Error?
     private var _listNetworksError: Error?
     private var _createNetworkError: Error?
@@ -117,6 +119,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         set { lock.withLock { _exportContainerError = newValue } }
     }
     var exportedContainers: [(id: String, destination: URL)] { lock.withLock { _exportedContainers } }
+    var cleanContainerError: Error? {
+        get { lock.withLock { _cleanContainerError } }
+        set { lock.withLock { _cleanContainerError = newValue } }
+    }
+    var cleanedContainers: [String] { lock.withLock { _cleanedContainers } }
     var deleteImageError: Error? {
         get { lock.withLock { _deleteImageError } }
         set { lock.withLock { _deleteImageError = newValue } }
@@ -206,6 +213,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     func exportContainer(id: String, to destination: URL) async throws {
         if let exportContainerError { throw exportContainerError }
         lock.withLock { _exportedContainers.append((id, destination)) }
+    }
+
+    func cleanContainer(id: String) async throws {
+        if let cleanContainerError { throw cleanContainerError }
+        lock.withLock { _cleanedContainers.append(id) }
     }
     func stats(id: String) async throws -> Orchard.ContainerStats {
         if let handler = statsHandler { return try handler(id) }

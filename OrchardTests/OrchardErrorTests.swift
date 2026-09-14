@@ -23,6 +23,28 @@ func startErrorGeneric() {
     #expect(OrchardError.classifyStartError(error("disk full"), id: "abc") == .generic("disk full"))
 }
 
+@Test("Clean error: the nested trim failure classifies as trimUnsupported")
+func cleanErrorTrimUnsupported() {
+    // The exact chain container 1.4.1 returns for a running container, daemon wrapping
+    // included.
+    let nested = "failed to clean container (cause: \"failed to clean container db "
+        + "(cause: \"failed to clean mounts in db: / (internalError: "
+        + "\"filesystemOperation trim failed\")\")\")"
+    #expect(OrchardError.classifyCleanError(error(nested), id: "db") == .trimUnsupported)
+    #expect(OrchardError.classifyCleanError(error("filesystemOperation"), id: "db") == .trimUnsupported)
+}
+
+@Test("Clean error: a stopped container classifies as containerNotRunning")
+func cleanErrorNotRunning() {
+    #expect(OrchardError.classifyCleanError(error("container is not running"), id: "db")
+        == .containerNotRunning(id: "db"))
+}
+
+@Test("Clean error: anything else is generic and preserves the message")
+func cleanErrorGeneric() {
+    #expect(OrchardError.classifyCleanError(error("disk full"), id: "db") == .generic("disk full"))
+}
+
 @Test("isAlreadyExistsError: recognizes the idempotent-install messages")
 func alreadyExistsClassifier() {
     #expect(OrchardError.isAlreadyExistsError("item with the same name already exists") == true)

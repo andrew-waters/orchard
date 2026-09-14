@@ -158,6 +158,12 @@ struct ContainerDetailHeader: View {
         ContainerExportFlow.run(containerId: container.configuration.id, service: containerListService)
     }
 
+    private func cleanContainer() {
+        Task {
+            await containerListService.cleanContainer(container.configuration.id)
+        }
+    }
+
     private func deleteContainer() {
         guard !isDeleting else { return }
         isDeleting = true
@@ -258,6 +264,28 @@ struct ContainerDetailHeader: View {
                     }
                     .buttonStyle(BorderedButtonStyle())
                     .help("Save the container's filesystem as a tar archive")
+                }
+
+                // Trimming needs a live filesystem to trim, so it's offered only while
+                // the container runs.
+                if isRunning {
+                    if containerListService.cleaningContainers.contains(container.configuration.id) {
+                        Button {
+                        } label: {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Reclaiming…")
+                            }
+                        }
+                        .buttonStyle(BorderedButtonStyle())
+                        .disabled(true)
+                    } else {
+                        Button("Reclaim Space") {
+                            cleanContainer()
+                        }
+                        .buttonStyle(BorderedButtonStyle())
+                        .help("Return the container's free disk blocks to the host")
+                    }
                 }
             }
         }

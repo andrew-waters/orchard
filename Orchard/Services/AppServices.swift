@@ -88,6 +88,10 @@ final class AppServices: ObservableObject {
         self.modelServerService = ModelServerService(engine: modelServerEngine, alertCenter: alertCenter)
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
+        // Reclaiming a container's free blocks changes what the daemon reports as used.
+        containerListService.reloadDiskUsage = { [weak systemService] in
+            await systemService?.loadSystemDiskUsage(showLoading: false)
+        }
         // Cluster lifecycle actions change node containers; refresh the list they derive from.
         clusterService.reloadContainers = { [weak containerListService] in await containerListService?.loadContainers(showLoading: false) }
         // Stats samples running machines through their backing container (re-keyed to the

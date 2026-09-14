@@ -198,6 +198,17 @@ struct ContainersListView: View {
                     }
                 }
             }
+            // Only running containers can be trimmed, so a mixed selection reclaims
+            // just the running ones.
+            let runningIds = targetContainers
+                .filter { $0.status.lowercased() == "running" }
+                .map { $0.configuration.id }
+            Button(runningIds.count > 1 ? "Reclaim Disk Space on \(runningIds.count) Containers" : "Reclaim Disk Space") {
+                Task {
+                    await containerListService.cleanContainers(runningIds)
+                }
+            }
+            .disabled(runningIds.contains { containerListService.cleaningContainers.contains($0) })
         }
         if anyStopped {
             Button(multiple ? "Start \(targetIds.count) Containers" : "Start Container") {

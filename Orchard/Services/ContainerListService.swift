@@ -19,12 +19,17 @@ final class ContainerListService: ObservableObject {
     /// Containers with a filesystem export in flight - drives the per-container
     /// "Exporting…" affordance.
     @Published private(set) var exportingContainers: Set<String> = []
+    /// Containers with a disk-space reclaim in flight - drives the per-container
+    /// "Reclaiming…" affordance.
+    @Published private(set) var cleaningContainers: Set<String> = []
 
     private let backend: ContainerBackend
     private let alertCenter: AlertCenter
 
     /// Refresh builder state after a lifecycle change. Set by the owner.
     var reloadBuilders: () async -> Void = {}
+    /// Refresh the system disk usage a reclaim has just changed. Set by the owner.
+    var reloadDiskUsage: () async -> Void = {}
 
     /// Delay between polls in the `refreshUntilContainer…` loops. Injected; production uses
     /// the 0.5s default, tests pass 0 to drive the loops without real sleeps.
@@ -312,6 +317,35 @@ final class ContainerListService: ObservableObject {
             self.alertCenter.error("Failed to export container: \(error.localizedDescription)")
             Log.containers.error("Error exporting container: \(error.localizedDescription)")
             return false
+        }
+    }
+
+    /// Trim the free blocks in a running container's root filesystem and volumes.
+    /// Deleting files inside a container doesn't shrink its host-side disk images on
+    /// its own; this hands those blocks back, so the system disk usage is refreshed
+    /// once the daemon reports the trim done. Returns true on success.
+    @discardableResult
+    func cleanContainer(_ id: String) async -> Bool {
+        cleaningContainers.insert(id)
+        defer { cleaningContainers.remove(id) }
+
+        do {
+            try await backend.cleanContainer(id: id)
+            Log.containers.debug("Container \(id) reclaimed disk space")
+            await reloadDiskUsage()
+            return true
+        } catch {
+            // The daemon's nested "failed to clean container / clean mounts / trim failed"
+            // chain is unreadable in an alert; log it whole and show the classified form.
+            self.alertCenter.error(OrchardError.classifyCleanError(error, id: id))
+            Log.containers.error("Error reclaiming disk space: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    func cleanContainers(_ ids: [String]) async {
+        for id in ids {
+            await cleanContainer(id)
         }
     }
 
