@@ -88,6 +88,16 @@ run metrics  --network backend  -p 9090:9090 docker.io/prom/prometheus:latest
 run registry --network backend  -p 5001:5000 docker.io/library/registry:2
 run worker   --network backend  docker.io/library/alpine:latest sleep infinity
 
+# Something running from the built image, so the Builds and Images tabs can show a user for it
+# rather than "No containers are currently using this image" in both. The image itself is not
+# built here: that lives in the branch that added the build to this script, so this is skipped
+# when the image is absent rather than pretending to create it.
+if container image ls 2>/dev/null | awk 'NR>1 && $1=="orchard-demo" {f=1} END {exit !f}'; then
+  run demo-api --network backend orchard-demo:latest
+else
+  echo "  (no orchard-demo:latest image, so nothing runs from it)"
+fi
+
 echo "== AI agent sandbox =="
 # The endpoint has to name the gateway of the network the sandbox is on: that is the address
 # the host answers on from inside a container (see ModelBridge), and the runtime assigns it at
