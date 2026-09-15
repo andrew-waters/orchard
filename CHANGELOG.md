@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-09-15
+
 ### Added
 - The k8s Clusters tab now warns when the guest kernel cannot bootstrap a cluster, and offers to fix it. `container k8s create` prepares its node with `iptables-nft`, which needs a kernel built with nftables; the kernel Apple container recommended before 1.3.0 was not, and `container system start` skips the kernel download whenever a kernel already exists (apple/container#905), so an install carried forward from an earlier release keeps the old kernel and fails every cluster creation however new the CLI is. Orchard reads the default kernel the CLI records, and when it predates nftables the tab says so and offers "Install Recommended Kernel" in place of the empty state. Creation is still available from there, because the check is a version floor rather than a capability probe and a deliberately chosen custom kernel is nobody's business but yours.
 
