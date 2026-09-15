@@ -28,6 +28,38 @@ func groupControlPlaneWithWorkers() throws {
     #expect(clusters.first?.workers.map(\.id) == ["k8s-dev-worker-1", "k8s-dev-worker-2"])
 }
 
+@Test("Grouping: a single node that is both control plane and worker is the cluster's control plane")
+func groupSingleNodeCombinedRole() throws {
+    // The default `container k8s create` cluster: one node labelled "control-plane,worker".
+    // Matching the label against "control-plane" classified it as a worker, which left the
+    // cluster with no control plane, so it read as stopped while running and offered Start.
+    let clusters = K8sCluster.group(containers: [
+        try k8sNode("k8s-dev", role: "control-plane,worker"),
+    ])
+    #expect(clusters.count == 1)
+    #expect(clusters.first?.name == "k8s-dev")
+    #expect(clusters.first?.controlPlane?.id == "k8s-dev")
+    #expect(clusters.first?.workers.isEmpty == true)
+    #expect(clusters.first?.isRunning == true)
+}
+
+@Test("Grouping: a combined-role control plane still claims its workers")
+func groupCombinedRoleWithWorkers() throws {
+    let clusters = K8sCluster.group(containers: [
+        try k8sNode("k8s-dev-worker-1"),
+        try k8sNode("k8s-dev", role: "control-plane,worker"),
+    ])
+    #expect(clusters.count == 1)
+    #expect(clusters.first?.nodes.map(\.id) == ["k8s-dev", "k8s-dev-worker-1"])
+    #expect(clusters.first?.controlPlane?.id == "k8s-dev")
+    #expect(clusters.first?.workers.map(\.id) == ["k8s-dev-worker-1"])
+}
+
+@Test("clusterName(for:): a combined-role node names its own cluster")
+func clusterNameForCombinedRole() throws {
+    #expect(K8sCluster.clusterName(for: try k8sNode("k8s-dev", role: "control-plane,worker")) == "k8s-dev")
+}
+
 @Test("Grouping: multiple clusters sort by name and don't claim each other's workers")
 func groupMultipleClusters() throws {
     let containers = [
