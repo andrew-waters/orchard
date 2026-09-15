@@ -157,10 +157,10 @@ struct ContentView: View {
                 }
             }
             .onChange(of: imageService.images) { oldImages, newImages in
-                if selectedImage == nil && !newImages.isEmpty && selectedTab == .images {
-                    selectedImage = newImages[0].reference
-                    selectedImages = [newImages[0].reference]
-                }
+                // No auto-selection here. `newImages[0]` is the daemon's first image, not the
+                // first row of a list that sorts and filters in the view, so this picked a row
+                // from the middle of it. ImagesListView claims its own first shown row, and
+                // `selectedImage` syncs into `selectedImages` below, so the highlight follows.
                 let existingIds = Set(newImages.map { $0.reference })
                 let pruned = selectedImages.intersection(existingIds)
                 if pruned != selectedImages {
