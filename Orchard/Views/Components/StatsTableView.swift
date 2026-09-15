@@ -101,6 +101,10 @@ struct StatsTableView: View {
             .fontWeight(.medium)
         }
         .buttonStyle(.plain)
+        // Named so the screenshot capture can set this table's sort rather than depending on
+        // whatever the machine it runs on happens to have stored. The title alone is ambiguous:
+        // the Dashboard's System section has a chart card titled "CPU" too.
+        .accessibilityIdentifier("stats-sort-\(column.rawValue)")
 
         if let width = width {
             button.frame(width: width, alignment: alignment)
