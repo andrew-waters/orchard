@@ -66,6 +66,17 @@ struct ImagesListView: View {
         .onChange(of: selectedImage) { _, newValue in
             lastSelectedImage = newValue
         }
+        // Claimed here rather than in `selectTab`, which cannot know this order: the sort and
+        // the in-use and search filters live in this view, so the layout's `images.first` is
+        // the daemon's first image, which is rarely the row at the top. Also runs on change,
+        // because the tab can open before the first image list has loaded.
+        .onAppear { selectFirstShownImageIfNeeded() }
+        .onChange(of: imageService.images) { _, _ in selectFirstShownImageIfNeeded() }
+    }
+
+    private func selectFirstShownImageIfNeeded() {
+        guard selectedImage == nil, let first = filteredImages.first else { return }
+        selectedImage = first.reference
     }
 
     private func imageRowView(for image: ContainerImage) -> some View {
