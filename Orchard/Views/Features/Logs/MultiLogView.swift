@@ -99,7 +99,9 @@ struct LogPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header: target picker + controls
+            // Header: target picker, filter, and the pane's own controls on one row. The filter
+            // used to sit on a row of its own under a divider, which spent a whole band of a
+            // pane that can be one of four on the same window.
             HStack(spacing: 8) {
                 Picker("", selection: $selectedTarget) {
                     Text("Select…")
@@ -127,7 +129,9 @@ struct LogPaneView: View {
                 // Without labelsHidden, the empty-string label still reserves
                 // a label column and shoves the control off the leading edge.
                 .labelsHidden()
-                .frame(maxWidth: 250)
+                // Leading alignment as well as labelsHidden: a menu picker centres itself in a
+                // flexible frame, which insets it from the pane's leading edge all over again.
+                .frame(maxWidth: 250, alignment: .leading)
 
                 // Machines expose a separate boot log; containers do not.
                 if selectedTarget?.isMachine == true {
@@ -140,7 +144,27 @@ struct LogPaneView: View {
                     .frame(width: 150)
                 }
 
-                Spacer()
+                // No Spacer: the filter field takes the slack, so it grows with the pane
+                // instead of leaving a gap between the picker and the buttons.
+                SwiftUI.Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 11))
+                TextField("Filter logs...", text: $filterText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+
+                if !filterText.isEmpty {
+                    Text("\(displayLines.count) matches")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize()
+
+                    Button(action: { filterText = "" }) {
+                        SwiftUI.Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Button(action: { isPaused.toggle() }) {
                     SwiftUI.Image(systemName: isPaused ? "play.fill" : "pause.fill")
@@ -158,32 +182,6 @@ struct LogPaneView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Close this pane")
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-
-            Divider()
-
-            // Filter bar
-            HStack {
-                SwiftUI.Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 11))
-                TextField("Filter logs...", text: $filterText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-
-                if !filterText.isEmpty {
-                    Text("\(displayLines.count) matches")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Button(action: { filterText = "" }) {
-                        SwiftUI.Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 12)
