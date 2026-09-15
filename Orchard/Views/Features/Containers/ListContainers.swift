@@ -49,7 +49,18 @@ struct ContainersListView: View {
             .onChange(of: selectedContainer) { _, newValue in
                 lastSelectedContainer = newValue
             }
+            // Claimed here rather than in `selectTab`, which cannot know this order: the sort,
+            // the running-first rule and the filters live in this view, so the layout's
+            // `containers.first` is the daemon's first container, which is rarely the row at
+            // the top. Also runs on change, because the tab can open before the list loads.
+            .onAppear { selectFirstShownContainerIfNeeded() }
+            .onChange(of: containerListService.containers) { _, _ in selectFirstShownContainerIfNeeded() }
         }
+    }
+
+    private func selectFirstShownContainerIfNeeded() {
+        guard selectedContainer == nil, let first = filteredContainers.first else { return }
+        selectedContainer = first.configuration.id
     }
 
     private func containerRow(for container: Container) -> some View {

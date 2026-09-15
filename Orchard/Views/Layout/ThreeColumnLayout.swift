@@ -623,16 +623,15 @@ struct TabColumnView: View {
     private func selectTab(_ tab: TabSelection) {
         selectedTab = tab
 
-        // Auto-select first item in tabs with second columns (only if no selection exists)
+        // Auto-select first item in tabs with second columns (only if no selection exists).
+        //
+        // Containers and images are not here: both lists sort and filter in the view, so the
+        // first element of the service's array is the daemon's order rather than the row on
+        // screen, and selecting it highlighted a row halfway down the list. Those two claim
+        // their own first shown row instead.
         switch tab {
-        case .containers:
-            if selectedContainer == nil && !containerListService.containers.isEmpty {
-                selectedContainer = containerListService.containers.first?.configuration.id
-            }
-        case .images:
-            if selectedImage == nil && !imageService.images.isEmpty {
-                selectedImage = imageService.images.first?.reference
-            }
+        case .containers, .images:
+            break
         case .builds:
             // Also drop a stale id: the selected build can be removed while
             // another tab is frontmost (Clear Finished, Remove Record).
