@@ -81,7 +81,7 @@ struct ContainerDetailHeader: View {
                 Text("This container is created and managed by the '\(container.owningPlugin ?? "")' container plugin. Its lifecycle is tied to the plugin's resources, so prefer the plugin's commands over acting on it directly.")
                     .font(.callout)
                     .foregroundColor(.secondary)
-                if let role = container.pluginRole {
+                if let role = container.pluginRoleDisplay {
                     Divider()
                     Text("Role")
                         .font(.caption)

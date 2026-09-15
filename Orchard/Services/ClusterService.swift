@@ -10,7 +10,8 @@ struct K8sClusterNode: Identifiable, Equatable {
 
     var id: String { container.configuration.id }
     var role: String? { container.pluginRole }
-    var isControlPlane: Bool { role == K8sCluster.controlPlaneRole }
+    /// Membership, not equality: a single-node cluster's node is `control-plane,worker`.
+    var isControlPlane: Bool { container.pluginRoles.contains(K8sCluster.controlPlaneRole) }
     var isRunning: Bool { container.status.lowercased() == "running" }
     var address: String? { container.networks.first?.address }
 }
@@ -38,7 +39,7 @@ struct K8sCluster: Identifiable, Equatable {
     static func clusterName(for container: Container) -> String? {
         guard container.owningPlugin == pluginName else { return nil }
         let id = container.configuration.id
-        if container.pluginRole == controlPlaneRole { return id }
+        if container.pluginRoles.contains(controlPlaneRole) { return id }
         let derived = id.components(separatedBy: "-worker-").dropLast().joined(separator: "-worker-")
         return derived.isEmpty ? id : derived
     }
@@ -50,7 +51,7 @@ struct K8sCluster: Identifiable, Equatable {
         var controlPlanes: [Container] = []
         var workers: [Container] = []
         for node in nodes {
-            if node.pluginRole == controlPlaneRole {
+            if node.pluginRoles.contains(controlPlaneRole) {
                 controlPlanes.append(node)
             } else {
                 workers.append(node)
