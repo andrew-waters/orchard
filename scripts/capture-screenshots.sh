@@ -276,6 +276,24 @@ for tab in $TABS; do
       MISSED_SUBJECTS="$MISSED_SUBJECTS $tab:$subject"
     fi
   fi
+  if [[ "$tab" == "dashboard" ]]; then
+    # Container Utilisation sorted by CPU, busiest first: the rows worth looking at are the
+    # ones doing something, and the stored sort is whatever the machine running this last
+    # clicked. Deterministic from any starting state because `toggleSort` sets ascending when
+    # the column changes and toggles when it does not: Container first puts the column there
+    # whatever it was, then CPU twice gives CPU descending. Pressed by identifier, since the
+    # header title collides with the System section's CPU chart card.
+    sort_ok=true
+    for header in stats-sort-container stats-sort-cpu stats-sort-cpu; do
+      "$AX" press "$header" >/dev/null 2>&1 || sort_ok=false
+      sleep 0.4
+    done
+    if [[ "$sort_ok" == true ]]; then
+      sleep 1   # the table reorders and the row sparklines catch up
+    else
+      echo "  (could not set the utilisation sort: keeping whatever was stored)"
+    fi
+  fi
   if [[ "$tab" == "containers" ]]; then
     # The k8s node has the liveliest charts and shows the plugin badge + cluster banner.
     "$AX" press-text "k8s-dev" || { echo "could not select the k8s-dev container"; exit 1; }
