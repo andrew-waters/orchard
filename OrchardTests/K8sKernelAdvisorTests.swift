@@ -46,7 +46,7 @@ func floorSplitsAtFirstNFTablesKernel() {
 /// A directory shaped like `~/Library/Application Support/com.apple.container`: a `kernels`
 /// subdirectory whose `default.kernel-arm64` is a symlink to the versioned binary, which is
 /// how the CLI records the kernel a container actually boots.
-private func makeContainerHome(defaultKernel: String?) throws -> URL {
+private func makeContainerHome(defaultKernel: String?, arch: KernelArch = .arm64) throws -> URL {
     let home = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("K8sKernelAdvisorTests-\(UUID().uuidString)")
     let kernels = home.appendingPathComponent("kernels")
@@ -55,7 +55,7 @@ private func makeContainerHome(defaultKernel: String?) throws -> URL {
         let binary = kernels.appendingPathComponent(defaultKernel)
         try Data().write(to: binary)
         try FileManager.default.createSymbolicLink(
-            at: kernels.appendingPathComponent("default.kernel-arm64"),
+            at: kernels.appendingPathComponent("default.kernel-\(arch.rawValue)"),
             withDestinationURL: binary)
     }
     return home
@@ -83,6 +83,19 @@ func silentWithoutAnInstalledKernel() throws {
     defer { try? FileManager.default.removeItem(at: home) }
     #expect(K8sKernelAdvisor.defaultKernelName(containerHome: home) == nil)
     #expect(K8sKernelAdvisor.outdatedDefaultKernel(containerHome: home) == nil)
+}
+
+@Test("Installed default: an amd64 install is read too, not just arm64")
+func readsAmd64Default() throws {
+    // The CLI keeps one pointer per architecture and normally has only one. Reading arm64 alone
+    // reported nothing at all on an amd64 install, which took the warning with it.
+    let home = try makeContainerHome(defaultKernel: "vmlinux-6.12.28-153", arch: .amd64)
+    defer { try? FileManager.default.removeItem(at: home) }
+    #expect(K8sKernelAdvisor.defaultKernelName(containerHome: home) == "vmlinux-6.12.28-153")
+    #expect(K8sKernelAdvisor.outdatedDefaultKernel(containerHome: home) == "vmlinux-6.12.28-153")
+    // Asking for the architecture that is not installed still finds nothing.
+    #expect(K8sKernelAdvisor.defaultKernelName(arch: .arm64, containerHome: home) == nil)
+    #expect(K8sKernelAdvisor.outdatedDefaultKernel(arch: .arm64, containerHome: home) == nil)
 }
 
 @Test("Installed default: an unversioned custom kernel is not second-guessed")

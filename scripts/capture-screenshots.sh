@@ -70,7 +70,13 @@ AX="scripts/.build/orchard-ax"
 APPEARANCE_SETTLE="${APPEARANCE_SETTLE:-2}"   # seconds for the app to re-render after a flip
 # The container the menu bar shot hovers (must be running). Named here rather than beside that
 # shot because the chart-history wait below measures this container's series too.
-MENUBAR_HOVER="${MENUBAR_HOVER:-k8s-dev}"
+# The cluster and domain scripts/demo-env-up.sh was told to create. Read from the same
+# variables it reads, so overriding either there does not leave this script hunting for names
+# that were never created: on the Containers tab that is a hard failure, and the palette would
+# quietly pose the wrong detail view.
+K8S_CLUSTER="${K8S_CLUSTER:-k8s-dev}"
+DEMO_DNS_DOMAIN="${DEMO_DNS_DOMAIN:-demo.test}"
+MENUBAR_HOVER="${MENUBAR_HOVER:-$K8S_CLUSTER}"
 
 # The row each tab should open on. Without these a tab shows whatever its list selected first,
 # which is not a choice anyone made: it put the Images shot on a digest-pinned node image and
@@ -78,14 +84,14 @@ MENUBAR_HOVER="${MENUBAR_HOVER:-k8s-dev}"
 # scripts/demo-env-up.sh creates.
 subject_for() {
   case "$1" in
-    clusters)  echo "k8s-dev" ;;
+    clusters)  echo "$K8S_CLUSTER" ;;
     machines)  echo "demo-box" ;;
     sandboxes) echo "agent" ;;
     models)    echo "Ollama" ;;
     images)    echo "orchard-demo" ;;
     builds)    echo "orchard-demo:latest" ;;
     mounts)    echo "/usr/share/nginx/html" ;;
-    dns)       echo "demo.test" ;;
+    dns)       echo "$DEMO_DNS_DOMAIN" ;;
     networks)  echo "backend" ;;
     *)         echo "" ;;
   esac
@@ -296,7 +302,7 @@ for tab in $TABS; do
   fi
   if [[ "$tab" == "containers" ]]; then
     # The k8s node has the liveliest charts and shows the plugin badge + cluster banner.
-    "$AX" press-text "k8s-dev" || { echo "could not select the k8s-dev container"; exit 1; }
+    "$AX" press-text "$K8S_CLUSTER" || { echo "could not select the $K8S_CLUSTER container"; exit 1; }
     sleep 2
   fi
   capture_pose "$tab"
@@ -320,7 +326,7 @@ for theme in $THEMES; do
   echo "captured $dir/menubar.png"
 done
 
-# Command palette: over the k8s-dev container detail, open ⌘K and type a query.
+# Command palette: over the cluster node's container detail, open ⌘K and type a query.
 # Never click inside the window here: the palette dismisses on any click outside its
 # panel, and its search field focuses itself on open - typing lands there directly.
 PALETTE_QUERY="${PALETTE_QUERY:-logs api}"
@@ -328,7 +334,7 @@ for theme in $THEMES; do
   set_appearance "$theme"
   dir="$(out_dir_for "$theme")"
   "$AX" press "sidebar-containers" && sleep 1
-  "$AX" press-text "k8s-dev" || true
+  "$AX" press-text "$K8S_CLUSTER" || true
   sleep 1
   "$AX" key escape && sleep 0.5   # ⌘K toggles - make sure no palette is already open
   "$AX" key cmd+k && sleep 1
@@ -343,7 +349,7 @@ done
 
 # Split logs: open LOGS_TARGET's logs window from its detail-header Logs button,
 # add a second pane (it auto-selects the first running container), and capture.
-LOGS_TARGET="${LOGS_TARGET:-k8s-dev}"
+LOGS_TARGET="${LOGS_TARGET:-$K8S_CLUSTER}"
 for theme in $THEMES; do
   set_appearance "$theme"
   dir="$(out_dir_for "$theme")"

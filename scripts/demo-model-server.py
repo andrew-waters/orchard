@@ -120,6 +120,12 @@ class StubHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     routes = {}
     completion = staticmethod(openai_completion)
+    # This listens on every interface so a container can reach the host gateway, which means
+    # anything on that network can open a connection. A slow or oversized body would otherwise
+    # hold a thread and its socket for as long as the client liked. Neither limit inconveniences
+    # a real caller: the prompt tester posts a few hundred bytes.
+    timeout = 10
+    MAX_BODY = 64 * 1024
 
     def log_message(self, *args):
         pass          # a probe every few seconds would fill the log with noise
@@ -144,8 +150,18 @@ class StubHandler(BaseHTTPRequestHandler):
         if path not in ("/v1/chat/completions", "/api/chat"):
             self._send({"error": "not found"}, status=404)
             return
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self._send({"error": "bad Content-Length"}, status=400)
+            return
+        if length > self.MAX_BODY:
+            self._send({"error": "body too large"}, status=413)
+            return
+        try:
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+        except (TimeoutError, OSError):
+            return          # the client stalled or went away; the socket is already gone
         try:
             model = (json.loads(raw) or {}).get("model")
         except ValueError:

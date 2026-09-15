@@ -15,6 +15,17 @@ import Foundation
 /// never replaces the old one. Any install carried forward from before 1.3.0 keeps a kernel
 /// without nftables and fails every `k8s create`, however new the CLI is.
 enum K8sKernelAdvisor {
+    /// The host's own architecture first, then the other. Only one pointer normally exists, so
+    /// the order rarely matters; preferring the host's keeps the answer right on an install
+    /// that has both, which `KernelArch.allCases` would not.
+    private static var architecturesToProbe: [KernelArch] {
+        #if arch(x86_64)
+        [.amd64, .arm64]
+        #else
+        [.arm64, .amd64]
+        #endif
+    }
+
     /// The first kernel built with nftables: Kata 3.32.0's 6.18.35, which container 1.3.0
     /// made its recommended kernel (apple/container#2143).
     ///
@@ -48,20 +59,26 @@ enum K8sKernelAdvisor {
     ///
     /// Read directly rather than through the CLI because `container system status` does not
     /// report the kernel. Orchard is not sandboxed, so the path is readable.
-    static func defaultKernelName(arch: KernelArch = .arm64, containerHome: URL? = nil) -> String? {
+    ///
+    /// `arch` nil means "whichever is installed": the CLI keeps one pointer per architecture
+    /// and normally has only one, so assuming arm64 would report nothing at all on an amd64
+    /// install, taking the warning and the named cause with it.
+    static func defaultKernelName(arch: KernelArch? = nil, containerHome: URL? = nil) -> String? {
         let home = containerHome ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/com.apple.container")
-        let pointer = home.appendingPathComponent("kernels/default.kernel-\(arch.rawValue)")
-        guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: pointer.path) else {
-            return nil
+        for candidate in arch.map({ [$0] }) ?? Self.architecturesToProbe {
+            let pointer = home.appendingPathComponent("kernels/default.kernel-\(candidate.rawValue)")
+            if let target = try? FileManager.default.destinationOfSymbolicLink(atPath: pointer.path) {
+                return URL(fileURLWithPath: target).lastPathComponent
+            }
         }
-        return URL(fileURLWithPath: target).lastPathComponent
+        return nil
     }
 
     /// The default kernel's name when it predates nftables, so `container k8s create` will
     /// abort in node prep. Nil when the kernel is new enough, when nothing is installed, or
     /// when the name carries no version.
-    static func outdatedDefaultKernel(arch: KernelArch = .arm64, containerHome: URL? = nil) -> String? {
+    static func outdatedDefaultKernel(arch: KernelArch? = nil, containerHome: URL? = nil) -> String? {
         guard let name = defaultKernelName(arch: arch, containerHome: containerHome),
               let version = parseKernelVersion(fromName: name),
               lacksNFTables(major: version.major, minor: version.minor)
