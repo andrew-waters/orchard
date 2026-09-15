@@ -10,7 +10,24 @@ STATE="$DEMO_DIR/state"
 [[ -f "$STATE" ]] || { echo "No state file at $STATE - nothing recorded to tear down."; exit 0; }
 
 REMOVE_DIR=0
-# Containers first, then the machine, then networks (they must be unused).
+# The model-provider stub first: it owns no container resources, so nothing waits on it.
+# Checked against the recorded pid's own command line before signalling, because a pid from a
+# previous boot may well belong to something else entirely by now.
+while read -r kind pid; do
+  [[ "$kind" == "modelstub" ]] || continue
+  if ps -p "$pid" -o command= 2>/dev/null | grep -q "demo-model-server.py"; then
+    kill "$pid" 2>/dev/null && echo "stopped model stub (pid $pid)"
+  fi
+done < "$STATE"
+
+# Clusters first: their node containers are ordinary containers, so removing the cluster
+# through the plugin takes them with it, and deleting a node from under it would not.
+while read -r kind name; do
+  [[ "$kind" == "k8scluster" ]] || continue
+  container k8s delete --name "$name" 2>/dev/null && echo "deleted cluster $name"
+done < "$STATE"
+
+# Then containers, then the machine, then networks (they must be unused).
 while read -r kind name; do
   [[ "$kind" == "container" ]] || continue
   container stop "$name" 2>/dev/null
