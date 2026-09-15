@@ -24,7 +24,8 @@ done < "$STATE"
 # same as creating it, and this script must be able to finish unattended. It is also the one
 # piece of the demo that is harmless to keep: nothing resolves under it once the containers are
 # gone, and leaving it means the next `up` needs no password. Remove it by hand if you want it
-# gone: sudo container system dns delete demo.test
+# gone, naming the domain demo-env-up.sh was told to create:
+#   sudo container system dns delete ${DEMO_DNS_DOMAIN:-demo.test}
 
 # Clusters first: their node containers are ordinary containers, so removing the cluster
 # through the plugin takes them with it, and deleting a node from under it would not.

@@ -59,8 +59,18 @@ struct ContainersListView: View {
     }
 
     private func selectFirstShownContainerIfNeeded() {
-        guard selectedContainer == nil, let first = filteredContainers.first else { return }
+        guard selectedContainer == nil, let first = firstRenderedContainer else { return }
         selectedContainer = first.configuration.id
+    }
+
+    /// The first container the list has a row on screen for. With grouping on, a collapsed
+    /// section renders no rows, so `filteredContainers.first` can name a container that is not
+    /// shown, which is the same invisible selection this is meant to avoid.
+    private var firstRenderedContainer: Container? {
+        guard !groupLabelKey.isEmpty else { return filteredContainers.first }
+        return labelGroups
+            .first { !collapsedGroups.contains($0.id) && !$0.containers.isEmpty }?
+            .containers.first
     }
 
     private func containerRow(for container: Container) -> some View {
