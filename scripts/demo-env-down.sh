@@ -20,6 +20,12 @@ while read -r kind pid; do
   fi
 done < "$STATE"
 
+# The DNS domain is deliberately not torn down. Deleting one needs administrator rights, the
+# same as creating it, and this script must be able to finish unattended. It is also the one
+# piece of the demo that is harmless to keep: nothing resolves under it once the containers are
+# gone, and leaving it means the next `up` needs no password. Remove it by hand if you want it
+# gone: sudo container system dns delete demo.test
+
 # Clusters first: their node containers are ordinary containers, so removing the cluster
 # through the plugin takes them with it, and deleting a node from under it would not.
 while read -r kind name; do

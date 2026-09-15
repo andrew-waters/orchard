@@ -1,8 +1,8 @@
 #!/bin/bash
 # Bring up a realistic demo environment for screenshots and manual testing:
 # nine distinct lightweight containers across two networks, an AI-agent sandbox,
-# a container machine, a local Kubernetes cluster, host mounts, and a stub that stands in
-# for local model providers so the AI Models tab is not an empty state. Existing
+# a container machine, a local Kubernetes cluster, host mounts, a DNS domain, and a stub that
+# stands in for local model providers so the AI Models tab is not an empty state. Existing
 # resources (traefik, a cluster you already have, anything with a clashing name)
 # are left alone; everything this script actually creates is recorded in a state
 # file so demo-env-down.sh removes exactly that and nothing else.
@@ -24,7 +24,12 @@ record() { echo "$1 $2" >> "$STATE"; }
 
 run() {
   local name="$1"; shift
-  if container run --detach --name "$name" "$@" >/dev/null; then
+  # --dns-domain is what the DNS tab reads (DetailDNS matches a container's dns.domain against
+  # the domain), so attaching here is what puts these containers under demo.test rather than
+  # leaving the domain listed with nothing using it. Skipped when no domain could be created.
+  local dns=()
+  [[ -n "${DEMO_DNS_DOMAIN:-}" ]] && dns=(--dns-domain "$DEMO_DNS_DOMAIN")
+  if container run --detach --name "$name" "${dns[@]+"${dns[@]}"}" "$@" >/dev/null; then
     record container "$name"
     echo "created container $name"
   else
@@ -41,6 +46,30 @@ for net in frontend backend; do
     echo "$net exists (left alone)"
   fi
 done
+
+echo "== DNS domain =="
+# The DNS tab has nothing to show without a domain, and the containers below attach to this
+# one, so it comes first. Creating a domain edits the resolver configuration, so
+# `container system dns create` must run as an administrator: tried with `sudo -n` so a machine
+# without cached credentials is told what to run rather than having the script stall behind a
+# password prompt with its output swallowed.
+#
+# Never recorded, so demo-env-down.sh leaves it behind. Removing one needs the same
+# administrator rights, and a teardown that cannot finish its own state file is worse than a
+# domain left in place: a domain costs nothing, survives anyway, and makes the next `up` cheap.
+WANTED_DNS_DOMAIN="${DEMO_DNS_DOMAIN:-demo.test}"
+DEMO_DNS_DOMAIN=""      # only set once a domain is known to exist, since `run` attaches to it
+if container system dns ls 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$WANTED_DNS_DOMAIN"; then
+  DEMO_DNS_DOMAIN="$WANTED_DNS_DOMAIN"
+  echo "$WANTED_DNS_DOMAIN exists (left alone)"
+elif sudo -n container system dns create "$WANTED_DNS_DOMAIN" >/dev/null 2>&1; then
+  DEMO_DNS_DOMAIN="$WANTED_DNS_DOMAIN"
+  echo "created DNS domain $WANTED_DNS_DOMAIN"
+else
+  echo "  (skipped: creating a DNS domain must run as an administrator, so the containers"
+  echo "   below are not attached to one)"
+  echo "   sudo container system dns create $WANTED_DNS_DOMAIN"
+fi
 
 echo "== Mount sources =="
 mkdir -p "$DEMO_DIR/web-html"
