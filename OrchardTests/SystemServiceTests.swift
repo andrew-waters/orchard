@@ -75,3 +75,59 @@ func startSystemVersionMismatchGates() async {
     #expect(service.systemService.isSystemLoading == false)
     #expect(backend.pingCount == 1)   // mismatch is terminal: no retry sleeps
 }
+
+// MARK: - Recommended kernel
+
+@MainActor
+@Test("Recommended kernel: an already-installed refusal is retried with --force, not called success")
+func setRecommendedKernelRetriesWithForce() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, arguments in
+        // The CLI refuses to replace a kernel it already has unless forced. Reporting that as
+        // success would leave a pre-nftables kernel in place, which is exactly the state this
+        // action exists to get out of (apple/container#905).
+        guard arguments.contains("--force") else {
+            return ProcessResult(exitCode: 1, stdout: nil, stderr: "item with the same name already exists")
+        }
+        return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
+    }
+    let service = makeService(runner: runner)
+
+    await service.systemService.setRecommendedKernel()
+
+    #expect(runner.calls.contains(["system", "kernel", "set", "--recommended"]))
+    #expect(runner.calls.contains(["system", "kernel", "set", "--recommended", "--force"]))
+    #expect(service.systemService.kernelConfig.isRecommended)
+    #expect(service.systemService.isKernelLoading == false)
+    #expect(service.alertCenter.current == nil)
+}
+
+@MainActor
+@Test("Recommended kernel: a forced retry that still fails surfaces the error")
+func setRecommendedKernelForcedFailureAlerts() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in
+        ProcessResult(exitCode: 1, stdout: nil, stderr: "item with the same name already exists")
+    }
+    let service = makeService(runner: runner)
+
+    await service.systemService.setRecommendedKernel()
+
+    #expect(runner.calls.count == 2)   // tried, then forced
+    #expect(service.systemService.kernelConfig.isRecommended == false)
+    #expect(service.systemService.isKernelLoading == false)
+    #expect(service.alertCenter.current != nil)
+}
+
+@MainActor
+@Test("Recommended kernel: a clean install needs no forced retry")
+func setRecommendedKernelSucceedsFirstTime() async {
+    let runner = MockCommandRunner()   // default result: exit 0
+    let service = makeService(runner: runner)
+
+    await service.systemService.setRecommendedKernel()
+
+    #expect(runner.calls == [["system", "kernel", "set", "--recommended"]])
+    #expect(service.systemService.kernelConfig.isRecommended)
+    #expect(service.alertCenter.current == nil)
+}

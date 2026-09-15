@@ -20,6 +20,11 @@ enum OrchardError: Error, LocalizedError, Equatable {
     /// unsupported. See `classifyCleanError` for why this is its own case. Carries the
     /// id because a multi-selection reclaim can fail per container.
     case trimUnsupported(id: String)
+    /// `container k8s create` aborted while preparing its node. Carries its own case because
+    /// the CLI's message names a step that succeeded rather than the one that failed, so the
+    /// raw text is actively misleading (see `K8sKernelAdvisor`). `staleKernel` is the default
+    /// kernel's name when it predates nftables and is therefore the cause.
+    case k8sNodePrepFailed(cluster: String, staleKernel: String?)
     /// An error we haven't classified; carries the original message verbatim.
     case generic(String)
 
@@ -53,6 +58,11 @@ enum OrchardError: Error, LocalizedError, Equatable {
             return "Container \(id) is not running. Only a running container can reclaim disk space."
         case .trimUnsupported(let id):
             return "Apple container reported the filesystem trim as unsupported, so no space was reclaimed on \(id). This needs a container release that can trim a container's root filesystem; 1.4.1 cannot."
+        case .k8sNodePrepFailed(let cluster, let staleKernel):
+            if let staleKernel {
+                return "Preparing the node for '\(cluster)' failed because the guest kernel \(staleKernel) was built without nftables, which cluster creation needs. Upgrading Apple container does not replace an existing kernel, so this install kept an older one. Install the recommended kernel and try again."
+            }
+            return "Preparing the node for '\(cluster)' failed. Apple container reports the output of the last step that succeeded instead of the one that failed, so its own message names a sysctl that worked. The usual cause is a guest kernel built without nftables, which installing the recommended kernel fixes."
         case .generic(let message):
             return message
         }

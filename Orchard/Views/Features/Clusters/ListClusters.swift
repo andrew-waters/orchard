@@ -4,6 +4,7 @@ import AppKit
 struct ClustersListView: View {
     @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
     @Binding var selectedCluster: String?
     @Binding var lastSelectedCluster: String?
@@ -33,6 +34,7 @@ struct ClustersListView: View {
             // Node containers surface through the regular container refresh; the only
             // thing to probe is whether the CLI plugin exists for lifecycle actions.
             await clusterService.probePluginAvailability()
+            clusterService.probeKernelReadiness()
         }
     }
 
@@ -44,6 +46,8 @@ struct ClustersListView: View {
             pluginMissingStateView
         } else if !clusters.isEmpty {
             clustersListView
+        } else if let kernel = clusterService.outdatedKernel {
+            kernelOutdatedStateView(kernel)
         } else {
             emptyStateView
         }
@@ -65,6 +69,57 @@ struct ClustersListView: View {
                 .buttonStyle(.borderedProminent)
                 .padding(.top, 4)
                 .disabled(clusterService.pluginAvailability != .available)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Guardrail for a guest kernel built without nftables, which every `container k8s create`
+    /// needs to prepare its node (see `K8sKernelAdvisor`). A warning rather than a block: the
+    /// version floor behind it is a heuristic, a deliberately chosen custom kernel is
+    /// legitimate, and the create failure explains itself now either way.
+    ///
+    /// Replaces the empty state rather than sitting above it. Every state here fills the column
+    /// with `maxHeight: .infinity`, so a sibling stacked above one makes the column ask for both
+    /// heights: the split view then grows past the window and pushes all three columns' content
+    /// out of sight. The cost is that a stale kernel goes unmentioned while clusters already
+    /// exist, which needs a kernel that was downgraded under a working cluster.
+    private func kernelOutdatedStateView(_ kernel: String) -> some View {
+        VStack(spacing: 6) {
+            SwiftUI.Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 32))
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 4)
+            Text("Cluster Creation Will Fail")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text("The guest kernel \(kernel) was built without nftables, which preparing a cluster's node needs. Upgrading Apple container never replaces an existing kernel, so this install kept an older one.")
+                .font(.caption)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 24)
+            // The install downloads a kernel, so it is slow enough to need saying so. The CLI
+            // reports no percentage through a plain run, hence an indeterminate spinner.
+            if systemService.isKernelLoading {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Installing the recommended kernel")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            } else {
+                Button("Install Recommended Kernel") {
+                    Task {
+                        await systemService.setRecommendedKernel()
+                        clusterService.probeKernelReadiness()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 4)
+            }
+            Button("Create Cluster Anyway") { showCreateClusterSheet = true }
+                .buttonStyle(.link)
+                .disabled(clusterService.pluginAvailability != .available || systemService.isKernelLoading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

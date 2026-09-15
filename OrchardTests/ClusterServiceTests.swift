@@ -152,6 +152,50 @@ func createFailureAlerts() async {
     let ok = await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil)
     #expect(ok == false)
     #expect(service.alertCenter.current != nil)
+    // An unclassified failure keeps the raw CLI text: the node-prep classifier must not
+    // swallow everything that happens to fail.
+    #expect(service.alertCenter.current?.message.contains("boom") == true)
+}
+
+/// Verbatim from `container k8s create` on 1.4.1, all of it on stderr. Only the "node prep
+/// failed" phrase is accurate: the sysctl and the image tag are steps that succeeded.
+private let nodePrepFailureStderr = """
+    Preparing node: ["id": k8s-dev]
+    [2/2] Running kubeadm init [7s]
+    Error: node prep failed on k8s-dev: net.ipv4.ip_forward = 1
+    registry.k8s.io/pause:3.10.1
+    """
+
+@MainActor
+@Test("Create: a node-prep abort on an outdated kernel names the kernel, not the sysctl")
+func createNodePrepFailureNamesKernel() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 1, stdout: nil, stderr: nodePrepFailureStderr) }
+    let service = makeService(runner: runner)
+    service.clusterService.outdatedKernel = "vmlinux-6.12.28-153"
+
+    let ok = await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil)
+    #expect(ok == false)
+    let message = service.alertCenter.current?.message ?? ""
+    #expect(message.contains("vmlinux-6.12.28-153"))
+    #expect(message.contains("nftables"))
+    // The whole point: the line that sent people chasing a working sysctl never reaches them.
+    #expect(!message.contains("ip_forward"))
+}
+
+@MainActor
+@Test("Create: a node-prep abort on a current kernel still replaces the misleading output")
+func createNodePrepFailureWithoutOutdatedKernel() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 1, stdout: nil, stderr: nodePrepFailureStderr) }
+    let service = makeService(runner: runner)
+
+    let ok = await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil)
+    #expect(ok == false)
+    let message = service.alertCenter.current?.message ?? ""
+    #expect(message.contains("k8s-dev"))
+    #expect(message.contains("nftables"))
+    #expect(!message.contains("ip_forward"))
 }
 
 @MainActor
