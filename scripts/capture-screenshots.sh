@@ -45,6 +45,26 @@ AX="scripts/.build/orchard-ax"
 # shot because the chart-history wait below measures this container's series too.
 MENUBAR_HOVER="${MENUBAR_HOVER:-k8s-dev}"
 
+# The row each tab should open on. Without these a tab shows whatever its list selected first,
+# which is not a choice anyone made: it put the Images shot on a digest-pinned node image and
+# the Mounts shot on a tmpfs with no source. Everything named here is something
+# scripts/demo-env-up.sh creates.
+subject_for() {
+  case "$1" in
+    clusters)  echo "k8s-dev" ;;
+    machines)  echo "demo-box" ;;
+    sandboxes) echo "agent" ;;
+    models)    echo "Ollama" ;;
+    images)    echo "orchard-demo" ;;
+    builds)    echo "orchard-demo:latest" ;;
+    mounts)    echo "/usr/share/nginx/html" ;;
+    dns)       echo "demo.test" ;;
+    networks)  echo "backend" ;;
+    *)         echo "" ;;
+  esac
+}
+MISSED_SUBJECTS=""
+
 # Flip the system appearance for the run, restoring the previous setting on exit.
 if [[ -n "$APPEARANCE" ]]; then
   WANT_DARK=false
@@ -92,8 +112,9 @@ HISTORY_MAX_GAP="${HISTORY_MAX_GAP:-60}"   # a sampling pause longer than this b
 HISTORY_POLL="${HISTORY_POLL:-60}"         # matches how often Orchard writes the file
 HISTORY_STALL_LIMIT="${HISTORY_STALL_LIMIT:-5}"   # polls without progress before giving up
 
-# Prints "<covered-seconds> <staleness-seconds>". Never fails the script: an unreadable or
-# not-yet-written file reads as no coverage, which the loop reports and keeps waiting on.
+# Prints "<covered-seconds> <staleness-seconds> <newest-sample-stamp>". Never fails the script:
+# an unreadable or not-yet-written file reads as no coverage, which the loop reports and keeps
+# waiting on.
 history_coverage() {
   python3 - "$HISTORY_FILE" "$HISTORY_MAX_GAP" "$1" <<'PY'
 import json, sys, time
@@ -114,7 +135,7 @@ def coverage(samples):
 try:
     series = json.load(open(path)).get("series", [])
 except Exception:
-    print("0 0")
+    print("0 0 0")
     raise SystemExit
 
 best = (0.0, None)
@@ -132,7 +153,7 @@ for entry in series:
 covered, newest = best
 # Foundation stamps dates from 2001-01-01, which is what the JSON carries.
 stale = 0.0 if newest is None else max(0.0, (time.time() - 978307200.0) - newest)
-print(f"{int(covered)} {int(stale)}")
+print(f"{int(covered)} {int(stale)} {int(newest or 0)}")
 PY
 }
 
@@ -140,44 +161,60 @@ if [[ "$HISTORY_TARGET" != "0" ]] && command -v python3 >/dev/null 2>&1; then
   # Park on the Dashboard: a visible stats consumer samples every 2s instead of every 10s, so
   # the wait spends its time producing a dense chart rather than a sparse one.
   "$AX" press sidebar-dashboard || true
-  last_covered=-1
+  last_newest=0
   stalls=0
   while :; do
-    read -r covered stale < <(history_coverage "$MENUBAR_HOVER")
+    read -r covered stale newest < <(history_coverage "$MENUBAR_HOVER")
     if [[ "$covered" -ge "$HISTORY_TARGET" ]]; then
       echo "chart history: ${covered}s covered, enough for the ${HISTORY_TARGET}s window"
       break
     fi
-    # Sampling stops outright while every Orchard window is covered or minimized, which shows
-    # up as a file that stops advancing. Bring the app forward rather than wait on nothing.
-    if [[ "$stale" -gt $((HISTORY_MAX_GAP * 3)) ]]; then
-      echo "chart history: no new samples for ${stale}s, bringing Orchard forward"
-      osascript -e 'tell application "Orchard" to activate'
-    fi
-    if [[ "$covered" -gt "$last_covered" ]]; then
+    # Progress is samples arriving, not coverage growing. Coverage legitimately falls after a
+    # pause: sampling resumes, the pause is a gap, and the unbroken window restarts from the
+    # resumption. Treating that as a stall counted a recovery as a failure.
+    if [[ "$newest" -gt "$last_newest" ]]; then
       stalls=0
     else
+      # Nothing new since the last poll, so sampling is paused: every Orchard window is
+      # covered or minimized. Acted on immediately rather than after a staleness threshold,
+      # because a poll that saw no new samples is already the signal, and the old 180s wait
+      # spent three polls of the stall budget before trying anything.
       stalls=$((stalls + 1))
+      echo "chart history: no new samples for ${stale}s, bringing Orchard forward"
+      osascript -e 'tell application "Orchard" to activate'
       if [[ "$stalls" -ge "$HISTORY_STALL_LIMIT" ]]; then
         echo
-        echo "Chart history stopped growing at ${covered}s of ${HISTORY_TARGET}s."
-        echo "Orchard samples only while one of its windows is on screen, so check that it is"
-        echo "not covered or minimized and that the demo containers are running. Re-run with"
+        echo "Chart history stopped growing at ${covered}s of ${HISTORY_TARGET}s: no new"
+        echo "samples for ${stale}s, over $HISTORY_STALL_LIMIT polls, even after raising Orchard."
+        echo "It samples only while one of its windows is on screen, so check it is not covered"
+        echo "or minimized and that the demo containers are running. Re-run with"
         echo "HISTORY_TARGET=0 to capture anyway."
         exit 1
       fi
     fi
-    last_covered="$covered"
+    last_newest="$newest"
     echo "chart history: ${covered}s of ${HISTORY_TARGET}s (leave Orchard on screen)"
     sleep "$HISTORY_POLL"
   done
 fi
 
-TABS="dashboard containers clusters machines sandboxes models images mounts dns networks"
+TABS="dashboard containers clusters machines sandboxes models images builds mounts dns networks"
 for tab in $TABS; do
   # Fail hard: a missed selection would silently save the wrong view under this name.
   "$AX" press "sidebar-$tab" || { echo "could not select the $tab tab"; exit 1; }
   sleep 1.5   # let the tab load and charts settle
+  # A missing subject is reported rather than fatal: the tab is still the right tab, and
+  # aborting a run that has already waited out the chart history, to save one duller shot, is
+  # the worse trade. The summary at the end names any that missed.
+  subject="$(subject_for "$tab")"
+  if [[ -n "$subject" ]]; then
+    if "$AX" press-text "$subject" >/dev/null 2>&1; then
+      sleep 1.5   # the detail pane loads and its own charts settle
+    else
+      echo "  (no '$subject' on the $tab tab: keeping whatever the list selected)"
+      MISSED_SUBJECTS="$MISSED_SUBJECTS $tab:$subject"
+    fi
+  fi
   if [[ "$tab" == "containers" ]]; then
     # The k8s node has the liveliest charts and shows the plugin badge + cluster banner.
     "$AX" press-text "k8s-dev" || { echo "could not select the k8s-dev container"; exit 1; }
@@ -241,6 +278,13 @@ if ! screencapture -x -l "$WID" "$OUT/logs.png" 2>/dev/null || [[ ! -s "$OUT/log
 fi
 "$AX" key cmd+w && sleep 0.5     # close the logs window
 echo "captured $OUT/logs.png"
+
+if [[ -n "$MISSED_SUBJECTS" ]]; then
+  echo
+  echo "These tabs did not find their intended subject, so they show whatever their list"
+  echo "selected instead:$MISSED_SUBJECTS"
+  echo "Check the resource exists (scripts/demo-env-up.sh) before shipping those shots."
+fi
 
 echo
 echo "Committed with the site, these serve at https://orchard.andon.dev/assets/screens/<tab>.png"
