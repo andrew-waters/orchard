@@ -283,29 +283,33 @@ final class SystemService: ObservableObject {
 
     func setRecommendedKernel() async {
         isKernelLoading = true
+        defer { isKernelLoading = false }
 
+        let arguments = ["system", "kernel", "set", "--recommended"]
         do {
-            let result = try await runner.run(
+            var result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "kernel", "set", "--recommended"])
+                arguments: arguments)
+
+            // An "already exists" refusal used to count as success, which is wrong when the
+            // kernel already there is the problem: someone on a pre-1.3.0 kernel would be told
+            // the recommended one was installed and still fail every `k8s create`. Retry with
+            // --force, which only overwrites a kernel of the same name, so the outcome is the
+            // real one either way. Costs a redundant download when the kernel was already
+            // current, which is the cheaper mistake.
+            if result.failed, OrchardError.isAlreadyExistsError(result.stderr ?? "") {
+                result = try await runner.run(
+                    program: settings.safeContainerBinaryPath(),
+                    arguments: arguments + ["--force"])
+            }
 
             if !result.failed {
                 self.kernelConfig = KernelConfig(isRecommended: true)
-                self.isKernelLoading = false
             } else {
-                let errorOutput = result.stderr ?? ""
-                // Treat "already installed" as success.
-                if OrchardError.isAlreadyExistsError(errorOutput) {
-                    self.kernelConfig = KernelConfig(isRecommended: true)
-                    self.isKernelLoading = false
-                } else {
-                    self.alertCenter.error(result.stderr ?? "Failed to set recommended kernel")
-                    self.isKernelLoading = false
-                }
+                self.alertCenter.error(result.stderr ?? "Failed to set recommended kernel")
             }
         } catch {
             self.alertCenter.error("Failed to set recommended kernel: \(error.localizedDescription)")
-            self.isKernelLoading = false
         }
     }
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The k8s Clusters tab now warns when the guest kernel cannot bootstrap a cluster, and offers to fix it. `container k8s create` prepares its node with `iptables-nft`, which needs a kernel built with nftables; the kernel Apple container recommended before 1.3.0 was not, and `container system start` skips the kernel download whenever a kernel already exists (apple/container#905), so an install carried forward from an earlier release keeps the old kernel and fails every cluster creation however new the CLI is. Orchard reads the default kernel the CLI records, and when it predates nftables the tab says so and offers "Install Recommended Kernel" in place of the empty state. Creation is still available from there, because the check is a version floor rather than a capability probe and a deliberately chosen custom kernel is nobody's business but yours.
+
+### Fixed
+- A cluster that fails while its node is being prepared now explains why. The plugin runs node preparation as one `set -e` script whose last two commands are the `iptables-nft` calls, so an abort there surfaces the accumulated output of the steps that already succeeded: the error names `net.ipv4.ip_forward = 1`, a sysctl that worked, and never shows the command that failed (apple/container#2120, open with no fix in 1.4.1). Orchard recognises that failure and names the real cause, including the kernel responsible when it can tell.
+- "Install Recommended Kernel" no longer reports success without installing anything. An "already exists" refusal from the CLI was treated as an idempotent success, which is wrong in the one case that matters most: someone on an outdated kernel would be told the recommended one was installed and would still fail every cluster creation. The refusal is now retried with `--force`, which replaces only a kernel of the same name.
+
 ## [2.4.0] - 2026-09-14
 
 Quick none-changelog related note from me - I hope you're finding Orchard useful to you. The last month has seen stargazers on the project double, so it's great to have you here. Please let me know if you're finding this useful and feel free to add any feature requests / bug reports on Github.

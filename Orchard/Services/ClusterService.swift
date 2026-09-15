@@ -117,6 +117,11 @@ final class ClusterService: ObservableObject {
     @Published var busyClusters: Set<String> = []
     /// True while a load-image is in flight.
     @Published var isLoadingImage = false
+    /// The default guest kernel's name when it predates nftables, so every create would abort
+    /// in node prep (see `K8sKernelAdvisor`). Nil when the kernel is fine, unreadable, or one
+    /// the user chose themselves. Drives the warning on the Clusters tab, and sharpens the
+    /// failure message if someone creates anyway.
+    @Published var outdatedKernel: String?
 
     private let runner: CommandRunner
     private let settings: SettingsStore
@@ -170,6 +175,12 @@ final class ClusterService: ObservableObject {
         }
     }
 
+    /// Check whether the default guest kernel can bootstrap a cluster. Cheap (one symlink
+    /// read), so it re-runs whenever the Clusters tab appears, alongside the plugin probe.
+    func probeKernelReadiness() {
+        outdatedKernel = K8sKernelAdvisor.outdatedDefaultKernel()
+    }
+
     /// Create and start a cluster (`container k8s create`). Slow: pulls the kindest/node
     /// image on first use and bootstraps kubeadm. Returns true on success.
     @discardableResult
@@ -181,7 +192,16 @@ final class ClusterService: ObservableObject {
 
         isCreating = true
         defer { isCreating = false }
-        return await runClusterCommand(arguments, failureVerb: "create cluster")
+        let staleKernel = outdatedKernel
+        return await runClusterCommand(arguments, failureVerb: "create cluster") { result in
+            // Node prep aborts with the output of the step *before* the one that failed, so
+            // the raw stderr would tell the user a sysctl they cannot act on. Everything the
+            // plugin prints, progress and error alike, goes to stderr; stdout is checked too
+            // so a change upstream does not silently drop the match.
+            let output = [result.stderr, result.stdout].compactMap { $0 }.joined(separator: "\n")
+            guard K8sKernelAdvisor.outputIndicatesNodePrepFailure(output) else { return nil }
+            return .k8sNodePrepFailed(cluster: name, staleKernel: staleKernel)
+        }
     }
 
     func start(name: String) async {
@@ -215,15 +235,23 @@ final class ClusterService: ObservableObject {
             failureVerb: "write kubeconfig", reloadOnSuccess: false)
     }
 
+    /// `classifyFailure` gets first refusal on a non-zero exit: returning an `OrchardError`
+    /// replaces the generic `.cliFailed` dump, which is how a known upstream failure mode gets
+    /// copy a user can act on. Returning nil falls back to the raw CLI text.
     @discardableResult
-    private func runClusterCommand(_ arguments: [String], failureVerb: String, reloadOnSuccess: Bool = true) async -> Bool {
+    private func runClusterCommand(
+        _ arguments: [String],
+        failureVerb: String,
+        reloadOnSuccess: Bool = true,
+        classifyFailure: ((ProcessResult) -> OrchardError?)? = nil
+    ) async -> Bool {
         alertCenter.dismiss()
         do {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: arguments)
             if result.failed {
-                alertCenter.error(.cliFailed(
+                alertCenter.error(classifyFailure?(result) ?? .cliFailed(
                     command: arguments.prefix(2).joined(separator: " "),
                     exitCode: result.exitCode,
                     stderr: result.stderr))
