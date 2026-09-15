@@ -117,7 +117,6 @@ struct CreateMachineView: View {
         HStack {
             Text("Create Machine").font(.title2).fontWeight(.semibold)
             Spacer()
-            Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))

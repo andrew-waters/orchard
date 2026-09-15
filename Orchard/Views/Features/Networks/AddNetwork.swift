@@ -24,11 +24,6 @@ struct AddNetworkView: View {
                     .fontWeight(.semibold)
 
                 Spacer()
-
-                Button("Cancel") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))

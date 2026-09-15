@@ -89,7 +89,6 @@ struct EditMachineView: View {
         HStack {
             Text("Edit \(machine.id)").font(.title2).fontWeight(.semibold)
             Spacer()
-            Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
