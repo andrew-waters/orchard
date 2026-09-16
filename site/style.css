@@ -147,6 +147,33 @@ img { max-width: 100%; height: auto; display: block; }
   text-transform: uppercase;
 }
 
+/* ---------- Promo banner ---------- */
+/* Sits above the sticky header rather than inside it, so it scrolls away once and
+   the nav keeps the top edge for the rest of the page. */
+.promo {
+  display: flex; align-items: center; justify-content: center; gap: var(--s3);
+  padding: var(--s2) var(--s5);
+  background: var(--primary-surface);
+  border-bottom: 1px solid var(--primary-badge-outline);
+  color: var(--neutral-fg-2); font-size: 13px; line-height: 1.4;
+  text-decoration: none;
+}
+.promo:hover { background: var(--primary-badge-bg); text-decoration: none; }
+.promo img { width: 18px; height: 18px; border-radius: var(--radius-s); flex: none; }
+.promo strong { color: var(--neutral-fg-1); font-weight: 600; }
+.promo-text { min-width: 0; }
+.promo-go { flex: none; color: var(--primary-fg); font-weight: 500; white-space: nowrap; }
+.promo-go::after { content: " \2192"; }
+@media (max-width: 560px) {
+  .promo-go { display: none; }
+}
+
+/* A feature that earns its own run above the grid rather than a cell inside it.
+   The copy sits level with the top of the screenshot beside it rather than floating
+   in the middle of it, which is where shot-card's centring would put it. */
+.compose-stack { border-top: 1px dashed var(--neutral-outline-2); margin-bottom: var(--s10); }
+.compose-stack .shot-card { align-items: start; }
+
 /* ---------- Nav ---------- */
 header {
   position: sticky; top: 0; z-index: 10;
@@ -373,6 +400,7 @@ h2 em { font-style: normal; color: var(--neutral-fg-3); display: block; }
 }
 .shot-card + .shot-card { border-top: 1px dashed var(--neutral-outline-2); }
 .shot-card:nth-child(even) > div { order: 2; }
+.shot-card:nth-child(even) { grid-template-columns: 1.6fr 1fr; }
 .shot-card .eyebrow { color: var(--neutral-fg-3); margin: 0 0 var(--s2); }
 .shot-card h3 { font-size: 20px; font-weight: 600; margin: 0 0 var(--s2); letter-spacing: -0.3px; }
 .shot-card p { color: var(--neutral-fg-2); margin: 0; font-size: 15px; }
