@@ -15,6 +15,11 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body id="top">
+  <a class="promo" href="https://compose.andon.dev">
+    <img src="compose-icon.svg" alt="" width="18" height="18" />
+    <span class="promo-text"><strong>compose</strong> brings Docker Compose to the <code>container</code> CLI.</span>
+    <span class="promo-go">Take a look</span>
+  </a>
   <header>
     <div class="wrap nav">
       <a href="#top" class="brand" aria-label="Orchard">
@@ -74,6 +79,30 @@
           <h2><em>Built for the desktop:</em>fast, focused, native</h2>
           <p>Orchard is a native Swift app that uses the XPC protocol for efficiency, and is fully signed. No Electron, no web views, no performance issues from shelling to the CLI.</p>
         </div>
+        <div class="shot-stack compose-stack">
+          <div class="shot-card">
+            <div>
+              <p class="eyebrow mono-xs">Compose</p>
+              <h3>Bring your compose files</h3>
+              <p>Point Orchard at a <code>compose.yaml</code> and bring the whole project up in dependency order, or
+                take it down again. Projects are found by the labels on their containers, so a stack you started in the
+                terminal appears here without being imported, and the same planner backs the
+                <a href="https://compose.andon.dev">container compose</a> plugin.</p>
+            </div>
+            <img class="zoomable" src="assets/screens/compose.png" data-light="assets/screens/light/compose.png" alt="A compose project in Orchard: three services with their IP addresses and hostnames, and the network the project created" />
+          </div>
+          <div class="shot-card">
+            <div>
+              <p class="eyebrow mono-xs">No silent drops</p>
+              <h3>It tells you what it will not do</h3>
+              <p>Anything the file asks for that cannot be honoured is listed before the first run, split into what the
+                runtime makes impossible and what is simply not built yet, each with the line it sits on. The project
+                goes on showing it afterwards, because three weeks later nobody remembers what they accepted.</p>
+            </div>
+            <img class="zoomable" src="assets/screens/compose-problems.png" data-light="assets/screens/light/compose-problems.png" alt="The Problems tab of a compose project in Orchard, listing unhandled keys grouped by whether the runtime makes them impossible or they are not built yet" />
+          </div>
+        </div>
+
         <div class="feature-frame">
         <div class="feature-grid">
           <div class="feature-item feature-item--wide">
