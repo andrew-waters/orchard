@@ -3,31 +3,51 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.4.1</title>
-      <sparkle:version>59</sparkle:version>
-      <sparkle:shortVersionString>2.4.1</sparkle:shortVersionString>
+      <title>Version 2.4.2</title>
+      <sparkle:version>60</sparkle:version>
+      <sparkle:shortVersionString>2.4.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.4.1</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.4.2</link>
       <description><![CDATA[
+<style>
+pre {
+  background: rgba(127, 127, 127, 0.18);
+  padding: 10px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+</style>
+<p>Hi everyone, this release is a huge one personally, and one that&#x27;s long overdue.</p>
+<p>Since Apple launched container, everyone&#x27;s been looking for Compose support so Docker Compose files can be brought across. The maintainers themselves have turned this down in several issues, pushing it onto the community. I&#x27;ve closed a lot of feature requests because I hoped this would be a core feature, but the maintainers made it very clear they are not going to work on it.</p>
+<p>In the early days, many people, including myself, attempted to build something to solve that. However, they were all independent binaries, and still are — requiring their own commands and not portable.</p>
+<p>A few releases ago, container added support for plugins, the first of which is an official k8s one — it&#x27;s the same plugin Orchard itself calls to bring k8s to your box.</p>
+<p>So in order to bring these worlds together, I&#x27;ve created a new project, <a href="https://github.com/andrew-waters/compose">compose</a>, which is a plugin for apple/container that can be installed without Orchard (although it&#x27;s offered to you with minimal work involved via the UI).</p>
+<p>The syntax for compose looks exactly how you would want it:</p>
+<pre><code>container compose up --help</code></pre>
+<p>I&#x27;m opening that up in the hope that other developers can contribute to it and make it the standard way to use Compose with containers. There is no Orchard logic in it — it&#x27;s a plugin and can be bundled as a Swift library in 3rd party tools such as other UI&#x27;s or applications, instead of being proprietary.</p>
+<p>With this being so new, if you have any feedback or want to contribute, please do!</p>
+<p><a href="https://github.com/andrew-waters/compose">Check out the project</a> and give this new Orchard release a go — navigate to the Compose view where it will be installed for you, if you wish.</p>
+<hr>
 <h3>Added</h3>
 <ul>
-<li>The k8s Clusters tab now warns when the guest kernel cannot bootstrap a cluster, and offers to fix it. <code>container k8s create</code> prepares its node with <code>iptables-nft</code>, which needs a kernel built with nftables; the kernel Apple container recommended before 1.3.0 was not, and <code>container system start</code> skips the kernel download whenever a kernel already exists (apple/container#905), so an install carried forward from an earlier release keeps the old kernel and fails every cluster creation however new the CLI is. Orchard reads the default kernel the CLI records, and when it predates nftables the tab says so and offers &quot;Install Recommended Kernel&quot; in place of the empty state. Creation is still available from there, because the check is a version floor rather than a capability probe and a deliberately chosen custom kernel is nobody&#x27;s business but yours.</li>
-</ul>
-<h3>Changed</h3>
-<ul>
-<li>Sheets have one Cancel button rather than two. Create Cluster, Create Machine, Edit Machine, Add Network and Add DNS Domain each had one in the header and another in the footer, and several bound the Escape key twice over. The footer keeps its Cancel, beside the action it cancels.</li>
-<li>The log viewer&#x27;s target picker now shares a row with the filter field instead of sitting on a row of its own above a divider, which gives every pane back a band of vertical space; a window split four ways spent four of them on it. The picker also sits flush with the pane&#x27;s leading edge: a menu picker centres itself in a flexible frame, which was insetting it from everything above and below.</li>
+<li>The shell a container terminal opens with is now a setting, taken as written and passed through with its flags, so <code>bash -l</code> gets a login shell that reads your rc files (#107). Which shells an image has and which flags they accept is a property of the image, so there is nothing here for Orchard to enumerate and nothing worth validating beyond refusing to send an empty command. <code>sh</code> remains the default because it is the one shell a minimal image is likely to have, which makes it a safe default rather than a good one.
+</li>
+<li>A Compose tab, for bringing a set of services up and down from a compose file. Projects are found by the labels on their containers rather than by any file Orchard keeps, so a project brought up from the terminal appears here without Orchard having been told anything, and a project Orchard has been shown a file for can be brought up, taken down and reconciled from the window. Running <code>up</code> a second time compares each service against a hash stamped on the container it produced, then creates, starts, leaves alone, recreates or removes each one accordingly, and every step is listed as it happens.
+</li>
+<li>Compose keys that cannot be honoured are never quietly dropped. Adding a project shows what will be ignored, how much ignoring it costs, and the line each key sits on, and the project goes on showing that afterwards: three weeks later nobody remembers what they accepted, and the containers cannot tell them. A file that grows a new unhandled key is put back in front of you before the next <code>up</code> rather than waved through on an older answer. A service that builds is built through the same path as the Images tab, so its BuildKit log shows up under Builds like any other build.
+<p>The planning behind the tab is <a href="https://github.com/andrew-waters/compose">andrew-waters/compose</a>, a Swift package Orchard links and which also backs the <code>container compose</code> plugin, so the terminal and the window cannot drift apart. Two limitations are worth stating up front: without health reporting in the runtime, <code>up</code> starts dependencies before dependents but does not wait for them to become ready, and hostnames have to be unique across every container on the machine, so a service answers to <code>&lt;project&gt;-&lt;service&gt;</code> rather than to its service name.</p>
+</li>
+<li>The Compose tab offers to install the <code>container compose</code> CLI plugin when it is not there. Orchard itself never needs it, because the window links the planner and runs plans over XPC, so this is an offer rather than a fault and the banner is coloured accordingly: every project in the list works with nothing installed. It is worth offering because container&#x27;s own installer clears the plugin directory on every upgrade (apple/container#1617), so a plugin someone installed by hand goes missing again through no fault of theirs. Installing fetches the latest release, unpacks it, and puts the two files where the CLI looks, with the work shown step by step in a sheet: this downloads 15MB and then asks for an administrator password, and someone about to be asked for their password should be able to see what asked and why. Everything up to the copy happens unprivileged in a temporary directory, so a failure before that point never prompts at all, and a download in flight can be cancelled.
+</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>Opening Containers or Images no longer highlights a row from the middle of the list. Both lists sort and filter in the view (by name, running first, the search field, the in-use toggle), while the selection was made from the first element of the service&#x27;s array, which is the order the daemon returned. On this machine that meant Images opened on a digest-pinned Kubernetes node image nine rows down. Each of those lists now claims the first row it is actually showing.</li>
-<li>A single-node Kubernetes cluster is no longer treated as though it had no control plane. Container 1.4.1 labels the one node of a default <code>container k8s create</code> cluster <code>control-plane,worker</code>, because it is both, and Orchard compared that label to <code>control-plane</code> exactly. The node therefore classified as a worker, the cluster read as stopped while it was running, and everything gated on a running control plane was hidden: the detail header offered Start instead of Terminal (kubectl), Write Kubeconfig, Copy Kubeconfig Path and Load Image, and every resource panel showed &quot;Not running&quot; over live charts. Roles are now read as the list the label can be, so a node that is both counts as the control plane.</li>
-<li>A cluster that fails while its node is being prepared now explains why. The plugin runs node preparation as one <code>set -e</code> script whose last two commands are the <code>iptables-nft</code> calls, so an abort there surfaces the accumulated output of the steps that already succeeded: the error names <code>net.ipv4.ip_forward = 1</code>, a sysctl that worked, and never shows the command that failed (apple/container#2120, open with no fix in 1.4.1). Orchard recognises that failure and names the real cause, including the kernel responsible when it can tell.</li>
-<li>&quot;Install Recommended Kernel&quot; no longer reports success without installing anything. An &quot;already exists&quot; refusal from the CLI was treated as an idempotent success, which is wrong in the one case that matters most: someone on an outdated kernel would be told the recommended one was installed and would still fail every cluster creation. The refusal is now retried with <code>--force</code>, which replaces only a kernel of the same name.</li>
+<li>Ghostty no longer gets a new window, and a second copy of itself, every time you open a container terminal (#107). Orchard launched it with <code>open -na</code>, and <code>-n</code> starts a <em>separate instance</em>: a window in one instance can never join a window in another, so a new window was not a design choice so much as an inevitability, and every container opened left another Ghostty running. Ghostty 1.3 ships a scripting dictionary, so it is now driven the way Terminal.app and iTerm2 already were rather than through <code>open</code>, and all three stop being special cases. Whether the terminal arrives as a tab or a window follows the system-wide &quot;Prefer tabs when opening documents&quot; setting rather than a preference of Orchard&#x27;s own: you have answered that question once, for every app. macOS defaults that to <code>fullscreen</code> rather than <code>always</code>, so the default is still a window; the difference is that it is now the system&#x27;s answer rather than Orchard overriding it.
+</li>
 </ul>
 ]]></description>
-      <pubDate>Tue, 15 Sep 2026 13:24:17 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.4.1/Orchard-2.4.1.dmg" type="application/octet-stream" sparkle:edSignature="+nlFPX6FT37CpAh6kwRVrgdaDy3OXblNe9WH63MxqU1UqQEUTFgI2/2aiCT1V1qVPI1WC9w3+paIsfObgCutBA==" length="29747034" />
+      <pubDate>Wed, 16 Sep 2026 21:32:14 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.4.2/Orchard-2.4.2.dmg" type="application/octet-stream" sparkle:edSignature="XZwFJQON4gozE+HaVst7dR/AtUwfTt4qVcEvtr6kYz59zJLZgfAyojWaHpLPp1kagUvDoe261klbWvfHm7XsDg==" length="30943987" />
     </item>
   </channel>
 </rss>
