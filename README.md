@@ -26,6 +26,9 @@ Thousands of installations and starred by engineers from Apple, Microsoft, NVIDI
 
 - [Local AI & Sandboxes](#local-ai--sandboxes)
 - [Container Machines](#container-machines)
+- [Kubernetes Clusters](#kubernetes-clusters)
+- [Compose Projects](#compose-projects)
+  - [The compose plugin](#the-compose-plugin)
 - [Benefits of Apple Containers](#benefits-of-apple-containers)
 - [Orchard Features](#orchard-features)
 - [How Orchard compares](#how-orchard-compares)
@@ -83,6 +86,35 @@ Orchard manages **local Kubernetes clusters** built on Apple container's `k8s` p
 
 Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard hands you a configured context and gets out of the way. See the [Kubernetes Clusters guide](https://orchard.andon.dev/clusters.html) for a walkthrough.
 
+## Compose Projects
+
+Orchard runs **compose projects** on Apple's container runtime: point it at a `compose.yaml` and bring the whole stack up in dependency order, or take it down again.
+
+![A compose project in Orchard - services with their IP addresses and hostnames, and the network the project created](site/assets/screens/compose.png)
+
+- Projects are found by the labels on their containers, not by a file Orchard keeps, so a stack you brought up in the terminal appears in the app without being imported
+- A second `up` compares each service against a hash stamped on the container it produced, then creates, starts, leaves alone, recreates or removes each one accordingly, listing every step as it happens
+- Each service shows its container, IP address and hostname, alongside the networks the project created
+- A service that builds goes through the same path as the Images tab, so its BuildKit log turns up under Builds like any other build
+
+![The Problems tab of a compose project, listing unhandled keys grouped by whether the runtime makes them impossible or they are not built yet](site/assets/screens/compose-problems.png)
+
+Nothing in your file is quietly dropped. Anything that cannot be honoured is listed before the first run, split into what the runtime makes impossible and what simply is not built yet, each with the line it sits on. The project goes on showing that afterwards, and a file that grows a new unhandled key is put back in front of you before the next `up` rather than waved through on an older answer.
+
+### The compose plugin
+
+The planning behind the tab is [compose](https://compose.andon.dev), a standalone open-source Swift package that also backs the `container compose` CLI plugin, so the terminal and the window cannot drift apart:
+
+```bash
+container compose up
+```
+
+Orchard links the package directly and runs the resulting plans over XPC, so it never needs the plugin installed. The Compose tab offers to install it anyway, because container's own installer clears the plugin directory on every upgrade: installing fetches the latest release, unpacks it and puts the files where the CLI looks, showing each step before it asks for an administrator password.
+
+There is no Orchard-specific logic in the package, so other tools can build on it too. See [compose.andon.dev](https://compose.andon.dev) for the syntax it supports, install instructions and the current state of coverage.
+
+Two limitations are worth stating up front: without health reporting in the runtime, `up` starts dependencies before dependents but does not wait for them to become ready, and hostnames have to be unique across every container on the machine, so a service answers to `<project>-<service>` rather than to its service name.
+
 ## Benefits of Apple Containers
 
 - Native support, incredible performance and the engineering resources to make it work.
@@ -96,7 +128,7 @@ Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard
 - Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
 - Kubernetes clusters: create and manage local k8s clusters (container's k8s plugin), load images into them, and get one-click kubectl access
-- Compose projects: bring a set of services up and down from a compose file, in dependency order, with a second `up` working out what changed from the containers themselves. Anything the file asks for that cannot be honoured is listed before the first run, with the line it sits on, and stays listed on the project afterwards
+- Compose projects: bring a set of services up and down from a compose file, in dependency order, with a second `up` working out what changed from the containers themselves. Anything the file asks for that cannot be honoured is listed before the first run, with the line it sits on, and stays listed on the project afterwards, all of it planned by the open-source [compose](https://compose.andon.dev) package that also backs the `container compose` CLI plugin
 - Container management: create, start, stop, force stop, delete, export as tar, reclaim disk space (pending a container release that can trim a container's root filesystem), label at launch, group by label
 - Image management: pull with live byte/blob progress, delete, search Docker Hub
 - Image builds: build from any Dockerfile with a streamed BuildKit log, tracked in a Builds tab whose records survive restarts and cross-link to their images and containers
@@ -164,6 +196,7 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 | Native XPC integration (no CLI shelling) | ✅ | ❌ <sup>4</sup> | ✅ |
 | Container machines (native XPC) | ✅ | ❌ | ✅ |
 | Kubernetes clusters on `apple/container` | ✅ | ❌ | ✅ |
+| Compose projects on `apple/container` | ✅ | ❌ <sup>10</sup> | ➖ <sup>11</sup> |
 | Local AI models & agent sandboxes | ✅ | ❌ | ❌ |
 | Command palette (fuzzy search + actions) | ✅ | ➖ <sup>9</sup> | ❌ |
 | Signed & notarized | ✅ | ✅ | ✅ |
@@ -184,6 +217,8 @@ Orchard isn't the only way to work with Apple's `container` runtime:
 7. MIT licensed.
 8. Apache-2.0 licensed.
 9. The F1 command palette covers commands and navigation; no fuzzy resource search with per-resource actions.
+10. Its compose support runs through Podman, not `apple/container`.
+11. Through the community [`compose`](https://compose.andon.dev) plugin, which Orchard links as a package rather than shelling out to.
 
 Orchard is the **native, purpose-built** choice: a lightweight Swift app focused solely on giving Apple's `container` a first-class desktop experience, rather than a heavyweight cross-platform tool that supports it as one runtime among many. (Note: OrbStack and Docker Desktop are separate container runtimes and don't manage `apple/container` - see [Choosing a runtime](#choosing-a-runtime) below.)
 
