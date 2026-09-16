@@ -41,6 +41,9 @@ struct GeneralSettingsView: View {
     @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var dnsService: DNSService
 
+    /// Edited as it is typed, so the field is not fighting the store on every keystroke.
+    @State private var containerShell: String = ""
+
     var body: some View {
         Form {
             Section {
@@ -54,6 +57,24 @@ struct GeneralSettingsView: View {
                 }
             } footer: {
                 Text("The terminal application to use when opening a shell into a container.")
+                    .foregroundColor(.secondary)
+            }
+
+            Section {
+                LabeledContent("Container Shell") {
+                    TextField(
+                        SettingsStore.defaultContainerShell,
+                        text: $containerShell,
+                        prompt: Text(SettingsStore.defaultContainerShell)
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                    .frame(maxWidth: 220)
+                    .onSubmit { settings.setContainerShell(containerShell) }
+                    .onChange(of: containerShell) { _, value in settings.setContainerShell(value) }
+                }
+            } footer: {
+                Text("Run inside the container when opening a terminal, flags included: \(SettingsStore.defaultContainerShell) by default, or something like bash -l to have login shells read your rc files. Leave empty to reset.")
                     .foregroundColor(.secondary)
             }
 
@@ -146,6 +167,7 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { containerShell = settings.containerShell }
     }
 }
 
