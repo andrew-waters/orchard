@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The shell a container terminal opens with is now a setting, taken as written and passed through with its flags, so `bash -l` gets a login shell that reads your rc files (#107). Which shells an image has and which flags they accept is a property of the image, so there is nothing here for Orchard to enumerate and nothing worth validating beyond refusing to send an empty command. `sh` remains the default because it is the one shell a minimal image is likely to have, which makes it a safe default rather than a good one.
+
+### Fixed
+- Ghostty no longer gets a new window, and a second copy of itself, every time you open a container terminal (#107). Orchard launched it with `open -na`, and `-n` starts a *separate instance*: a window in one instance can never join a window in another, so a new window was not a design choice so much as an inevitability, and every container opened left another Ghostty running. Ghostty 1.3 ships a scripting dictionary, so it is now driven the way Terminal.app and iTerm2 already were rather than through `open`, and all three stop being special cases. Whether the terminal arrives as a tab or a window follows the system-wide "Prefer tabs when opening documents" setting rather than a preference of Orchard's own: you have answered that question once, for every app. macOS defaults that to `fullscreen` rather than `always`, so the default is still a window; the difference is that it is now the system's answer rather than Orchard overriding it.
+
 ## [2.4.1] - 2026-09-15
 
 ### Added
