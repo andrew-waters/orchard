@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-09-16
+
 Hi everyone, this release is a huge one personally, and one that's long overdue.
 
 Since Apple launched container, everyone's been looking for Compose support so Docker Compose files can be brought across. The maintainers themselves have turned this down in several issues, pushing it onto the community. I've closed a lot of feature requests because I hoped this would be a core feature, but the maintainers made it very clear they are not going to work on it.
