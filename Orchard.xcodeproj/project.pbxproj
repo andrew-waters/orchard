@@ -632,10 +632,10 @@
 		};
 		C0FFEE0000000000000000A1 /* XCRemoteSwiftPackageReference "compose" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/container-compose/compose.git";
+			repositoryURL = "https://github.com/andrew-waters/compose.git";
 			requirement = {
 				kind = upToNextMinorVersion;
-				minimumVersion = 0.2.0;
+				minimumVersion = 0.3.0;
 			};
 		};
 		C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */ = {

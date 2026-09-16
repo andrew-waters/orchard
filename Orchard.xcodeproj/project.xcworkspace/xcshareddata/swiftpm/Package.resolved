@@ -1,5 +1,5 @@
 {
-  "originHash" : "820192e697b70abbb0009deb8dd7d1471847d07428fbe30546f89ac495fb7bd9",
+  "originHash" : "938fb2067604f757e3157dba1696f2ddcf42a629082fcc08bee11656241b8443",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -13,10 +13,10 @@
     {
       "identity" : "compose",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/container-compose/compose.git",
+      "location" : "https://github.com/andrew-waters/compose.git",
       "state" : {
-        "revision" : "306490df7ab32054ae1b3fe75c3104d8d82edb5a",
-        "version" : "0.2.2"
+        "revision" : "d0f22c494326c93aa4bb754c6a8aa758b9e21434",
+        "version" : "0.3.0"
       }
     },
     {
