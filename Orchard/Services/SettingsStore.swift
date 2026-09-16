@@ -1,12 +1,17 @@
 import Foundation
 import AppKit
 
-/// Owns user settings: the `container` binary path, the preferred terminal, and the
-/// Dock-icon preference.
+/// Owns user settings: the `container` binary path, the preferred terminal, the shell a
+/// container terminal opens with, and the Dock-icon preference.
 @MainActor
 final class SettingsStore: ObservableObject {
     @Published var customBinaryPath: String?
     @Published var preferredTerminal: TerminalApp = .terminal
+    /// What to run inside the container when opening a terminal, flags and all: `sh` by
+    /// default, but `bash -l` or `zsh -l` for anyone who wants their rc files read. Stored
+    /// as written and passed through, because which shells exist and which flags they take
+    /// is a property of the image, not something Orchard can enumerate.
+    @Published private(set) var containerShell: String = SettingsStore.defaultContainerShell
     /// Whether the app hides its Dock icon and runs as a menu-bar accessory. Persisted
     /// here; the activation-policy side effect is applied by callers via
     /// `DockIconPolicy` (see that type for why it isn't applied from the setter).
@@ -39,6 +44,11 @@ final class SettingsStore: ObservableObject {
     }
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
     private let preferredTerminalKey = "OrchardPreferredTerminal"
+    private let containerShellKey = "OrchardContainerShell"
+
+    /// `sh` rather than a login shell: it is the one shell a minimal image is likely to
+    /// have, which is what makes it a safe default rather than a good one.
+    static let defaultContainerShell = "sh"
     /// Static so the app can read the launch policy straight from defaults before any
     /// services are built.
     static let hideDockIconDefaultsKey = "OrchardHideDockIcon"
@@ -59,6 +69,7 @@ final class SettingsStore: ObservableObject {
         self.defaults = defaults
         loadCustomBinaryPath()
         loadPreferredTerminal()
+        loadContainerShell()
         hideDockIcon = defaults.bool(forKey: Self.hideDockIconDefaultsKey)
     }
 
@@ -121,6 +132,24 @@ final class SettingsStore: ObservableObject {
     func setPreferredTerminal(_ terminal: TerminalApp) {
         preferredTerminal = terminal
         defaults.set(terminal.rawValue, forKey: preferredTerminalKey)
+    }
+
+    private func loadContainerShell() {
+        let saved = defaults.string(forKey: containerShellKey)?.trimmingCharacters(in: .whitespaces)
+        containerShell = (saved?.isEmpty == false ? saved! : Self.defaultContainerShell)
+    }
+
+    /// Set the shell a container terminal opens with. Blank resets to the default rather
+    /// than leaving an empty command that would open a terminal onto nothing.
+    func setContainerShell(_ shell: String) {
+        let trimmed = shell.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            containerShell = Self.defaultContainerShell
+            defaults.removeObject(forKey: containerShellKey)
+        } else {
+            containerShell = trimmed
+            defaults.set(trimmed, forKey: containerShellKey)
+        }
     }
 
     private func validateBinaryPath(_ path: String) -> Bool {

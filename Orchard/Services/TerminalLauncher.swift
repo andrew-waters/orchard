@@ -13,7 +13,14 @@ final class TerminalLauncher: ObservableObject {
         self.alertCenter = alertCenter
     }
 
-    func openTerminal(for containerId: String, shell: String = "sh") {
+    /// Open a shell in a container.
+    ///
+    /// `shell` defaults to whatever the user configured, flags and all, so someone who wants
+    /// their rc files read can ask for `bash -l` once and have every terminal honour it
+    /// (#107). Passing a value explicitly overrides the setting, which is what the bash
+    /// action below does.
+    func openTerminal(for containerId: String, shell: String? = nil) {
+        let shell = shell ?? settings.containerShell
         let containerBinary = settings.safeContainerBinaryPath()
         let fullCommand = "'\(containerBinary)' exec -it '\(containerId)' \(shell)"
 
@@ -87,26 +94,50 @@ final class TerminalLauncher: ObservableObject {
         openInGhostty(command: "'\(containerBinary)' exec -it '\(containerId)' \(shell)")
     }
 
+    /// Ghostty ships a scripting dictionary (1.3 and later), so it is driven the same way
+    /// Terminal.app and iTerm2 are rather than through `open`.
+    ///
+    /// This used to run `open -na`, which could only ever produce a new window: `-n` starts a
+    /// *separate instance* of Ghostty, and a window in one instance can never join a window in
+    /// another. It also left a second Ghostty running for every container opened (#107).
+    ///
+    /// Whether the terminal arrives as a tab or a window follows the system-wide "Prefer tabs
+    /// when opening documents" setting rather than a preference of Orchard's own: the user has
+    /// already answered this question once, for every app, and a second answer here could only
+    /// agree with it or contradict it.
     private func openInGhostty(command fullCommand: String) {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: TerminalApp.ghostty.bundleIdentifier) else {
+        guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: TerminalApp.ghostty.bundleIdentifier) != nil else {
             Log.ui.error("❌ Ghostty application not found")
             alertCenter.error("Ghostty application not found")
             return
         }
 
-        // Use 'open -na' to always open a new window, even if Ghostty is already running.
-        // Pass the command via 'sh -c' to avoid Ghostty's argument parsing issues.
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-na", appURL.path, "--args", "-e", "sh", "-c", fullCommand]
+        let escapedCommand = fullCommand
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
 
-        do {
-            try process.run()
-            Log.ui.debug("✓ Ghostty opened successfully")
-        } catch {
-            Log.ui.error("❌ Failed to open Ghostty: \(error.localizedDescription)")
-            alertCenter.error("Failed to open Ghostty: \(error.localizedDescription)")
-        }
+        // `front window` is only asked for once a window is known to exist: with none open,
+        // Ghostty has no front window to put a tab in.
+        let script = """
+        tell application id "\(TerminalApp.ghostty.bundleIdentifier)"
+            activate
+            set cfg to new surface configuration
+            set command of cfg to "\(escapedCommand)"
+            if \(prefersTabs) and (count of windows) > 0 then
+                new tab in front window with configuration cfg
+            else
+                new window with configuration cfg
+            end if
+        end tell
+        """
+
+        executeAppleScript(script)
+    }
+
+    /// The system-wide "Prefer tabs when opening documents" setting, from System Settings ›
+    /// Desktop & Dock. Unset means macOS's own default, `fullscreen`, which is not "always".
+    private var prefersTabs: Bool {
+        UserDefaults.standard.string(forKey: "AppleWindowTabbingMode") == "always"
     }
 
     private func executeAppleScript(_ script: String) {
