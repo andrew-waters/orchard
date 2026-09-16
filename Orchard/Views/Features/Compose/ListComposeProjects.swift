@@ -5,8 +5,10 @@ import SwiftUI
 struct ComposeProjectsListView: View {
     @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var composePluginService: ComposePluginService
     @Binding var searchText: String
     @FocusState var listFocusedTab: TabSelection?
+    @State private var showingPluginInstaller = false
 
     private var projects: [ComposeProject] {
         ComposeProject.group(
@@ -23,6 +25,9 @@ struct ComposeProjectsListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if composePluginService.isMissing {
+                pluginBanner
+            }
             if projects.isEmpty {
                 emptyState
             } else {
@@ -31,12 +36,53 @@ struct ComposeProjectsListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { composeService.refreshParses() }
+        .task {
+            // Looked for when the tab is opened rather than polled: it only changes when
+            // someone installs it, or when container's installer clears the plugin directory.
+            await composePluginService.refresh()
+        }
+        .sheet(isPresented: $showingPluginInstaller) {
+            InstallComposePluginSheet()
+        }
         .sheet(item: $composeService.pendingPreview) { preview in
             ComposeReviewSheet(
                 preview: preview,
                 isRevision: composeService.records.contains { $0.name == preview.identity.name }
             )
         }
+    }
+
+    /// Says the CLI plugin is not installed, and offers to fetch it.
+    ///
+    /// Blue rather than orange on purpose: nothing is wrong. Every project in this list works
+    /// without the plugin, because the window links the planner and runs plans over XPC. This
+    /// is an offer, and it is worth making because container's own installer clears the plugin
+    /// directory on every upgrade (apple/container#1617), so it goes missing again through
+    /// nobody's fault.
+    private var pluginBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: "terminal")
+                .foregroundStyle(Color.accentColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("container compose is not installed")
+                    .font(.callout.weight(.medium))
+                Text("Projects here work without it. The command in a terminal does not.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+            }
+
+            Spacer()
+
+            Button("Install") { showingPluginInstaller = true }
+                .controlSize(.small)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
     }
 
     private var emptyState: some View {

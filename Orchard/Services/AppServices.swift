@@ -25,6 +25,7 @@ final class AppServices: ObservableObject {
     let machineService: MachineService
     let clusterService: ClusterService
     let composeService: ComposeService
+    let composePluginService: ComposePluginService
     let modelService: ModelService
     let modelServerService: ModelServerService
 
@@ -96,6 +97,8 @@ final class AppServices: ObservableObject {
             alertCenter: alertCenter
         )
         self.composeService = composeService
+        // Only ever informs: a missing CLI plugin changes nothing about what the window can do.
+        self.composePluginService = ComposePluginService(commandRunner: runner)
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
         // Reclaiming a container's free blocks changes what the daemon reports as used.
