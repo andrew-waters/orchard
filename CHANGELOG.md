@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Hi everyone, this release is a huge one personally, and one that's long overdue.
+
+Since Apple launched container, everyone's been looking for Compose support so Docker Compose files can be brought across. The maintainers themselves have turned this down in several issues, pushing it onto the community. I've closed a lot of feature requests because I hoped this would be a core feature, but the maintainers made it very clear they are not going to work on it.
+
+In the early days, many people, including myself, attempted to build something to solve that. However, they were all independent binaries, and still are — requiring their own commands and not portable.
+
+A few releases ago, container added support for plugins, the first of which is an official k8s one — it's the same plugin Orchard itself calls to bring k8s to your box.
+
+So in order to bring these worlds together, I've created a new project, [compose](https://github.com/andrew-waters/compose), which is a plugin for apple/container that can be installed without Orchard (although it's offered to you with minimal work involved via the UI).
+
+The syntax for compose looks exactly how you would want it:
+
+```bash
+container compose up --help
+```
+
+I'm opening that up in the hope that other developers can contribute to it and make it the standard way to use Compose with containers. There is no Orchard logic in it — it's a plugin and can be bundled as a Swift library in 3rd party tools such as other UI's or applications, instead of being proprietary.
+
+With this being so new, if you have any feedback or want to contribute, please do!
+
+[Check out the project](https://github.com/andrew-waters/compose) and give this new Orchard release a go — navigate to the Compose view where it will be installed for you, if you wish.
+
+---
+
 ### Added
 - The shell a container terminal opens with is now a setting, taken as written and passed through with its flags, so `bash -l` gets a login shell that reads your rc files (#107). Which shells an image has and which flags they accept is a property of the image, so there is nothing here for Orchard to enumerate and nothing worth validating beyond refusing to send an empty command. `sh` remains the default because it is the one shell a minimal image is likely to have, which makes it a safe default rather than a good one.
 - A Compose tab, for bringing a set of services up and down from a compose file. Projects are found by the labels on their containers rather than by any file Orchard keeps, so a project brought up from the terminal appears here without Orchard having been told anything, and a project Orchard has been shown a file for can be brought up, taken down and reconciled from the window. Running `up` a second time compares each service against a hash stamped on the container it produced, then creates, starts, leaves alone, recreates or removes each one accordingly, and every step is listed as it happens.
