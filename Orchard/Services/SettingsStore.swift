@@ -250,17 +250,27 @@ final class SettingsStore: ObservableObject {
     /// being reseeded. Stored in the keychain, not UserDefaults - they're credentials, and
     /// the bridge injects them into containers that may be internet-enabled.
     func modelAPIKey(host: String = ModelEndpoint.defaultHost, port: UInt16) -> String? {
-        // Keys written before endpoints were configurable were accounted by bare port.
-        secrets.secret(for: "\(host):\(port)") ?? secrets.secret(for: String(port))
+        if let key = secrets.secret(for: account(host, port)) { return key }
+        // Keys written before endpoints were configurable were accounted by bare port,
+        // and every endpoint was on this Mac then. Only a loopback address inherits one:
+        // an endpoint the user has re-pointed elsewhere must not carry a credential
+        // issued for this machine to someone else's server, which is where it would go
+        // next, both as a bearer token on the probe and as OPENAI_API_KEY in a container.
+        guard ModelEndpoint.isLoopback(host) else { return nil }
+        return secrets.secret(for: String(port))
     }
+
+    private func account(_ host: String, _ port: UInt16) -> String { "\(host):\(port)" }
 
     /// Throws when the keychain refuses the write, so the caller can say so rather than
     /// leave the user unable to tell a rejected key from a rejected save.
     func setModelAPIKey(_ key: String?, host: String = ModelEndpoint.defaultHost, port: UInt16) throws {
-        try secrets.setSecret(key, for: "\(host):\(port)")
+        try secrets.setSecret(key, for: account(host, port))
         // Clearing has to take the legacy account with it, or the fallback read above
-        // would resurrect a key the user just removed.
-        if key?.isEmpty ?? true {
+        // would resurrect a key the user just removed. Only for a loopback address,
+        // matching what that fallback will actually read: clearing a remote endpoint's
+        // key has no business deleting a legacy key that belongs to this Mac.
+        if key?.isEmpty ?? true, ModelEndpoint.isLoopback(host) {
             try secrets.setSecret(nil, for: String(port))
         }
         objectWillChange.send()

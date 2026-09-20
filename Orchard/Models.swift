@@ -356,13 +356,20 @@ struct ModelEndpoint: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
+    /// `host:port` as a URL authority. An IPv6 literal has to be bracketed or its own
+    /// colons read as the port separator: `http://::1:8080` doesn't parse at all, so an
+    /// endpoint addressed that way would be skipped by every probe without a word.
+    static func authority(_ host: String, port: UInt16) -> String {
+        host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)"
+    }
+
     /// The base URL as seen from this Mac, as configured.
-    var hostBaseURL: String { "http://\(host):\(port)" }
+    var hostBaseURL: String { "http://\(Self.authority(host, port: port))" }
 
     /// The base URL a client actually dials. `0.0.0.0` is a bind address, not a
     /// destination - it means "every interface on this Mac" - so a client asking for it
     /// goes to loopback instead.
-    var probeBaseURL: String { "http://\(Self.dialHost(host)):\(port)" }
+    var probeBaseURL: String { "http://\(Self.authority(Self.dialHost(host), port: port))" }
 
     static func dialHost(_ host: String) -> String {
         host == "0.0.0.0" ? "127.0.0.1" : host
@@ -391,6 +398,13 @@ struct ModelEndpoint: Codable, Equatable, Identifiable, Sendable {
         guard let original = builtInDefault else { return false }
         return original.host != host || original.port != port || original.api != api
     }
+
+    /// Whether this endpoint earns a row of its own while nothing is answering on it. A
+    /// built-in sitting on its shipped address does not: "you aren't running LM Studio"
+    /// is not a thing to report, and four dead rows would be the whole panel on an idle
+    /// Mac. One the user moved, or added, does - otherwise a mistyped address takes the
+    /// endpoint out of the list and leaves nowhere to correct it from.
+    var isUserConfigured: Bool { isEdited || builtInDefault == nil }
 
     var displayName: String { kind.displayName }
 }
@@ -473,7 +487,7 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
     /// The base URL reachable *from this Mac* (e.g. `http://127.0.0.1:11434`). Distinct
     /// from the container-reachable URL, which for a loopback server goes through the
     /// network gateway - see `ModelBridge`.
-    var hostBaseURL: String { "http://\(host):\(port)" }
+    var hostBaseURL: String { "http://\(ModelEndpoint.authority(host, port: port))" }
 
     /// Whether a container needs the gateway indirection to reach this provider.
     var isLoopback: Bool { ModelEndpoint.isLoopback(host) }

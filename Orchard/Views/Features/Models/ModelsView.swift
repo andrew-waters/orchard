@@ -25,8 +25,20 @@ struct ModelsListView: View {
         modelService.endpoints.filter { !$0.isEnabled }
     }
 
+    /// Endpoints being probed that nothing is answering on, limited to the ones the user
+    /// configured. A built-in on its shipped address stays quiet, because "you aren't
+    /// running Ollama" is not news; one that has been re-pointed has to stay on screen,
+    /// or a mistyped address would remove the endpoint from the panel and take the means
+    /// of fixing it along with it.
+    private var notAnswering: [ModelEndpoint] {
+        let answering = Set(modelService.providers.map(\.id))
+        return modelService.endpoints.filter {
+            $0.isEnabled && $0.isUserConfigured && !answering.contains($0.id)
+        }
+    }
+
     private var isEmpty: Bool {
-        modelServerService.servers.isEmpty && detected.isEmpty && notProbed.isEmpty
+        modelServerService.servers.isEmpty && detected.isEmpty && notProbed.isEmpty && notAnswering.isEmpty
     }
 
     var body: some View {
@@ -74,6 +86,20 @@ struct ModelsListView: View {
                                     isSelected: selectedModel == provider.id
                                 )
                                 .tag(provider.id)
+                            }
+                        }
+                    }
+                    if !notAnswering.isEmpty {
+                        Section("Not answering") {
+                            ForEach(notAnswering) { endpoint in
+                                ListItemRow(
+                                    icon: "questionmark.circle",
+                                    iconColor: .secondary,
+                                    primaryText: endpoint.displayName,
+                                    secondaryLeftText: "port \(String(endpoint.port))",
+                                    isSelected: selectedModel == endpoint.id
+                                )
+                                .tag(endpoint.id)
                             }
                         }
                     }

@@ -140,6 +140,22 @@ func endpointDialsLoopback() {
     #expect(endpoint.probeBaseURL == "http://127.0.0.1:8080")   // dialled as routable
 }
 
+@Test("Endpoint: an IPv6 literal is bracketed, so the probe URL parses at all")
+func endpointBracketsIPv6() {
+    let endpoint = ModelEndpoint(kind: .mlxServer, host: "::1", port: 8080, api: .openAI)
+    #expect(endpoint.hostBaseURL == "http://[::1]:8080")
+    #expect(endpoint.probeBaseURL == "http://[::1]:8080")
+    #expect(URL(string: endpoint.probeBaseURL + endpoint.listPath) != nil)
+
+    // A hostname or IPv4 address is untouched.
+    #expect(ModelEndpoint(kind: .ollama, host: "localhost", port: 11434, api: .ollama).hostBaseURL
+            == "http://localhost:11434")
+    #expect(ModelProvider(kind: .mlxServer, host: "::1", port: 8080, api: .openAI, models: []).hostBaseURL
+            == "http://[::1]:8080")
+    #expect(ModelBridge.containerBaseURL(gateway: "192.168.66.1", host: "fd00::5", hostPort: 8080, api: .openAI)
+            == "http://[fd00::5]:8080/v1")
+}
+
 @Test("Endpoint: a built-in reports being moved off its shipped address")
 func endpointEditedFlag() {
     var endpoint = ModelEndpoint.builtIns.first { $0.id == "builtin.lmstudio.1234" }!
@@ -153,6 +169,11 @@ func endpointEditedFlag() {
     added.port = 9001
     #expect(added.isEdited == false)
     #expect(added.builtInDefault == nil)
+
+    // Both earn a row while nothing answers on them; an untouched built-in does not.
+    #expect(added.isUserConfigured)
+    #expect(endpoint.isUserConfigured)
+    #expect(ModelEndpoint.builtIns[0].isUserConfigured == false)
 }
 
 @Test("Bridge URL: a provider on this Mac still goes through the gateway")

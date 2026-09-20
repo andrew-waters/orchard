@@ -711,15 +711,26 @@ struct TabColumnView: View {
     }
 
     /// The first model row's id, in the order the list renders its sections (managed
-    /// servers, then detected providers, then the endpoints switched off), for
-    /// auto-selecting when the Models tab is opened.
+    /// servers, detected providers, endpoints that aren't answering, endpoints switched
+    /// off), for auto-selecting when the Models tab is opened.
     private func firstModelID() -> String? {
         if let server = modelServerService.servers.first { return server.id }
         let managedPorts = modelServerService.managedPorts
         if let provider = modelService.providers.first(where: { !managedPorts.contains($0.port) }) {
             return provider.id
         }
-        return modelService.endpoints.first { !$0.isEnabled }?.id
+        return unansweredModelEndpoints().first?.id
+    }
+
+    /// The endpoints holding a row without a provider behind them: the ones the user
+    /// configured that nothing is answering on, then the ones switched off. Shared by the
+    /// selection and the tab badge so both agree with what the list renders.
+    private func unansweredModelEndpoints() -> [ModelEndpoint] {
+        let answering = Set(modelService.providers.map(\.id))
+        let silent = modelService.endpoints.filter {
+            $0.isEnabled && $0.isUserConfigured && !answering.contains($0.id)
+        }
+        return silent + modelService.endpoints.filter { !$0.isEnabled }
     }
 
     private func getTabCount(for tab: TabSelection) -> Int {
@@ -742,11 +753,12 @@ struct TabColumnView: View {
                 records: composeService.records
             ).count
         case .models:
-            // Counts what the list shows, which includes the endpoints that are switched
-            // off: they hold a row of their own so there is a way to switch them back on.
+            // Counts what the list shows, which includes endpoints with no provider
+            // behind them: they hold a row so there is somewhere to re-point or re-enable
+            // them from.
             return modelServerService.servers.count
                 + modelService.providers.filter { !modelServerService.managedPorts.contains($0.port) }.count
-                + modelService.endpoints.filter { !$0.isEnabled }.count
+                + unansweredModelEndpoints().count
         case .sandboxes:
             return detectSandboxes(containers: containerListService.containers, networks: networkService.networks).count
         case .dns:

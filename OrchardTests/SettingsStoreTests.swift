@@ -155,6 +155,32 @@ func modelAPIKeyPerAddress() throws {
     }
 }
 
+@MainActor
+@Test("Model API keys: a legacy port-only key is inherited by loopback, never by a remote host")
+func modelAPIKeyLegacyFallbackIsLoopbackOnly() throws {
+    let name = "OrchardTests-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    // A key written before endpoints were configurable: accounted by bare port.
+    let secrets = InMemorySecretsStore()
+    try secrets.setSecret("sk-legacy", for: "8000")
+    let store = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: secrets)
+
+    #expect(store.modelAPIKey(host: "127.0.0.1", port: 8000) == "sk-legacy")
+    // Re-pointing the endpoint must not carry this Mac's credential to another machine:
+    // it would go out as a bearer token on the probe and as OPENAI_API_KEY in a container.
+    #expect(store.modelAPIKey(host: "10.0.0.7", port: 8000) == nil)
+
+    // Clearing a remote endpoint's key leaves the loopback legacy key where it is.
+    try store.setModelAPIKey(nil, host: "10.0.0.7", port: 8000)
+    #expect(store.modelAPIKey(host: "127.0.0.1", port: 8000) == "sk-legacy")
+
+    // Clearing the loopback one does take the legacy account with it, or the fallback
+    // would resurrect a key that was just removed.
+    try store.setModelAPIKey(nil, host: "127.0.0.1", port: 8000)
+    #expect(store.modelAPIKey(host: "127.0.0.1", port: 8000) == nil)
+}
+
 // MARK: - Model endpoints (#110)
 
 @MainActor
