@@ -152,11 +152,19 @@ struct UITestMachineBackend: MachineBackend {
 /// A `ModelBackend` returning a single fixed provider. Debug-only; activated solely by the
 /// launch argument, so the model-bridge UI renders in the smoke suite without a live server.
 struct UITestModelBackend: ModelBackend {
-    func detectProviders(apiKeys: [UInt16: String]) async -> [ModelProvider] {
-        [ModelProvider(kind: .mlxServer, port: 8080, api: .openAI, models: ["mlx-community/Llama-3.2-1B-Instruct-4bit"])]
+    func detectProviders(endpoints: [ModelEndpoint], apiKeys: [String: String]) async -> [ModelProvider] {
+        // Answers on whichever endpoint is configured for 8080, so the fixture keeps its
+        // identity (and stays selectable) rather than inventing an endpoint of its own.
+        let endpointID = endpoints.first { $0.port == 8080 }?.id
+        return [ModelProvider(
+            kind: .mlxServer,
+            port: 8080,
+            api: .openAI,
+            models: ["mlx-community/Llama-3.2-1B-Instruct-4bit"],
+            endpointID: endpointID)]
     }
 
-    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
+    func complete(host: String, port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
         "This is a canned UI-test reply to: \(messages.last?.content ?? "")"
     }
 }

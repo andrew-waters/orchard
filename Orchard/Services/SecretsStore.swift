@@ -6,8 +6,11 @@ import Security
 /// never touch the real keychain.
 protocol SecretsStore: Sendable {
     func secret(for account: String) -> String?
-    /// nil or empty removes the stored secret.
-    func setSecret(_ value: String?, for account: String)
+    /// nil or empty removes the stored secret. Throws when the store refuses the write:
+    /// a credential that silently failed to save looks exactly like one that saved, which
+    /// is what made a rejected keychain write impossible to tell from a rejected API key
+    /// (#110).
+    func setSecret(_ value: String?, for account: String) throws
     func allSecrets() -> [String: String]
 }
 
@@ -29,12 +32,27 @@ struct KeychainSecretsStore: SecretsStore {
         return String(data: data, encoding: .utf8)
     }
 
-    func setSecret(_ value: String?, for account: String) {
-        SecItemDelete(baseQuery(account: account) as CFDictionary)
+    func setSecret(_ value: String?, for account: String) throws {
+        // Deleting what was never there is the normal path for a first save, not a failure.
+        let deleted = SecItemDelete(baseQuery(account: account) as CFDictionary)
+        if deleted != errSecSuccess, deleted != errSecItemNotFound {
+            throw Self.error(deleted, doing: "clear")
+        }
         guard let value, !value.isEmpty else { return }
         var add = baseQuery(account: account)
         add[kSecValueData as String] = Data(value.utf8)
-        SecItemAdd(add as CFDictionary, nil)
+        let added = SecItemAdd(add as CFDictionary, nil)
+        if added != errSecSuccess {
+            throw Self.error(added, doing: "save")
+        }
+    }
+
+    /// Turn an `OSStatus` into something a user can act on. The numeric code goes in
+    /// alongside the message because the common failures here (a locked keychain, a
+    /// signature the keychain won't accept) are searchable by code and not much else.
+    private static func error(_ status: OSStatus, doing verb: String) -> Error {
+        let detail = SecCopyErrorMessageString(status, nil) as String? ?? "unknown keychain error"
+        return OrchardError.generic("Could not \(verb) the API key in the keychain: \(detail) (\(status)).")
     }
 
     func allSecrets() -> [String: String] {
@@ -77,7 +95,7 @@ final class InMemorySecretsStore: SecretsStore, @unchecked Sendable {
         lock.withLock { storage[account] }
     }
 
-    func setSecret(_ value: String?, for account: String) {
+    func setSecret(_ value: String?, for account: String) throws {
         lock.withLock {
             if let value, !value.isEmpty {
                 storage[account] = value

@@ -481,7 +481,8 @@ final class MockModelBackend: ModelBackend, @unchecked Sendable {
     private let lock = NSLock()
     private var _providers: [ModelProvider]
     private var _detectCount = 0
-    private var _lastAPIKeys: [UInt16: String] = [:]
+    private var _lastAPIKeys: [String: String] = [:]
+    private var _lastEndpoints: [ModelEndpoint] = []
 
     init(providers: [ModelProvider] = []) {
         self._providers = providers
@@ -510,17 +511,19 @@ final class MockModelBackend: ModelBackend, @unchecked Sendable {
     }
     var completeMessageCounts: [Int] { lock.withLock { _completeMessageCounts } }
 
-    func detectProviders(apiKeys: [UInt16: String]) async -> [ModelProvider] {
+    func detectProviders(endpoints: [ModelEndpoint], apiKeys: [String: String]) async -> [ModelProvider] {
         lock.withLock {
             _detectCount += 1
             _lastAPIKeys = apiKeys
+            _lastEndpoints = endpoints
             return _providers
         }
     }
 
-    var lastAPIKeys: [UInt16: String] { lock.withLock { _lastAPIKeys } }
+    var lastAPIKeys: [String: String] { lock.withLock { _lastAPIKeys } }
+    var lastEndpoints: [ModelEndpoint] { lock.withLock { _lastEndpoints } }
 
-    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
+    func complete(host: String, port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
         try lock.withLock {
             _completeMessageCounts.append(messages.count)
             if let _completeError { throw _completeError }

@@ -710,12 +710,16 @@ struct TabColumnView: View {
         }
     }
 
-    /// The first model row's id (managed servers first, then detected providers), for
+    /// The first model row's id, in the order the list renders its sections (managed
+    /// servers, then detected providers, then the endpoints switched off), for
     /// auto-selecting when the Models tab is opened.
     private func firstModelID() -> String? {
         if let server = modelServerService.servers.first { return server.id }
         let managedPorts = modelServerService.managedPorts
-        return modelService.providers.first { !managedPorts.contains($0.port) }?.id
+        if let provider = modelService.providers.first(where: { !managedPorts.contains($0.port) }) {
+            return provider.id
+        }
+        return modelService.endpoints.first { !$0.isEnabled }?.id
     }
 
     private func getTabCount(for tab: TabSelection) -> Int {
@@ -738,8 +742,11 @@ struct TabColumnView: View {
                 records: composeService.records
             ).count
         case .models:
+            // Counts what the list shows, which includes the endpoints that are switched
+            // off: they hold a row of their own so there is a way to switch them back on.
             return modelServerService.servers.count
                 + modelService.providers.filter { !modelServerService.managedPorts.contains($0.port) }.count
+                + modelService.endpoints.filter { !$0.isEnabled }.count
         case .sandboxes:
             return detectSandboxes(containers: containerListService.containers, networks: networkService.networks).count
         case .dns:

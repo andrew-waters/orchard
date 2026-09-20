@@ -458,8 +458,8 @@ struct ContainerConfigForm: View {
 
     /// The container-reachable base URL shown as a preview, mirroring what will be injected.
     private func bridgeBaseURL(_ provider: ModelProvider) -> String? {
-        guard let gateway = targetNetwork?.status.gateway, !gateway.isEmpty else { return nil }
-        return ModelBridge.containerBaseURL(gateway: gateway, hostPort: provider.port, api: provider.api)
+        guard let network = targetNetwork else { return nil }
+        return modelService.containerBaseURL(for: provider, on: network)
     }
 
     /// Append the bridge variables, replacing any existing entries with the same key so

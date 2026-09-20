@@ -9,6 +9,7 @@ struct TestModelPromptView: View {
     @Environment(\.dismiss) private var dismiss
 
     let providerName: String
+    let host: String
     let port: UInt16
     let api: ModelAPIStyle
 
@@ -18,8 +19,9 @@ struct TestModelPromptView: View {
     @State private var errorText: String?
     @State private var isSending = false
 
-    init(providerName: String, port: UInt16, api: ModelAPIStyle, model: String) {
+    init(providerName: String, host: String = ModelEndpoint.defaultHost, port: UInt16, api: ModelAPIStyle, model: String) {
         self.providerName = providerName
+        self.host = host
         self.port = port
         self.api = api
         _model = State(initialValue: model)
@@ -172,7 +174,7 @@ struct TestModelPromptView: View {
         let currentModel = model.trimmingCharacters(in: .whitespaces)
         Task {
             do {
-                let reply = try await modelService.complete(port: port, api: api, model: currentModel, messages: history)
+                let reply = try await modelService.complete(host: host, port: port, api: api, model: currentModel, messages: history)
                 messages.append(ChatMessage(role: .assistant, content: reply))
             } catch {
                 errorText = error.localizedDescription
