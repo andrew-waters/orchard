@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The AI Models panel's detected endpoints can now be re-pointed and switched off (#110). The four addresses discovery probes (Ollama on 11434, LM Studio on 1234, an MLX server on 8080 or 8000) were a hardcoded list, so a server listening anywhere else was undiscoverable and a server you would rather Orchard left alone could not be excluded. Each one is now a configuration you own: the detail pane carries the host and port it probes, with Save and, for an address you have moved, "Restore default". Switching one off stops Orchard contacting it at all rather than merely hiding it, and it moves to a "Not probed" section in the list so there is a way back on. Both choices persist, and a built-in added in a later release joins your list rather than replacing it. An endpoint pointed at another machine is bridged into containers by its own address, since only a server on this Mac needs the network gateway indirection.
+
+### Fixed
+- Saving an API key for a locked model server now tells you what happened (#110). The field cleared itself on Save and said nothing further, which looked the same whether the key had been stored and rejected, stored and accepted, or never stored at all. Keychain writes also discarded their status entirely, so a refusal from the keychain was invisible by construction. The panel now reports each outcome in its own words, including the one that previously had no voice: a key saved successfully that the server still rejects, which is a wrong key rather than a broken Save. A stored key is shown as stored, with a Remove button, instead of an empty field that could mean either nothing saved or something hidden.
+- A model server that wants an API key is no longer probed every 5 seconds for as long as Orchard runs (#110). The background tick backed off to 30s only while *nothing* was detected, and a server answering 401 counts as detected, so an endpoint Orchard could never get into held the fast cadence indefinitely and filled that server's own log with rejected requests. The tick now backs off unless something usable is detected. Saving a key still re-probes immediately, so nothing that depends on a fresh answer waits on the slower cadence, and an endpoint switched off is not contacted at all.
+
+
 ## [2.4.2] - 2026-09-16
 
 Hi everyone, this release is a huge one personally, and one that's long overdue.

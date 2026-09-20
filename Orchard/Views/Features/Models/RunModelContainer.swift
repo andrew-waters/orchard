@@ -32,6 +32,7 @@ struct RunModelContainerView: View {
     private struct Target: Identifiable {
         let id: String
         let name: String
+        let host: String
         let port: UInt16
         let api: ModelAPIStyle
     }
@@ -39,14 +40,14 @@ struct RunModelContainerView: View {
     /// Running managed servers plus detected providers (de-duplicated by port).
     private var targets: [Target] {
         let servers = modelServerService.servers.map {
-            Target(id: $0.id, name: $0.model, port: $0.port, api: $0.api)
+            Target(id: $0.id, name: $0.model, host: $0.host, port: $0.port, api: $0.api)
         }
         let managedPorts = modelServerService.managedPorts
         let providers = modelService.providers
             // A locked provider has no usable key yet - a sandbox wired to it could
             // never reach its model, so it isn't offered as a target.
             .filter { !managedPorts.contains($0.port) && !$0.requiresAPIKey }
-            .map { Target(id: $0.id, name: $0.kind.displayName, port: $0.port, api: $0.api) }
+            .map { Target(id: $0.id, name: $0.kind.displayName, host: $0.host, port: $0.port, api: $0.api) }
         return servers + providers
     }
 
@@ -58,8 +59,12 @@ struct RunModelContainerView: View {
     }
 
     private var baseURL: String? {
-        guard let target, let gateway = selectedNetwork?.status.gateway, !gateway.isEmpty else { return nil }
-        return ModelBridge.containerBaseURL(gateway: gateway, hostPort: target.port, api: target.api)
+        guard let target else { return nil }
+        let gateway = selectedNetwork?.status.gateway ?? ""
+        // Only a target on this Mac needs the gateway indirection; an endpoint the user
+        // has pointed at another machine is routable from the container as written.
+        guard !gateway.isEmpty || !ModelEndpoint.isLoopback(target.host) else { return nil }
+        return ModelBridge.containerBaseURL(gateway: gateway, host: target.host, hostPort: target.port, api: target.api)
     }
 
     private var canRun: Bool {
@@ -256,7 +261,7 @@ struct RunModelContainerView: View {
 
     private func run() {
         guard let baseURL, let target else { return }
-        let env = ModelBridge.injectionEnvironment(baseURL: baseURL, api: target.api, apiKey: settings.modelAPIKey(port: target.port))
+        let env = ModelBridge.injectionEnvironment(baseURL: baseURL, api: target.api, apiKey: settings.modelAPIKey(host: target.host, port: target.port))
             .map { ContainerRunConfig.EnvironmentVariable(key: $0.key, value: $0.value) }
 
         let config = ContainerRunConfig(

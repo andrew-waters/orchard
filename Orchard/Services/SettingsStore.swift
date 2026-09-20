@@ -45,6 +45,7 @@ final class SettingsStore: ObservableObject {
     private let customBinaryPathKey = "OrchardCustomBinaryPath"
     private let preferredTerminalKey = "OrchardPreferredTerminal"
     private let containerShellKey = "OrchardContainerShell"
+    private let modelEndpointsKey = "OrchardModelEndpoints"
 
     /// `sh` rather than a login shell: it is the one shell a minimal image is likely to
     /// have, which is what makes it a safe default rather than a good one.
@@ -70,6 +71,7 @@ final class SettingsStore: ObservableObject {
         loadCustomBinaryPath()
         loadPreferredTerminal()
         loadContainerShell()
+        loadModelEndpoints()
         hideDockIcon = defaults.bool(forKey: Self.hideDockIconDefaultsKey)
     }
 
@@ -188,26 +190,89 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    // MARK: - Model provider API keys
+    // MARK: - Model endpoints
 
-    /// Per-port API keys for local model servers (e.g. an oMLX install that generated
-    /// one at setup). Keyed by port because that's the only stable identity a detected
-    /// provider has. Stored in the keychain, not UserDefaults - they're credentials,
-    /// and the bridge injects them into containers that may be internet-enabled.
-    func modelAPIKey(port: UInt16) -> String? {
-        secrets.secret(for: String(port))
+    /// The addresses discovery probes, in list order. Seeded from the built-in defaults on
+    /// first run and persisted thereafter, so a user who has edited or switched one off
+    /// keeps that across launches (#110).
+    @Published private(set) var modelEndpoints: [ModelEndpoint] = ModelEndpoint.builtIns
+
+    private func loadModelEndpoints() {
+        guard let data = defaults.data(forKey: modelEndpointsKey),
+              let stored = try? JSONDecoder().decode([ModelEndpoint].self, from: data),
+              !stored.isEmpty else {
+            modelEndpoints = ModelEndpoint.builtIns
+            return
+        }
+        // A built-in added in a later release won't be in an older stored list. Append the
+        // newcomers rather than replacing the list, so a release that learns to detect
+        // another server doesn't discard the user's edits to the ones they already had.
+        let known = Set(stored.map(\.id))
+        modelEndpoints = stored + ModelEndpoint.builtIns.filter { !known.contains($0.id) }
     }
 
-    func setModelAPIKey(_ key: String?, port: UInt16) {
-        secrets.setSecret(key, for: String(port))
+    private func persistModelEndpoints() {
+        guard let data = try? JSONEncoder().encode(modelEndpoints) else { return }
+        defaults.set(data, forKey: modelEndpointsKey)
+    }
+
+    /// Replace one endpoint's configuration, matched by id. Unknown ids are ignored rather
+    /// than appended: every endpoint originates from this store, so an id it doesn't hold
+    /// is stale UI state, not a new endpoint.
+    func updateModelEndpoint(_ endpoint: ModelEndpoint) {
+        guard let index = modelEndpoints.firstIndex(where: { $0.id == endpoint.id }) else { return }
+        guard modelEndpoints[index] != endpoint else { return }
+        modelEndpoints[index] = endpoint
+        persistModelEndpoints()
+    }
+
+    func setModelEndpointEnabled(_ enabled: Bool, id: String) {
+        guard var endpoint = modelEndpoints.first(where: { $0.id == id }), endpoint.isEnabled != enabled else { return }
+        endpoint.isEnabled = enabled
+        updateModelEndpoint(endpoint)
+    }
+
+    /// Put a built-in endpoint back on the address it shipped with, leaving its enabled
+    /// state alone. A no-op for anything that isn't a built-in.
+    func restoreDefaultModelEndpoint(id: String) {
+        guard var endpoint = modelEndpoints.first(where: { $0.id == id }),
+              let original = endpoint.builtInDefault else { return }
+        endpoint.host = original.host
+        endpoint.port = original.port
+        endpoint.api = original.api
+        updateModelEndpoint(endpoint)
+    }
+
+    // MARK: - Model provider API keys
+
+    /// Per-endpoint API keys for local model servers (e.g. an oMLX install that generated
+    /// one at setup). Keyed by address, the one identity that survives the endpoint list
+    /// being reseeded. Stored in the keychain, not UserDefaults - they're credentials, and
+    /// the bridge injects them into containers that may be internet-enabled.
+    func modelAPIKey(host: String = ModelEndpoint.defaultHost, port: UInt16) -> String? {
+        // Keys written before endpoints were configurable were accounted by bare port.
+        secrets.secret(for: "\(host):\(port)") ?? secrets.secret(for: String(port))
+    }
+
+    /// Throws when the keychain refuses the write, so the caller can say so rather than
+    /// leave the user unable to tell a rejected key from a rejected save.
+    func setModelAPIKey(_ key: String?, host: String = ModelEndpoint.defaultHost, port: UInt16) throws {
+        try secrets.setSecret(key, for: "\(host):\(port)")
+        // Clearing has to take the legacy account with it, or the fallback read above
+        // would resurrect a key the user just removed.
+        if key?.isEmpty ?? true {
+            try secrets.setSecret(nil, for: String(port))
+        }
         objectWillChange.send()
     }
 
-    /// All stored provider keys, for the detection probe.
-    func allModelAPIKeys() -> [UInt16: String] {
-        var result: [UInt16: String] = [:]
-        for (portString, key) in secrets.allSecrets() {
-            if let port = UInt16(portString) { result[port] = key }
+    /// The stored keys for `endpoints`, keyed by endpoint id, for the detection probe.
+    func modelAPIKeys(for endpoints: [ModelEndpoint]) -> [String: String] {
+        var result: [String: String] = [:]
+        for endpoint in endpoints {
+            if let key = modelAPIKey(host: endpoint.host, port: endpoint.port) {
+                result[endpoint.id] = key
+            }
         }
         return result
     }

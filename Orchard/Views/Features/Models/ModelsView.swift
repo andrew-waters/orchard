@@ -19,8 +19,14 @@ struct ModelsListView: View {
         modelService.providers.filter { !modelServerService.managedPorts.contains($0.port) }
     }
 
+    /// Endpoints the user has switched off. They are never probed, so they can't turn up
+    /// under Detected - without a row of their own there would be no way back on (#110).
+    private var notProbed: [ModelEndpoint] {
+        modelService.endpoints.filter { !$0.isEnabled }
+    }
+
     private var isEmpty: Bool {
-        modelServerService.servers.isEmpty && detected.isEmpty
+        modelServerService.servers.isEmpty && detected.isEmpty && notProbed.isEmpty
     }
 
     var body: some View {
@@ -68,6 +74,20 @@ struct ModelsListView: View {
                                     isSelected: selectedModel == provider.id
                                 )
                                 .tag(provider.id)
+                            }
+                        }
+                    }
+                    if !notProbed.isEmpty {
+                        Section("Not probed") {
+                            ForEach(notProbed) { endpoint in
+                                ListItemRow(
+                                    icon: "pause.circle",
+                                    iconColor: .secondary,
+                                    primaryText: endpoint.displayName,
+                                    secondaryLeftText: "port \(String(endpoint.port))",
+                                    isSelected: selectedModel == endpoint.id
+                                )
+                                .tag(endpoint.id)
                             }
                         }
                     }
@@ -119,14 +139,39 @@ struct ModelDetailView: View {
 
     @State private var runTarget: RunTarget?
     @State private var testTarget: TestTarget?
-    /// Draft key for unlocking a 401-locked provider; cleared on save.
+    /// Draft key for unlocking a 401-locked provider; cleared on a successful save.
     @State private var apiKeyDraft = ""
+    /// What the last key save actually did. Rendered verbatim, because a save that
+    /// silently did nothing was indistinguishable from one that worked (#110).
+    @State private var apiKeyStatus: APIKeyStatus?
+    /// Editable copy of the selected endpoint's address, reseeded whenever the selection
+    /// moves so a half-typed host never lands on a different endpoint.
+    @State private var addressDraft: AddressDraft?
+    @State private var addressError: String?
 
     private struct RunTarget: Identifiable {
         let id = UUID(); let modelID: String
     }
     private struct TestTarget: Identifiable {
-        let id = UUID(); let name: String; let port: UInt16; let api: ModelAPIStyle; let model: String
+        let id = UUID(); let name: String; let host: String; let port: UInt16; let api: ModelAPIStyle; let model: String
+    }
+
+    private enum APIKeyStatus: Equatable {
+        case saved
+        case cleared
+        case failed(String)
+    }
+
+    private struct AddressDraft: Equatable {
+        var endpointID: String
+        var host: String
+        var port: String
+
+        init(_ endpoint: ModelEndpoint) {
+            endpointID = endpoint.id
+            host = endpoint.host
+            port = String(endpoint.port)
+        }
     }
 
     private var server: ManagedModelServer? {
@@ -135,6 +180,11 @@ struct ModelDetailView: View {
     private var provider: ModelProvider? {
         modelService.providers.first { $0.id == selectedModel }
     }
+    /// The configured endpoint behind the selection. A detected provider's id *is* its
+    /// endpoint id, so this resolves for both a responding provider and one switched off.
+    private var endpoint: ModelEndpoint? {
+        modelService.endpoints.first { $0.id == selectedModel }
+    }
 
     var body: some View {
         Group {
@@ -142,6 +192,8 @@ struct ModelDetailView: View {
                 ScrollView { managedDetail(server).padding(20) }
             } else if let provider {
                 ScrollView { detectedDetail(provider).padding(20) }
+            } else if let endpoint {
+                ScrollView { endpointDetail(endpoint).padding(20) }
             } else {
                 Text("Select a model")
                     .foregroundColor(.secondary)
@@ -149,12 +201,22 @@ struct ModelDetailView: View {
             }
         }
         .task { await networkService.load(showLoading: false) }
+        // Runs on appear and on every selection change, which is exactly when the drafts
+        // and the last save's outcome stop belonging to what's on screen.
+        .task(id: selectedModel) { resetDrafts() }
         .sheet(item: $runTarget) { t in
             RunModelContainerView(preselectedID: t.modelID)
         }
         .sheet(item: $testTarget) { t in
-            TestModelPromptView(providerName: t.name, port: t.port, api: t.api, model: t.model)
+            TestModelPromptView(providerName: t.name, host: t.host, port: t.port, api: t.api, model: t.model)
         }
+    }
+
+    private func resetDrafts() {
+        apiKeyDraft = ""
+        apiKeyStatus = nil
+        addressError = nil
+        addressDraft = endpoint.map(AddressDraft.init)
     }
 
     // MARK: - Managed
@@ -170,7 +232,7 @@ struct ModelDetailView: View {
                 // Actions live top-right, consistent with the other detail headers.
                 HStack(spacing: 8) {
                     if server.status == .running {
-                        Button(action: { testTarget = TestTarget(name: server.model, port: server.port, api: server.api, model: server.model) }) {
+                        Button(action: { testTarget = TestTarget(name: server.model, host: server.host, port: server.port, api: server.api, model: server.model) }) {
                             Label("Chat…", systemImage: "text.bubble")
                         }
                         Button(action: { runTarget = RunTarget(modelID: server.id) }) {
@@ -216,54 +278,54 @@ struct ModelDetailView: View {
                 Text(provider.kind.displayName).font(.title3).fontWeight(.semibold)
                 portBadge(provider.port)
                 Spacer()
-                if !provider.requiresAPIKey {
-                    HStack(spacing: 8) {
-                        Button(action: { testTarget = TestTarget(name: provider.kind.displayName, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
+                HStack(spacing: 8) {
+                    if !provider.requiresAPIKey {
+                        Button(action: { testTarget = TestTarget(name: provider.kind.displayName, host: provider.host, port: provider.port, api: provider.api, model: provider.models.first ?? "") }) {
                             Label("Chat…", systemImage: "text.bubble")
                         }
                         Button(action: { runTarget = RunTarget(modelID: provider.id) }) {
                             Label("New sandbox…", systemImage: "shield.lefthalf.filled")
                         }
                     }
-                    .font(.subheadline)
+                    if endpoint != nil {
+                        Button(action: { setProbing(false, id: provider.id) }) {
+                            Label("Stop probing", systemImage: "pause.circle")
+                        }
+                        .help("Stop Orchard contacting this address. It stays in the list under Not probed.")
+                    }
                 }
+                .font(.subheadline)
             }
 
             labeledRow("On this Mac", provider.hostBaseURL)
-            if let url = containerURL(port: provider.port, api: provider.api) {
+            if let url = containerURL(provider) {
                 labeledRow("From containers", url)
-                Text("Reachable from containers only if this server is bound to 0.0.0.0 (some default to 127.0.0.1).")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
-            if provider.requiresAPIKey {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("API key required", systemImage: "lock")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                    Text("This server rejected the probe with 401 or 403. Paste its API key to list models and chat.")
+                if provider.isLoopback {
+                    Text("Reachable from containers only if this server is bound to 0.0.0.0 (some default to 127.0.0.1).")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    HStack(spacing: 8) {
-                        SecureField("API key", text: $apiKeyDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 280)
-                        Button("Save") {
-                            let key = apiKeyDraft
-                            apiKeyDraft = ""
-                            Task { await modelService.setAPIKey(key, port: provider.port) }
-                        }
-                        .disabled(apiKeyDraft.isEmpty)
-                    }
                 }
-            } else if provider.models.isEmpty {
-                Text("No models reported").font(.caption).foregroundColor(.secondary)
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Models (\(provider.models.count))").font(.caption).foregroundColor(.secondary)
-                    ForEach(provider.models, id: \.self) { model in
-                        Text(model).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+            }
+
+            if let endpoint {
+                addressEditor(endpoint)
+            }
+
+            if provider.requiresAPIKey, let endpoint {
+                lockedKeyEditor(endpoint)
+            } else if let endpoint, modelService.hasAPIKey(host: endpoint.host, port: endpoint.port) {
+                storedKeyRow(endpoint)
+            }
+
+            if !provider.requiresAPIKey {
+                if provider.models.isEmpty {
+                    Text("No models reported").font(.caption).foregroundColor(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Models (\(provider.models.count))").font(.caption).foregroundColor(.secondary)
+                        ForEach(provider.models, id: \.self) { model in
+                            Text(model).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                        }
                     }
                 }
             }
@@ -271,6 +333,184 @@ struct ModelDetailView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Not probed
+
+    /// Detail for an endpoint that is switched off, or that is on but isn't answering.
+    /// Either way there is no provider to describe, so the pane is the address plus the
+    /// way back.
+    private func endpointDetail(_ endpoint: ModelEndpoint) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                SwiftUI.Image(systemName: endpoint.isEnabled ? "cpu" : "pause.circle")
+                Text(endpoint.displayName).font(.title3).fontWeight(.semibold)
+                portBadge(endpoint.port)
+                Spacer()
+                Button(action: { setProbing(!endpoint.isEnabled, id: endpoint.id) }) {
+                    Label(endpoint.isEnabled ? "Stop probing" : "Resume probing",
+                          systemImage: endpoint.isEnabled ? "pause.circle" : "play.circle")
+                }
+                .font(.subheadline)
+            }
+
+            Text(endpoint.isEnabled
+                 ? "Nothing is answering at this address. It stays in the list so you can re-point it or switch it off."
+                 : "Orchard is not contacting this address. Nothing here is probed, so a server running on it won't be detected.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            addressEditor(endpoint)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Endpoint address
+
+    private func addressEditor(_ endpoint: ModelEndpoint) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Address Orchard probes").font(.caption).foregroundColor(.secondary)
+            HStack(spacing: 6) {
+                TextField("Host", text: draftHost)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 170)
+                Text(":").foregroundColor(.secondary)
+                TextField("Port", text: draftPort)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 80)
+                Button("Save") { saveAddress(endpoint) }
+                    .disabled(!addressChanged(from: endpoint))
+                if endpoint.isEdited {
+                    Button("Restore default") {
+                        Task {
+                            await modelService.restoreDefaultEndpoint(id: endpoint.id)
+                            resetDrafts()
+                        }
+                    }
+                }
+            }
+            .font(.subheadline)
+
+            if let addressError {
+                Text(addressError).font(.caption2).foregroundColor(.orange)
+            } else {
+                Text("Discovery requests \(endpoint.probeBaseURL)\(endpoint.listPath). Change it if your server listens elsewhere.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var draftHost: Binding<String> {
+        Binding(get: { addressDraft?.host ?? "" }, set: { addressDraft?.host = $0 })
+    }
+
+    private var draftPort: Binding<String> {
+        Binding(get: { addressDraft?.port ?? "" }, set: { addressDraft?.port = $0 })
+    }
+
+    private func addressChanged(from endpoint: ModelEndpoint) -> Bool {
+        guard let addressDraft else { return false }
+        return addressDraft.host != endpoint.host || addressDraft.port != String(endpoint.port)
+    }
+
+    /// Validate and apply the address draft. Port 0 is rejected alongside non-numbers and
+    /// anything over 65535: it parses, but nothing listens there.
+    private func saveAddress(_ endpoint: ModelEndpoint) {
+        guard let draft = addressDraft else { return }
+        let host = draft.host.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty else {
+            addressError = "Enter a host, for example 127.0.0.1."
+            return
+        }
+        guard let port = UInt16(draft.port.trimmingCharacters(in: .whitespaces)), port > 0 else {
+            addressError = "Enter a port between 1 and 65535."
+            return
+        }
+        addressError = nil
+        var updated = endpoint
+        updated.host = host
+        updated.port = port
+        Task {
+            await modelService.updateEndpoint(updated)
+            resetDrafts()
+        }
+    }
+
+    private func setProbing(_ enabled: Bool, id: String) {
+        Task { await modelService.setEndpointEnabled(enabled, id: id) }
+    }
+
+    // MARK: - API keys
+
+    private func lockedKeyEditor(_ endpoint: ModelEndpoint) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("API key required", systemImage: "lock")
+                .font(.caption)
+                .foregroundColor(.orange)
+            Text("This server rejected the probe with 401 or 403. Paste its API key to list models and chat.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            HStack(spacing: 8) {
+                SecureField("API key", text: $apiKeyDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 280)
+                Button("Save") { saveAPIKey(apiKeyDraft, endpoint: endpoint) }
+                    .disabled(apiKeyDraft.isEmpty)
+            }
+            keyStatusText(stillLocked: true)
+        }
+    }
+
+    /// Shown once a key is stored and the server is answering, so the key is visible as a
+    /// thing that exists and can be taken away again.
+    private func storedKeyRow(_ endpoint: ModelEndpoint) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Label("API key stored in your keychain", systemImage: "key.fill")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Button("Remove") { saveAPIKey("", endpoint: endpoint) }
+                    .font(.caption)
+            }
+            keyStatusText(stillLocked: false)
+        }
+    }
+
+    /// The outcome of the last save. The "saved but still locked" case is the one that
+    /// matters: previously it looked identical to no save happening at all.
+    @ViewBuilder
+    private func keyStatusText(stillLocked: Bool) -> some View {
+        switch apiKeyStatus {
+        case .failed(let message):
+            Text(message).font(.caption2).foregroundColor(.orange)
+        case .saved where stillLocked:
+            Text("Key saved to your keychain, but the server still rejected the probe. Check the key, or stop probing this address so Orchard leaves it alone.")
+                .font(.caption2)
+                .foregroundColor(.orange)
+        case .saved:
+            Text("Key saved to your keychain.").font(.caption2).foregroundColor(.secondary)
+        case .cleared:
+            Text("Key removed from your keychain.").font(.caption2).foregroundColor(.secondary)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private func saveAPIKey(_ key: String, endpoint: ModelEndpoint) {
+        Task {
+            do {
+                try await modelService.setAPIKey(key, host: endpoint.host, port: endpoint.port)
+                apiKeyDraft = ""
+                apiKeyStatus = key.isEmpty ? .cleared : .saved
+            } catch {
+                // The draft is deliberately left alone: retyping a key someone has just
+                // pasted, because the keychain refused it, is a poor apology.
+                apiKeyStatus = .failed(error.localizedDescription)
+            }
+        }
     }
 
     // MARK: - Bits
@@ -294,6 +534,13 @@ struct ModelDetailView: View {
         guard let gateway = networkService.networks.first(where: { $0.id == "default" })?.status.gateway,
               !gateway.isEmpty else { return nil }
         return ModelBridge.containerBaseURL(gateway: gateway, hostPort: port, api: api)
+    }
+
+    /// As above, but honouring an endpoint the user has pointed at another machine: that
+    /// address is already routable from a container, so it needs no gateway at all.
+    private func containerURL(_ provider: ModelProvider) -> String? {
+        guard let network = networkService.networks.first(where: { $0.id == "default" }) else { return nil }
+        return modelService.containerBaseURL(for: provider, on: network)
     }
 
     private func revealLog(_ path: String) {

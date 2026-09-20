@@ -99,12 +99,12 @@ func parseCompletionBadShape() {
 
 // MARK: - Probe classification and API keys (#72 follow-up)
 
-private let omlxCandidate = LiveModelBackend.Candidate(kind: .mlxServer, port: 8000, api: .openAI, listPath: "/v1/models")
+private let omlxEndpoint = ModelEndpoint(id: "test.omlx", kind: .mlxServer, port: 8000, api: .openAI)
 
 @Test("Probe: a 200 with an oMLX listing yields an unlocked oMLX provider")
 func probeClassifiesOK() {
     let json = Data(#"{"object":"list","data":[{"id":"qwen3-4b","owned_by":"omlx"}]}"#.utf8)
-    let provider = LiveModelBackend.provider(from: 200, data: json, candidate: omlxCandidate)
+    let provider = LiveModelBackend.provider(from: 200, data: json, endpoint: omlxEndpoint)
     #expect(provider?.kind == .omlx)
     #expect(provider?.models == ["qwen3-4b"])
     #expect(provider?.requiresAPIKey == false)
@@ -113,7 +113,7 @@ func probeClassifiesOK() {
 @Test("Probe: 401 and 403 surface a locked provider instead of hiding the server", arguments: [401, 403])
 func probeClassifiesLocked(status: Int) {
     let errorBody = Data(#"{"error":{"message":"API key required"}}"#.utf8)
-    let provider = LiveModelBackend.provider(from: status, data: errorBody, candidate: omlxCandidate)
+    let provider = LiveModelBackend.provider(from: status, data: errorBody, endpoint: omlxEndpoint)
     #expect(provider?.requiresAPIKey == true)
     #expect(provider?.models.isEmpty == true)
     #expect(provider?.kind == .mlxServer)   // can't refine without a listing
@@ -122,7 +122,69 @@ func probeClassifiesLocked(status: Int) {
 @Test("Probe: other statuses - redirects included - are not a provider",
       arguments: [404, 500, 301, 302, 307, 308])
 func probeClassifiesOther(status: Int) {
-    #expect(LiveModelBackend.provider(from: status, data: Data(), candidate: omlxCandidate) == nil)
+    #expect(LiveModelBackend.provider(from: status, data: Data(), endpoint: omlxEndpoint) == nil)
+}
+
+// MARK: - Endpoint addressing (#110)
+
+@Test("Endpoint: the probe path follows the wire API, so an edit can't desync them")
+func endpointListPath() {
+    #expect(ModelEndpoint(kind: .lmStudio, port: 1234, api: .openAI).listPath == "/v1/models")
+    #expect(ModelEndpoint(kind: .ollama, port: 11434, api: .ollama).listPath == "/api/tags")
+}
+
+@Test("Endpoint: 0.0.0.0 is a bind address, so the probe dials loopback instead")
+func endpointDialsLoopback() {
+    let endpoint = ModelEndpoint(kind: .mlxServer, host: "0.0.0.0", port: 8080, api: .openAI)
+    #expect(endpoint.hostBaseURL == "http://0.0.0.0:8080")      // shown as configured
+    #expect(endpoint.probeBaseURL == "http://127.0.0.1:8080")   // dialled as routable
+}
+
+@Test("Endpoint: a built-in reports being moved off its shipped address")
+func endpointEditedFlag() {
+    var endpoint = ModelEndpoint.builtIns.first { $0.id == "builtin.lmstudio.1234" }!
+    #expect(endpoint.isEdited == false)
+    endpoint.port = 4321
+    #expect(endpoint.isEdited == true)
+    #expect(endpoint.builtInDefault?.port == 1234)
+
+    // Nothing to restore for an endpoint that never shipped with an address.
+    var added = ModelEndpoint(kind: .custom, port: 9000, api: .openAI)
+    added.port = 9001
+    #expect(added.isEdited == false)
+    #expect(added.builtInDefault == nil)
+}
+
+@Test("Bridge URL: a provider on this Mac still goes through the gateway")
+func bridgeURLLoopbackUsesGateway() {
+    let url = ModelBridge.containerBaseURL(gateway: "192.168.66.1", host: "127.0.0.1", hostPort: 8080, api: .openAI)
+    #expect(url == "http://192.168.66.1:8080/v1")
+    // A server bound to every interface is still this Mac, so it takes the gateway too.
+    let bound = ModelBridge.containerBaseURL(gateway: "192.168.66.1", host: "0.0.0.0", hostPort: 8080, api: .openAI)
+    #expect(bound == "http://192.168.66.1:8080/v1")
+}
+
+@Test("Bridge URL: an endpoint on another machine is routable as written")
+func bridgeURLRemoteHostUnchanged() {
+    let url = ModelBridge.containerBaseURL(gateway: "192.168.66.1", host: "10.0.0.7", hostPort: 8080, api: .openAI)
+    #expect(url == "http://10.0.0.7:8080/v1")
+}
+
+@Test("Probe: the provider carries its endpoint's identity and address")
+func probeCarriesEndpointIdentity() {
+    let endpoint = ModelEndpoint(id: "test.remote", kind: .lmStudio, host: "10.0.0.7", port: 4321, api: .openAI)
+    let json = Data(#"{"object":"list","data":[{"id":"qwen3-4b"}]}"#.utf8)
+    let provider = LiveModelBackend.provider(from: 200, data: json, endpoint: endpoint)
+
+    #expect(provider?.id == "test.remote")
+    #expect(provider?.host == "10.0.0.7")
+    #expect(provider?.port == 4321)
+    #expect(provider?.hostBaseURL == "http://10.0.0.7:4321")
+    #expect(provider?.isLoopback == false)
+
+    // A locked provider keeps the same identity, so unlocking it can't move the selection.
+    let locked = LiveModelBackend.provider(from: 401, data: Data(), endpoint: endpoint)
+    #expect(locked?.id == "test.remote")
 }
 
 @Test("Bridge env: a stored API key replaces the placeholder")
@@ -151,12 +213,14 @@ final class ProbeStubProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var script: [String: Reply] = [:]
     nonisolated(unsafe) private static var requested: [String] = []
+    nonisolated(unsafe) private static var authorizations: [String] = []
 
     /// Installs `script` (keyed by absolute URL) and returns a session wired to this stub.
     static func session(script: [String: Reply]) -> URLSession {
         lock.lock()
         self.script = script
         requested = []
+        authorizations = []
         lock.unlock()
 
         let config = URLSessionConfiguration.ephemeral
@@ -170,6 +234,13 @@ final class ProbeStubProtocol: URLProtocol, @unchecked Sendable {
         return requested
     }
 
+    /// The `Authorization` header of every request that carried one, in arrival order.
+    static var requestedAuthorization: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return authorizations
+    }
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func stopLoading() {}
@@ -179,6 +250,9 @@ final class ProbeStubProtocol: URLProtocol, @unchecked Sendable {
 
         Self.lock.lock()
         Self.requested.append(url.absoluteString)
+        if let auth = request.value(forHTTPHeaderField: "Authorization") {
+            Self.authorizations.append(auth)
+        }
         let reply = Self.script[url.absoluteString] ?? Reply(status: 404)
         Self.lock.unlock()
 
@@ -204,7 +278,7 @@ final class ProbeStubProtocol: URLProtocol, @unchecked Sendable {
     }
 }
 
-private let mlx8080 = LiveModelBackend.Candidate(kind: .mlxServer, port: 8080, api: .openAI, listPath: "/v1/models")
+private let mlx8080 = ModelEndpoint(id: "test.mlx8080", kind: .mlxServer, port: 8080, api: .openAI)
 
 /// Serialized: the stub keeps its script and its request log in static state.
 @Suite("Probe transport", .serialized)
@@ -239,5 +313,40 @@ struct ProbeTransportTests {
 
         #expect(provider?.models == ["qwen3-4b"])
         #expect(ProbeStubProtocol.requestedURLs == ["http://127.0.0.1:8080/v1/models"])
+    }
+
+    /// The point of the off switch: a disabled endpoint is not contacted at all. Asserted
+    /// on the transport rather than on the returned list, because "no provider" would also
+    /// be true if it were probed and simply rejected (#110).
+    @Test("Detect: a disabled endpoint is never requested")
+    func detectSkipsDisabledEndpoints() async {
+        let listing = Data(#"{"object":"list","data":[{"id":"qwen3-4b"}]}"#.utf8)
+        let session = ProbeStubProtocol.session(script: [
+            "http://127.0.0.1:8080/v1/models": .init(status: 200, body: listing),
+            "http://127.0.0.1:1234/v1/models": .init(status: 200, body: listing),
+        ])
+        var disabled = ModelEndpoint(id: "test.lmstudio", kind: .lmStudio, port: 1234, api: .openAI)
+        disabled.isEnabled = false
+
+        let providers = await LiveModelBackend(session: session)
+            .detectProviders(endpoints: [mlx8080, disabled], apiKeys: [:])
+
+        #expect(providers.map(\.id) == ["test.mlx8080"])
+        #expect(ProbeStubProtocol.requestedURLs == ["http://127.0.0.1:8080/v1/models"])
+    }
+
+    /// The key has to reach the wire, not just the keychain: the reported symptom was a
+    /// saved key that changed nothing about the request.
+    @Test("Detect: a stored key is sent as a bearer token on that endpoint's probe")
+    func detectSendsStoredKey() async {
+        let listing = Data(#"{"object":"list","data":[{"id":"qwen3-4b"}]}"#.utf8)
+        let session = ProbeStubProtocol.session(script: [
+            "http://127.0.0.1:8080/v1/models": .init(status: 200, body: listing),
+        ])
+
+        _ = await LiveModelBackend(session: session)
+            .detectProviders(endpoints: [mlx8080], apiKeys: ["test.mlx8080": "sk-live"])
+
+        #expect(ProbeStubProtocol.requestedAuthorization == ["Bearer sk-live"])
     }
 }

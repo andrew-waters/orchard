@@ -303,6 +303,98 @@ enum ModelAPIStyle: String, Codable, Sendable {
     case ollama
 }
 
+/// An address Orchard probes for a model server. Seeded from the conventional defaults the
+/// first time the panel runs, then owned by the user: the host and port are editable, and
+/// any endpoint can be switched off so discovery stops touching it at all (#110). A
+/// detected provider is simply an endpoint that answered, so the two share an identity.
+struct ModelEndpoint: Codable, Equatable, Identifiable, Sendable {
+    /// Stable across edits. The host and port are an endpoint's *contents*, not its
+    /// identity, so re-pointing one at a different port keeps its stored key and its place
+    /// in the list. Built-ins carry a fixed slug so a defaults restore can match them up.
+    let id: String
+    var kind: ModelProvider.Kind
+    var host: String
+    var port: UInt16
+    var api: ModelAPIStyle
+    /// False stops discovery probing this address entirely: the escape hatch for a server
+    /// that rejects every probe and would otherwise be polled for as long as Orchard runs.
+    var isEnabled: Bool
+
+    init(
+        id: String = UUID().uuidString,
+        kind: ModelProvider.Kind,
+        host: String = ModelEndpoint.defaultHost,
+        port: UInt16,
+        api: ModelAPIStyle,
+        isEnabled: Bool = true
+    ) {
+        self.id = id
+        self.kind = kind
+        self.host = host
+        self.port = port
+        self.api = api
+        self.isEnabled = isEnabled
+    }
+
+    static let defaultHost = "127.0.0.1"
+
+    /// Addresses that name this Mac. A server here is reached from a container through the
+    /// network gateway; anything else is already routable as written.
+    static let loopbackHosts: Set<String> = ["127.0.0.1", "localhost", "::1", "0.0.0.0"]
+
+    static func isLoopback(_ host: String) -> Bool {
+        loopbackHosts.contains(host.lowercased())
+    }
+
+    /// The listing endpoint used both to confirm liveness and to enumerate models. Derived
+    /// from the wire API rather than stored, so editing an endpoint can't leave the path
+    /// and the API style disagreeing.
+    var listPath: String {
+        switch api {
+        case .openAI: return "/v1/models"
+        case .ollama: return "/api/tags"
+        }
+    }
+
+    /// The base URL as seen from this Mac, as configured.
+    var hostBaseURL: String { "http://\(host):\(port)" }
+
+    /// The base URL a client actually dials. `0.0.0.0` is a bind address, not a
+    /// destination - it means "every interface on this Mac" - so a client asking for it
+    /// goes to loopback instead.
+    var probeBaseURL: String { "http://\(Self.dialHost(host)):\(port)" }
+
+    static func dialHost(_ host: String) -> String {
+        host == "0.0.0.0" ? "127.0.0.1" : host
+    }
+
+    /// Keychain account for this endpoint's API key. Derived from the address rather than
+    /// the id so a key survives the endpoint list being reseeded.
+    var secretAccount: String { "\(host):\(port)" }
+
+    var isLoopback: Bool { Self.isLoopback(host) }
+
+    /// ⚠ Ports are conventional defaults - revisit if they prove unreliable in the field.
+    static let builtIns: [ModelEndpoint] = [
+        ModelEndpoint(id: "builtin.ollama.11434", kind: .ollama, port: 11434, api: .ollama),
+        ModelEndpoint(id: "builtin.lmstudio.1234", kind: .lmStudio, port: 1234, api: .openAI),
+        ModelEndpoint(id: "builtin.mlx.8080", kind: .mlxServer, port: 8080, api: .openAI),
+        ModelEndpoint(id: "builtin.mlx.8000", kind: .mlxServer, port: 8000, api: .openAI),
+    ]
+
+    /// The address this endpoint shipped with, when it is a built-in - the target for
+    /// "restore the default". Nil for anything the user added.
+    var builtInDefault: ModelEndpoint? { Self.builtIns.first { $0.id == id } }
+
+    /// Whether the user has moved this endpoint off the address it shipped with.
+    var isEdited: Bool {
+        guard let original = builtInDefault else { return false }
+        return original.host != host || original.port != port || original.api != api
+    }
+
+    var displayName: String { kind.displayName }
+}
+
 /// One turn in a chat conversation, in the shape the OpenAI/Ollama chat APIs expect.
 struct ChatMessage: Identifiable, Equatable, Sendable {
     enum Role: String, Sendable {
@@ -338,7 +430,10 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
     }
 
     let kind: Kind
-    /// The loopback port the provider listens on, as seen from the host.
+    /// The host the provider listens on, as configured on its endpoint. Loopback unless
+    /// the user has re-pointed it.
+    let host: String
+    /// The port the provider listens on, as seen from this Mac.
     let port: UInt16
     /// The wire API the provider speaks.
     let api: ModelAPIStyle
@@ -347,17 +442,41 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
     /// The server answered the probe with 401/403: it's running but wants an API key
     /// before it will list models or serve completions.
     var requiresAPIKey: Bool = false
+    /// The configured `ModelEndpoint` this provider answered on, and the provider's own
+    /// identity. Endpoint-derived rather than address-derived so editing an endpoint's
+    /// host or port doesn't read as a different provider to identity-based UI state, and
+    /// so `kind` being refined from the models listing (e.g. oMLX) can't flap it either.
+    let endpointID: String
 
-    /// Stable across refreshes: only one server can listen on a port, and `api` comes
-    /// from the probe's static candidate rather than response data - so `kind` being
-    /// refined from the models listing (e.g. oMLX) can't flap identity-based UI state
-    /// if a listing is transiently missing or malformed.
-    var id: String { "\(api.rawValue):\(port)" }
+    init(
+        kind: Kind,
+        host: String = ModelEndpoint.defaultHost,
+        port: UInt16,
+        api: ModelAPIStyle,
+        models: [String],
+        requiresAPIKey: Bool = false,
+        endpointID: String? = nil
+    ) {
+        self.kind = kind
+        self.host = host
+        self.port = port
+        self.api = api
+        self.models = models
+        self.requiresAPIKey = requiresAPIKey
+        // Providers built outside the configured list (fixtures, tests) fall back to the
+        // address, which is unique for as long as they exist.
+        self.endpointID = endpointID ?? "\(api.rawValue):\(host):\(port)"
+    }
 
-    /// The base URL reachable *from the host* (e.g. `http://127.0.0.1:11434`). Distinct
-    /// from the container-reachable URL, which goes through the network gateway - see
-    /// `ModelBridge`.
-    var hostBaseURL: String { "http://127.0.0.1:\(port)" }
+    var id: String { endpointID }
+
+    /// The base URL reachable *from this Mac* (e.g. `http://127.0.0.1:11434`). Distinct
+    /// from the container-reachable URL, which for a loopback server goes through the
+    /// network gateway - see `ModelBridge`.
+    var hostBaseURL: String { "http://\(host):\(port)" }
+
+    /// Whether a container needs the gateway indirection to reach this provider.
+    var isLoopback: Bool { ModelEndpoint.isLoopback(host) }
 }
 
 /// A model server Orchard started and supervises (as opposed to a `ModelProvider`, which is

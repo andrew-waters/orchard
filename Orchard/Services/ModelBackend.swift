@@ -24,6 +24,15 @@ enum ModelBridge {
         }
     }
 
+    /// As `containerBaseURL(gateway:hostPort:api:)`, but for a provider whose address the
+    /// user has edited. Only a server on this Mac needs the gateway indirection; an
+    /// endpoint pointed at another machine is already routable from inside a container, so
+    /// its own host is used unchanged.
+    static func containerBaseURL(gateway: String, host: String, hostPort: UInt16, api: ModelAPIStyle) -> String {
+        let reachable = ModelEndpoint.isLoopback(host) ? gateway : host
+        return containerBaseURL(gateway: reachable, hostPort: hostPort, api: api)
+    }
+
     /// Environment variables (as `key`/`value` pairs) to inject into a container so a
     /// standard client inside it reaches the host provider at `baseURL`. The placeholder
     /// key satisfies SDKs that require one even though a local server ignores it.
@@ -50,15 +59,17 @@ enum ModelBridge {
 /// the host and list the models they advertise. Mirrors `ContainerBackend`'s rule - 
 /// app-owned types only, so mocks need no package imports.
 protocol ModelBackend: Sendable {
-    /// Probe the host for running model providers and return those that responded.
-    /// `apiKeys` maps port -> stored API key, sent as a bearer token where present.
-    /// Best-effort: never throws, since a missing provider is a normal state.
-    func detectProviders(apiKeys: [UInt16: String]) async -> [ModelProvider]
+    /// Probe `endpoints` for running model providers and return those that responded.
+    /// Only enabled endpoints are probed - a disabled one is not contacted at all, which
+    /// is what makes the panel's off switch an actual off switch. `apiKeys` maps endpoint
+    /// id -> stored API key, sent as a bearer token where present. Best-effort: never
+    /// throws, since a missing provider is a normal state.
+    func detectProviders(endpoints: [ModelEndpoint], apiKeys: [String: String]) async -> [ModelProvider]
 
-    /// Send a chat conversation to a provider on the host (`127.0.0.1:port`) and return the
-    /// assistant's reply. `messages` is the full history so the model has context. Used by
-    /// the in-app tester; throws on transport or HTTP errors so the UI can surface them.
-    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String
+    /// Send a chat conversation to a provider on `host:port` and return the assistant's
+    /// reply. `messages` is the full history so the model has context. Used by the in-app
+    /// tester; throws on transport or HTTP errors so the UI can surface them.
+    func complete(host: String, port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String
 }
 
 // MARK: - Live implementation
@@ -85,35 +96,18 @@ private let probeRedirectBlocker = ProbeRedirectBlocker()
 /// `ModelBackend` that discovers providers by probing their conventional loopback ports
 /// over HTTP. An unreachable port simply means "that provider isn't running."
 struct LiveModelBackend: ModelBackend {
-    /// One provider Orchard knows how to detect: its conventional port and the listing
-    /// endpoint used both to confirm liveness and to enumerate models.
-    struct Candidate: Sendable {
-        let kind: ModelProvider.Kind
-        let port: UInt16
-        let api: ModelAPIStyle
-        let listPath: String
-    }
-
-    /// ⚠ Ports are conventional defaults - revisit if they prove unreliable in the field.
-    static let candidates: [Candidate] = [
-        Candidate(kind: .ollama, port: 11434, api: .ollama, listPath: "/api/tags"),
-        Candidate(kind: .lmStudio, port: 1234, api: .openAI, listPath: "/v1/models"),
-        Candidate(kind: .mlxServer, port: 8080, api: .openAI, listPath: "/v1/models"),
-        Candidate(kind: .mlxServer, port: 8000, api: .openAI, listPath: "/v1/models"),
-    ]
-
     private let session: URLSession
 
     init(session: URLSession = .shared) {
         self.session = session
     }
 
-    func detectProviders(apiKeys: [UInt16: String]) async -> [ModelProvider] {
+    func detectProviders(endpoints: [ModelEndpoint], apiKeys: [String: String]) async -> [ModelProvider] {
         let session = self.session
         return await withTaskGroup(of: ModelProvider?.self) { group in
-            for candidate in Self.candidates {
-                let key = apiKeys[candidate.port]
-                group.addTask { await Self.probe(candidate, session: session, apiKey: key) }
+            for endpoint in endpoints where endpoint.isEnabled {
+                let key = apiKeys[endpoint.id]
+                group.addTask { await Self.probe(endpoint, session: session, apiKey: key) }
             }
             var found: [ModelProvider] = []
             for await result in group {
@@ -123,10 +117,10 @@ struct LiveModelBackend: ModelBackend {
         }
     }
 
-    /// Probe one candidate. Non-private so the redirect and classification behaviour is
+    /// Probe one endpoint. Non-private so the redirect and classification behaviour is
     /// testable against a stub transport.
-    static func probe(_ candidate: Candidate, session: URLSession, apiKey: String?) async -> ModelProvider? {
-        guard let url = URL(string: "http://127.0.0.1:\(candidate.port)\(candidate.listPath)") else { return nil }
+    static func probe(_ endpoint: ModelEndpoint, session: URLSession, apiKey: String?) async -> ModelProvider? {
+        guard let url = URL(string: endpoint.probeBaseURL + endpoint.listPath) else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 1.5
         if let apiKey {
@@ -136,29 +130,33 @@ struct LiveModelBackend: ModelBackend {
               let http = response as? HTTPURLResponse else {
             return nil
         }
-        return provider(from: http.statusCode, data: data, candidate: candidate)
+        return provider(from: http.statusCode, data: data, endpoint: endpoint)
     }
 
     /// Classify a probe response. 200 is a live provider; 401/403 is a live server that
     /// wants an API key (e.g. oMLX generates one at setup) - surfaced as locked so the
     /// user can supply the key, rather than being invisible. Anything else is not a
     /// provider. Pure, so the classification is unit-testable.
-    static func provider(from status: Int, data: Data, candidate: Candidate) -> ModelProvider? {
+    static func provider(from status: Int, data: Data, endpoint: ModelEndpoint) -> ModelProvider? {
         switch status {
         case 200:
             return ModelProvider(
-                kind: refineKind(candidate.kind, data: data, api: candidate.api),
-                port: candidate.port,
-                api: candidate.api,
-                models: parseModels(data, api: candidate.api)
+                kind: refineKind(endpoint.kind, data: data, api: endpoint.api),
+                host: endpoint.host,
+                port: endpoint.port,
+                api: endpoint.api,
+                models: parseModels(data, api: endpoint.api),
+                endpointID: endpoint.id
             )
         case 401, 403:
             return ModelProvider(
-                kind: candidate.kind,
-                port: candidate.port,
-                api: candidate.api,
+                kind: endpoint.kind,
+                host: endpoint.host,
+                port: endpoint.port,
+                api: endpoint.api,
                 models: [],
-                requiresAPIKey: true
+                requiresAPIKey: true,
+                endpointID: endpoint.id
             )
         default:
             return nil
@@ -180,8 +178,8 @@ struct LiveModelBackend: ModelBackend {
         return kind
     }
 
-    func complete(port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
-        let root = "http://127.0.0.1:\(port)"
+    func complete(host: String, port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
+        let root = "http://\(ModelEndpoint.dialHost(host)):\(port)"
         let wireMessages = messages.map { ["role": $0.role.rawValue, "content": $0.content] }
         let path: String
         let body: [String: Any]

@@ -13,11 +13,11 @@ private let terminalKey = "OrchardPreferredTerminal"
 /// Run `body` with a `SettingsStore` on a throwaway suite (and the raw suite, for the few
 /// tests that pre-seed or re-init). The suite is removed afterwards.
 @MainActor
-private func withSettingsStore(_ body: (SettingsStore, UserDefaults) -> Void) {
+private func withSettingsStore(_ body: (SettingsStore, UserDefaults) throws -> Void) rethrows {
     let name = "OrchardTests-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: name)!
     defer { defaults.removePersistentDomain(forName: name) }
-    body(SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore()), defaults)
+    try body(SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore()), defaults)
 }
 
 // MARK: - validateAndSetCustomBinaryPath
@@ -124,21 +124,78 @@ func preferredTerminalPersists() {
 // MARK: - Model API keys
 
 @MainActor
-@Test("Model API keys: set, read back, clear, and enumerate per port")
-func modelAPIKeyRoundTrip() {
-    withSettingsStore { store, _ in
+@Test("Model API keys: set, read back, clear, and enumerate per endpoint")
+func modelAPIKeyRoundTrip() throws {
+    try withSettingsStore { store, _ in
+        let omlx = ModelEndpoint(id: "e.omlx", kind: .omlx, port: 8000, api: .openAI)
+        let lmStudio = ModelEndpoint(id: "e.lmstudio", kind: .lmStudio, port: 1234, api: .openAI)
         #expect(store.modelAPIKey(port: 8000) == nil)
 
-        store.setModelAPIKey("sk-test", port: 8000)
-        store.setModelAPIKey("sk-other", port: 1234)
+        try store.setModelAPIKey("sk-test", port: 8000)
+        try store.setModelAPIKey("sk-other", port: 1234)
         #expect(store.modelAPIKey(port: 8000) == "sk-test")
-        #expect(store.allModelAPIKeys() == [8000: "sk-test", 1234: "sk-other"])
+        #expect(store.modelAPIKeys(for: [omlx, lmStudio]) == ["e.omlx": "sk-test", "e.lmstudio": "sk-other"])
 
-        store.setModelAPIKey("", port: 8000)    // empty clears
+        try store.setModelAPIKey("", port: 8000)    // empty clears
         #expect(store.modelAPIKey(port: 8000) == nil)
-        store.setModelAPIKey(nil, port: 1234)   // nil clears
-        #expect(store.allModelAPIKeys().isEmpty)
+        try store.setModelAPIKey(nil, port: 1234)   // nil clears
+        #expect(store.modelAPIKeys(for: [omlx, lmStudio]).isEmpty)
     }
+}
+
+@MainActor
+@Test("Model API keys: an endpoint moved to another host keeps its own key")
+func modelAPIKeyPerAddress() throws {
+    try withSettingsStore { store, _ in
+        try store.setModelAPIKey("sk-local", host: "127.0.0.1", port: 8000)
+        try store.setModelAPIKey("sk-remote", host: "10.0.0.7", port: 8000)
+
+        #expect(store.modelAPIKey(host: "127.0.0.1", port: 8000) == "sk-local")
+        #expect(store.modelAPIKey(host: "10.0.0.7", port: 8000) == "sk-remote")
+    }
+}
+
+// MARK: - Model endpoints (#110)
+
+@MainActor
+@Test("Model endpoints: seeded from the built-ins, then persisted once edited")
+func modelEndpointsPersist() {
+    withSettingsStore { store, defaults in
+        #expect(store.modelEndpoints.map(\.id) == ModelEndpoint.builtIns.map(\.id))
+
+        var edited = store.modelEndpoints[0]
+        edited.host = "10.0.0.7"
+        edited.port = 4321
+        store.updateModelEndpoint(edited)
+        store.setModelEndpointEnabled(false, id: store.modelEndpoints[1].id)
+
+        let reloaded = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore())
+        #expect(reloaded.modelEndpoints[0].host == "10.0.0.7")
+        #expect(reloaded.modelEndpoints[0].port == 4321)
+        #expect(reloaded.modelEndpoints[1].isEnabled == false)
+
+        // Restoring a built-in returns the address without touching the enabled state.
+        reloaded.setModelEndpointEnabled(false, id: reloaded.modelEndpoints[0].id)
+        reloaded.restoreDefaultModelEndpoint(id: reloaded.modelEndpoints[0].id)
+        #expect(reloaded.modelEndpoints[0].port == ModelEndpoint.builtIns[0].port)
+        #expect(reloaded.modelEndpoints[0].isEnabled == false)
+    }
+}
+
+@MainActor
+@Test("Model endpoints: a built-in added in a later release joins a stored list")
+func modelEndpointsGainNewBuiltIns() throws {
+    let defaults = ephemeralDefaults()
+    // A list persisted before the other built-ins existed.
+    let stored = [ModelEndpoint.builtIns[0]]
+    defaults.set(try JSONEncoder().encode(stored), forKey: "OrchardModelEndpoints")
+
+    let store = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore())
+
+    #expect(store.modelEndpoints.count == ModelEndpoint.builtIns.count)
+    #expect(Set(store.modelEndpoints.map(\.id)) == Set(ModelEndpoint.builtIns.map(\.id)))
+    // The stored entry keeps its place at the front rather than being reseeded.
+    #expect(store.modelEndpoints[0].id == ModelEndpoint.builtIns[0].id)
 }
 
 @MainActor
