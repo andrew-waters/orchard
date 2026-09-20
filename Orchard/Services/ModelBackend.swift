@@ -17,7 +17,7 @@ enum ModelBridge {
     /// which is the host). OpenAI-style clients expect the `/v1` root; Ollama clients want
     /// the bare host.
     static func containerBaseURL(gateway: String, hostPort: UInt16, api: ModelAPIStyle) -> String {
-        let root = "http://\(gateway):\(hostPort)"
+        let root = "http://\(ModelEndpoint.authority(gateway, port: hostPort))"
         switch api {
         case .openAI: return root + "/v1"
         case .ollama: return root
@@ -179,7 +179,7 @@ struct LiveModelBackend: ModelBackend {
     }
 
     func complete(host: String, port: UInt16, api: ModelAPIStyle, model: String, messages: [ChatMessage], apiKey: String?) async throws -> String {
-        let root = "http://\(ModelEndpoint.dialHost(host)):\(port)"
+        let root = "http://\(ModelEndpoint.authority(ModelEndpoint.dialHost(host), port: port))"
         let wireMessages = messages.map { ["role": $0.role.rawValue, "content": $0.content] }
         let path: String
         let body: [String: Any]
