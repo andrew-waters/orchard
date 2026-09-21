@@ -3,51 +3,27 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.4.2</title>
-      <sparkle:version>60</sparkle:version>
-      <sparkle:shortVersionString>2.4.2</sparkle:shortVersionString>
+      <title>Version 2.4.3</title>
+      <sparkle:version>61</sparkle:version>
+      <sparkle:shortVersionString>2.4.3</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.4.2</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.4.3</link>
       <description><![CDATA[
-<style>
-pre {
-  background: rgba(127, 127, 127, 0.18);
-  padding: 10px 12px;
-  border-radius: 6px;
-  overflow-x: auto;
-}
-</style>
-<p>Hi everyone, this release is a huge one personally, and one that&#x27;s long overdue.</p>
-<p>Since Apple launched container, everyone&#x27;s been looking for Compose support so Docker Compose files can be brought across. The maintainers themselves have turned this down in several issues, pushing it onto the community. I&#x27;ve closed a lot of feature requests because I hoped this would be a core feature, but the maintainers made it very clear they are not going to work on it.</p>
-<p>In the early days, many people, including myself, attempted to build something to solve that. However, they were all independent binaries, and still are — requiring their own commands and not portable.</p>
-<p>A few releases ago, container added support for plugins, the first of which is an official k8s one — it&#x27;s the same plugin Orchard itself calls to bring k8s to your box.</p>
-<p>So in order to bring these worlds together, I&#x27;ve created a new project, <a href="https://github.com/andrew-waters/compose">compose</a>, which is a plugin for apple/container that can be installed without Orchard (although it&#x27;s offered to you with minimal work involved via the UI).</p>
-<p>The syntax for compose looks exactly how you would want it:</p>
-<pre><code>container compose up --help</code></pre>
-<p>I&#x27;m opening that up in the hope that other developers can contribute to it and make it the standard way to use Compose with containers. There is no Orchard logic in it — it&#x27;s a plugin and can be bundled as a Swift library in 3rd party tools such as other UI&#x27;s or applications, instead of being proprietary.</p>
-<p>With this being so new, if you have any feedback or want to contribute, please do!</p>
-<p><a href="https://github.com/andrew-waters/compose">Check out the project</a> and give this new Orchard release a go — navigate to the Compose view where it will be installed for you, if you wish.</p>
-<hr>
 <h3>Added</h3>
 <ul>
-<li>The shell a container terminal opens with is now a setting, taken as written and passed through with its flags, so <code>bash -l</code> gets a login shell that reads your rc files (#107). Which shells an image has and which flags they accept is a property of the image, so there is nothing here for Orchard to enumerate and nothing worth validating beyond refusing to send an empty command. <code>sh</code> remains the default because it is the one shell a minimal image is likely to have, which makes it a safe default rather than a good one.
-</li>
-<li>A Compose tab, for bringing a set of services up and down from a compose file. Projects are found by the labels on their containers rather than by any file Orchard keeps, so a project brought up from the terminal appears here without Orchard having been told anything, and a project Orchard has been shown a file for can be brought up, taken down and reconciled from the window. Running <code>up</code> a second time compares each service against a hash stamped on the container it produced, then creates, starts, leaves alone, recreates or removes each one accordingly, and every step is listed as it happens.
-</li>
-<li>Compose keys that cannot be honoured are never quietly dropped. Adding a project shows what will be ignored, how much ignoring it costs, and the line each key sits on, and the project goes on showing that afterwards: three weeks later nobody remembers what they accepted, and the containers cannot tell them. A file that grows a new unhandled key is put back in front of you before the next <code>up</code> rather than waved through on an older answer. A service that builds is built through the same path as the Images tab, so its BuildKit log shows up under Builds like any other build.
-<p>The planning behind the tab is <a href="https://github.com/andrew-waters/compose">andrew-waters/compose</a>, a Swift package Orchard links and which also backs the <code>container compose</code> plugin, so the terminal and the window cannot drift apart. Two limitations are worth stating up front: without health reporting in the runtime, <code>up</code> starts dependencies before dependents but does not wait for them to become ready, and hostnames have to be unique across every container on the machine, so a service answers to <code>&lt;project&gt;-&lt;service&gt;</code> rather than to its service name.</p>
-</li>
-<li>The Compose tab offers to install the <code>container compose</code> CLI plugin when it is not there. Orchard itself never needs it, because the window links the planner and runs plans over XPC, so this is an offer rather than a fault and the banner is coloured accordingly: every project in the list works with nothing installed. It is worth offering because container&#x27;s own installer clears the plugin directory on every upgrade (apple/container#1617), so a plugin someone installed by hand goes missing again through no fault of theirs. Installing fetches the latest release, unpacks it, and puts the two files where the CLI looks, with the work shown step by step in a sheet: this downloads 15MB and then asks for an administrator password, and someone about to be asked for their password should be able to see what asked and why. Everything up to the copy happens unprivileged in a temporary directory, so a failure before that point never prompts at all, and a download in flight can be cancelled.
+<li>The AI Models panel&#x27;s detected endpoints can now be re-pointed and switched off (#110). The four addresses discovery probes (Ollama on 11434, LM Studio on 1234, an MLX server on 8080 or 8000) were a hardcoded list. A server listening anywhere else was undiscoverable, and there was no way to exclude one you would rather Orchard left alone. Each one is now a configuration you own: the detail pane carries the host and port it probes, with Save and, for an address you have moved, &quot;Restore default&quot;. Switching one off stops Orchard contacting it at all rather than merely hiding it, and it moves to a &quot;Not probed&quot; section in the list, so there is a way back on. An endpoint you have moved keeps its row under &quot;Not answering&quot; while nothing responds there, so a mistyped address can be corrected rather than taking the endpoint out of the panel; a built-in sitting on its shipped address stays quiet, since &quot;you aren&#x27;t running Ollama&quot; is not news. Both choices persist, and a built-in added in a later release joins your list rather than replacing it. An endpoint pointed at another machine is bridged into containers by its own address, since only a server on this Mac needs the network gateway indirection.
 </li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>Ghostty no longer gets a new window, and a second copy of itself, every time you open a container terminal (#107). Orchard launched it with <code>open -na</code>, and <code>-n</code> starts a <em>separate instance</em>: a window in one instance can never join a window in another, so a new window was not a design choice so much as an inevitability, and every container opened left another Ghostty running. Ghostty 1.3 ships a scripting dictionary, so it is now driven the way Terminal.app and iTerm2 already were rather than through <code>open</code>, and all three stop being special cases. Whether the terminal arrives as a tab or a window follows the system-wide &quot;Prefer tabs when opening documents&quot; setting rather than a preference of Orchard&#x27;s own: you have answered that question once, for every app. macOS defaults that to <code>fullscreen</code> rather than <code>always</code>, so the default is still a window; the difference is that it is now the system&#x27;s answer rather than Orchard overriding it.
+<li>Saving an API key for a locked model server now tells you what happened (#110). The field cleared itself on Save and said nothing further, which looked the same whether the key had been stored and rejected, stored and accepted, or never stored at all. Keychain writes also discarded their status entirely, so a refusal from the keychain was invisible by construction. The panel now reports each outcome in its own words, including the one that previously had no voice: a key saved successfully that the server still rejects, which is a wrong key rather than a broken Save. A stored key is shown as stored, with a Remove button, instead of an empty field that could mean either nothing saved or something hidden.
+</li>
+<li>A model server that wants an API key is no longer probed every 5 seconds for as long as Orchard runs (#110). The background tick backed off to 30s only while <em>nothing</em> was detected, and a server answering 401 counts as detected, so an endpoint Orchard could never get into held the fast cadence indefinitely and filled that server&#x27;s own log with rejected requests. The tick now backs off unless something usable is detected. Saving a key still re-probes immediately, so nothing that depends on a fresh answer waits on the slower cadence, and an endpoint switched off is not contacted at all.
 </li>
 </ul>
 ]]></description>
-      <pubDate>Wed, 16 Sep 2026 21:32:14 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.4.2/Orchard-2.4.2.dmg" type="application/octet-stream" sparkle:edSignature="XZwFJQON4gozE+HaVst7dR/AtUwfTt4qVcEvtr6kYz59zJLZgfAyojWaHpLPp1kagUvDoe261klbWvfHm7XsDg==" length="30943987" />
+      <pubDate>Mon, 21 Sep 2026 08:53:34 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.4.3/Orchard-2.4.3.dmg" type="application/octet-stream" sparkle:edSignature="KUYv0NAdkQh8uHqraF2zXDL2tXXhrWebYSsyM3rnUDcunqlC5AXEgaHuIojdwNk8CG24OYeM5/mkNZFOoioIDA==" length="31001431" />
     </item>
   </channel>
 </rss>
