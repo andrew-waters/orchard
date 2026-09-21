@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.3] - 2026-09-21
+
 ### Added
 - The AI Models panel's detected endpoints can now be re-pointed and switched off (#110). The four addresses discovery probes (Ollama on 11434, LM Studio on 1234, an MLX server on 8080 or 8000) were a hardcoded list. A server listening anywhere else was undiscoverable, and there was no way to exclude one you would rather Orchard left alone. Each one is now a configuration you own: the detail pane carries the host and port it probes, with Save and, for an address you have moved, "Restore default". Switching one off stops Orchard contacting it at all rather than merely hiding it, and it moves to a "Not probed" section in the list, so there is a way back on. An endpoint you have moved keeps its row under "Not answering" while nothing responds there, so a mistyped address can be corrected rather than taking the endpoint out of the panel; a built-in sitting on its shipped address stays quiet, since "you aren't running Ollama" is not news. Both choices persist, and a built-in added in a later release joins your list rather than replacing it. An endpoint pointed at another machine is bridged into containers by its own address, since only a server on this Mac needs the network gateway indirection.
 
