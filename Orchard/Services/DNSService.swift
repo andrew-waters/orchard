@@ -11,6 +11,8 @@ final class DNSService: ObservableObject {
     private let runner: CommandRunner
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
+    /// Where the CLI writes one resolver file per domain. Overridable for tests.
+    var resolverDirectory = URL(fileURLWithPath: "/etc/resolver")
 
     /// Refresh the system properties (which hold the default domain). Set by the owner.
     var refreshSystemProperties: () async -> Void = {}
@@ -54,6 +56,7 @@ final class DNSService: ObservableObject {
 
             if let output = listResult.stdout {
                 dnsDomains = parseDNSDomains(json: output, defaultDomain: defaultDomain())
+                    .map { withLocalhostRedirect($0) }
             }
         } catch {
             if showLoading {
@@ -62,12 +65,28 @@ final class DNSService: ObservableObject {
         }
     }
 
+    /// The domain with its localhost redirect filled in from its resolver file, which is
+    /// world-readable, so this needs no sudo. A missing or unreadable file means no redirect.
+    private func withLocalhostRedirect(_ domain: DNSDomain) -> DNSDomain {
+        let file = resolverDirectory.appendingPathComponent("containerization.\(domain.domain)")
+        guard let config = try? String(contentsOf: file, encoding: .utf8),
+              let redirect = parseLocalhostRedirect(resolverConfig: config)
+        else { return domain }
+        return DNSDomain(domain: domain.domain, isDefault: domain.isDefault, localhostRedirect: redirect)
+    }
+
+    /// `localhost` makes the domain resolve to that IPv4 address and has pf redirect it to
+    /// the Mac's 127.0.0.1, so containers can reach services bound to the host's loopback.
+    /// Before container 1.5.0 adding or removing that rule reloaded all of pf and cut every
+    /// running container's outbound networking (apple/container#2256).
     @discardableResult
-    func create(_ domain: String) async -> Bool {
+    func create(_ domain: String, localhost: String? = nil) async -> Bool {
+        var arguments = ["system", "dns", "create", domain]
+        if let localhost, !localhost.isEmpty { arguments += ["--localhost", localhost] }
         do {
             let result = try await runner.runWithSudo(
                 program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "dns", "create", domain])
+                arguments: arguments)
 
             if !result.failed {
                 await load()
@@ -106,7 +125,10 @@ final class DNSService: ObservableObject {
     /// Optimistically mark `domain` as the default in the local list.
     func markDefault(_ domain: String) {
         for i in dnsDomains.indices {
-            dnsDomains[i] = DNSDomain(domain: dnsDomains[i].domain, isDefault: dnsDomains[i].domain == domain)
+            dnsDomains[i] = DNSDomain(
+                domain: dnsDomains[i].domain,
+                isDefault: dnsDomains[i].domain == domain,
+                localhostRedirect: dnsDomains[i].localhostRedirect)
         }
     }
 

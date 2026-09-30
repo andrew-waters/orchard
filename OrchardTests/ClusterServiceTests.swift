@@ -146,6 +146,46 @@ func probeMissingPlugin() async {
 }
 
 @MainActor
+@Test("Probe: the 1.5.0 unknown-command error marks the plugin missing")
+func probeMissingPluginUnknownCommand() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in
+        // Verbatim shape of DefaultCommand's error in container 1.5.0.
+        ProcessResult(exitCode: 1, stdout: nil, stderr: """
+            Error: unknown command 'k8s'
+
+            - If system services are not running, start them with: container system start
+
+            If 'k8s' is a plugin, check that it exists under:
+              - /Users/me/.local/libexec/container/plugins/k8s
+              - /usr/local/libexec/container/plugins/k8s
+            """)
+    }
+    let service = makeService(runner: runner)
+    await service.clusterService.probePluginAvailability()
+    #expect(service.clusterService.pluginAvailability == .missingPlugin)
+}
+
+@MainActor
+@Test("Probe: the stopped-system error stays unknown, even though it names plugins")
+func probeStoppedSystemStaysUnknown() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in
+        ProcessResult(exitCode: 1, stdout: nil, stderr: """
+            Error: Plugins are unavailable. Start the container system services and retry:
+
+                container system start
+
+            Check to see that the plugin exists under:
+              - /usr/local/libexec/container/plugins/k8s
+            """)
+    }
+    let service = makeService(runner: runner)
+    await service.clusterService.probePluginAvailability()
+    #expect(service.clusterService.pluginAvailability == .unknown)
+}
+
+@MainActor
 @Test("Probe: other failures (e.g. system stopped) stay unknown, not missing")
 func probeOtherFailureStaysUnknown() async {
     let runner = MockCommandRunner()
@@ -199,25 +239,8 @@ private let nodePrepFailureStderr = """
     """
 
 @MainActor
-@Test("Create: a node-prep abort on an outdated kernel names the kernel, not the sysctl")
-func createNodePrepFailureNamesKernel() async {
-    let runner = MockCommandRunner()
-    runner.runHandler = { _, _ in ProcessResult(exitCode: 1, stdout: nil, stderr: nodePrepFailureStderr) }
-    let service = makeService(runner: runner)
-    service.clusterService.outdatedKernel = "vmlinux-6.12.28-153"
-
-    let ok = await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil)
-    #expect(ok == false)
-    let message = service.alertCenter.current?.message ?? ""
-    #expect(message.contains("vmlinux-6.12.28-153"))
-    #expect(message.contains("nftables"))
-    // The whole point: the line that sent people chasing a working sysctl never reaches them.
-    #expect(!message.contains("ip_forward"))
-}
-
-@MainActor
-@Test("Create: a node-prep abort on a current kernel still replaces the misleading output")
-func createNodePrepFailureWithoutOutdatedKernel() async {
+@Test("Create: a node-prep abort replaces the misleading output with its own message")
+func createNodePrepFailureReplacesOutput() async {
     let runner = MockCommandRunner()
     runner.runHandler = { _, _ in ProcessResult(exitCode: 1, stdout: nil, stderr: nodePrepFailureStderr) }
     let service = makeService(runner: runner)
@@ -226,22 +249,39 @@ func createNodePrepFailureWithoutOutdatedKernel() async {
     #expect(ok == false)
     let message = service.alertCenter.current?.message ?? ""
     #expect(message.contains("k8s-dev"))
-    #expect(message.contains("nftables"))
+    // The line that sent people chasing a working sysctl never reaches them. Nor does a
+    // kernel diagnosis: 1.5.0 node prep works on the pre-nftables kernel that used to fail.
     #expect(!message.contains("ip_forward"))
+    #expect(!message.contains("nftables"))
+}
+
+@Test("Failure detection: the node-prep abort is recognised from the CLI's real output")
+func detectsNodePrepFailure() {
+    #expect(ClusterService.outputIndicatesNodePrepFailure(nodePrepFailureStderr))
+}
+
+@Test("Failure detection: unrelated failures are left to the generic CLI error")
+func ignoresUnrelatedFailures() {
+    for output in [
+        "Error: failed to delete container (cause: \"notFound\")",
+        "Error: HTTP request failed with response: 401 Unauthorized",
+        "net.ipv4.ip_forward = 1",   // the misleading line alone is not the signature
+        "",
+    ] {
+        #expect(!ClusterService.outputIndicatesNodePrepFailure(output))
+    }
 }
 
 @MainActor
-@Test("Start, delete, load-image, and write-config drive the expected CLI subcommands")
+@Test("Delete, load-image, and write-config drive the expected CLI subcommands")
 func lifecycleCommands() async {
     let runner = MockCommandRunner()
     let service = makeService(runner: runner)
 
-    await service.clusterService.start(name: "k8s-dev")
     await service.clusterService.delete(name: "k8s-dev")
     _ = await service.clusterService.loadImage(cluster: "k8s-dev", reference: "demo-api:latest")
     _ = await service.clusterService.writeConfig(cluster: "k8s-dev")
 
-    #expect(runner.calls.contains(["k8s", "start", "--name", "k8s-dev"]))
     #expect(runner.calls.contains(["k8s", "delete", "--name", "k8s-dev"]))
     #expect(runner.calls.contains(["k8s", "load-image", "--name", "k8s-dev", "demo-api:latest"]))
     #expect(runner.calls.contains(["k8s", "write-config", "--name", "k8s-dev"]))
@@ -261,4 +301,112 @@ func clusterNameForContainer() throws {
     #expect(K8sCluster.clusterName(for: try k8sNode("k8s-dev-worker-2")) == "k8s-dev")
     #expect(K8sCluster.clusterName(for: try k8sNode("stray")) == "stray")
     #expect(K8sCluster.clusterName(for: try makeContainer(id: "web", status: "running")) == nil)
+}
+
+// MARK: - Recreate
+
+private let defaultNodeImage = "docker.io/kindest/node:v1.35.5@sha256:ce97"
+
+/// A stopped single-node cluster as 1.5.0 leaves it: the image reference has lost its tag.
+private func stoppedCluster(digest: String = "sha256:ce97") throws -> K8sCluster {
+    let node = try makeContainer(
+        id: "k8s-dev", status: "stopped",
+        labels: ["com.apple.container.plugin": "k8s", "com.apple.container.resource.role": "control-plane,worker"],
+        imageReference: "docker.io/kindest/node@\(digest)", imageDigest: digest,
+        cpus: 2, memoryInBytes: 2 * 1_073_741_824)
+    return try #require(K8sCluster.group(containers: [node]).first)
+}
+
+@MainActor
+@Test("Recreate settings: resources come from the node, and the plugin default is matched by digest")
+func recreateSettingsMatchPluginDefault() throws {
+    let service = makeService()
+    service.clusterService.pluginDefaultNodeImage = defaultNodeImage
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
+
+    #expect(settings == ClusterRecreateSettings(name: "k8s-dev", cpus: 2, memoryGiB: 2, nodeImage: .pluginDefault, cni: nil))
+}
+
+@MainActor
+@Test("Recreate settings: a listed version is matched by digest, recovering its tag")
+func recreateSettingsMatchListedVersion() throws {
+    let service = makeService()
+    service.clusterService.pluginDefaultNodeImage = defaultNodeImage
+    service.clusterService.nodeImageOptions = [
+        K8sNodeImageOption(version: "v1.37.0", reference: "docker.io/kindest/node:v1.37.0@sha256:a1"),
+    ]
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster(digest: "sha256:a1"))
+
+    #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.37.0@sha256:a1"))
+}
+
+@MainActor
+@Test("Recreate settings: an unknown digest is reported untagged, for the user to resolve")
+func recreateSettingsUntagged() throws {
+    let service = makeService()
+    service.clusterService.pluginDefaultNodeImage = defaultNodeImage
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster(digest: "sha256:zz"))
+
+    #expect(settings.nodeImage == .untagged("docker.io/kindest/node@sha256:zz"))
+}
+
+@MainActor
+@Test("Recreate settings: what Orchard created the cluster with wins over digest matching")
+func recreateSettingsPreferRemembered() async throws {
+    let service = makeService()
+    await service.clusterService.create(
+        name: "k8s-dev", cpus: nil, memory: nil,
+        nodeImage: "docker.io/kindest/node:v1.34.11@sha256:zz", cni: "/Users/me/cilium.yaml")
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster(digest: "sha256:zz"))
+
+    #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.34.11@sha256:zz"))
+    #expect(settings.cni == "/Users/me/cilium.yaml")
+}
+
+@MainActor
+@Test("Recreate settings: deleting a cluster forgets what it was created with")
+func deleteForgetsRememberedOptions() async throws {
+    let service = makeService()
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: "/Users/me/cilium.yaml")
+    await service.clusterService.delete(name: "k8s-dev")
+
+    #expect(service.clusterService.recreateSettings(for: try stoppedCluster()).cni == nil)
+}
+
+@MainActor
+@Test("Recreate: deletes, then creates with the same settings, as one action")
+func recreateDeletesThenCreates() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+
+    let ok = await service.clusterService.recreate(
+        name: "k8s-dev", cpus: 2, memory: "2GB", nodeImage: nil, cni: nil)
+
+    #expect(ok)
+    let calls = runner.calls
+    let deleteAt = calls.firstIndex(of: ["k8s", "delete", "--name", "k8s-dev"])
+    let createAt = calls.firstIndex(of: ["k8s", "create", "--name", "k8s-dev", "--cpus", "2", "--memory", "2GB"])
+    #expect(deleteAt != nil && createAt != nil)
+    #expect((deleteAt ?? .max) < (createAt ?? .min))
+}
+
+@MainActor
+@Test("Recreate: a failed delete stops before creating anything")
+func recreateStopsWhenDeleteFails() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, arguments in
+        arguments.starts(with: ["k8s", "delete"])
+            ? ProcessResult(exitCode: 1, stdout: nil, stderr: "Error: boom")
+            : ProcessResult(exitCode: 0, stdout: "", stderr: nil)
+    }
+    let service = makeService(runner: runner)
+
+    let ok = await service.clusterService.recreate(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: nil)
+
+    #expect(!ok)
+    #expect(!runner.calls.contains { $0.starts(with: ["k8s", "create"]) })
 }

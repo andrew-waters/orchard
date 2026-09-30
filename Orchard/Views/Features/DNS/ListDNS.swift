@@ -127,7 +127,7 @@ struct DNSListView: View {
         let isSelected: Bool
 
         var body: some View {
-            let rightText = domain.isDefault ? "DEFAULT" : nil
+            let rightText = domain.isDefault ? "DEFAULT" : (domain.localhostRedirect != nil ? "LOCALHOST" : nil)
 
             ListItemRow(
                 icon: "network",

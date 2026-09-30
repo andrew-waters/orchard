@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContainersListView: View {
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var clusterService: ClusterService
     @Environment(\.openWindow) private var openWindow
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -13,6 +14,7 @@ struct ContainersListView: View {
     @AppStorage("containerRunningFirst") private var runningFirst: Bool = true
     @AppStorage("containerGroupLabelKey") private var groupLabelKey: String = ""
     @State private var collapsedGroups: Set<String> = []
+    @State private var recreateSettings: ClusterRecreateSettings?
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -45,6 +47,9 @@ struct ContainersListView: View {
                 .keyboardShortcut("a", modifiers: .command)
             )
             .animation(.easeInOut(duration: 0.3), value: containerListService.containers)
+            .sheet(item: $recreateSettings) { settings in
+                CreateClusterView(recreating: settings)
+            }
             .focused($listFocusedTab, equals: .containers)
             .onChange(of: selectedContainer) { _, newValue in
                 lastSelectedContainer = newValue
@@ -158,15 +163,16 @@ struct ContainersListView: View {
             Spacer()
 
             Menu {
-                Button("Start All (\(stopped.count))") {
-                    let ids = stopped.map { $0.configuration.id }
+                let startable = stopped.filter { !$0.isK8sNode }
+                Button("Start All (\(startable.count))") {
+                    let ids = startable.map { $0.configuration.id }
                     Task {
                         for id in ids {
                             await containerListService.startContainer(id)
                         }
                     }
                 }
-                .disabled(stopped.isEmpty)
+                .disabled(startable.isEmpty)
 
                 Button("Stop All (\(running.count))") {
                     let ids = running.map { $0.configuration.id }
@@ -231,13 +237,23 @@ struct ContainersListView: View {
             }
             .disabled(runningIds.contains { containerListService.cleaningContainers.contains($0) })
         }
-        if anyStopped {
-            Button(multiple ? "Start \(targetIds.count) Containers" : "Start Container") {
+        // Cluster nodes are left out of Start: a lone stopped node offers Recreate instead.
+        let startableIds = targetContainers
+            .filter { $0.status.lowercased() != "running" && !$0.isK8sNode }
+            .map { $0.configuration.id }
+        if !startableIds.isEmpty {
+            Button(startableIds.count > 1 ? "Start \(startableIds.count) Containers" : "Start Container") {
                 Task {
-                    for id in targetIds {
+                    for id in startableIds {
                         await containerListService.startContainer(id)
                     }
                 }
+            }
+        } else if !multiple, anyStopped, container.isK8sNode,
+                  let clusterName = K8sCluster.clusterName(for: container),
+                  let cluster = K8sCluster.group(containers: containerListService.containers).first(where: { $0.name == clusterName }) {
+            Button("Recreate Cluster…") {
+                Task { recreateSettings = await clusterService.prepareRecreate(cluster) }
             }
         }
 

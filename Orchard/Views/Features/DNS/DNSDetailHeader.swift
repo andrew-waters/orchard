@@ -10,6 +10,11 @@ struct DNSDetailHeader: View {
                 Text(domain)
                     .font(.title2)
                     .fontWeight(.semibold)
+                if let redirect = dnsService.dnsDomains.first(where: { $0.domain == domain })?.localhostRedirect {
+                    Text("Resolves to \(redirect), redirected to the host's localhost")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
             }
             Spacer()
 

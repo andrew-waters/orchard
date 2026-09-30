@@ -78,7 +78,7 @@ Orchard manages **local Kubernetes clusters** built on Apple container's `k8s` p
 ![A local Kubernetes cluster in Orchard - nodes table with role, IP and resources, and one-click kubectl access](site/assets/screens/clusters.png)
 
 - Node containers are grouped into named clusters, with per-node role, status, IP, CPUs, memory and published ports
-- Create (with resource overrides and a custom node image), start and delete clusters from the app
+- Create clusters from the app, choosing the Kubernetes version, resource overrides and optionally your own CNI manifest, and delete them again
 - Load any local image into the cluster's containerd, so pods can use it without a registry
 - Write or merge the cluster's context into your kubeconfig, copy its path, or open a terminal with the kubectl context already selected
 - Cluster nodes are badged in the containers list ("k8s · control-plane"), and container and cluster views cross-link both ways
@@ -179,7 +179,7 @@ Stream logs from multiple containers side by side. Split panes, filter by text, 
 
 ![networks and DNS](site/assets/screens/networks.png)
 
-Manage networks and DNS domains without touching the CLI - see every container's IP address and hostname at a glance, set the default DNS domain, and create or remove domains and networks.
+Manage networks and DNS domains without touching the CLI - see every container's IP address and hostname at a glance, set the default DNS domain, and create or remove domains and networks. A domain can also point at your Mac's localhost, so containers reach services running on the host by name.
 
 ![menu bar](site/assets/screens/menubar.png)
 

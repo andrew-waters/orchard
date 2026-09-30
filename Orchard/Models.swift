@@ -629,12 +629,16 @@ struct ContainerMount: Identifiable, Equatable {
 struct DNSDomain: Codable, Equatable, Identifiable {
     let domain: String
     let isDefault: Bool
+    /// The IPv4 address the domain resolves to when it was created with `--localhost`: pf
+    /// redirects traffic for that address to the Mac's own 127.0.0.1. Nil for a plain domain.
+    let localhostRedirect: String?
 
     var id: String { domain }
 
-    init(domain: String, isDefault: Bool = false) {
+    init(domain: String, isDefault: Bool = false, localhostRedirect: String? = nil) {
         self.domain = domain
         self.isDefault = isDefault
+        self.localhostRedirect = localhostRedirect
     }
 }
 

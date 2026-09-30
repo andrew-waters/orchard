@@ -16,6 +16,7 @@ struct ClusterDetailView: View {
     /// Set briefly after a successful write-config so the button confirms in place.
     @State private var kubeconfigWritten = false
     @State private var copiedPath = false
+    @State private var recreateSettings: ClusterRecreateSettings?
 
     private var cluster: K8sCluster? {
         K8sCluster.group(containers: containerListService.containers)
@@ -29,6 +30,10 @@ struct ClusterDetailView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        if !cluster.isRunning {
+                            stoppedBanner
+                        }
+
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Resource Usage")
                                 .font(.headline)
@@ -43,6 +48,9 @@ struct ClusterDetailView: View {
             }
             .sheet(isPresented: $showLoadImageSheet) {
                 LoadImageSheet(clusterName: cluster.name)
+            }
+            .sheet(item: $recreateSettings) { settings in
+                CreateClusterView(recreating: settings)
             }
             .onAppear { statsService.beginSampling() }
             .onDisappear { statsService.endSampling() }
@@ -87,8 +95,8 @@ struct ClusterDetailView: View {
                     ProgressView().controlSize(.small)
                 }
                 if !cluster.isRunning {
-                    Button("Start") {
-                        Task { await clusterService.start(name: cluster.name) }
+                    Button("Recreate…") {
+                        Task { recreateSettings = await clusterService.prepareRecreate(cluster) }
                     }
                     .buttonStyle(BorderedProminentButtonStyle())
                     .disabled(busy)
@@ -185,6 +193,25 @@ struct ClusterDetailView: View {
         }
         .padding(12)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// Container 1.5.0 removed `container k8s start` (apple/container#2290), so there is no
+    /// Start to offer. Say so rather than leave a stopped cluster with no way forward.
+    private var stoppedBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: "stop.circle.fill")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("This cluster is stopped")
+                    .font(.subheadline).fontWeight(.medium)
+                Text("Apple container can't restart a stopped cluster, so Recreate deletes it and creates it again with the same settings. Workloads and images loaded into it are not kept.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var nodesHeader: some View {

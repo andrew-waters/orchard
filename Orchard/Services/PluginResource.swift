@@ -14,6 +14,13 @@ extension Container {
         configuration.labels[PluginResourceMarker.pluginLabel]
     }
 
+    /// A Kubernetes cluster node. Since container 1.5.0 there is no supported way to start
+    /// one again once stopped (`k8s start` is gone, and a plain start skips the node boot,
+    /// readiness wait and kubeconfig write it did), so Start is replaced by Recreate.
+    var isK8sNode: Bool {
+        owningPlugin == K8sCluster.pluginName
+    }
+
     /// The role label verbatim, for display. May name more than one role: see `pluginRoles`.
     var pluginRole: String? {
         configuration.labels[PluginResourceMarker.roleLabel]

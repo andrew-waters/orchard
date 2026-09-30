@@ -439,7 +439,7 @@ enum CommandPaletteCatalog {
                 keywords: "console shell terminal exec attach \(id)",
                 showsWhenEmpty: false,
                 action: .openContainerTerminal(id)))
-        } else {
+        } else if !container.isK8sNode {
             entries.append(PaletteEntry(
                 id: "container:\(id):start",
                 section: .containers,

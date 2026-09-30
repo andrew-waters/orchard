@@ -22,9 +22,8 @@ enum OrchardError: Error, LocalizedError, Equatable {
     case trimUnsupported(id: String)
     /// `container k8s create` aborted while preparing its node. Carries its own case because
     /// the CLI's message names a step that succeeded rather than the one that failed, so the
-    /// raw text is actively misleading (see `K8sKernelAdvisor`). `staleKernel` is the default
-    /// kernel's name when it predates nftables and is therefore the cause.
-    case k8sNodePrepFailed(cluster: String, staleKernel: String?)
+    /// raw text is actively misleading (see `ClusterService.outputIndicatesNodePrepFailure`).
+    case k8sNodePrepFailed(cluster: String)
     /// An error we haven't classified; carries the original message verbatim.
     case generic(String)
 
@@ -57,12 +56,9 @@ enum OrchardError: Error, LocalizedError, Equatable {
         case .containerNotRunning(let id):
             return "Container \(id) is not running. Only a running container can reclaim disk space."
         case .trimUnsupported(let id):
-            return "Apple container reported the filesystem trim as unsupported, so no space was reclaimed on \(id). This needs a container release that can trim a container's root filesystem; 1.4.1 cannot."
-        case .k8sNodePrepFailed(let cluster, let staleKernel):
-            if let staleKernel {
-                return "Preparing the node for '\(cluster)' failed because the guest kernel \(staleKernel) was built without nftables, which cluster creation needs. Upgrading Apple container does not replace an existing kernel, so this install kept an older one. Install the recommended kernel and try again."
-            }
-            return "Preparing the node for '\(cluster)' failed. Apple container reports the output of the last step that succeeded instead of the one that failed, so its own message names a sysctl that worked. The usual cause is a guest kernel built without nftables, which installing the recommended kernel fixes."
+            return "Apple container reported the filesystem trim as unsupported, so no space was reclaimed on \(id). This needs a container release that can trim a container's root filesystem; 1.5.0 cannot."
+        case .k8sNodePrepFailed(let cluster):
+            return "Preparing the node for '\(cluster)' failed. Apple container reports the output of the last step that succeeded instead of the one that failed, so its own message names a step that worked rather than the cause."
         case .generic(let message):
             return message
         }
@@ -91,10 +87,10 @@ extension OrchardError {
     /// "failed to clean mounts in <id>: /" wrapping "filesystemOperation trim failed"),
     /// which is unreadable in an alert.
     ///
-    /// As of container 1.4.1 the trim always fails on a container's root filesystem: the
-    /// guest's FITRIM ioctl returns EOPNOTSUPP even though the block device backing the
-    /// rootfs advertises discard, and the daemon adds "/" to the target list for every
-    /// container that isn't read-only. So `.trimUnsupported` is the expected outcome
+    /// As of container 1.5.0 (unchanged since 1.4.1) the trim always fails on a container's
+    /// root filesystem: the guest's FITRIM ioctl returns EOPNOTSUPP even though the block
+    /// device backing the rootfs advertises discard, and the daemon adds "/" to the target
+    /// list for every container that isn't read-only. So `.trimUnsupported` is the expected outcome
     /// today, not an edge case, and says so rather than blaming the user's setup.
     static func classifyCleanError(_ error: Error, id: String) -> OrchardError {
         let message = error.localizedDescription

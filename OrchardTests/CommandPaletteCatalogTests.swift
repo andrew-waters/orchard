@@ -42,6 +42,15 @@ struct CommandPaletteCatalogTests {
         #expect(!all.contains("container:db:console"))
     }
 
+    @Test("A stopped k8s node gets no start verb: it can only be recreated")
+    func clusterNodeHasNoStartVerb() throws {
+        let all = ids(catalog(containers: [
+            try makeContainer(id: "k8s-dev", status: "stopped", labels: ["com.apple.container.plugin": "k8s"]),
+        ]))
+        #expect(!all.contains("container:k8s-dev:start"))
+        #expect(all.contains("container:k8s-dev:logs"))
+    }
+
     @Test("System actions flip between start and stop/restart with the daemon state")
     func systemActionsAreStateAware() {
         let running = ids(catalog(systemRunning: true))

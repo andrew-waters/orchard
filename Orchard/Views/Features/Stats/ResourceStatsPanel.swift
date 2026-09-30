@@ -29,7 +29,9 @@ struct ResourceStatsPanel<NetworkFooter: View, DiskFooter: View>: View {
         return VStack(alignment: .leading, spacing: 12) {
             header
 
-            if isRunning || !history.isEmpty {
+            // Charts only while running. A stopped container's earlier history would sit in a
+            // window that never fills, showing "Collecting" for samples that aren't coming.
+            if isRunning {
                 MetricRow("CPU") { cpuDetail } chart: {
                     cpuChart(points, windowSeconds: window.seconds, cpuDomain: 0...100)
                 }

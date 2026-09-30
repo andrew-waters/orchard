@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Choose the Kubernetes version when creating a cluster. The Create Cluster sheet's free-text node image field is now a menu headed by the node image Apple container's k8s plugin ships with (marked Recommended, and read from the installed plugin rather than a copy in Orchard), followed by the newest `kindest/node` release of each Kubernetes version from 1.31, fetched from Docker Hub when the sheet opens and pinned by digest. "Custom Image" takes any other reference. Choosing a version only became meaningful with container 1.5.0: until then the plugin configured the control plane for its default version whatever image you passed, so a different image ran mismatched components. For the same reason 1.5.0 rejects a node image with no tag, and Orchard now says so before creating anything. Offline, the menu offers the recommended image and a custom one.
+- Use your own CNI with a new cluster. The Create Cluster sheet's Advanced section takes a CNI manifest to apply instead of the default kindnet (container 1.5.0's `--cni`). Orchard can't check that a manifest suits the cluster, so the sheet points out that it must fit the pod subnet and links to Apple container's Custom CNI guide.
+- Redirect a DNS domain to your Mac's localhost. The Add DNS Domain sheet takes an optional IPv4 address; the domain resolves to it and Apple container redirects that address to the host's 127.0.0.1, so containers can reach a service running on the Mac by name. Domains set up this way are marked LOCALHOST in the list and show their address in the detail header. Before container 1.5.0, adding or removing one of these redirects reloaded the Mac's whole packet filter configuration and cut outbound networking for every running container; 1.5.0 reloads only its own rules.
+
+### Changed
+- Orchard now builds against Apple container 1.5.0 (containerization 0.47.0), up from 1.4.1 (containerization 0.45.0). Nothing Orchard calls has changed shape. The release also fixes GHSA-44v5-vx46-ghv6 in the k8s plugin (kubeconfig values from the guest are now sanitised before being merged into your kubeconfig), which Orchard picks up through the CLI.
+- Orchard no longer warns that cluster creation will fail on a guest kernel built without nftables. Container 1.5.0 prepares nodes with the node image's own iptables backend instead of hard-coding `iptables-nft`, so the older kernel that an upgraded install keeps now works (apple/container#2120). A node-preparation failure still gets Orchard's own message rather than the CLI's, which names a step that succeeded, but it no longer blames the kernel.
+
+### Removed
+- Starting a stopped cluster, which is replaced by Recreate. Container 1.5.0 removed `container k8s start`, so a stopped cluster can only be deleted and created again; Recreate does both in one step. It opens the Create Cluster sheet filled in from the cluster (its name, CPUs and memory, the Kubernetes version and, for clusters Orchard created, the CNI manifest) and deletes and creates when you confirm. A node doesn't record its image tag, so Orchard recovers the version from the image digest, and asks when it can't. Stopped cluster nodes in the Containers list, the menu bar and the command palette no longer offer Start either: a plain start skips the boot, readiness wait and kubeconfig write the old command did, so the node's detail offers Recreate Cluster instead.
+
+### Fixed
+- Orchard notices a missing Kubernetes plugin again on container 1.5.0, which reports it as an unknown command rather than a missing plugin. Without this, the Clusters tab showed a Create Cluster button that stayed disabled with no explanation.
+- A stopped container's resource charts are hidden, as they are for a container that hasn't run. A container that ran earlier in the session kept its charts after it stopped, and a time window with too few samples then showed a "Collecting" spinner for samples that were never coming. The same applies to machines and clusters.
+- Images that clear their inherited entrypoint with `ENTRYPOINT [""]` now run. Orchard used the empty string as the program to launch, so the container failed to start; the command now runs on its own, as the CLI does from 1.5.0.
+
 ## [2.4.3] - 2026-09-21
 
 ### Added

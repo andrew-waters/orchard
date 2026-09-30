@@ -6,6 +6,7 @@ struct ContainerDetailHeader: View {
     @Binding var selectedTab: TabSelection
     @Binding var selectedCluster: String?
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
     @Environment(\.openWindow) private var openWindow
     @State private var showEditConfiguration = false
@@ -16,6 +17,13 @@ struct ContainerDetailHeader: View {
     @State private var wasRunningBeforeStop = false
     @State private var showSandboxInfo = false
     @State private var showPluginInfo = false
+    @State private var recreateSettings: ClusterRecreateSettings?
+
+    /// The cluster this container is a node of, for Recreate.
+    private var owningCluster: K8sCluster? {
+        guard let name = K8sCluster.clusterName(for: container) else { return nil }
+        return K8sCluster.group(containers: containerListService.containers).first { $0.name == name }
+    }
 
     /// Shield badge shown when the container is a sandbox (wired to a local model). Tapping
     /// it explains what that means and shows the endpoint - since a sandbox appears in both
@@ -219,6 +227,14 @@ struct ContainerDetailHeader: View {
                         }
                         .buttonStyle(BorderedButtonStyle())
                     }
+                } else if let cluster = owningCluster {
+                    // A stopped cluster node can't be started, only recreated with its cluster.
+                    Button("Recreate Cluster…") {
+                        Task { recreateSettings = await clusterService.prepareRecreate(cluster) }
+                    }
+                    .buttonStyle(BorderedProminentButtonStyle())
+                    .disabled(clusterService.busyClusters.contains(cluster.name))
+                    .help("Apple container can't restart a stopped cluster; this deletes \(cluster.name) and creates it again.")
                 } else {
                     // Container is stopped - show start button
                     Button(buttonTitle) {
@@ -299,6 +315,9 @@ struct ContainerDetailHeader: View {
             }
         } message: {
             Text("Are you sure you want to delete '\(containerName)'? This action cannot be undone.")
+        }
+        .sheet(item: $recreateSettings) { settings in
+            CreateClusterView(recreating: settings)
         }
         .sheet(isPresented: $showEditConfiguration) {
             EditContainerView(container: container)
