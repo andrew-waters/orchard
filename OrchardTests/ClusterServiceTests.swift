@@ -414,11 +414,15 @@ func recreateStopsWhenDeleteFails() async {
 @MainActor
 @Test("Remembered options: a create under a taken name leaves the existing cluster's options alone")
 func createUnderTakenNameKeepsRememberedOptions() async throws {
-    let service = makeService()
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
     await service.clusterService.create(
         name: "k8s-dev", cpus: nil, memory: nil,
         nodeImage: "docker.io/kindest/node:v1.37.0@sha256:a1", cni: "/Users/me/cilium.yaml")
-    service.containerListService.containers = [try stoppedCluster(digest: "sha256:a1").nodes[0].container]
+    // The node exists on the daemon but not yet in Orchard's cached list, as when it was made
+    // since the last poll: create must refresh before it checks.
+    backend.containers = [try stoppedCluster(digest: "sha256:a1").nodes[0].container]
+    service.containerListService.containers = []
 
     // A second Create with the same name: the CLI refuses it, and it must not first
     // overwrite what the real k8s-dev was created with.

@@ -310,7 +310,10 @@ final class ClusterService: ObservableObject {
     func create(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String? = nil) async -> Bool {
         // A taken name fails in the CLI, and must not first overwrite what the existing
         // cluster was created with: its Recreate would then rebuild it from the wrong choices.
-        await performCreate(
+        // The list is refreshed first, since a container made outside Orchard since the last
+        // poll would otherwise be missed. A failed refresh leaves the cached list to check.
+        await reloadContainers()
+        return await performCreate(
             name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni,
             rememberOptions: !existingContainerIDs().contains(name))
     }
