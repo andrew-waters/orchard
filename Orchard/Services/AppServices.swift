@@ -98,7 +98,7 @@ final class AppServices: ObservableObject {
         )
         self.composeService = composeService
         // Only ever informs: a missing CLI plugin changes nothing about what the window can do.
-        self.composePluginService = ComposePluginService(commandRunner: runner)
+        self.composePluginService = ComposePluginService(commandRunner: runner, containerBinaryPath: { settings.safeContainerBinaryPath() })
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
         // Reclaiming a container's free blocks changes what the daemon reports as used.

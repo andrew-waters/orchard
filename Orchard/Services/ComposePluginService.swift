@@ -5,9 +5,10 @@ import Foundation
 ///
 /// Orchard does not need it. The window links ComposePlanner and runs plans over XPC, so
 /// every compose project works with nothing installed. The plugin is what makes
-/// `container compose up` work in a terminal, and it is worth offering because container's
-/// own installer clears the plugin directory on every upgrade (apple/container#1617), so a
-/// plugin someone installed by hand goes missing again through no fault of theirs.
+/// `container compose up` work in a terminal, and it is worth offering because an upgrade
+/// can take it away: container looks for plugins under its versioned install root, so a
+/// Homebrew upgrade moves to a new keg and every plugin installed by hand is left behind in
+/// the old one (apple/container#1617, #113).
 ///
 /// That is also why this only ever informs. Nothing here blocks, and a missing plugin is
 /// never an error state for the app.
@@ -51,14 +52,14 @@ final class ComposePluginService: ObservableObject {
             }
         }
 
-        /// What the step is waiting on, when that is not obvious from the title. The last one
-        /// is waiting on a person, which is worth saying rather than looking stalled.
-        var note: String? {
-            switch self {
-            case .installing: return "Authorisation required"
-            default: return nil
-            }
-        }
+    }
+
+    /// What a step is waiting on, when that is not obvious from its title. Installing waits on
+    /// a person when the plugin directory needs an administrator, which is worth saying rather
+    /// than looking stalled.
+    func note(for step: Step) -> String? {
+        step == .installing && Self.needsAdministrator(toWrite: installPath, fileManager: fileManager)
+            ? "Authorisation required" : nil
     }
 
     @Published private(set) var state: State = .unknown
@@ -69,17 +70,21 @@ final class ComposePluginService: ObservableObject {
 
     private var installTask: Task<Void, Never>?
 
-    /// The directories `container` searches, in the order its own error message lists them.
-    /// The first is what the plugin's Makefile installs into; the second is where container
-    /// keeps the plugins it ships itself.
-    static let searchPaths = [
+    /// Where a pkg-installed `container` looks, in the order its own error message lists
+    /// them. Only a fallback: the directories depend on where the CLI is installed, so the CLI
+    /// is asked first (see `refresh`), and these stand in when it cannot answer.
+    static let defaultSearchPaths = [
         "/usr/local/libexec/container-plugins/compose",
         "/usr/local/libexec/container/plugins/compose",
     ]
 
-    /// Where the install goes: the first search path, because writing into container's own
-    /// plugin directory would put this among files its installer owns.
-    static let installPath = searchPaths[0]
+    /// The directories the configured CLI searches, as it last reported them. The first is
+    /// where an install goes: the second is container's own plugin directory, among files its
+    /// installer owns. For Homebrew the first is inside the current keg, which is the only
+    /// place that version will look.
+    @Published private(set) var searchPaths = defaultSearchPaths
+
+    var installPath: String { searchPaths.first ?? Self.defaultSearchPaths[0] }
 
     /// The release this fetches from. Apple silicon only, which is all the runtime runs on.
     static let releaseAPI = URL(string: "https://api.github.com/repos/andrew-waters/compose/releases/latest")!
@@ -88,15 +93,18 @@ final class ComposePluginService: ObservableObject {
     private let commandRunner: any CommandRunner
     private let fileManager: FileManager
     private let session: URLSession
+    private let containerBinaryPath: @MainActor () -> String
 
     init(
         commandRunner: any CommandRunner = SystemCommandRunner(),
         fileManager: FileManager = .default,
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        containerBinaryPath: @escaping @MainActor () -> String = { "/usr/local/bin/container" }
     ) {
         self.commandRunner = commandRunner
         self.fileManager = fileManager
         self.session = session
+        self.containerBinaryPath = containerBinaryPath
     }
 
     var isMissing: Bool { state == .missing }
@@ -125,15 +133,68 @@ final class ComposePluginService: ObservableObject {
 
     /// Look for the plugin, and read its version if it answers.
     ///
+    /// Asks the CLI, through `container compose --version`, rather than looking at fixed
+    /// paths: what matters is whether the command works in a terminal, and where the CLI looks
+    /// depends on how it was installed. Checking `/usr/local` alone said "installed" to a
+    /// Homebrew user whose CLI could not see that copy, so the reinstall was never offered
+    /// (#113). When the plugin is missing, the CLI's error names the directories it searched,
+    /// which is where an install has to go.
+    ///
     /// Called when the Compose tab is opened rather than polled: it only changes when someone
-    /// installs it or container's installer clears the directory, and both happen between
-    /// visits to this tab.
+    /// installs it or an upgrade leaves it behind, and both happen between visits to this tab.
     func refresh() async {
-        guard let binary = Self.installedBinaryPath(fileManager: fileManager) else {
+        let result = try? await commandRunner.run(program: containerBinaryPath(), arguments: ["compose", "--version"])
+        if let result, !result.failed {
+            let version = result.stdout?.trimmingCharacters(in: .whitespacesAndNewlines)
+            state = .installed(version: version?.isEmpty == false ? version : nil)
+            return
+        }
+
+        let output = [result?.stderr, result?.stdout].compactMap { $0 }.joined(separator: "\n")
+        if Self.indicatesMissingPlugin(output) {
+            let searched = Self.searchedDirectories(inCLIError: output)
+            if !searched.isEmpty { searchPaths = searched }
+            state = .missing
+            return
+        }
+
+        // The CLI could not say, typically because the system is stopped ("Plugins are
+        // unavailable"). Fall back to looking where it last said it searches.
+        guard let binary = installedBinaryPath() else {
             state = .missing
             return
         }
         state = .installed(version: await Self.version(of: binary, using: commandRunner))
+    }
+
+    /// True when the CLI's output says it has no `compose` command: "unknown command" from
+    /// 1.5.0, "Plugin 'container-compose' not found" before.
+    nonisolated static func indicatesMissingPlugin(_ output: String) -> Bool {
+        let lower = output.lowercased()
+        return lower.contains("unknown command 'compose'")
+            || (lower.contains("plugin 'container-compose'") && lower.contains("not found"))
+    }
+
+    /// The plugin directories listed in the CLI's missing-plugin error, e.g. the
+    /// `  - /opt/homebrew/Cellar/container/1.5.0/libexec/container-plugins/compose` lines.
+    nonisolated static func searchedDirectories(inCLIError output: String) -> [String] {
+        output.split(separator: "\n").compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("- /") else { return nil }
+            let path = String(trimmed.dropFirst(2))
+            return path.hasSuffix("/compose") ? path : nil
+        }
+    }
+
+    /// True when writing `path` needs an administrator: the nearest directory that already
+    /// exists is not writable by this user. A Homebrew prefix is the user's own, so a plugin
+    /// goes in there without a prompt, and without leaving root-owned files in the keg.
+    nonisolated static func needsAdministrator(toWrite path: String, fileManager: FileManager = .default) -> Bool {
+        var candidate = URL(fileURLWithPath: path)
+        while !fileManager.fileExists(atPath: candidate.path), candidate.path != "/" {
+            candidate.deleteLastPathComponent()
+        }
+        return !fileManager.isWritableFile(atPath: candidate.path)
     }
 
     /// The installed plugin binary, from whichever directory the CLI would find a *complete*
@@ -143,7 +204,7 @@ final class ComposePluginService: ObservableObject {
     /// only "Plugin not found" when either is absent, so a directory holding half a plugin has
     /// to count as missing here. Otherwise the banner goes away while the command still fails,
     /// which is the least useful thing this could do.
-    static func installedBinaryPath(fileManager: FileManager = .default) -> String? {
+    func installedBinaryPath() -> String? {
         searchPaths
             .first {
                 fileManager.isExecutableFile(atPath: $0 + "/bin/compose")
@@ -319,7 +380,8 @@ final class ComposePluginService: ObservableObject {
         return unpacked
     }
 
-    /// Copy the two files into the plugin directory behind one admin prompt.
+    /// Copy the two files into the plugin directory, behind one admin prompt when the
+    /// directory needs it.
     ///
     /// Returns false when the prompt was dismissed. `install` is used rather than `cp` because
     /// it makes the directories and sets the modes in one go, and the layout has to be exact:
@@ -327,7 +389,7 @@ final class ComposePluginService: ObservableObject {
     /// Miss either and the CLI reports only "Plugin not found", with nothing to say which half
     /// is wrong. Writing the two files in place also means nothing is removed as root.
     private func copyIntoPlace(from unpacked: URL) async throws -> Bool {
-        let dir = Self.installPath
+        let dir = installPath
         let binary = unpacked.appendingPathComponent("bin/compose").path
         let config = unpacked.appendingPathComponent("config.toml").path
         let script = """
@@ -338,7 +400,9 @@ final class ComposePluginService: ObservableObject {
             \(SystemCommandRunner.shellQuote(dir + "/config.toml"))
             """
 
-        let result = try await commandRunner.runWithSudo(program: "/bin/sh", arguments: ["-c", script])
+        let result = Self.needsAdministrator(toWrite: dir, fileManager: fileManager)
+            ? try await commandRunner.runWithSudo(program: "/bin/sh", arguments: ["-c", script])
+            : try await commandRunner.run(program: "/bin/sh", arguments: ["-c", script])
         guard result.failed else { return true }
 
         let message = result.stderr ?? ""
