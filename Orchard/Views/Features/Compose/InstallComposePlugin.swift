@@ -94,7 +94,7 @@ struct InstallComposePluginSheet: View {
                 .font(.callout)
                 .foregroundStyle(isDone || isRunning ? .primary : .secondary)
 
-            if isRunning, let note = step.note {
+            if isRunning, let note = composePluginService.note(for: step) {
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(.secondary)
