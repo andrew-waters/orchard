@@ -2,12 +2,14 @@
 """Emit the CHANGELOG section for a version for release notes.
 
 Usage: changelog_to_html.py [--markdown] <version> [changelog_path]
+       changelog_to_html.py --file <markdown_path>
 
 Default: prints the HTML for the `## [<version>]` section (headings, nested bullet
 lists, fenced code blocks, horizontal rules, links, bold, italics, inline code), for
 inline use in the Sparkle appcast.
 With --markdown: prints the section body verbatim as markdown (heading line excluded),
-used as the GitHub release body. Either way, prints nothing and exits 0 if the
+used as the GitHub release body. With --file: renders a whole markdown file as HTML, for
+text that heads every release's notes (.github/release-preamble.md). Either way, prints nothing and exits 0 if the
 section is absent, so callers can fall back to a plain link.
 
 This is deliberately a small subset of markdown, matching what the changelog
@@ -170,6 +172,9 @@ def to_html(section: list[str]) -> str:
 
 def main() -> None:
     args = sys.argv[1:]
+    if len(args) == 2 and args[0] == "--file":
+        print(to_html(open(args[1], encoding="utf-8").read().splitlines()))
+        return
     markdown = False
     if args and args[0] == "--markdown":
         markdown = True
