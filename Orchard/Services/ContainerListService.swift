@@ -42,6 +42,12 @@ final class ContainerListService: ObservableObject {
     private let lockQueue = DispatchQueue(label: "containerOperationLocks", attributes: .concurrent)
     // Configuration snapshots for recovery.
     private var containerSnapshots: [String: Container] = [:]
+    /// Bumped on every `loadContainers` call. The window's refresh timer, the menu bar's own
+    /// timer, and the retry/poll loops below can all have a load in flight at once; each is
+    /// an independent XPC round-trip with no ordering guarantee, so a call started earlier
+    /// can land after a newer one. Discarding a result whose generation is no longer current
+    /// stops a slow, stale - sometimes empty - list from overwriting a fresher one.
+    private var loadGeneration: UInt64 = 0
 
     init(backend: ContainerBackend, alertCenter: AlertCenter, pollInterval: TimeInterval = 0.5) {
         self.backend = backend
@@ -78,8 +84,13 @@ final class ContainerListService: ObservableObject {
             self.alertCenter.dismiss()
         }
 
+        loadGeneration &+= 1
+        let generation = loadGeneration
+
         do {
             let newContainers = try await backend.listContainers()
+            // A newer load started while this one was in flight; let its result win instead.
+            guard generation == loadGeneration else { return }
 
             if !areContainersEqual(self.containers, newContainers) {
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -95,6 +106,7 @@ final class ContainerListService: ObservableObject {
                 Log.containers.debug("Container: \(container.configuration.id), Status: \(container.status)")
             }
         } catch {
+            guard generation == loadGeneration else { return }
             // Background refreshes stay silent; only a user-initiated load alerts.
             self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
             self.isLoading = false
