@@ -160,6 +160,9 @@ final class ClusterService: ObservableObject {
 
     /// Refresh the container list after a lifecycle change. Set by the owner.
     var reloadContainers: () async -> Void = {}
+    /// The ids of the containers that exist now. A cluster's name is its control-plane
+    /// container's id, so a create under a taken name is one the CLI will refuse. Set by the owner.
+    var existingContainerIDs: @MainActor () -> Set<String> = { [] }
 
     init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter, defaults: UserDefaults = .standard) {
         self.runner = runner
@@ -305,6 +308,18 @@ final class ClusterService: ObservableObject {
     /// Nothing checks that it suits the cluster; a bad one fails late, at the apply step.
     @discardableResult
     func create(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String? = nil) async -> Bool {
+        // A taken name fails in the CLI, and must not first overwrite what the existing
+        // cluster was created with: its Recreate would then rebuild it from the wrong choices.
+        await performCreate(
+            name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni,
+            rememberOptions: !existingContainerIDs().contains(name))
+    }
+
+    /// `create`, with the options' save decided by the caller. Recreate always saves: its
+    /// delete has succeeded, though the container list may not have caught up yet.
+    private func performCreate(
+        name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String?, rememberOptions: Bool
+    ) async -> Bool {
         var arguments = ["k8s", "create", "--name", name]
         if let cpus { arguments += ["--cpus", String(cpus)] }
         if let memory, !memory.isEmpty { arguments += ["--memory", memory] }
@@ -315,10 +330,12 @@ final class ClusterService: ObservableObject {
         defer { isCreating = false }
         // Remembered before the run, so a create that fails partway can still be recreated
         // with the same choices. Cleared again on delete.
-        setRememberedOptions(
-            RememberedOptions(nodeImage: nodeImage?.isEmpty == false ? nodeImage : nil,
-                              cni: cni?.isEmpty == false ? cni : nil),
-            for: name)
+        if rememberOptions {
+            setRememberedOptions(
+                RememberedOptions(nodeImage: nodeImage?.isEmpty == false ? nodeImage : nil,
+                                  cni: cni?.isEmpty == false ? cni : nil),
+                for: name)
+        }
         return await runClusterCommand(arguments, failureVerb: "create cluster") { result in
             // Node prep aborts with the output of the step *before* the one that failed, so
             // the raw stderr would tell the user a sysctl they cannot act on. Everything the
@@ -364,7 +381,8 @@ final class ClusterService: ObservableObject {
         let deleted = await runClusterCommand(
             ["k8s", "delete", "--name", name], failureVerb: "delete cluster", reloadOnSuccess: false)
         guard deleted else { return false }
-        return await create(name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni)
+        return await performCreate(
+            name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, rememberOptions: true)
     }
 
     /// Load a local image into the cluster's containerd (`container k8s load-image`),
