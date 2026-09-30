@@ -1,0 +1,1 @@
+Thank you for using Orchard, and for the bug reports, ideas and pull requests that keep making it better. If it's useful to you, please consider [starring Orchard on GitHub](https://github.com/andrew-waters/orchard). It takes a second and helps other people find it.

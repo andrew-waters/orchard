@@ -215,6 +215,12 @@ jobs:
         run: |
           shasum -a 256 "Orchard-${{ steps.version.outputs.version }}.dmg" > "Orchard-${{ steps.version.outputs.version }}.dmg.sha256"
 
+      # The same notarised DMG under a name that never changes, so the site can link to
+      # releases/latest/download/Orchard.dmg and always serve the newest build. The versioned
+      # file stays the canonical one: the appcast, the checksum and the Homebrew cask use it.
+      - name: Copy DMG under a stable name
+        run: cp "Orchard-${{ steps.version.outputs.version }}.dmg" Orchard.dmg
+
       - name: Sign update and generate Sparkle appcast
         id: appcast
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -254,6 +260,10 @@ jobs:
           if [[ -z "$NOTES_HTML" ]]; then
             NOTES_HTML="<p>See the <a href=\"${RELEASE_URL}\">release notes</a>.</p>"
           fi
+          # The same thank-you that heads the GitHub release, above the changes.
+          PREAMBLE_HTML=$(python3 .github/scripts/changelog_to_html.py --file .github/release-preamble.md || true)
+          NOTES_HTML="${PREAMBLE_HTML}
+          ${NOTES_HTML}"
 
           mkdir -p _site
           cat > _site/appcast.xml <<EOF
@@ -310,23 +320,45 @@ jobs:
             NOTES="See the commit history for detailed changes in this release."
           fi
 
+          RELEASE_DL="https://github.com/andrew-waters/orchard/releases/download/v${VERSION}"
+          # The container release this build links, from the constant the app itself checks.
+          CONTAINER_VERSION=$(sed -n 's/^let supportedContainerVersion = "\(.*\)"$/\1/p' Orchard/Services/ContainerBackend.swift)
           {
-            echo "## Orchard v${VERSION}"
+            echo "# Orchard v${VERSION}"
             echo
-            echo "### Installation"
-            echo "1. Download the DMG file below"
-            echo "2. Open the DMG and drag Orchard.app to your Applications folder"
-            echo "3. Launch Orchard from Applications"
+            cat .github/release-preamble.md
             echo
-            echo "### Changes"
+            echo "## Changes"
             printf '%s\n' "$NOTES"
             echo
-            echo "### Checksums"
-            echo "- **SHA256**: See the \`.sha256\` file for verification"
+            echo "## Installation"
             echo
-            echo "### System Requirements"
+            echo "**[Homebrew](https://formulae.brew.sh/cask/orchard)**"
+            echo '```'
+            echo "brew install orchard"
+            echo '```'
+            echo "Already installed with Homebrew? Update with:"
+            echo '```'
+            echo "brew upgrade orchard"
+            echo '```'
+            echo
+            echo "**Download**"
+            echo "1. Download [Orchard-${VERSION}.dmg](${RELEASE_DL}/Orchard-${VERSION}.dmg)"
+            echo "2. Open it and drag Orchard.app to your Applications folder"
+            echo "3. Launch Orchard from Applications"
+            echo
+            echo "Orchard also updates itself: when a new release is out, it offers the update in the app."
+            echo
+            echo "## Checksums"
+            echo "- **SHA256**: [Orchard-${VERSION}.dmg.sha256](${RELEASE_DL}/Orchard-${VERSION}.dmg.sha256)"
+            echo
+            echo "## System Requirements"
             echo "- macOS 26 (Tahoe)"
-            echo "- [Apple Container](https://github.com/apple/container) installed"
+            if [[ -n "$CONTAINER_VERSION" ]]; then
+              echo "- [Apple container](https://github.com/apple/container/releases/tag/${CONTAINER_VERSION}) ${CONTAINER_VERSION}"
+            else
+              echo "- [Apple container](https://github.com/apple/container) installed"
+            fi
           } > release-notes.md
 
           echo "Assembled release notes:"; cat release-notes.md
@@ -338,6 +370,7 @@ jobs:
           files: |
             Orchard-${{ steps.version.outputs.version }}.dmg
             Orchard-${{ steps.version.outputs.version }}.dmg.sha256
+            Orchard.dmg
           body_path: release-notes.md
           draft: false
           prerelease: false
