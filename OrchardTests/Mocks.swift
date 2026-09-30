@@ -315,11 +315,15 @@ let fixtureInitProcessJSON = """
 { "terminal": false, "environment": [], "workingDirectory": "/", "arguments": [], \
 "executable": "/bin/sh", "user": {}, "rlimits": [], "supplementalGroups": [] }
 """
-func fixtureImageJSON(_ reference: String) -> String {
-    #"{ "reference": "\#(reference)", "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "sha256:abc", "size": 0 } }"#
+func fixtureImageJSON(_ reference: String, digest: String = "sha256:abc") -> String {
+    #"{ "reference": "\#(reference)", "descriptor": { "mediaType": "application/vnd.oci.image.index.v1+json", "digest": "\#(digest)", "size": 0 } }"#
 }
 
-func makeContainer(id: String, status: String, labels: [String: String] = [:]) throws -> Container {
+func makeContainer(
+    id: String, status: String, labels: [String: String] = [:],
+    imageReference: String = "nginx:latest", imageDigest: String = "sha256:abc",
+    cpus: Int = 1, memoryInBytes: Int = 1024
+) throws -> Container {
     let labelsJSON = labels.isEmpty
         ? "{}"
         : String(data: try JSONEncoder().encode(labels), encoding: .utf8)!
@@ -336,9 +340,9 @@ func makeContainer(id: String, status: String, labels: [String: String] = [:]) t
         "publishedPorts": [],
         "mounts": [],
         "platform": \(fixturePlatformJSON),
-        "image": \(fixtureImageJSON("nginx:latest")),
+        "image": \(fixtureImageJSON(imageReference, digest: imageDigest)),
         "dns": \(fixtureDNSJSON),
-        "resources": { "cpus": 1, "memoryInBytes": 1024 },
+        "resources": { "cpus": \(cpus), "memoryInBytes": \(memoryInBytes) },
         "initProcess": \(fixtureInitProcessJSON)
       }
     }

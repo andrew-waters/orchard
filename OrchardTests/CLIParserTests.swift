@@ -180,6 +180,30 @@ func dockerHubSearchParsed() {
     #expect(namespaced.description == nil)
 }
 
+// MARK: - parseLocalhostRedirect
+
+@Test("Resolver config: the localhost option yields its address")
+func localhostRedirectParsed() {
+    let config = "domain host.test\nsearch host.test\nnameserver 127.0.0.1\nport 1053\noptions localhost:203.0.113.1"
+    #expect(parseLocalhostRedirect(resolverConfig: config) == "203.0.113.1")
+}
+
+@Test("Resolver config: a plain domain has no redirect")
+func localhostRedirectAbsent() {
+    let config = "domain plain.test\nsearch plain.test\nnameserver 127.0.0.1\nport 2053\n"
+    #expect(parseLocalhostRedirect(resolverConfig: config) == nil)
+}
+
+@Test("IPv4 validation: dotted quads only, octets 0-255")
+func ipv4Validation() {
+    #expect(InputValidation.isValidIPv4("203.0.113.1"))
+    #expect(InputValidation.isValidIPv4("0.0.0.0"))
+    #expect(!InputValidation.isValidIPv4("256.0.0.1"))
+    #expect(!InputValidation.isValidIPv4("203.0.113"))
+    #expect(!InputValidation.isValidIPv4("203.0.113.1/24"))
+    #expect(!InputValidation.isValidIPv4("::1"))
+}
+
 // MARK: - resolveProcessArguments
 
 @Test("Process args: entrypoint alone is used when there is no cmd or override")
@@ -205,6 +229,16 @@ func processArgsOverrideWithEntrypoint() {
 @Test("Process args: override alone is used when there is no entrypoint")
 func processArgsOverrideOnly() {
     #expect(resolveProcessArguments(imageEntrypoint: nil, imageCmd: ["sh"], override: ["bash"]) == ["bash"])
+}
+
+@Test("Process args: an entrypoint cleared with [\"\"] runs the cmd on its own")
+func processArgsClearedEntrypointRunsCmd() {
+    #expect(resolveProcessArguments(imageEntrypoint: [""], imageCmd: ["sh"], override: []) == ["sh"])
+}
+
+@Test("Process args: an entrypoint cleared with [\"\"] runs the override on its own")
+func processArgsClearedEntrypointRunsOverride() {
+    #expect(resolveProcessArguments(imageEntrypoint: [""], imageCmd: ["sh"], override: ["bash"]) == ["bash"])
 }
 
 @Test("Process args: empty everything yields no arguments")

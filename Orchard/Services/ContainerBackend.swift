@@ -64,7 +64,11 @@ struct ContainerCreateSpec: Sendable {
 
 /// Combine an image's entrypoint and cmd with a user command override into the final
 /// process argument vector. Override replaces cmd; entrypoint is always prefixed.
+///
+/// An entrypoint of `[""]` is how an image clears the one it inherited (`ENTRYPOINT [""]`),
+/// so it counts as no entrypoint rather than an empty argv[0]. Matches the CLI from 1.5.0.
 func resolveProcessArguments(imageEntrypoint: [String]?, imageCmd: [String]?, override: [String]) -> [String] {
+    let imageEntrypoint = imageEntrypoint == [""] ? nil : imageEntrypoint
     var processArgs: [String] = []
     if let entrypoint = imageEntrypoint, !entrypoint.isEmpty {
         processArgs = entrypoint
@@ -138,7 +142,7 @@ func mapContainerError(_ error: Error) -> Error {
 
 /// The apple/container release Orchard's client libraries are built against. Keep in
 /// sync with the container package pin in project.pbxproj when bumping.
-let supportedContainerVersion = "1.4.1"
+let supportedContainerVersion = "1.5.0"
 
 /// A ping reply the linked client cannot decode means the installed daemon speaks a
 /// different protocol revision than the client libraries Orchard links.

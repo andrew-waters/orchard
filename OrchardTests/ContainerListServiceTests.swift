@@ -112,6 +112,21 @@ func removeContainersRemovesAll() async throws {
     #expect(service.containers.isEmpty)
 }
 
+// MARK: - cluster nodes
+
+@MainActor
+@Test("startContainer: a stopped k8s node is refused with an alert, never started")
+func startContainerRefusesClusterNode() async throws {
+    let backend = MockContainerBackend()
+    let (service, alert) = makeListService(backend)
+    service.containers = [try makeContainer(id: "k8s-dev", status: "stopped", labels: ["com.apple.container.plugin": "k8s"])]
+
+    await service.startContainer("k8s-dev", maxRetries: 1, retryDelay: 0)
+
+    #expect(backend.bootstrapAndStartCount == 0)
+    #expect(alert.current?.message.contains("Recreate") == true)
+}
+
 // MARK: - start error classification
 
 @MainActor

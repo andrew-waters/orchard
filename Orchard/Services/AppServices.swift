@@ -66,7 +66,7 @@ final class AppServices: ObservableObject {
         self.terminalLauncher = TerminalLauncher(settings: settings, alertCenter: alertCenter)
         let builderService = BuilderService(runner: runner, settings: settings, alertCenter: alertCenter)
         self.builderService = builderService
-        let clusterService = ClusterService(runner: runner, settings: settings, alertCenter: alertCenter)
+        let clusterService = ClusterService(runner: runner, settings: settings, alertCenter: alertCenter, defaults: defaults)
         self.clusterService = clusterService
         let networkService = NetworkService(backend: backend, alertCenter: alertCenter)
         self.networkService = networkService

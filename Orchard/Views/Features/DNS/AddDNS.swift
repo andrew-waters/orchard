@@ -4,6 +4,7 @@ struct AddDomainView: View {
     @EnvironmentObject var dnsService: DNSService
     @Environment(\.dismiss) private var dismiss
     @State private var domainName: String = ""
+    @State private var localhostAddress: String = ""
     @State private var isCreating: Bool = false
     @State private var validationError: String?
 
@@ -39,6 +40,20 @@ struct AddDomainView: View {
                     Text("Enter a domain name for local container networking. This requires administrator privileges.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Redirect to Host Localhost (Optional)")
+                        .font(.headline)
+
+                    TextField("e.g., 203.0.113.1", text: $localhostAddress)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(height: 32)
+
+                    Text("Makes the domain resolve to this IPv4 address and redirects that address to your Mac's 127.0.0.1, so containers can reach services running on the host. Pick an address nothing else uses, such as one from 203.0.113.0/24.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let validationError {
                         Text(validationError)
@@ -77,7 +92,7 @@ struct AddDomainView: View {
                 alignment: .top
             )
         }
-        .frame(width: 500, height: 300)
+        .frame(width: 500, height: 420)
         .background(Color(NSColor.windowBackgroundColor))
     }
 
@@ -90,11 +105,18 @@ struct AddDomainView: View {
             return
         }
 
+        let trimmedAddress = localhostAddress.trimmingCharacters(in: .whitespaces)
+        guard trimmedAddress.isEmpty || InputValidation.isValidIPv4(trimmedAddress) else {
+            validationError = "The localhost redirect must be an IPv4 address."
+            return
+        }
+
         validationError = nil
         isCreating = true
 
         Task {
-            let created = await dnsService.create(trimmedDomain)
+            let created = await dnsService.create(
+                trimmedDomain, localhost: trimmedAddress.isEmpty ? nil : trimmedAddress)
 
             await MainActor.run {
                 isCreating = false

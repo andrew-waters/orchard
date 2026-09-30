@@ -135,6 +135,11 @@ final class ContainerListService: ObservableObject {
     }
 
     func startContainer(_ id: String, maxRetries: Int = 3, retryDelay: TimeInterval = 1.0) async {
+        // Backstop for every Start path: the views offer Recreate for a cluster node instead.
+        if containers.first(where: { $0.configuration.id == id })?.isK8sNode == true {
+            alertCenter.error("\(id) is a Kubernetes cluster node, and Apple container can't restart a stopped cluster. Recreate the cluster from Clusters instead.")
+            return
+        }
         let shouldProceed = lockQueue.sync(flags: .barrier) {
             if containerOperationLocks.contains(id) { return false }
             containerOperationLocks.insert(id)

@@ -34,6 +34,11 @@ struct MultiContainerCardsView: View {
         containers.filter { $0.status.lowercased() != "running" }.map { $0.configuration.id }
     }
 
+    /// Stopped containers that can be started: cluster nodes are recreated from Clusters.
+    private var startableIds: [String] {
+        containers.filter { $0.status.lowercased() != "running" && !$0.isK8sNode }.map { $0.configuration.id }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -74,7 +79,7 @@ struct MultiContainerCardsView: View {
 
             Spacer()
 
-            if !stoppedIds.isEmpty {
+            if !startableIds.isEmpty {
                 Button("Start stopped containers") {
                     pendingAction = .start
                 }
@@ -100,7 +105,7 @@ struct MultiContainerCardsView: View {
 
     private func ids(for action: BulkAction) -> [String] {
         switch action {
-        case .start: return stoppedIds
+        case .start: return startableIds
         case .stop: return runningIds
         case .remove: return stoppedIds
         }
@@ -202,7 +207,7 @@ private struct ContainerSummaryCard: View {
                         let id = container.configuration.id
                         Task { await containerListService.stopContainer(id) }
                     }
-                } else {
+                } else if !container.isK8sNode {
                     Button("Start") {
                         let id = container.configuration.id
                         Task { await containerListService.startContainer(id) }

@@ -56,6 +56,17 @@ func parseDNSDomains(json output: String, defaultDomain: String?) -> [DNSDomain]
     return domains
 }
 
+/// The localhost redirect address recorded in a `/etc/resolver/containerization.<domain>`
+/// file, which the CLI writes as `options localhost:<ipv4>` for a domain created with
+/// `--localhost` (and reads back itself on delete to find the pf rule to remove). The dns
+/// list only returns names, so this file is the one place the address survives.
+func parseLocalhostRedirect(resolverConfig: String) -> String? {
+    guard let match = resolverConfig.firstMatch(of: #/options localhost:(\d{1,3}(?:\.\d{1,3}){3})/#) else {
+        return nil
+    }
+    return String(match.1)
+}
+
 // MARK: - System properties
 
 /// Legacy id aliases, mapping the daemon's category keys to the ids the app looks up.

@@ -23,6 +23,8 @@ struct MenuBarView: View {
         let id: String
         let color: Color
         let isRunning: Bool
+        /// A Kubernetes cluster node, which is recreated from Clusters rather than started.
+        let isClusterNode: Bool
         let isLoading: Bool
         let memoryBytes: Int
         let memoryLimitBytes: Int
@@ -62,6 +64,7 @@ struct MenuBarView: View {
                 id: c.configuration.id,
                 color: colorFor[c.configuration.id] ?? freeColor,
                 isRunning: isRunning(c),
+                isClusterNode: c.isK8sNode,
                 isLoading: containerListService.loadingContainers.contains(c.configuration.id),
                 memoryBytes: sample?.memoryBytes ?? 0,
                 memoryLimitBytes: sample?.memoryLimitBytes ?? 0,
@@ -261,6 +264,9 @@ struct MenuBarView: View {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.5)
+            } else if !row.isRunning && row.isClusterNode {
+                // Nothing to press: a stopped cluster node can only be recreated.
+                Color.clear
             } else {
                 Button {
                     Task { @MainActor in
@@ -288,7 +294,9 @@ struct MenuBarView: View {
         if row.isRunning {
             Button("Stop") { Task { @MainActor in await containerListService.stopContainer(row.id) } }
         } else {
-            Button("Start") { Task { @MainActor in await containerListService.startContainer(row.id) } }
+            if !row.isClusterNode {
+                Button("Start") { Task { @MainActor in await containerListService.startContainer(row.id) } }
+            }
             Button("Remove") { Task { @MainActor in await containerListService.removeContainer(row.id) } }
         }
     }

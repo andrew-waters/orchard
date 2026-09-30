@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kubernetes Clusters · Orchard</title>
-  <meta name="description" content="Manage local Kubernetes clusters created with Apple container's k8s plugin from Orchard: create, start and delete clusters, load local images, and get a kubectl-ready terminal in one click." />
+  <meta name="description" content="Manage local Kubernetes clusters created with Apple container's k8s plugin from Orchard: create and delete clusters at the Kubernetes version you choose, load local images, and get a kubectl-ready terminal in one click." />
   <meta property="og:title" content="Kubernetes Clusters · Orchard" />
   <meta property="og:description" content="Local Kubernetes clusters on Apple container, from a native macOS app." />
   <meta property="og:image" content="assets/screens/clusters.png" />
@@ -65,7 +65,7 @@
         <h2>What Orchard does</h2>
         <div class="grid">
           <div class="card"><h3>Clusters, grouped</h3><p>Node containers are grouped into named clusters with per-node role, status, IP, CPUs, memory and published ports.</p></div>
-          <div class="card"><h3>Lifecycle</h3><p>Create (with optional CPU/memory overrides and node image), start and delete clusters, with confirmation before anything destructive.</p></div>
+          <div class="card"><h3>Lifecycle</h3><p>Create at the Kubernetes version you choose, with optional CPU/memory overrides and a custom CNI manifest, and delete with confirmation before anything destructive.</p></div>
           <div class="card"><h3>Load local images</h3><p>Push any image from Orchard's image list into the cluster's containerd, so pods can use it without a registry.</p></div>
           <div class="card"><h3>kubectl access</h3><p>Write or merge the cluster's context into your kubeconfig, copy the kubeconfig path, or open a terminal with the context already selected.</p></div>
           <div class="card"><h3>Plugin badges</h3><p>Cluster nodes show a plugin badge (e.g. "k8s · control-plane") in the containers list and detail header.</p></div>
@@ -85,7 +85,7 @@
           </li>
           <li>
             <h3>Create a cluster</h3>
-            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
+            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the k8s plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, a CNI manifest replaces the default kindnet. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
           </li>
           <li>
             <h3>Point kubectl at it</h3>
@@ -104,13 +104,18 @@
         <h2>Pitfalls &amp; things to know</h2>
 
         <div class="callout warn">
-          <h4>Upstream: cluster creation currently fails at kubeadm init</h4>
-          <p>Apple container 1.2.2's node preparation calls <code>iptables-nft</code>, which the default node kernel can't serve, so <code>container k8s create</code> fails with <em>"node prep failed"</em> - from the CLI and from Orchard alike. This is upstream <a href="https://github.com/apple/container/issues/2120">apple/container#2120</a>, with a fix in review that falls back to legacy iptables. Until it ships, the failed node is left running and the bootstrap can be completed by hand with <code>iptables-legacy</code> (see the issue for the procedure).</p>
+          <h4>A stopped cluster can't be restarted</h4>
+          <p>Apple container 1.5.0 removed <code>container k8s start</code>, so a cluster whose node has stopped (after a reboot or <code>container system stop</code>, for example) can only be deleted and created again. <strong>Recreate</strong> on the stopped cluster does both in one step, with the same name, resources, Kubernetes version and CNI. Workloads and images loaded into it aren't kept, so keep your manifests somewhere you can re-apply them from.</p>
+        </div>
+
+        <div class="callout info">
+          <h4>A custom CNI has to fit the cluster</h4>
+          <p>Orchard passes the manifest straight to the plugin, which applies it once the control plane is up. A manifest whose pod network overlaps the cluster's (Cilium's default IP settings do, for instance) leaves a cluster that never becomes ready. See the <a href="https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni">Custom CNI section</a> of Apple container's Kubernetes guide.</p>
         </div>
 
         <div class="callout info">
           <h4>Single-node clusters (for now)</h4>
-          <p>The 1.2.2 plugin creates one control-plane node per cluster and untaints it so workloads schedule there. Worker naming (<code>&lt;cluster&gt;-worker-N</code>) is already part of the plugin's model, and Orchard's grouping supports workers as soon as the plugin can create them.</p>
+          <p>The plugin creates one control-plane node per cluster and untaints it so workloads schedule there. Worker naming (<code>&lt;cluster&gt;-worker-N</code>) is already part of the plugin's model, and Orchard's grouping supports workers as soon as the plugin can create them.</p>
         </div>
 
         <div class="callout info">
