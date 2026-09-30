@@ -410,3 +410,37 @@ func recreateStopsWhenDeleteFails() async {
     #expect(!ok)
     #expect(!runner.calls.contains { $0.starts(with: ["k8s", "create"]) })
 }
+
+@MainActor
+@Test("Remembered options: a create under a taken name leaves the existing cluster's options alone")
+func createUnderTakenNameKeepsRememberedOptions() async throws {
+    let service = makeService()
+    await service.clusterService.create(
+        name: "k8s-dev", cpus: nil, memory: nil,
+        nodeImage: "docker.io/kindest/node:v1.37.0@sha256:a1", cni: "/Users/me/cilium.yaml")
+    service.containerListService.containers = [try stoppedCluster(digest: "sha256:a1").nodes[0].container]
+
+    // A second Create with the same name: the CLI refuses it, and it must not first
+    // overwrite what the real k8s-dev was created with.
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: nil)
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster(digest: "sha256:a1"))
+    #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.37.0@sha256:a1"))
+    #expect(settings.cni == "/Users/me/cilium.yaml")
+}
+
+@MainActor
+@Test("Remembered options: recreate records its new choices while the old node is still listed")
+func recreateRecordsNewOptions() async throws {
+    let service = makeService()
+    // The list still shows the node: recreate doesn't reload between its delete and create.
+    service.containerListService.containers = [try stoppedCluster().nodes[0].container]
+
+    await service.clusterService.recreate(
+        name: "k8s-dev", cpus: nil, memory: nil,
+        nodeImage: "docker.io/kindest/node:v1.36.4@sha256:b4", cni: "/Users/me/calico.yaml")
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
+    #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.36.4@sha256:b4"))
+    #expect(settings.cni == "/Users/me/calico.yaml")
+}
