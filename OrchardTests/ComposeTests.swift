@@ -323,11 +323,11 @@ struct ComposeProjectsPersistenceTests {
     func missingOrCorrupt() throws {
         let missing = FileManager.default.temporaryDirectory
             .appendingPathComponent("compose-projects-\(UUID().uuidString).json")
-        #expect(ComposeProjectsPersistence(fileURL: missing).load().isEmpty)
+        #expect(ComposeProjectsPersistence(fileURL: missing).load() == [])
 
         try "not json".write(to: missing, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: missing) }
-        #expect(ComposeProjectsPersistence(fileURL: missing).load().isEmpty)
+        #expect(ComposeProjectsPersistence(fileURL: missing).load() == [])
     }
 }
 

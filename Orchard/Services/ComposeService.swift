@@ -68,7 +68,7 @@ final class ComposeService: ObservableObject {
         self.buildService = buildService
         self.alertCenter = alertCenter
         self.persistence = persistence
-        self.records = persistence.load()
+        self.records = persistence.load() ?? []
     }
 
     // MARK: - Knowing about files
@@ -147,8 +147,9 @@ final class ComposeService: ObservableObject {
     /// running, and a project that exists but cannot be seen is worse than one that is slow to
     /// appear.
     func refreshParses() {
-        let onDisk = persistence.load()
-        if onDisk != records { records = onDisk }
+        // `nil` means the read failed transiently; keep the records already in memory
+        // rather than replacing a known-good list with an empty one.
+        if let onDisk = persistence.load(), onDisk != records { records = onDisk }
         for record in records {
             let modified = modificationDate(of: record.fileURL)
             if let modified, parsedAt[record.name] == modified, parses[record.name] != nil { continue }
