@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-09-30
+
 ### Added
 - Choose the Kubernetes version when creating a cluster. The Create Cluster sheet's free-text node image field is now a menu headed by the node image Apple container's k8s plugin ships with (marked Recommended, and read from the installed plugin rather than a copy in Orchard), followed by the newest `kindest/node` release of each Kubernetes version from 1.31, fetched from Docker Hub when the sheet opens and pinned by digest. "Custom Image" takes any other reference. Choosing a version only became meaningful with container 1.5.0: until then the plugin configured the control plane for its default version whatever image you passed, so a different image ran mismatched components. For the same reason 1.5.0 rejects a node image with no tag, and Orchard now says so before creating anything. Offline, the menu offers the recommended image and a custom one.
 - Use your own CNI with a new cluster. The Create Cluster sheet's Advanced section takes a CNI manifest to apply instead of the default kindnet (container 1.5.0's `--cni`). Orchard can't check that a manifest suits the cluster, so the sheet points out that it must fit the pod subnet and links to Apple container's Custom CNI guide.
