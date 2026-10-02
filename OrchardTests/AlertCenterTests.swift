@@ -20,10 +20,11 @@ func alertCenterErrorTyped() {
 
 @MainActor
 @Test("AlertCenter: dismiss clears the current alert")
-func alertCenterDismiss() {
+func alertCenterDismiss() async {
     let center = AlertCenter()
     center.error("boom")
     center.dismiss()
+    await Task.yield()
     #expect(center.current == nil)
 }
 
