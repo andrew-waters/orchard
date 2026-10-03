@@ -132,8 +132,14 @@ struct ComposeProjectsPersistence: Sendable {
     /// read just now, a transient I/O hiccup rather than evidence the projects are gone -
     /// so callers should keep whatever they already have rather than treating it as empty.
     func load() -> [ComposeProjectRecord]? {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return []
+        } catch {
+            return nil
+        }
         guard let file = try? JSONDecoder().decode(PersistedFile.self, from: data),
               file.version == Self.currentVersion else {
             return []
