@@ -23,8 +23,7 @@ func alertCenterErrorTyped() {
 func alertCenterDismiss() async {
     let center = AlertCenter()
     center.error("boom")
-    center.dismiss()
-    await Task.yield()
+    await center.dismiss().value
     #expect(center.current == nil)
 }
 
