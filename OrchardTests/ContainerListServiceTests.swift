@@ -261,6 +261,41 @@ func stopRefreshTimesOut() async throws {
     #expect(backend.listContainersCount == service.maxRefreshAttempts)
 }
 
+// MARK: - loadContainers ordering
+
+@MainActor
+@Test("loadContainers: a slow call started earlier does not clobber a newer result")
+func loadContainersDiscardsStaleResult() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "old", status: "running")]
+    let (service, _) = makeListService(backend)
+
+    let firstEntered = TestGate()
+    let releaseFirst = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend, backend.listContainersCount == 1 else { return }
+        firstEntered.open()
+        await releaseFirst.wait()
+    }
+
+    // The first load captures the "old" snapshot, then blocks inside the backend - as if
+    // its XPC round-trip were simply slow.
+    let first = Task { @MainActor in await service.loadContainers() }
+    await firstEntered.wait()
+
+    // A second, newer load starts and finishes while the first is still in flight, against
+    // different data - e.g. a container a compose `up` just created.
+    backend.containers = [try makeContainer(id: "new", status: "running")]
+    await service.loadContainers()
+    #expect(service.containers.map(\.configuration.id) == ["new"])
+
+    // Letting the stale first call finish must not overwrite the fresher result with the
+    // list it captured before the newer container existed.
+    releaseFirst.open()
+    _ = await first.value
+    #expect(service.containers.map(\.configuration.id) == ["new"])
+}
+
 // MARK: - recreate
 
 @MainActor

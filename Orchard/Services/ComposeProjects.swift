@@ -126,11 +126,21 @@ struct ComposeProjectsPersistence: Sendable {
         try data.write(to: fileURL, options: .atomic)
     }
 
-    /// Best effort: a missing, corrupt or differently versioned file means no known projects,
-    /// which costs the user a file picker rather than anything real.
-    func load() -> [ComposeProjectRecord] {
-        guard let data = try? Data(contentsOf: fileURL),
-              let file = try? JSONDecoder().decode(PersistedFile.self, from: data),
+    /// A missing file, or one that cannot be decoded, means no known projects rather than
+    /// a crash: that file is not going to become valid on the next read, so `[]` is the
+    /// honest answer. `nil` is different - the file is there but its bytes could not be
+    /// read just now, a transient I/O hiccup rather than evidence the projects are gone -
+    /// so callers should keep whatever they already have rather than treating it as empty.
+    func load() -> [ComposeProjectRecord]? {
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return []
+        } catch {
+            return nil
+        }
+        guard let file = try? JSONDecoder().decode(PersistedFile.self, from: data),
               file.version == Self.currentVersion else {
             return []
         }

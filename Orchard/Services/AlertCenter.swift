@@ -43,7 +43,17 @@ final class AlertCenter: ObservableObject {
         self.error(error.errorDescription ?? "Something went wrong.", source: source)
     }
 
-    func dismiss() {
-        current = nil
+    @discardableResult
+    func dismiss() -> Task<Void, Never> {
+        // Called from the alert's isPresented binding while SwiftUI is still applying that
+        // alert's own presentation update, so publishing synchronously here trips "Publishing
+        // changes from within view updates". Hopping through a Task defers it past that update.
+        // The returned Task lets callers (tests) await the actual completion instead of guessing
+        // at scheduling order.
+        let dismissedID = current?.id
+        return Task { [weak self] in
+            guard let self, dismissedID != nil, self.current?.id == dismissedID else { return }
+            self.current = nil
+        }
     }
 }

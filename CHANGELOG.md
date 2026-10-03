@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Compose projects are no longer dropped when `compose-projects.json` momentarily fails to read. `ComposeProjectsPersistence.load()` used `try?` around both the file-existence check and the read, so a transient I/O failure looked identical to a missing or corrupt file and returned `[]`; `ComposeService.refreshParses()` then overwrote its in-memory records with that empty list, clearing every known compose project until the next successful poll. `load()` now returns `[ComposeProjectRecord]?` and only returns `nil` for a file that exists but could not be read, and `refreshParses()` leaves its existing records alone when that happens.
+- The container list no longer snaps back to a stale, sometimes empty, snapshot when two refreshes overlap. `ContainerListService.loadContainers()` can have several calls in flight at once - the window's refresh timer, the menu bar's own timer, and manual refreshes each start an independent XPC round-trip with no guarantee they complete in the order they started - so a call that started earlier but took longer could return after a newer call and overwrite `containers` with its older result. Each call now checks a generation counter before applying its result and is discarded if a newer call has since started.
+- Dismissing an alert no longer trips SwiftUI's "Publishing changes from within view updates" warning. `AlertCenter.dismiss()` set `current = nil` synchronously from the alert's own `isPresented` binding, while SwiftUI was still applying that alert's presentation update; the assignment now happens inside a `Task` so it lands after the update finishes.
+
 ## [2.5.0] - 2026-09-30
 
 ### Added
