@@ -47,8 +47,10 @@ final class AlertCenter: ObservableObject {
         // Called from the alert's isPresented binding while SwiftUI is still applying that
         // alert's own presentation update, so publishing synchronously here trips "Publishing
         // changes from within view updates". Hopping through a Task defers it past that update.
+        guard let dismissedID = current?.id else { return }
         Task { [weak self] in
-            self?.current = nil
+            guard let self, self.current?.id == dismissedID else { return }
+            self.current = nil
         }
     }
 }
