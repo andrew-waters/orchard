@@ -90,11 +90,7 @@ struct DNSListView: View {
                 .contextMenu {
                     if !multiple && !domain.isDefault {
                         Button("Make Default") {
-                            let currentSelection = selectedDNSDomain
-                            Task {
-                                await dnsService.setDefault(domain.domain)
-                                selectedDNSDomain = currentSelection
-                            }
+                            dnsService.setDefault(domain.domain)
                         }
                     }
 

@@ -1,7 +1,7 @@
 ---
 issues: [andrew-waters/orchard#116]
 summary: Keep the default DNS domain as an Orchard preference instead of calling the removed `container system property set` command.
-status: proposed
+status: in progress
 ---
 
 # Default DNS domain as an Orchard preference
@@ -39,21 +39,23 @@ and Orchard would have to edit the user's TOML file without a TOML library. We c
 
 ## Tasks
 
-- [ ] `SettingsStore`: add `defaultDNSDomain` (`@Published private(set)`), stored in `UserDefaults`, with
+- [x] `SettingsStore`: add `defaultDNSDomain` (`@Published private(set)`), stored in `UserDefaults`, with
       `setDefaultDNSDomain(_:)`, following the existing settings pattern.
-- [ ] `DNSService`: work out the default from the preference, using the `dns.domain` system property when the
-      preference is empty. Deleting the default domain clears the preference.
-- [ ] `DNSService.setDefault`: save the preference and update the list with `markDefault`. It runs no CLI
+- [x] `DNSService`: work out the default from the preference, using the `dns.domain` system property when the
+      preference is empty. A chosen domain that a successful list no longer returns (deleted in bulk or outside
+      Orchard) is cleared on load. Deleting the default from Orchard is still refused, as before.
+- [x] `DNSService.setDefault`: save the preference and re-mark the list. It runs no CLI
       command.
-- [ ] Settings > General: point the DNS Domain picker at `dnsService.setDefault`, add a "None" option, and
+- [x] Settings > General: point the DNS Domain picker at `dnsService.setDefault`, add a "None" option, and
       update the footer to say the default applies to containers Orchard creates.
-- [ ] Remove the dead write path: `SystemService.setSystemProperty`, `setDNSDomainPropertyOptimistically`,
+- [x] Remove the dead write path: `SystemService.setSystemProperty`, `setDNSDomainPropertyOptimistically`,
       `revertDNSDomainIfNeeded`, the `markDNSDefault`, `reloadDNS` and `setDefaultDomainProperty` hooks, and
-      their wiring in `AppServices.swift`. `dnsService.defaultDomain` stays, but only for reading the fallback.
-- [ ] Tests for `DNSService`: `setDefault` runs no command and saves the preference; the preference beats the
-      property; the property is used when there's no preference; deleting the default domain clears the
-      preference. One test pass at the end, limited to the affected test classes.
-- [ ] CHANGELOG entry under Unreleased.
+      their wiring in `AppServices.swift`. `dnsService.defaultDomain` becomes `daemonDefaultDomain`, kept only for reading the fallback.
+- [x] Tests for `DNSService` and `SettingsStore`: `setDefault` runs no command and saves the preference; the
+      preference beats the property; the property is used when there's no preference; a chosen domain that's
+      gone is cleared on load, but not when the list fails; the preference persists. One pass
+      of the unit test target at the end (415 passed).
+- [x] CHANGELOG entry under Unreleased.
 - [ ] Pull request with "Closes andrew-waters/orchard#116".
 
 ## Verification

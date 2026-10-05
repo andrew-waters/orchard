@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Making a DNS domain the default works again on container 1.4.1 and later ([#116](https://github.com/andrew-waters/orchard/issues/116)). Orchard set it with `container system property set dns.domain`, which those releases no longer have, so Make Default and the DNS Domain picker in Settings failed with "3 unexpected arguments". The default is now an Orchard setting, used for containers you create in Orchard, so changing it needs no administrator password and no restart of the container system. If you haven't chosen one, Orchard uses the `[dns] domain` from your `~/.config/container/config.toml`, and Settings > General shows that value as the container default.
+
 ## [2.5.0] - 2026-09-30
 
 ### Added

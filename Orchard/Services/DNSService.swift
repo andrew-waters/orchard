@@ -1,8 +1,9 @@
 import Foundation
 
 /// Owns DNS domain state and operations, backed by the `container system dns` CLI
-/// (create/delete require sudo). The default domain is a system property, so this reads
-/// and writes it through closures the owner wires to the system service.
+/// (create/delete require sudo). The default domain is an Orchard preference: the CLI can
+/// no longer write the daemon's `dns.domain` (#116), so the daemon's value, read through a
+/// closure the owner wires to the system service, only stands in when none is chosen.
 @MainActor
 final class DNSService: ObservableObject {
     @Published var dnsDomains: [DNSDomain] = []
@@ -14,12 +15,15 @@ final class DNSService: ObservableObject {
     /// Where the CLI writes one resolver file per domain. Overridable for tests.
     var resolverDirectory = URL(fileURLWithPath: "/etc/resolver")
 
-    /// Refresh the system properties (which hold the default domain). Set by the owner.
+    /// Refresh the system properties (which hold the daemon's default domain). Set by the owner.
     var refreshSystemProperties: () async -> Void = {}
-    /// The current default domain from system properties. Set by the owner.
-    var defaultDomain: @MainActor () -> String? = { nil }
-    /// Optimistically record `domain` as the default system property. Set by the owner.
-    var setDefaultDomainProperty: @MainActor (String) -> Void = { _ in }
+    /// The daemon's `dns.domain`, from `config.toml`. Set by the owner.
+    var daemonDefaultDomain: @MainActor () -> String? = { nil }
+
+    /// The domain new containers get by default: the one chosen in Orchard, else the daemon's.
+    var defaultDomain: String? {
+        settings.defaultDNSDomain ?? daemonDefaultDomain()
+    }
 
     init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter) {
         self.runner = runner
@@ -55,8 +59,13 @@ final class DNSService: ObservableObject {
             }
 
             if let output = listResult.stdout {
-                dnsDomains = parseDNSDomains(json: output, defaultDomain: defaultDomain())
-                    .map { withLocalhostRedirect($0) }
+                let parsed = parseDNSDomains(json: output, defaultDomain: nil)
+                // A chosen default deleted outside Orchard would otherwise stay chosen and
+                // hide the daemon's.
+                if let chosen = settings.defaultDNSDomain, !parsed.contains(where: { $0.domain == chosen }) {
+                    settings.setDefaultDNSDomain(nil)
+                }
+                dnsDomains = parsed.map { withLocalhostRedirect(markedDefault($0)) }
             }
         } catch {
             if showLoading {
@@ -73,6 +82,11 @@ final class DNSService: ObservableObject {
               let redirect = parseLocalhostRedirect(resolverConfig: config)
         else { return domain }
         return DNSDomain(domain: domain.domain, isDefault: domain.isDefault, localhostRedirect: redirect)
+    }
+
+    private func markedDefault(_ domain: DNSDomain) -> DNSDomain {
+        DNSDomain(domain: domain.domain, isDefault: domain.domain == defaultDomain,
+                  localhostRedirect: domain.localhostRedirect)
     }
 
     /// `localhost` makes the domain resolve to that IPv4 address and has pf redirect it to
@@ -102,7 +116,7 @@ final class DNSService: ObservableObject {
     }
 
     func delete(_ domain: String) async {
-        if defaultDomain() == domain {
+        if defaultDomain == domain {
             alertCenter.error("Cannot delete the default DNS domain.")
             return
         }
@@ -122,36 +136,11 @@ final class DNSService: ObservableObject {
         }
     }
 
-    /// Optimistically mark `domain` as the default in the local list.
-    func markDefault(_ domain: String) {
-        for i in dnsDomains.indices {
-            dnsDomains[i] = DNSDomain(
-                domain: dnsDomains[i].domain,
-                isDefault: dnsDomains[i].domain == domain,
-                localhostRedirect: dnsDomains[i].localhostRedirect)
-        }
-    }
-
-    func setDefault(_ domain: String) async {
-        // Optimistic UI update.
-        setDefaultDomainProperty(domain)
-        markDefault(domain)
-
-        do {
-            let result = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "property", "set", "dns.domain", domain])
-
-            if result.failed {
-                await refreshSystemProperties()
-                await load(showLoading: false)
-                alertCenter.error(result.stderr ?? "Failed to set default DNS domain")
-            }
-        } catch {
-            await refreshSystemProperties()
-            await load(showLoading: false)
-            alertCenter.error("Failed to set default DNS domain: \(error.localizedDescription)")
-        }
+    /// Make `domain` the default for containers Orchard creates; nil goes back to the
+    /// daemon's. Stored as a preference, so there is nothing to run and nothing to fail.
+    func setDefault(_ domain: String?) {
+        settings.setDefaultDNSDomain(domain)
+        dnsDomains = dnsDomains.map(markedDefault)
     }
     func deleteDNSDomains(_ domains: [String]) async {
         guard !domains.isEmpty else { return }

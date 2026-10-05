@@ -23,11 +23,7 @@ struct DNSDetailHeader: View {
                 let dnsDomain = dnsService.dnsDomains.first(where: { $0.domain == domain })
 
                 Button("Make Default") {
-                    DispatchQueue.main.async {
-                        Task {
-                            await dnsService.setDefault(domain)
-                        }
-                    }
+                    dnsService.setDefault(domain)
                 }
                 .buttonStyle(.bordered)
                 .disabled(dnsDomain?.isDefault == true)
