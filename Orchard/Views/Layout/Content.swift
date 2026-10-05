@@ -436,6 +436,7 @@ struct ContentView: View {
         }
         .background(WindowAccessor { window in
             if hostWindow !== window { hostWindow = window }
+            if let window { MainWindows.register(window) }
         })
         .overlay {
             if showingCommandPalette {
