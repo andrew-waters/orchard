@@ -422,7 +422,7 @@ struct ContentView: View {
         .alert(
             "Something Went Wrong",
             isPresented: Binding(
-                get: { alertCenter.current != nil },
+                get: { alertCenter.isPresenting },
                 set: { presented in if !presented { alertCenter.dismiss() } }
             ),
             presenting: alertCenter.current

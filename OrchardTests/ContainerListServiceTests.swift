@@ -296,6 +296,49 @@ func loadContainersDiscardsStaleResult() async throws {
     #expect(service.containers.map(\.configuration.id) == ["new"])
 }
 
+@MainActor
+@Test("loadContainers: a result still lands while a newer call is in flight")
+func loadContainersAppliesWhileNewerInFlight() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "first", status: "running")]
+    let (service, _) = makeListService(backend)
+
+    let firstEntered = TestGate()
+    let releaseFirst = TestGate()
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend else { return }
+        switch backend.listContainersCount {
+        case 1:
+            firstEntered.open()
+            await releaseFirst.wait()
+        case 2:
+            secondEntered.open()
+            await releaseSecond.wait()
+        default:
+            return
+        }
+    }
+
+    // Two loads in flight at once, the second started before the first returns.
+    let first = Task { @MainActor in await service.loadContainers() }
+    await firstEntered.wait()
+    backend.containers = [try makeContainer(id: "second", status: "running")]
+    let second = Task { @MainActor in await service.loadContainers() }
+    await secondEntered.wait()
+
+    // The first finishes while the second is still running. Nothing newer has landed, so its
+    // result is applied rather than dropped for having been overtaken.
+    releaseFirst.open()
+    _ = await first.value
+    #expect(service.containers.map(\.configuration.id) == ["first"])
+
+    releaseSecond.open()
+    _ = await second.value
+    #expect(service.containers.map(\.configuration.id) == ["second"])
+}
+
 // MARK: - recreate
 
 @MainActor

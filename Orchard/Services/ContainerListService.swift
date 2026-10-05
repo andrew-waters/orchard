@@ -45,9 +45,14 @@ final class ContainerListService: ObservableObject {
     /// Bumped on every `loadContainers` call. The window's refresh timer, the menu bar's own
     /// timer, and the retry/poll loops below can all have a load in flight at once; each is
     /// an independent XPC round-trip with no ordering guarantee, so a call started earlier
-    /// can land after a newer one. Discarding a result whose generation is no longer current
-    /// stops a slow, stale - sometimes empty - list from overwriting a fresher one.
+    /// can land after a newer one. A result older than the last one applied is discarded, so a
+    /// slow, stale (sometimes empty) list cannot overwrite a fresher one. Comparing against the
+    /// last *applied* result rather than the last *started* call means a result is never thrown
+    /// away just because another load is still in flight, which would freeze the list whenever
+    /// loads start faster than one round-trip completes.
     private var loadGeneration: UInt64 = 0
+    /// The generation of the newest listing written to `containers`.
+    private var appliedGeneration: UInt64 = 0
 
     init(backend: ContainerBackend, alertCenter: AlertCenter, pollInterval: TimeInterval = 0.5) {
         self.backend = backend
@@ -89,8 +94,9 @@ final class ContainerListService: ObservableObject {
 
         do {
             let newContainers = try await backend.listContainers()
-            // A newer load started while this one was in flight; let its result win instead.
-            guard generation == loadGeneration else { return }
+            // A newer load already landed while this one was in flight; its result wins.
+            guard generation > appliedGeneration else { return }
+            appliedGeneration = generation
 
             if !areContainersEqual(self.containers, newContainers) {
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -106,7 +112,9 @@ final class ContainerListService: ObservableObject {
                 Log.containers.debug("Container: \(container.configuration.id), Status: \(container.status)")
             }
         } catch {
-            guard generation == loadGeneration else { return }
+            // A failure does not advance `appliedGeneration`: it changes nothing in
+            // `containers`, so an older listing still in flight is fresher than what is shown.
+            guard generation > appliedGeneration else { return }
             // Background refreshes stay silent; only a user-initiated load alerts.
             self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
             self.isLoading = false

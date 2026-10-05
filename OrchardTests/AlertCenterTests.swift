@@ -28,6 +28,32 @@ func alertCenterDismiss() async {
 }
 
 @MainActor
+@Test("AlertCenter: an alert stops presenting as soon as it is dismissed")
+func alertCenterDismissPresentsImmediately() async {
+    let center = AlertCenter()
+    center.error("boom")
+    #expect(center.isPresenting)
+    let dismissal = center.dismiss()
+    // The clear itself is deferred, but the binding must already read false.
+    #expect(!center.isPresenting)
+    await dismissal.value
+    #expect(center.current == nil)
+}
+
+@MainActor
+@Test("AlertCenter: a new alert raised before a dismissal lands is kept and presented")
+func alertCenterDismissKeepsNewerAlert() async {
+    let center = AlertCenter()
+    center.error("first")
+    let dismissal = center.dismiss()
+    center.error("second")
+    #expect(center.isPresenting)
+    await dismissal.value
+    #expect(center.current?.message == "second")
+    #expect(center.isPresenting)
+}
+
+@MainActor
 @Test("AlertCenter: a background-source error is suppressed (no modal), user is not")
 func alertCenterBackgroundSuppressed() {
     let center = AlertCenter()

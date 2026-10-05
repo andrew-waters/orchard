@@ -51,6 +51,10 @@ final class ComposeService: ObservableObject {
     private let persistence: ComposeProjectsPersistence
     /// Modification dates of the files last parsed, so a file is only re-read when it changes.
     private var parsedAt: [String: Date] = [:]
+    /// Whether `records` has been read from the file at least once. False after a launch whose
+    /// read failed, when `records` holds only what was added since; saving that as-is would
+    /// replace every project in the file.
+    private var recordsLoaded = false
 
     /// Refresh the container list after a run. Set by the owner.
     var reloadContainers: () async -> Void = {}
@@ -68,7 +72,10 @@ final class ComposeService: ObservableObject {
         self.buildService = buildService
         self.alertCenter = alertCenter
         self.persistence = persistence
-        self.records = persistence.load() ?? []
+        if let loaded = persistence.load() {
+            self.records = loaded
+            self.recordsLoaded = true
+        }
     }
 
     // MARK: - Knowing about files
@@ -149,7 +156,16 @@ final class ComposeService: ObservableObject {
     func refreshParses() {
         // `nil` means the read failed transiently; keep the records already in memory
         // rather than replacing a known-good list with an empty one.
-        if let onDisk = persistence.load(), onDisk != records { records = onDisk }
+        if let onDisk = persistence.load() {
+            if recordsLoaded {
+                if onDisk != records { records = onDisk }
+            } else {
+                // The first successful read since a failed launch: keep what was added in the
+                // meantime and write the combined list back.
+                mergeLoaded(onDisk)
+                persist()
+            }
+        }
         for record in records {
             let modified = modificationDate(of: record.fileURL)
             if let modified, parsedAt[record.name] == modified, parses[record.name] != nil { continue }
@@ -182,11 +198,26 @@ final class ComposeService: ObservableObject {
     }
 
     private func persist() {
+        if !recordsLoaded {
+            guard let onDisk = persistence.load() else {
+                Log.containers.error("Not saving compose projects: the saved list could not be read")
+                return
+            }
+            mergeLoaded(onDisk)
+        }
         do {
             try persistence.save(records)
         } catch {
             Log.containers.error("Could not save compose projects: \(error.localizedDescription)")
         }
+    }
+
+    /// Fold the saved list into `records` after a failed first read. A record already in
+    /// memory was added or changed since launch, so it wins over the saved one of that name.
+    private func mergeLoaded(_ onDisk: [ComposeProjectRecord]) {
+        let inMemory = Set(records.map(\.name))
+        records = (records + onDisk.filter { !inMemory.contains($0.name) }).sorted { $0.name < $1.name }
+        recordsLoaded = true
     }
 
     // MARK: - Running plans

@@ -329,6 +329,72 @@ struct ComposeProjectsPersistenceTests {
         defer { try? FileManager.default.removeItem(at: missing) }
         #expect(ComposeProjectsPersistence(fileURL: missing).load() == [])
     }
+
+    @Test("A file that is there but cannot be read is not mistaken for no projects")
+    func unreadable() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("compose-projects-\(UUID().uuidString).json")
+        // A directory where the file should be: it exists, but reading it fails.
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(ComposeProjectsPersistence(fileURL: url).load() == nil)
+    }
+
+    @MainActor
+    @Test("Adding a project after a failed first read keeps the projects already saved")
+    func addAfterFailedLoad() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("compose-add-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("compose-projects.json")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        let persistence = ComposeProjectsPersistence(fileURL: url)
+        let service = ComposeService(
+            backend: MockContainerBackend(),
+            buildService: nil,
+            alertCenter: AlertCenter(),
+            persistence: persistence
+        )
+        #expect(service.records.isEmpty)
+
+        // The file becomes readable again, holding a project the service has never seen.
+        try FileManager.default.removeItem(at: url)
+        let saved = ComposeProjectRecord(
+            name: "shop",
+            path: "/tmp/shop/compose.yaml",
+            acknowledgedFindings: [],
+            addedAt: Date(timeIntervalSince1970: 1_000_000)
+        )
+        try persistence.save([saved])
+
+        let composeFile = root.appendingPathComponent("compose.yaml")
+        try "services:\n  web:\n    image: nginx\n".write(to: composeFile, atomically: true, encoding: .utf8)
+        service.add(try service.preview(fileURL: composeFile))
+
+        let onDisk = try #require(persistence.load())
+        #expect(onDisk.count == 2)
+        #expect(onDisk.contains(saved))
+        #expect(service.records == onDisk)
+    }
+
+    @MainActor
+    @Test("Nothing is saved while the list still cannot be read")
+    func noSaveWhileUnreadable() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("compose-projects-\(UUID().uuidString).json")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let service = ComposeService(
+            backend: MockContainerBackend(),
+            buildService: nil,
+            alertCenter: AlertCenter(),
+            persistence: ComposeProjectsPersistence(fileURL: url)
+        )
+        service.forget("shop")
+        var isDirectory: ObjCBool = false
+        #expect(FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory))
+        #expect(isDirectory.boolValue)
+    }
 }
 
 @Suite("Folding an image's entrypoint")
