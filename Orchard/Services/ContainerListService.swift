@@ -53,6 +53,8 @@ final class ContainerListService: ObservableObject {
     private var loadGeneration: UInt64 = 0
     /// The generation of the newest listing written to `containers`.
     private var appliedGeneration: UInt64 = 0
+    /// The generation of the newest user-initiated load, the one `isLoading` is shown for.
+    private var spinnerGeneration: UInt64 = 0
 
     init(backend: ContainerBackend, alertCenter: AlertCenter, pollInterval: TimeInterval = 0.5) {
         self.backend = backend
@@ -84,22 +86,23 @@ final class ContainerListService: ObservableObject {
     }
 
     func loadContainers(showLoading: Bool = false) async {
-        if showLoading {
-            isLoading = true
-            self.alertCenter.dismiss()
-        }
-
         loadGeneration &+= 1
         let generation = loadGeneration
+
+        if showLoading {
+            isLoading = true
+            spinnerGeneration = generation
+            self.alertCenter.dismiss()
+        }
+        // Whichever way this load ends, applied or discarded, the spinner can stop once it
+        // is at least as new as the load that started it. An older load finishing must not
+        // stop the spinner of a newer one still in flight.
+        defer { if generation >= spinnerGeneration { isLoading = false } }
 
         do {
             let newContainers = try await backend.listContainers()
             // A newer listing, or a removal, landed while this one was in flight; it wins.
-            guard generation > appliedGeneration else {
-                // A removal does not clear the spinner, so a discarded load that set it must.
-                if showLoading { isLoading = false }
-                return
-            }
+            guard generation > appliedGeneration else { return }
             appliedGeneration = generation
 
             if !areContainersEqual(self.containers, newContainers) {
@@ -107,7 +110,6 @@ final class ContainerListService: ObservableObject {
                     self.containers = newContainers
                 }
             }
-            self.isLoading = false
             for container in newContainers {
                 self.containerSnapshots[container.configuration.id] = container
             }
@@ -118,13 +120,9 @@ final class ContainerListService: ObservableObject {
         } catch {
             // A failure does not advance `appliedGeneration`: it changes nothing in
             // `containers`, so an older listing still in flight is fresher than what is shown.
-            guard generation > appliedGeneration else {
-                if showLoading { isLoading = false }
-                return
-            }
+            guard generation > appliedGeneration else { return }
             // Background refreshes stay silent; only a user-initiated load alerts.
             self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
-            self.isLoading = false
             Log.containers.error("\(error.localizedDescription)")
         }
     }

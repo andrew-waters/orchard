@@ -407,6 +407,50 @@ func loadContainersDiscardedByRemoveClearsLoading() async throws {
     #expect(!service.isLoading)
 }
 
+@MainActor
+@Test("loadContainers: an older refresh finishing does not stop a newer refresh's spinner")
+func loadContainersSpinnerFollowsNewestRefresh() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()
+
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    let thirdEntered = TestGate()
+    let releaseThird = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend else { return }
+        switch backend.listContainersCount {
+        case 2:
+            secondEntered.open()
+            await releaseSecond.wait()
+        case 3:
+            thirdEntered.open()
+            await releaseThird.wait()
+        default:
+            return
+        }
+    }
+
+    // A refresh stalls, the container is removed, and a second refresh starts and stalls.
+    let older = Task { @MainActor in await service.loadContainers(showLoading: true) }
+    await secondEntered.wait()
+    backend.containers = []
+    await service.removeContainer("web")
+    let newer = Task { @MainActor in await service.loadContainers(showLoading: true) }
+    await thirdEntered.wait()
+
+    // The older refresh is discarded, but the newer one is still running.
+    releaseSecond.open()
+    _ = await older.value
+    #expect(service.isLoading)
+
+    releaseThird.open()
+    _ = await newer.value
+    #expect(!service.isLoading)
+}
+
 // MARK: - recreate
 
 @MainActor
