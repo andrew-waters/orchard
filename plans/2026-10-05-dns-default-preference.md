@@ -1,7 +1,8 @@
 ---
 issues: [andrew-waters/orchard#116]
 summary: Keep the default DNS domain as an Orchard preference instead of calling the removed `container system property set` command.
-status: in progress
+status: done
+pr: andrew-waters/orchard#117
 ---
 
 # Default DNS domain as an Orchard preference
@@ -56,7 +57,8 @@ and Orchard would have to edit the user's TOML file without a TOML library. We c
       gone is cleared on load, but not when the list fails; the preference persists. One pass
       of the unit test target at the end (415 passed).
 - [x] CHANGELOG entry under Unreleased.
-- [ ] Pull request with "Closes andrew-waters/orchard#116".
+- [x] Pull request with "Closes andrew-waters/orchard#116":
+      [andrew-waters/orchard#117](https://github.com/andrew-waters/orchard/pull/117).
 
 ## Verification
 
@@ -73,3 +75,19 @@ and Orchard would have to edit the user's TOML file without a TOML library. We c
   - [x] With `[dns] domain` in `config.toml` and no preference, the picker offers "container default
         (<domain>)" and that domain is DEFAULT; picking another domain overrides it, and picking the
         container default goes back to it.
+
+## Notes
+
+- The `container` service copies `config.toml` into
+  `~/Library/Application Support/com.apple.container/config/config.toml` when it starts, and keeps using that
+  copy after the original is deleted. Removing `[dns] domain` therefore means editing the file (or deleting
+  both copies) and restarting the service. Orchard only reads the merged value through
+  `container system property list`, so this doesn't affect the fix.
+
+## Progress
+
+- 2026-10-05: Plan written and agreed.
+- 2026-10-05: Preference, `DNSService` changes, Settings picker, removal of the old write path, tests and
+  CHANGELOG entry landed; the `OrchardTests` target passed (415 tests).
+- 2026-10-05: Manual testing in a debug build against container 1.5.0, all steps passed (see Verification).
+- 2026-10-05: Opened [andrew-waters/orchard#117](https://github.com/andrew-waters/orchard/pull/117).
