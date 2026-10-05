@@ -243,3 +243,20 @@ func dockIconPreferencePersists() {
         #expect(defaults.bool(forKey: SettingsStore.hideDockIconDefaultsKey) == false)
     }
 }
+
+@MainActor
+@Test("Default DNS domain: unset by default, persists, and blank clears it")
+func defaultDNSDomainPersists() {
+    withSettingsStore { store, defaults in
+        #expect(store.defaultDNSDomain == nil)
+
+        store.setDefaultDNSDomain("dev.test")
+        let second = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore())
+        #expect(second.defaultDNSDomain == "dev.test")
+
+        second.setDefaultDNSDomain("")
+        #expect(second.defaultDNSDomain == nil)
+        let third = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore())
+        #expect(third.defaultDNSDomain == nil)
+    }
+}

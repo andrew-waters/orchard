@@ -132,24 +132,21 @@ struct GeneralSettingsView: View {
             }
 
             Section {
-                // Writable daemon setting — preserves the setSystemProperty("dns.domain") write path.
-                let currentDomain = systemService.systemProperties.first(where: { $0.id == "dns.domain" })?.value ?? ""
+                // An Orchard preference: the CLI can no longer write the daemon's `dns.domain`
+                // (#116). The "" row means none chosen in Orchard, so the daemon's own default
+                // applies if `config.toml` sets one. `systemService` is observed so that row's
+                // label follows the daemon's value.
                 Picker("DNS Domain", selection: Binding(
-                    get: { currentDomain },
-                    set: { newValue in
-                        DispatchQueue.main.async {
-                            Task {
-                                await systemService.setSystemProperty("dns.domain", value: newValue)
-                            }
-                        }
-                    }
+                    get: { settings.defaultDNSDomain ?? "" },
+                    set: { dnsService.setDefault($0.isEmpty ? nil : $0) }
                 )) {
+                    Text(dnsService.daemonDefaultDomain().map { "container default (\($0))" } ?? "None").tag("")
                     ForEach(dnsService.dnsDomains, id: \.domain) { domain in
                         Text(domain.domain).tag(domain.domain)
                     }
                 }
             } footer: {
-                Text("If defined, the local DNS domain to use for containers with unqualified names.")
+                Text("The local DNS domain new containers created in Orchard get by default, so they resolve as name.domain.")
                     .foregroundColor(.secondary)
             }
 
@@ -172,7 +169,7 @@ struct GeneralSettingsView: View {
 }
 
 /// Read-only `container` daemon system-properties. These are daemon state, not user
-/// preferences — the one writable property (DNS domain) lives on the General pane.
+/// preferences. They're set in `~/.config/container/config.toml`; the CLI can't write them.
 struct SystemSettingsView: View {
     @EnvironmentObject var systemService: SystemService
 

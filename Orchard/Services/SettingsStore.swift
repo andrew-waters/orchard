@@ -17,6 +17,10 @@ final class SettingsStore: ObservableObject {
     /// `DockIconPolicy` (see that type for why it isn't applied from the setter).
     @Published private(set) var hideDockIcon: Bool = false
     @Published var installedTerminals: [TerminalApp] = [.terminal]
+    /// The DNS domain Orchard gives new containers by default. An Orchard preference
+    /// because the `container` CLI no longer has a way to write `dns.domain` (#116); nil
+    /// means none chosen, and the daemon's `dns.domain` stands in.
+    @Published private(set) var defaultDNSDomain: String?
 
     private let alertCenter: AlertCenter
     /// Backing store for persisted settings. Production uses `.standard`; tests inject an
@@ -46,6 +50,7 @@ final class SettingsStore: ObservableObject {
     private let preferredTerminalKey = "OrchardPreferredTerminal"
     private let containerShellKey = "OrchardContainerShell"
     private let modelEndpointsKey = "OrchardModelEndpoints"
+    private let defaultDNSDomainKey = "OrchardDefaultDNSDomain"
 
     /// `sh` rather than a login shell: it is the one shell a minimal image is likely to
     /// have, which is what makes it a safe default rather than a good one.
@@ -73,6 +78,7 @@ final class SettingsStore: ObservableObject {
         loadContainerShell()
         loadModelEndpoints()
         hideDockIcon = defaults.bool(forKey: Self.hideDockIconDefaultsKey)
+        defaultDNSDomain = defaults.string(forKey: defaultDNSDomainKey).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     func setHideDockIcon(_ hidden: Bool) {
@@ -151,6 +157,17 @@ final class SettingsStore: ObservableObject {
         } else {
             containerShell = trimmed
             defaults.set(trimmed, forKey: containerShellKey)
+        }
+    }
+
+    /// Set the default DNS domain. Nil or blank clears it.
+    func setDefaultDNSDomain(_ domain: String?) {
+        if let domain, !domain.isEmpty {
+            defaultDNSDomain = domain
+            defaults.set(domain, forKey: defaultDNSDomainKey)
+        } else {
+            defaultDNSDomain = nil
+            defaults.removeObject(forKey: defaultDNSDomainKey)
         }
     }
 

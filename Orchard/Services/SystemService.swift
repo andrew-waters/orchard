@@ -59,10 +59,6 @@ final class SystemService: ObservableObject {
     var onSystemStarted: () async -> Void = {}
     /// Clear the container list after the system stops. Set by the owner.
     var onSystemStopped: () -> Void = {}
-    /// Optimistically mark the DNS default domain. Set by the owner.
-    var markDNSDefault: @MainActor (String) -> Void = { _ in }
-    /// Reload DNS domains. Set by the owner.
-    var reloadDNS: () async -> Void = {}
 
     init(backend: ContainerBackend, runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter) {
         self.backend = backend
@@ -376,67 +372,5 @@ final class SystemService: ObservableObject {
 
         systemProperties = parseSystemProperties(json: output)
         isSystemPropertiesLoading = false
-    }
-
-    /// Optimistically record `value` for the `dns.domain` property.
-    func setDNSDomainPropertyOptimistically(_ value: String) {
-        guard let index = systemProperties.firstIndex(where: { $0.id == "dns.domain" }) else { return }
-        systemProperties[index] = SystemProperty(
-            id: "dns.domain",
-            type: systemProperties[index].type,
-            value: value,
-            description: systemProperties[index].description
-        )
-    }
-
-    func setSystemProperty(_ id: String, value: String) async {
-        let currentApp = NSApplication.shared
-        let isActive = currentApp.isActive
-
-        // Optimistic UI update.
-        if id == "dns.domain" {
-            setDNSDomainPropertyOptimistically(value)
-            markDNSDefault(value)
-        }
-
-        let result: ProcessResult
-        do {
-            result = try await runner.run(
-                program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "property", "set", id, value])
-        } catch {
-            restoreFocus(currentApp, wasActive: isActive)
-            alertCenter.error("Failed to set system property: \(error.localizedDescription)")
-            await revertDNSDomainIfNeeded(id)
-            return
-        }
-
-        restoreFocus(currentApp, wasActive: isActive)
-
-        if result.failed {
-            alertCenter.error(.cliFailed(command: "system property set \(id)", exitCode: result.exitCode, stderr: result.stderr))
-            await revertDNSDomainIfNeeded(id)
-            return
-        }
-
-        // Success — refresh in the background to ensure consistency.
-        Task {
-            await self.loadSystemProperties(showLoading: false)
-            if id == "dns.domain" {
-                await self.reloadDNS()
-            }
-        }
-    }
-
-    private func restoreFocus(_ app: NSApplication, wasActive: Bool) {
-        if wasActive && !app.isActive {
-            app.activate(ignoringOtherApps: true)
-        }
-    }
-
-    private func revertDNSDomainIfNeeded(_ id: String) async {
-        guard id == "dns.domain" else { return }
-        await loadSystemProperties(showLoading: false)
-        await reloadDNS()
     }
 }
