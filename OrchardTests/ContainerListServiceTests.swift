@@ -261,6 +261,196 @@ func stopRefreshTimesOut() async throws {
     #expect(backend.listContainersCount == service.maxRefreshAttempts)
 }
 
+// MARK: - loadContainers ordering
+
+@MainActor
+@Test("loadContainers: a slow call started earlier does not clobber a newer result")
+func loadContainersDiscardsStaleResult() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "old", status: "running")]
+    let (service, _) = makeListService(backend)
+
+    let firstEntered = TestGate()
+    let releaseFirst = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend, backend.listContainersCount == 1 else { return }
+        firstEntered.open()
+        await releaseFirst.wait()
+    }
+
+    // The first load captures the "old" snapshot, then blocks inside the backend - as if
+    // its XPC round-trip were simply slow.
+    let first = Task { @MainActor in await service.loadContainers() }
+    await firstEntered.wait()
+
+    // A second, newer load starts and finishes while the first is still in flight, against
+    // different data - e.g. a container a compose `up` just created.
+    backend.containers = [try makeContainer(id: "new", status: "running")]
+    await service.loadContainers()
+    #expect(service.containers.map(\.configuration.id) == ["new"])
+
+    // Letting the stale first call finish must not overwrite the fresher result with the
+    // list it captured before the newer container existed.
+    releaseFirst.open()
+    _ = await first.value
+    #expect(service.containers.map(\.configuration.id) == ["new"])
+}
+
+@MainActor
+@Test("loadContainers: a result still lands while a newer call is in flight")
+func loadContainersAppliesWhileNewerInFlight() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "first", status: "running")]
+    let (service, _) = makeListService(backend)
+
+    let firstEntered = TestGate()
+    let releaseFirst = TestGate()
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend else { return }
+        switch backend.listContainersCount {
+        case 1:
+            firstEntered.open()
+            await releaseFirst.wait()
+        case 2:
+            secondEntered.open()
+            await releaseSecond.wait()
+        default:
+            return
+        }
+    }
+
+    // Two loads in flight at once, the second started before the first returns.
+    let first = Task { @MainActor in await service.loadContainers() }
+    await firstEntered.wait()
+    backend.containers = [try makeContainer(id: "second", status: "running")]
+    let second = Task { @MainActor in await service.loadContainers() }
+    await secondEntered.wait()
+
+    // The first finishes while the second is still running. Nothing newer has landed, so its
+    // result is applied rather than dropped for having been overtaken.
+    releaseFirst.open()
+    _ = await first.value
+    #expect(service.containers.map(\.configuration.id) == ["first"])
+
+    releaseSecond.open()
+    _ = await second.value
+    #expect(service.containers.map(\.configuration.id) == ["second"])
+}
+
+@MainActor
+@Test("loadContainers: a listing in flight across a remove does not bring the container back")
+func loadContainersDoesNotRestoreRemoved() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()
+    #expect(service.containers.map(\.configuration.id) == ["web"])
+
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend, backend.listContainersCount == 2 else { return }
+        secondEntered.open()
+        await releaseSecond.wait()
+    }
+
+    // A load captures the list with "web" still in it, then stalls.
+    let stale = Task { @MainActor in await service.loadContainers() }
+    await secondEntered.wait()
+
+    // The container is removed while that load is in flight.
+    backend.containers = []
+    await service.removeContainer("web")
+    #expect(service.containers.isEmpty)
+
+    // The stale listing lands last, but must not restore the removed container.
+    releaseSecond.open()
+    _ = await stale.value
+    #expect(service.containers.isEmpty)
+
+    // A load started after the remove still applies.
+    backend.containers = [try makeContainer(id: "db", status: "running")]
+    await service.loadContainers()
+    #expect(service.containers.map(\.configuration.id) == ["db"])
+}
+
+@MainActor
+@Test("loadContainers: a refresh discarded because of a remove still clears the spinner")
+func loadContainersDiscardedByRemoveClearsLoading() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()
+
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend, backend.listContainersCount == 2 else { return }
+        secondEntered.open()
+        await releaseSecond.wait()
+    }
+
+    // A user-initiated refresh turns the spinner on, then stalls.
+    let refresh = Task { @MainActor in await service.loadContainers(showLoading: true) }
+    await secondEntered.wait()
+    #expect(service.isLoading)
+
+    backend.containers = []
+    await service.removeContainer("web")
+
+    // The refresh is discarded as older than the remove, but must not leave the spinner on.
+    releaseSecond.open()
+    _ = await refresh.value
+    #expect(service.containers.isEmpty)
+    #expect(!service.isLoading)
+}
+
+@MainActor
+@Test("loadContainers: an older refresh finishing does not stop a newer refresh's spinner")
+func loadContainersSpinnerFollowsNewestRefresh() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()
+
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    let thirdEntered = TestGate()
+    let releaseThird = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend else { return }
+        switch backend.listContainersCount {
+        case 2:
+            secondEntered.open()
+            await releaseSecond.wait()
+        case 3:
+            thirdEntered.open()
+            await releaseThird.wait()
+        default:
+            return
+        }
+    }
+
+    // A refresh stalls, the container is removed, and a second refresh starts and stalls.
+    let older = Task { @MainActor in await service.loadContainers(showLoading: true) }
+    await secondEntered.wait()
+    backend.containers = []
+    await service.removeContainer("web")
+    let newer = Task { @MainActor in await service.loadContainers(showLoading: true) }
+    await thirdEntered.wait()
+
+    // The older refresh is discarded, but the newer one is still running.
+    releaseSecond.open()
+    _ = await older.value
+    #expect(service.isLoading)
+
+    releaseThird.open()
+    _ = await newer.value
+    #expect(!service.isLoading)
+}
+
 // MARK: - recreate
 
 @MainActor

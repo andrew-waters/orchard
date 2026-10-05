@@ -42,6 +42,19 @@ final class ContainerListService: ObservableObject {
     private let lockQueue = DispatchQueue(label: "containerOperationLocks", attributes: .concurrent)
     // Configuration snapshots for recovery.
     private var containerSnapshots: [String: Container] = [:]
+    /// Bumped on every `loadContainers` call. The window's refresh timer, the menu bar's own
+    /// timer, and the retry/poll loops below can all have a load in flight at once; each is
+    /// an independent XPC round-trip with no ordering guarantee, so a call started earlier
+    /// can land after a newer one. A result older than the last one applied is discarded, so a
+    /// slow, stale (sometimes empty) list cannot overwrite a fresher one. Comparing against the
+    /// last *applied* result rather than the last *started* call means a result is never thrown
+    /// away just because another load is still in flight, which would freeze the list whenever
+    /// loads start faster than one round-trip completes.
+    private var loadGeneration: UInt64 = 0
+    /// The generation of the newest listing written to `containers`.
+    private var appliedGeneration: UInt64 = 0
+    /// The generation of the newest user-initiated load, the one `isLoading` is shown for.
+    private var spinnerGeneration: UInt64 = 0
 
     init(backend: ContainerBackend, alertCenter: AlertCenter, pollInterval: TimeInterval = 0.5) {
         self.backend = backend
@@ -73,20 +86,30 @@ final class ContainerListService: ObservableObject {
     }
 
     func loadContainers(showLoading: Bool = false) async {
+        loadGeneration &+= 1
+        let generation = loadGeneration
+
         if showLoading {
             isLoading = true
+            spinnerGeneration = generation
             self.alertCenter.dismiss()
         }
+        // Whichever way this load ends, applied or discarded, the spinner can stop once it
+        // is at least as new as the load that started it. An older load finishing must not
+        // stop the spinner of a newer one still in flight.
+        defer { if generation >= spinnerGeneration { isLoading = false } }
 
         do {
             let newContainers = try await backend.listContainers()
+            // A newer listing, or a removal, landed while this one was in flight; it wins.
+            guard generation > appliedGeneration else { return }
+            appliedGeneration = generation
 
             if !areContainersEqual(self.containers, newContainers) {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     self.containers = newContainers
                 }
             }
-            self.isLoading = false
             for container in newContainers {
                 self.containerSnapshots[container.configuration.id] = container
             }
@@ -95,9 +118,11 @@ final class ContainerListService: ObservableObject {
                 Log.containers.debug("Container: \(container.configuration.id), Status: \(container.status)")
             }
         } catch {
+            // A failure does not advance `appliedGeneration`: it changes nothing in
+            // `containers`, so an older listing still in flight is fresher than what is shown.
+            guard generation > appliedGeneration else { return }
             // Background refreshes stay silent; only a user-initiated load alerts.
             self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
-            self.isLoading = false
             Log.containers.error("\(error.localizedDescription)")
         }
     }
@@ -292,6 +317,10 @@ final class ContainerListService: ObservableObject {
             try await backend.deleteContainer(id: id, force: false)
             Log.containers.debug("Container \(id) remove command sent successfully")
             Task { await self.reloadBuilders() }
+            // This edit is newer than any listing still in flight, which could hold the
+            // container from before the delete; loads started from here on still apply.
+            loadGeneration &+= 1
+            appliedGeneration = loadGeneration
             self.containers.removeAll { $0.configuration.id == id }
             loadingContainers.remove(id)
         } catch {

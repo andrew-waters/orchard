@@ -104,6 +104,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _pingHandler: (@Sendable () async throws -> SystemHealthInfo)?
     private var _bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)?
     private var _statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
+    private var _listContainersHandler: (@Sendable () async -> Void)?
 
     private var _pulledReferences: [String] = []
     private var _deletedImageReferences: [String] = []
@@ -215,6 +216,13 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         get { lock.withLock { _statsHandler } }
         set { lock.withLock { _statsHandler = newValue } }
     }
+    /// Runs after `listContainers` captures its snapshot of `containers` but before it
+    /// returns, so a test can hold one call in flight while a later call completes with
+    /// different data - reproducing two overlapping loads racing to land out of order.
+    var listContainersHandler: (@Sendable () async -> Void)? {
+        get { lock.withLock { _listContainersHandler } }
+        set { lock.withLock { _listContainersHandler = newValue } }
+    }
 
     // Recorded calls - read by tests.
     var pulledReferences: [String] { lock.withLock { _pulledReferences } }
@@ -227,9 +235,13 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var listContainersCount: Int { lock.withLock { _listContainersCount } }
 
     func listContainers() async throws -> [Container] {
+        let snapshot = containers
         lock.withLock { _listContainersCount += 1 }
+        if let handler = lock.withLock({ _listContainersHandler }) {
+            await handler()
+        }
         if let error = listContainersError { throw error }
-        return containers
+        return snapshot
     }
     func stopContainer(id: String) async throws {
         if let stopContainerError { throw stopContainerError }

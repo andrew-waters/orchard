@@ -30,6 +30,17 @@ enum AlertSource {
 @MainActor
 final class AlertCenter: ObservableObject {
     @Published var current: AppAlert?
+    /// The alert a pending `dismiss()` will clear. Deliberately not `@Published`: it is set
+    /// from inside SwiftUI's view update, where publishing is what `dismiss()` avoids.
+    private var dismissingID: UUID?
+
+    /// Whether an alert should be on screen. Drives the alert's `isPresented` binding, and goes
+    /// false as soon as `dismiss()` is called rather than when its deferred clear lands, so a
+    /// re-render in between cannot present the dismissed alert again.
+    var isPresenting: Bool {
+        guard let current else { return false }
+        return current.id != dismissingID
+    }
 
     func error(_ message: String, source: AlertSource = .user, alertButtons: [AlertButton] = []) {
         guard source == .user else {
@@ -43,7 +54,18 @@ final class AlertCenter: ObservableObject {
         self.error(error.errorDescription ?? "Something went wrong.", source: source)
     }
 
-    func dismiss() {
-        current = nil
+    @discardableResult
+    func dismiss() -> Task<Void, Never> {
+        // Called from the alert's isPresented binding while SwiftUI is still applying that
+        // alert's own presentation update, so publishing synchronously here trips "Publishing
+        // changes from within view updates". Hopping through a Task defers it past that update.
+        // The returned Task lets callers (tests) await the actual completion instead of guessing
+        // at scheduling order.
+        let dismissedID = current?.id
+        dismissingID = dismissedID
+        return Task { [weak self] in
+            guard let self, dismissedID != nil, self.current?.id == dismissedID else { return }
+            self.current = nil
+        }
     }
 }
