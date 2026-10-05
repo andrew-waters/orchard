@@ -61,6 +61,15 @@ and Orchard would have to edit the user's TOML file without a TOML library. We c
 ## Verification
 
 - Unit tests above.
-- In the app, against container 1.5.0: Make Default from the DNS list and the detail header, and pick a domain
-  in Settings > General. None of these should show an error. A new container's create form should then default
-  to that domain, and `container inspect` should show it under `dns.domain`.
+- Driven in a debug build through Accessibility against container 1.5.0 on 2026-10-05; all passed with no
+  error alerts:
+  - [x] Make Default from the DNS list's context menu and from the detail header: the DEFAULT marker moves,
+        the header button disables, and the preference is saved.
+  - [x] Settings > General picker: choosing a domain moves the DEFAULT marker, and None clears it and the
+        preference.
+  - [x] Run Container's DNS Domain starts on the default, and `container inspect` shows it in `dns.domain`.
+  - [x] The default survives a relaunch.
+  - [x] A default domain deleted with the CLI is dropped from the list and the preference is cleared.
+  - [x] With `[dns] domain` in `config.toml` and no preference, the picker offers "container default
+        (<domain>)" and that domain is DEFAULT; picking another domain overrides it, and picking the
+        container default goes back to it.
