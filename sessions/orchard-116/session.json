@@ -3,7 +3,7 @@
   "branch" : "116-bug-dns-when-set-to-default",
   "issue" : "andrew-waters/orchard#116",
   "pullRequests" : [
-
+    "https://github.com/andrew-waters/orchard/pull/117"
   ],
   "repos" : [
 
