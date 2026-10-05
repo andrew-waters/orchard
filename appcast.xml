@@ -3,48 +3,29 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.5.0</title>
-      <sparkle:version>62</sparkle:version>
-      <sparkle:shortVersionString>2.5.0</sparkle:shortVersionString>
+      <title>Version 2.5.1</title>
+      <sparkle:version>63</sparkle:version>
+      <sparkle:shortVersionString>2.5.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.5.0</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.5.1</link>
       <description><![CDATA[
 <p>Thank you for using Orchard, and for the bug reports, ideas and pull requests that keep making it better. If it&#x27;s useful to you, please consider <a href="https://github.com/andrew-waters/orchard">starring Orchard on GitHub</a>. It takes a second and helps other people find it.</p>
-<h3>Added</h3>
-<ul>
-<li>Choose the Kubernetes version when creating a cluster. The Create Cluster sheet&#x27;s free-text node image field is now a menu headed by the node image Apple container&#x27;s k8s plugin ships with (marked Recommended, and read from the installed plugin rather than a copy in Orchard), followed by the newest <code>kindest/node</code> release of each Kubernetes version from 1.31, fetched from Docker Hub when the sheet opens and pinned by digest. &quot;Custom Image&quot; takes any other reference. Choosing a version only became meaningful with container 1.5.0: until then the plugin configured the control plane for its default version whatever image you passed, so a different image ran mismatched components. For the same reason 1.5.0 rejects a node image with no tag, and Orchard now says so before creating anything. Offline, the menu offers the recommended image and a custom one.
-</li>
-<li>Use your own CNI with a new cluster. The Create Cluster sheet&#x27;s Advanced section takes a CNI manifest to apply instead of the default kindnet (container 1.5.0&#x27;s <code>--cni</code>). Orchard can&#x27;t check that a manifest suits the cluster, so the sheet points out that it must fit the pod subnet and links to Apple container&#x27;s Custom CNI guide.
-</li>
-<li>Redirect a DNS domain to your Mac&#x27;s localhost. The Add DNS Domain sheet takes an optional IPv4 address; the domain resolves to it and Apple container redirects that address to the host&#x27;s 127.0.0.1, so containers can reach a service running on the Mac by name. Domains set up this way are marked LOCALHOST in the list and show their address in the detail header. Before container 1.5.0, adding or removing one of these redirects reloaded the Mac&#x27;s whole packet filter configuration and cut outbound networking for every running container; 1.5.0 reloads only its own rules.
-</li>
-</ul>
-<h3>Changed</h3>
-<ul>
-<li>Orchard now builds against Apple container 1.5.0 (containerization 0.47.0), up from 1.4.1 (containerization 0.45.0). Nothing Orchard calls has changed shape. The release also fixes <a href="https://github.com/apple/container/security/advisories/GHSA-44v5-vx46-ghv6">GHSA-44v5-vx46-ghv6</a> in the k8s plugin (kubeconfig values from the guest are now sanitised before being merged into your kubeconfig), which Orchard picks up through the CLI.
-</li>
-<li>Orchard no longer warns that cluster creation will fail on a guest kernel built without nftables. Container 1.5.0 prepares nodes with the node image&#x27;s own iptables backend instead of hard-coding <code>iptables-nft</code>, so the older kernel that an upgraded install keeps now works (<a href="https://github.com/apple/container/issues/2120">apple/container#2120</a>). A node-preparation failure still gets Orchard&#x27;s own message rather than the CLI&#x27;s, which names a step that succeeded, but it no longer blames the kernel.
-</li>
-</ul>
-<h3>Removed</h3>
-<ul>
-<li>Starting a stopped cluster, which is replaced by Recreate. Container 1.5.0 removed <code>container k8s start</code>, so a stopped cluster can only be deleted and created again; Recreate does both in one step. It opens the Create Cluster sheet filled in from the cluster (its name, CPUs and memory, the Kubernetes version and, for clusters Orchard created, the CNI manifest) and deletes and creates when you confirm. A node doesn&#x27;t record its image tag, so Orchard recovers the version from the image digest, and asks when it can&#x27;t. Stopped cluster nodes in the Containers list, the menu bar and the command palette no longer offer Start either: a plain start skips the boot, readiness wait and kubeconfig write the old command did, so the node&#x27;s detail offers Recreate Cluster instead.
-</li>
-</ul>
 <h3>Fixed</h3>
 <ul>
-<li>Orchard notices a missing Kubernetes plugin again on container 1.5.0, which reports it as an unknown command rather than a missing plugin. Without this, the Clusters tab showed a Create Cluster button that stayed disabled with no explanation.
+<li>Open Orchard in the menu bar brings the Orchard window to the front instead of opening a second one (<a href="https://github.com/andrew-waters/orchard/issues/118">#118</a>). A minimised window is restored, and a new window opens only if none is open.
 </li>
-<li>A stopped container&#x27;s resource charts are hidden, as they are for a container that hasn&#x27;t run. A container that ran earlier in the session kept its charts after it stopped, and a time window with too few samples then showed a &quot;Collecting&quot; spinner for samples that were never coming. The same applies to machines and clusters.
+<li>Making a DNS domain the default works again on container 1.4.1 and later (<a href="https://github.com/andrew-waters/orchard/issues/116">#116</a>). Orchard set it with <code>container system property set dns.domain</code>, which those releases no longer have, so Make Default and the DNS Domain picker in Settings failed with &quot;3 unexpected arguments&quot;. The default is now an Orchard setting, used for containers you create in Orchard, so changing it needs no administrator password and no restart of the container system. If you haven&#x27;t chosen one, Orchard uses the <code>[dns] domain</code> from your <code>~/.config/container/config.toml</code>, and Settings &gt; General shows that value as the container default.
 </li>
-<li>Orchard offers to reinstall the compose plugin after a Homebrew upgrade of container removes it (<a href="https://github.com/andrew-waters/orchard/issues/113">#113</a>). Orchard decided whether the plugin was installed by looking in <code>/usr/local</code>, but a Homebrew <code>container</code> looks for plugins inside its own versioned install, so after a <code>brew upgrade</code> a copy in <code>/usr/local</code> still counted as installed although the CLI could not see it, and an install from Orchard went where that CLI never looks. Orchard now asks the CLI itself whether <code>container compose</code> works, and installs into the directory the CLI names in its error. That directory belongs to you under Homebrew, so the install no longer asks for an administrator password there.
+<li>Compose projects no longer disappear from the Compose tab when Orchard briefly can&#x27;t read its saved project list. A failed read was treated as an empty list. Orchard now keeps the projects it already has, and won&#x27;t save over the list until it has read it.
 </li>
-<li>Images that clear their inherited entrypoint with <code>ENTRYPOINT [&quot;&quot;]</code> now run. Orchard used the empty string as the program to launch, so the container failed to start; the command now runs on its own, as the CLI does from 1.5.0.
+<li>The container list no longer jumps back to an older, sometimes empty, list when several refreshes overlap. A slow refresh that finished after a newer one could overwrite the newer result.
+</li>
+<li>Dismissing an error alert no longer logs a SwiftUI warning about publishing changes during a view update.
 </li>
 </ul>
 ]]></description>
-      <pubDate>Wed, 30 Sep 2026 13:37:15 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.5.0/Orchard-2.5.0.dmg" type="application/octet-stream" sparkle:edSignature="oZovt4q4hxZjM/cAKrkgLvNn33s1kCZIlzHBI0n7mDY2isfz4LBK14Zg/7tDKmi9byaoZHK5clECQXZi1EqWCA==" length="31161094" />
+      <pubDate>Mon, 05 Oct 2026 12:02:01 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.5.1/Orchard-2.5.1.dmg" type="application/octet-stream" sparkle:edSignature="gDj4xCxXOxg/nOUM/yqKKYEefuH/8E1rSxcEyNbMarZ773uYQP3Vvft/udvGB7Zqy5LAGhdfDETx3cthukA3BQ==" length="31156233" />
     </item>
   </channel>
 </rss>
