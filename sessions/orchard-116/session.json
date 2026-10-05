@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "116-bug-dns-when-set-to-default",
+  "issue" : "andrew-waters/orchard#116",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-05T07:03:17Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Bug DNS when set to Default",
+  "url" : "https://github.com/andrew-waters/orchard/issues/116"
+}
