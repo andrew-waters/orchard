@@ -339,6 +339,43 @@ func loadContainersAppliesWhileNewerInFlight() async throws {
     #expect(service.containers.map(\.configuration.id) == ["second"])
 }
 
+@MainActor
+@Test("loadContainers: a listing in flight across a remove does not bring the container back")
+func loadContainersDoesNotRestoreRemoved() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()
+    #expect(service.containers.map(\.configuration.id) == ["web"])
+
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend, backend.listContainersCount == 2 else { return }
+        secondEntered.open()
+        await releaseSecond.wait()
+    }
+
+    // A load captures the list with "web" still in it, then stalls.
+    let stale = Task { @MainActor in await service.loadContainers() }
+    await secondEntered.wait()
+
+    // The container is removed while that load is in flight.
+    backend.containers = []
+    await service.removeContainer("web")
+    #expect(service.containers.isEmpty)
+
+    // The stale listing lands last, but must not restore the removed container.
+    releaseSecond.open()
+    _ = await stale.value
+    #expect(service.containers.isEmpty)
+
+    // A load started after the remove still applies.
+    backend.containers = [try makeContainer(id: "db", status: "running")]
+    await service.loadContainers()
+    #expect(service.containers.map(\.configuration.id) == ["db"])
+}
+
 // MARK: - recreate
 
 @MainActor

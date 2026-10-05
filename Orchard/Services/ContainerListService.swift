@@ -312,6 +312,10 @@ final class ContainerListService: ObservableObject {
             try await backend.deleteContainer(id: id, force: false)
             Log.containers.debug("Container \(id) remove command sent successfully")
             Task { await self.reloadBuilders() }
+            // This edit is newer than any listing still in flight, which could hold the
+            // container from before the delete; loads started from here on still apply.
+            loadGeneration &+= 1
+            appliedGeneration = loadGeneration
             self.containers.removeAll { $0.configuration.id == id }
             loadingContainers.remove(id)
         } catch {
