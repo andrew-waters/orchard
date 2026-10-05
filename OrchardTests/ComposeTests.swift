@@ -378,19 +378,54 @@ struct ComposeProjectsPersistenceTests {
     }
 
     @MainActor
+    @Test("Forgetting a project after a failed first read removes it from the saved list")
+    func forgetAfterFailedLoad() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("compose-projects-\(UUID().uuidString).json")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let persistence = ComposeProjectsPersistence(fileURL: url)
+        let service = ComposeService(
+            backend: MockContainerBackend(),
+            buildService: nil,
+            alertCenter: AlertCenter(),
+            persistence: persistence
+        )
+
+        // The file becomes readable again, holding two projects the service has never seen.
+        try FileManager.default.removeItem(at: url)
+        let shop = ComposeProjectRecord(
+            name: "shop", path: "/tmp/shop/compose.yaml", acknowledgedFindings: [],
+            addedAt: Date(timeIntervalSince1970: 1_000_000)
+        )
+        let blog = ComposeProjectRecord(
+            name: "blog", path: "/tmp/blog/compose.yaml", acknowledgedFindings: [],
+            addedAt: Date(timeIntervalSince1970: 1_000_000)
+        )
+        try persistence.save([blog, shop])
+
+        service.forget("shop")
+        #expect(persistence.load() == [blog])
+        #expect(service.records == [blog])
+    }
+
+    @MainActor
     @Test("Nothing is saved while the list still cannot be read")
     func noSaveWhileUnreadable() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("compose-projects-\(UUID().uuidString).json")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: url) }
+        let alertCenter = AlertCenter()
         let service = ComposeService(
             backend: MockContainerBackend(),
             buildService: nil,
-            alertCenter: AlertCenter(),
+            alertCenter: alertCenter,
             persistence: ComposeProjectsPersistence(fileURL: url)
         )
         service.forget("shop")
+        // The user is told nothing changed, rather than the change silently going nowhere.
+        #expect(alertCenter.current != nil)
         var isDirectory: ObjCBool = false
         #expect(FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory))
         #expect(isDirectory.boolValue)

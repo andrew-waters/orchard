@@ -376,6 +376,37 @@ func loadContainersDoesNotRestoreRemoved() async throws {
     #expect(service.containers.map(\.configuration.id) == ["db"])
 }
 
+@MainActor
+@Test("loadContainers: a refresh discarded because of a remove still clears the spinner")
+func loadContainersDiscardedByRemoveClearsLoading() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "web", status: "stopped")]
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()
+
+    let secondEntered = TestGate()
+    let releaseSecond = TestGate()
+    backend.listContainersHandler = { [weak backend] in
+        guard let backend, backend.listContainersCount == 2 else { return }
+        secondEntered.open()
+        await releaseSecond.wait()
+    }
+
+    // A user-initiated refresh turns the spinner on, then stalls.
+    let refresh = Task { @MainActor in await service.loadContainers(showLoading: true) }
+    await secondEntered.wait()
+    #expect(service.isLoading)
+
+    backend.containers = []
+    await service.removeContainer("web")
+
+    // The refresh is discarded as older than the remove, but must not leave the spinner on.
+    releaseSecond.open()
+    _ = await refresh.value
+    #expect(service.containers.isEmpty)
+    #expect(!service.isLoading)
+}
+
 // MARK: - recreate
 
 @MainActor

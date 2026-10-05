@@ -94,8 +94,12 @@ final class ContainerListService: ObservableObject {
 
         do {
             let newContainers = try await backend.listContainers()
-            // A newer load already landed while this one was in flight; its result wins.
-            guard generation > appliedGeneration else { return }
+            // A newer listing, or a removal, landed while this one was in flight; it wins.
+            guard generation > appliedGeneration else {
+                // A removal does not clear the spinner, so a discarded load that set it must.
+                if showLoading { isLoading = false }
+                return
+            }
             appliedGeneration = generation
 
             if !areContainersEqual(self.containers, newContainers) {
@@ -114,7 +118,10 @@ final class ContainerListService: ObservableObject {
         } catch {
             // A failure does not advance `appliedGeneration`: it changes nothing in
             // `containers`, so an older listing still in flight is fresher than what is shown.
-            guard generation > appliedGeneration else { return }
+            guard generation > appliedGeneration else {
+                if showLoading { isLoading = false }
+                return
+            }
             // Background refreshes stay silent; only a user-initiated load alerts.
             self.alertCenter.error(error.localizedDescription, source: showLoading ? .user : .background)
             self.isLoading = false
