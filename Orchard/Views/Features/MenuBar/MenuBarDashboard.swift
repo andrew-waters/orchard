@@ -155,8 +155,10 @@ struct MenuBarView: View {
 
             card {
                 Button {
-                    openWindow(id: "main")
-                    NSApplication.shared.activate(ignoringOtherApps: true)
+                    if !MainWindows.bringToFront() {
+                        openWindow(id: "main")
+                        NSApplication.shared.activate(ignoringOtherApps: true)
+                    }
                 } label: {
                     Text("Open Orchard").frame(maxWidth: .infinity)
                 }
