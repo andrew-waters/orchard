@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Making a DNS domain the default works again on container 1.4.1 and later ([#116](https://github.com/andrew-waters/orchard/issues/116)). Orchard set it with `container system property set dns.domain`, which those releases no longer have, so Make Default and the DNS Domain picker in Settings failed with "3 unexpected arguments". The default is now an Orchard setting, used for containers you create in Orchard, so changing it needs no administrator password and no restart of the container system. If you haven't chosen one, Orchard uses the `[dns] domain` from your `~/.config/container/config.toml`, and Settings > General shows that value as the container default.
 - Compose projects no longer disappear from the Compose tab when Orchard briefly can't read its saved project list. A failed read was treated as an empty list. Orchard now keeps the projects it already has, and won't save over the list until it has read it.
 - The container list no longer jumps back to an older, sometimes empty, list when several refreshes overlap. A slow refresh that finished after a newer one could overwrite the newer result.
 - Dismissing an error alert no longer logs a SwiftUI warning about publishing changes during a view update.

@@ -89,3 +89,81 @@ func dnsLoadReadsLocalhostRedirect() async throws {
         DNSDomain(domain: "gone.test"),   // no resolver file: no redirect, not an error
     ])
 }
+
+// MARK: - Default domain (#116)
+
+@MainActor
+@Test("DNS default: Make Default stores the preference and runs no command")
+func dnsSetDefaultStoresPreference() {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.dnsService.dnsDomains = [DNSDomain(domain: "a.test", isDefault: true), DNSDomain(domain: "b.test")]
+    let callsBefore = runner.calls.count
+
+    service.dnsService.setDefault("b.test")
+
+    #expect(runner.calls.count == callsBefore)   // `container system property set` no longer exists
+    #expect(service.settings.defaultDNSDomain == "b.test")
+    #expect(service.dnsService.dnsDomains == [DNSDomain(domain: "a.test"), DNSDomain(domain: "b.test", isDefault: true)])
+}
+
+@MainActor
+@Test("DNS default: the Orchard preference beats the daemon's dns.domain")
+func dnsDefaultPreferenceBeatsDaemon() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test","b.test"]"#, stderr: nil) }
+    let service = makeService(runner: runner)
+    service.dnsService.daemonDefaultDomain = { "a.test" }
+    service.settings.setDefaultDNSDomain("b.test")
+
+    await service.dnsService.load(showLoading: false)
+
+    #expect(service.dnsService.defaultDomain == "b.test")
+    #expect(service.dnsService.dnsDomains == [DNSDomain(domain: "a.test"), DNSDomain(domain: "b.test", isDefault: true)])
+}
+
+@MainActor
+@Test("DNS default: with no preference the daemon's dns.domain is the default")
+func dnsDefaultFallsBackToDaemon() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test","b.test"]"#, stderr: nil) }
+    let service = makeService(runner: runner)
+    service.dnsService.daemonDefaultDomain = { "a.test" }
+
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.dnsDomains == [DNSDomain(domain: "a.test", isDefault: true), DNSDomain(domain: "b.test")])
+
+    // Choosing none in Settings goes back to the daemon's.
+    service.dnsService.setDefault("b.test")
+    service.dnsService.setDefault(nil)
+    #expect(service.settings.defaultDNSDomain == nil)
+    #expect(service.dnsService.defaultDomain == "a.test")
+}
+
+@MainActor
+@Test("DNS default: a chosen domain that no longer exists is forgotten on load")
+func dnsDefaultClearedWhenDomainGone() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test"]"#, stderr: nil) }
+    let service = makeService(runner: runner)
+    service.dnsService.daemonDefaultDomain = { "a.test" }
+    service.settings.setDefaultDNSDomain("gone.test")
+
+    await service.dnsService.load(showLoading: false)
+
+    #expect(service.settings.defaultDNSDomain == nil)
+    #expect(service.dnsService.dnsDomains == [DNSDomain(domain: "a.test", isDefault: true)])
+}
+
+@MainActor
+@Test("DNS default: a failed list leaves the chosen default alone")
+func dnsDefaultKeptWhenListFails() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 1, stdout: nil, stderr: "boom") }
+    let service = makeService(runner: runner)
+    service.settings.setDefaultDNSDomain("b.test")
+
+    await service.dnsService.load(showLoading: false)
+
+    #expect(service.settings.defaultDNSDomain == "b.test")
+}

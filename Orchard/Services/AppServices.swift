@@ -126,18 +126,14 @@ final class AppServices: ObservableObject {
                     machine.containerId.map { (machineId: machine.id, backingId: $0, cpus: machine.cpus) }
                 }
         }
-        // DNS ↔ System: the default domain is a system property.
+        // DNS → System: the daemon's `dns.domain` stands in when no default is chosen in Orchard.
         dnsService.refreshSystemProperties = { [weak systemService] in await systemService?.loadSystemProperties(showLoading: false) }
-        dnsService.defaultDomain = { [weak systemService] in
-            systemService?.systemProperties.first(where: { $0.id == "dns.domain" })?.value
+        dnsService.daemonDefaultDomain = { [weak systemService] in
+            systemService?.systemProperties
+                .first(where: { $0.id == "dns.domain" && !$0.isUndefined && !$0.value.isEmpty })?.value
         }
-        dnsService.setDefaultDomainProperty = { [weak systemService] domain in
-            systemService?.setDNSDomainPropertyOptimistically(domain)
-        }
-        // System → containers/DNS side effects.
+        // System → containers side effects.
         systemService.onSystemStarted = { [weak containerListService] in await containerListService?.loadContainers() }
         systemService.onSystemStopped = { [weak containerListService] in containerListService?.containers.removeAll() }
-        systemService.markDNSDefault = { [weak dnsService] domain in dnsService?.markDefault(domain) }
-        systemService.reloadDNS = { [weak dnsService] in await dnsService?.load(showLoading: false) }
     }
 }
