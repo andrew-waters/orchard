@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "152-show-what-is-happening-inside-a-session",
+  "issue" : "andrew-waters/gannin#152",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-10T13:34:23Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Show what is happening inside a session when it runs in a container sandbox",
+  "url" : "https://github.com/andrew-waters/gannin/issues/152"
+}
