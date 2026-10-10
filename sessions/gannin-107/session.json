@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "107-documentation",
+  "finishedAt" : "2026-10-10T13:15:41Z",
   "issue" : "andrew-waters/gannin#107",
   "pullRequests" : [
     "https://github.com/owner/name/pull/12",
