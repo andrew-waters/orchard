@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "179-releases-ship-with-a-changelog-and-a-pr",
+  "issue" : "andrew-waters/gannin#179",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-10T12:51:30Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Releases ship with a changelog, and a PR template checks it was updated",
+  "url" : "https://github.com/andrew-waters/gannin/issues/179"
+}
