@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "179-releases-ship-with-a-changelog-and-a-pr",
+  "finishedAt" : "2026-10-10T13:36:05Z",
   "issue" : "andrew-waters/gannin#179",
   "pullRequests" : [
     "https://github.com/owner/name/pull/12",
