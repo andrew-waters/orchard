@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "134-design-and-refine",
+  "finishedAt" : "2026-10-12T15:16:54Z",
   "issue" : "andrew-waters/gannin#134",
   "pullRequests" : [
     "https://github.com/andrew-waters/gannin/pull/196"
