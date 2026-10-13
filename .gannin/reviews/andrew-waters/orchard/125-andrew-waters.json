@@ -1,0 +1,36 @@
+{
+  "author" : "dwrss",
+  "effort" : 2,
+  "event" : "APPROVE",
+  "findings" : [
+    {
+      "category" : "correctness",
+      "decision" : "kept",
+      "excerpt" : "These fields only reach the backend from `ComposeService.createSpec`. `Container",
+      "key" : "Orchard/Services/ContainerBackend.swift:57:These fields only reach the backend from `ComposeService.cre",
+      "line" : 57,
+      "path" : "Orchard/Services/ContainerBackend.swift",
+      "posted_at" : "2026-10-13T17:19:26Z",
+      "severity" : "minor"
+    },
+    {
+      "category" : "maintainability",
+      "decision" : "kept",
+      "excerpt" : "\"`container run` sends one the same way\" only holds when no DNS domain is set. W",
+      "key" : "Orchard/Services/ContainerBackend.swift:296:\"`container run` sends one the same way\" only holds when no ",
+      "line" : 296,
+      "path" : "Orchard/Services/ContainerBackend.swift",
+      "posted_at" : "2026-10-13T17:19:26Z",
+      "severity" : "nit"
+    }
+  ],
+  "number" : 125,
+  "posted_at" : "2026-10-13T17:19:26Z",
+  "repo" : "andrew-waters/orchard",
+  "reviewer" : "andrew-waters",
+  "started_at" : "2026-10-13T17:14:31Z",
+  "state" : "OPEN",
+  "title" : "Send a service's dns settings when creating Compose containers",
+  "updated_at" : "2026-10-13T17:19:28Z",
+  "verdict" : "approve"
+}
