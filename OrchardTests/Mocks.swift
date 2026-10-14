@@ -74,8 +74,6 @@ final class MockCommandRunner: CommandRunner, @unchecked Sendable {
     }
 }
 
-/// A `ContainerBackend` whose behaviour is configured per test. Methods not needed by a
-/// test either no-op or throw `NotConfigured`.
 /// One `runProcess` call as `MockContainerBackend` saw it.
 struct MockProcessRun: Equatable, Sendable {
     let containerID: String
@@ -85,6 +83,8 @@ struct MockProcessRun: Equatable, Sendable {
     let user: String?
 }
 
+/// A `ContainerBackend` whose behaviour is configured per test. Methods not needed by a
+/// test either no-op or throw `NotConfigured`.
 final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private let lock = NSLock()
 
@@ -123,6 +123,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _deletedNetworkIds: [String] = []
     private var _createdSpecs: [ContainerCreateSpec] = []
     private var _deletedContainers: [(id: String, force: Bool)] = []
+    private var _stoppedContainers: [String] = []
     private var _bootstrapAndStartCount = 0
     private var _listContainersCount = 0
 
@@ -251,6 +252,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var deletedNetworkIds: [String] { lock.withLock { _deletedNetworkIds } }
     var createdSpecs: [ContainerCreateSpec] { lock.withLock { _createdSpecs } }
     var deletedContainers: [(id: String, force: Bool)] { lock.withLock { _deletedContainers } }
+    var stoppedContainers: [String] { lock.withLock { _stoppedContainers } }
     var bootstrapAndStartCount: Int { lock.withLock { _bootstrapAndStartCount } }
     var listContainersCount: Int { lock.withLock { _listContainersCount } }
 
@@ -265,6 +267,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     }
     func stopContainer(id: String) async throws {
         if let stopContainerError { throw stopContainerError }
+        lock.withLock { _stoppedContainers.append(id) }
     }
     func killContainer(id: String, signal: Int32) async throws {
         if let killContainerError { throw killContainerError }

@@ -618,7 +618,10 @@ struct ComposeHookTests {
         harness.backend.containers = [
             try composeContainer(id: harness.containerName, project: "shop", service: "web")
         ]
+        let backend = harness.backend
         harness.backend.runProcessHandler = { _, _ in
+            // The hook runs before the stop, not after it.
+            #expect(backend.stoppedContainers.isEmpty)
             throw OrchardError.generic("no shell")
         }
 
@@ -627,11 +630,13 @@ struct ComposeHookTests {
         let run = try #require(harness.service.run)
         #expect(run.phase == .succeeded)
         let hook = try #require(run.steps.first { $0.activity == "pre_stop[0]" })
-        let warning = try #require(hook.state.failureMessage)
+        let warning = try #require(hook.state.warningMessage)
         #expect(warning.contains("pre_stop[0] in service `web` could not run: no shell"))
         #expect(warning.contains("Carrying on with the stop."))
+        #expect(run.warnings == [warning])
         #expect(harness.alertCenter.current?.message == warning)
         #expect(harness.backend.ranProcesses.map(\.command) == [["sh", "-c", "drain"]])
+        #expect(harness.backend.stoppedContainers == [harness.containerName])
         #expect(harness.backend.deletedContainers.map(\.id) == [harness.containerName])
     }
 }

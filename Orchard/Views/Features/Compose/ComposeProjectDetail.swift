@@ -307,6 +307,15 @@ struct ComposeProjectDetailView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // A failed `pre_stop` does not stop the run, so its message would otherwise only
+            // be seen in the alert.
+            ForEach(Array((run?.warnings ?? []).enumerated()), id: \.offset) { _, warning in
+                Text(warning)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ContainerTable(
                 containers: orderedContainers(project),
                 placeholders: placeholders(project),
@@ -375,6 +384,9 @@ struct ComposeProjectDetailView: View {
         }
         if run.steps.contains(where: { $0.service == service && $0.state.failureMessage != nil }) {
             return ResourceTable.Note("Failed", isError: true)
+        }
+        if let step = run.steps.last(where: { $0.service == service && $0.state.warningMessage != nil }) {
+            return ResourceTable.Note("\(step.activity) failed")
         }
         return nil
     }

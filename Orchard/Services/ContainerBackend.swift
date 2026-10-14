@@ -322,6 +322,13 @@ struct LiveContainerBackend: ContainerBackend {
             // A process that leaves something running in the background (`daemon &`) leaves
             // it holding the output, so the end of the stream may never come. Give it a moment
             // to drain, as `container exec` does, then move on.
+            //
+            // The relays are left reading rather than their handles closed. Closing the read
+            // ends would make the backgrounded process's next write fail with EPIPE, which
+            // can kill what the hook started; and closing a handle under a read in flight
+            // risks the descriptor being reused mid-read. Reading on and discarding costs a
+            // task and two descriptors per such hook, and ends when the process does, at the
+            // latest when its container stops.
             await relay.drain(streams: 2, within: .seconds(3))
             return status
         } catch { throw mapContainerError(error) }

@@ -351,7 +351,7 @@ final class ComposeService: ObservableObject {
                     case .carryOn(let warning):
                         // A failed `pre_stop` is said on its row and the plan goes on: the
                         // container is coming down either way.
-                        live.steps[index].state = .failed(warning)
+                        live.steps[index].state = .warned(warning)
                         live.steps[index].detail = run?.steps[index].detail
                         run = live
                         alertCenter.error(warning)
