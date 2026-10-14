@@ -24,13 +24,14 @@
       "severity" : "nit"
     }
   ],
+  "merged_at" : "2026-10-14T06:35:11Z",
   "number" : 125,
   "posted_at" : "2026-10-13T17:19:26Z",
   "repo" : "andrew-waters/orchard",
   "reviewer" : "andrew-waters",
   "started_at" : "2026-10-13T17:14:31Z",
-  "state" : "OPEN",
+  "state" : "MERGED",
   "title" : "Send a service's dns settings when creating Compose containers",
-  "updated_at" : "2026-10-13T17:19:28Z",
+  "updated_at" : "2026-10-14T06:35:53Z",
   "verdict" : "approve"
 }
