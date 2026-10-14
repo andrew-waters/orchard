@@ -583,6 +583,9 @@ final class ComposeService: ObservableObject {
                 )
             },
             dnsDomain: "",
+            dnsNameservers: operation.dns,
+            dnsSearchDomains: operation.dnsSearch,
+            dnsOptions: operation.dnsOptions,
             networkName: operation.networkName,
             autoRemove: false,
             // A compose file that says nothing about resources gets the same defaults as a

@@ -3,7 +3,8 @@
   "branch" : "126-handle-the-new-runhook-operation-from",
   "issue" : "andrew-waters/orchard#126",
   "pullRequests" : [
-
+    "https://github.com/andrew-waters/orchard/pull/53",
+    "https://github.com/andrew-waters/orchard/pull/131"
   ],
   "repos" : [
 

@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Orchard now uses compose 0.5.0, which labels the containers it creates `com.compose.*` instead of `com.container-compose.*`. Projects brought up with an earlier version of Orchard or the compose plugin are no longer recognised in the Compose tab. To fix one, take it down with the version that brought it up (or remove its containers), then bring it up again.
 
+### Fixed
+- Containers brought up from a Compose project get the nameservers the file asks for ([#124](https://github.com/andrew-waters/orchard/issues/124)). Orchard dropped a service's `dns`, `dns_search` and `dns_opt`, and sent no resolver configuration at all, so the container had no `/etc/resolv.conf` and every lookup in it failed with `connection refused` on `[::1]:53`. Containers created from the Run form get a resolver configuration the same way, so one with no DNS domain set now gets the network's own nameserver as `container run` gives it.
+
 ## [2.5.1] - 2026-10-05
 
 ### Fixed

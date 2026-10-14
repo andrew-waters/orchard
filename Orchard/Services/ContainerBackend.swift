@@ -52,6 +52,11 @@ struct ContainerCreateSpec: Sendable {
     let volumes: [Volume]
     let publishedPorts: [Port]
     let dnsDomain: String
+    /// Nameservers for the container's resolv.conf, in preference order. Empty means the
+    /// runtime picks one: the network's own, or the default nameservers when `dnsDomain` is set.
+    var dnsNameservers: [String] = []
+    var dnsSearchDomains: [String] = []
+    var dnsOptions: [String] = []
     let networkName: String
     let autoRemove: Bool
     /// CPU cores and memory (in bytes) allocated to the container's VM.
@@ -407,15 +412,19 @@ struct LiveContainerBackend: ContainerBackend {
                 ))
             }
 
-            let dns: ContainerResource.ContainerConfiguration.DNSConfiguration? = {
-                if spec.dnsDomain.isEmpty { return nil }
-                return .init(
-                    nameservers: ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers,
-                    domain: spec.dnsDomain,
-                    searchDomains: [],
-                    options: []
-                )
-            }()
+            // Always send a resolver configuration, even an empty one. The runtime fills in the
+            // network's own nameserver only when a configuration is present with no nameservers;
+            // with none at all the container gets no /etc/resolv.conf, and every lookup in it
+            // falls back to [::1]:53 and is refused. `container run` sends one the same way.
+            let nameservers = spec.dnsNameservers.isEmpty && !spec.dnsDomain.isEmpty
+                ? ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers
+                : spec.dnsNameservers
+            let dns = ContainerResource.ContainerConfiguration.DNSConfiguration(
+                nameservers: nameservers,
+                domain: spec.dnsDomain.isEmpty ? nil : spec.dnsDomain,
+                searchDomains: spec.dnsSearchDomains,
+                options: spec.dnsOptions
+            )
 
             // Fetch/unpack the image and read its OCI config.
             let systemConfig = try await loadContainerSystemConfig()

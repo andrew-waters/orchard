@@ -242,6 +242,38 @@ struct ComposeCreateSpecTests {
         #expect(spec.cpus == ContainerRunConfig.defaultCPUs)
         #expect(spec.memoryBytes == ContainerRunConfig.defaultMemoryBytes)
     }
+
+    // A project network's gateway does not answer DNS, so a service that has to resolve anything
+    // names its nameservers in the file. Dropping them leaves the container with no resolv.conf.
+    @Test("Nameservers, search domains and options come from the file, in the order written")
+    func resolverSurvives() throws {
+        let operation = try plan(
+            """
+            services:
+              web:
+                image: nginx
+                dns:
+                  - 1.1.1.1
+                  - 8.8.8.8
+                dns_search: example.internal
+                dns_opt:
+                  - ndots:1
+            """
+        )
+        let spec = ComposeService.createSpec(from: operation)
+        #expect(spec.dnsNameservers == ["1.1.1.1", "8.8.8.8"])
+        #expect(spec.dnsSearchDomains == ["example.internal"])
+        #expect(spec.dnsOptions == ["ndots:1"])
+    }
+
+    @Test("A file that names no resolver leaves the choice to the runtime")
+    func noResolverStaysEmpty() throws {
+        let operation = try plan("services:\n  web:\n    image: nginx\n")
+        let spec = ComposeService.createSpec(from: operation)
+        #expect(spec.dnsNameservers.isEmpty)
+        #expect(spec.dnsSearchDomains.isEmpty)
+        #expect(spec.dnsOptions.isEmpty)
+    }
 }
 
 @Suite("Bind mounts")
