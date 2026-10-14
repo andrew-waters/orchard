@@ -323,6 +323,13 @@ struct LiveContainerBackend: ContainerBackend {
             for handle in [output.fileHandleForReading, errors.fileHandleForReading] {
                 Task { await relay.relay(handle) }
             }
+            // Nothing signals the process if this wait fails, because nothing can yet: on
+            // container 1.5.0 `ClientProcess.kill` sends its signal as a number and the
+            // server only reads a string, so every call fails (apple/container#1941), and
+            // `ContainerClient.kill` only reaches the container's own process, which would
+            // take the whole service down with the hook. A wait that fails has usually lost
+            // the connection a kill would need anyway. Once that is fixed upstream, a failed
+            // wait should kill the process.
             let status = try await process.wait()
             // A process that leaves something running in the background (`daemon &`) leaves
             // it holding the output, so the end of the stream may never come. Give it a moment

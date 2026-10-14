@@ -122,6 +122,9 @@ struct ComposeProjectsListView: View {
             }
         }
         .listStyle(PlainListStyle())
+        // Adding a project that sorts first inserts it at the top while selecting it, and
+        // the list then kept the new row at the default height, half hidden under the next.
+        .environment(\.defaultMinListRowHeight, ListItemRow.twoLineHeight)
         .animation(.easeInOut(duration: 0.3), value: containerListService.containers)
         .focused($listFocusedTab, equals: .compose)
     }

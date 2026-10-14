@@ -1,6 +1,15 @@
 import SwiftUI
 
 struct ListItemRow: View {
+    /// The height of a row with a secondary line in a plain `List`, cell insets included.
+    ///
+    /// A list given this as its minimum row height lays a newly inserted row out at its real
+    /// height. Without it, a row inserted at the top of a plain `List` (an `NSTableView`
+    /// underneath) can keep the default minimum of about 24 points: the row is squashed and
+    /// the next one is drawn over it until the list is rebuilt. Only for lists whose rows all
+    /// have a secondary line, or one-line rows would grow to match.
+    static let twoLineHeight: CGFloat = 56
+
     let icon: String
     let iconColor: Color
     let primaryText: String
