@@ -79,6 +79,14 @@ struct UITestBackend: ContainerBackend {
     func killContainer(id: String, signal: Int32) async throws {}
     func deleteContainer(id: String, force: Bool) async throws {}
     func bootstrapAndStart(id: String) async throws {}
+    func runProcess(
+        in containerID: String,
+        command: [String],
+        environment: [String],
+        workingDirectory: String?,
+        user: String?,
+        onOutput: @escaping @Sendable (String) -> Void
+    ) async throws -> Int32 { 0 }
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
     func exportContainer(id: String, to destination: URL) async throws {}
     func cleanContainer(id: String) async throws {}

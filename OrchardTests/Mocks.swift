@@ -74,6 +74,15 @@ final class MockCommandRunner: CommandRunner, @unchecked Sendable {
     }
 }
 
+/// One `runProcess` call as `MockContainerBackend` saw it.
+struct MockProcessRun: Equatable, Sendable {
+    let containerID: String
+    let command: [String]
+    let environment: [String]
+    let workingDirectory: String?
+    let user: String?
+}
+
 /// A `ContainerBackend` whose behaviour is configured per test. Methods not needed by a
 /// test either no-op or throw `NotConfigured`.
 final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
@@ -103,6 +112,8 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _pingCount = 0
     private var _pingHandler: (@Sendable () async throws -> SystemHealthInfo)?
     private var _bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)?
+    private var _runProcessHandler: (@Sendable (MockProcessRun, (String) -> Void) throws -> Int32)?
+    private var _ranProcesses: [MockProcessRun] = []
     private var _statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
     private var _listContainersHandler: (@Sendable () async -> Void)?
 
@@ -112,6 +123,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _deletedNetworkIds: [String] = []
     private var _createdSpecs: [ContainerCreateSpec] = []
     private var _deletedContainers: [(id: String, force: Bool)] = []
+    private var _stoppedContainers: [String] = []
     private var _bootstrapAndStartCount = 0
     private var _listContainersCount = 0
 
@@ -211,6 +223,15 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         get { lock.withLock { _bootstrapAndStartHandler } }
         set { lock.withLock { _bootstrapAndStartHandler = newValue } }
     }
+    /// Called for each `runProcess` with the call and a way to emit output lines; returns the
+    /// exit status, or throws to simulate a process that could not start. Unset, every
+    /// process exits 0 without output.
+    var runProcessHandler: (@Sendable (MockProcessRun, (String) -> Void) throws -> Int32)? {
+        get { lock.withLock { _runProcessHandler } }
+        set { lock.withLock { _runProcessHandler = newValue } }
+    }
+    /// Every `runProcess` call, in order, including ones that failed.
+    var ranProcesses: [MockProcessRun] { lock.withLock { _ranProcesses } }
     /// Per-container stats; throw to simulate a failure for that container.
     var statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)? {
         get { lock.withLock { _statsHandler } }
@@ -231,6 +252,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var deletedNetworkIds: [String] { lock.withLock { _deletedNetworkIds } }
     var createdSpecs: [ContainerCreateSpec] { lock.withLock { _createdSpecs } }
     var deletedContainers: [(id: String, force: Bool)] { lock.withLock { _deletedContainers } }
+    var stoppedContainers: [String] { lock.withLock { _stoppedContainers } }
     var bootstrapAndStartCount: Int { lock.withLock { _bootstrapAndStartCount } }
     var listContainersCount: Int { lock.withLock { _listContainersCount } }
 
@@ -245,6 +267,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     }
     func stopContainer(id: String) async throws {
         if let stopContainerError { throw stopContainerError }
+        lock.withLock { _stoppedContainers.append(id) }
     }
     func killContainer(id: String, signal: Int32) async throws {
         if let killContainerError { throw killContainerError }
@@ -257,6 +280,25 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         // Counts every attempt (including failed ones) - increment before the handler throws.
         let attempt = lock.withLock { () -> Int in _bootstrapAndStartCount += 1; return _bootstrapAndStartCount }
         try bootstrapAndStartHandler?(attempt)
+    }
+    func runProcess(
+        in containerID: String,
+        command: [String],
+        environment: [String],
+        workingDirectory: String?,
+        user: String?,
+        onOutput: @escaping @Sendable (String) -> Void
+    ) async throws -> Int32 {
+        let run = MockProcessRun(
+            containerID: containerID,
+            command: command,
+            environment: environment,
+            workingDirectory: workingDirectory,
+            user: user
+        )
+        lock.withLock { _ranProcesses.append(run) }
+        guard let handler = runProcessHandler else { return 0 }
+        return try handler(run, onOutput)
     }
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
     func exportContainer(id: String, to destination: URL) async throws {

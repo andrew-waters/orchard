@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/andrew-waters/compose.git",
       "state" : {
-        "revision" : "d0f22c494326c93aa4bb754c6a8aa758b9e21434",
-        "version" : "0.3.0"
+        "revision" : "b70040507ed904da8a8780240d2c0989eecdc3d5",
+        "version" : "0.5.0"
       }
     },
     {

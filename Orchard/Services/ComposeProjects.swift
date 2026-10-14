@@ -170,9 +170,16 @@ struct ComposeRun: Identifiable, Equatable {
             case failed(String)
             /// The plan stopped before reaching this step.
             case skipped
+            /// The step failed and the plan carried on, as it does past a failed `pre_stop`.
+            case warned(String)
 
             var failureMessage: String? {
                 if case .failed(let message) = self { return message }
+                return nil
+            }
+
+            var warningMessage: String? {
+                if case .warned(let message) = self { return message }
                 return nil
             }
         }
@@ -214,4 +221,7 @@ struct ComposeRun: Identifiable, Equatable {
     let startedAt = Date()
 
     var isFinished: Bool { phase != .running }
+
+    /// What went wrong without stopping the run, which a run that succeeded still has to say.
+    var warnings: [String] { steps.compactMap(\.state.warningMessage) }
 }

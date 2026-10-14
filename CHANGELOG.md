@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The Compose tab runs `post_start` and `pre_stop` hooks ([#126](https://github.com/andrew-waters/orchard/issues/126)), the same way the compose plugin does. Each `post_start` hook runs in its container after it starts, and each `pre_stop` hook runs before the container stops on down and when a service is recreated. While a hook runs, its service's row shows the hook and its latest line of output. A failing `post_start` hook stops the up and leaves its container in place. A failing `pre_stop` hook is reported, and the stop goes ahead. Either way the message names the hook and its last few lines of output, along with its exit status or, for a hook that couldn't start, why not. Hooks don't run when you start or stop a compose container from the Containers tab or the menu bar.
+
+### Changed
+- Orchard now uses compose 0.5.0, which labels the containers it creates `com.compose.*` instead of `com.container-compose.*`. Projects brought up with an earlier version of Orchard or the compose plugin are no longer recognised in the Compose tab. To fix one, take it down with the version that brought it up (or remove its containers), then bring it up again.
+
 ### Fixed
+- Adding a compose project whose name sorts first no longer leaves its row squashed in the Compose list. The new row kept a height of about a third of the others, with the next project drawn over it, until you switched tabs and back.
 - Containers brought up from a Compose project get the nameservers the file asks for ([#124](https://github.com/andrew-waters/orchard/issues/124)). Orchard dropped a service's `dns`, `dns_search` and `dns_opt`, and sent no resolver configuration at all, so the container had no `/etc/resolv.conf` and every lookup in it failed with `connection refused` on `[::1]:53`. Containers created from the Run form get a resolver configuration the same way, so one with no DNS domain set now gets the network's own nameserver as `container run` gives it.
 
 ## [2.5.1] - 2026-10-05
