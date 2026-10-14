@@ -340,14 +340,38 @@ final class ComposeService: ObservableObject {
                 live.steps[index].detail = run?.steps[index].detail
                 run = live
             } catch {
-                let message = error.localizedDescription
+                let message: String
+                let alert: String
+                if case .runHook(let hook) = operation {
+                    switch ComposeHooks.outcome(
+                        of: hook,
+                        failingWith: error,
+                        later: live.steps.count - index - 1
+                    ) {
+                    case .carryOn(let warning):
+                        // A failed `pre_stop` is said on its row and the plan goes on: the
+                        // container is coming down either way.
+                        live.steps[index].state = .failed(warning)
+                        live.steps[index].detail = run?.steps[index].detail
+                        run = live
+                        alertCenter.error(warning)
+                        continue
+                    case .stop(let text):
+                        // Nothing is rolled back, so the container the hook ran in stays.
+                        message = text
+                        alert = text
+                    }
+                } else {
+                    message = error.localizedDescription
+                    alert = "\(operation.summary) failed: \(message)"
+                }
                 live.steps[index].state = .failed(message)
                 for later in (index + 1)..<live.steps.count {
                     live.steps[later].state = .skipped
                 }
                 live.phase = .failed(message)
                 run = live
-                alertCenter.error("\(operation.summary) failed: \(message)")
+                alertCenter.error(alert)
                 await reloadContainers()
                 await reloadNetworks()
                 return
@@ -381,6 +405,10 @@ final class ComposeService: ObservableObject {
             activity = "Stopping"
         case .removeContainer:
             activity = "Removing"
+        case .runHook(let hook):
+            // The row is the service's, so the hook names itself by phase and index; its
+            // latest output line follows as the detail.
+            activity = "\(hook.phase.rawValue)[\(hook.index)]"
         }
         return ComposeRun.Step(
             summary: operation.summary,
@@ -422,6 +450,36 @@ final class ComposeService: ObservableObject {
             try await backend.stopContainer(id: reference.containerName)
         case .removeContainer(let reference):
             try await backend.deleteContainer(id: reference.containerName, force: true)
+        case .runHook(let hook):
+            try await runHook(hook, stepIndex: stepIndex)
+        }
+    }
+
+    /// Run a `post_start` or `pre_stop` hook in its container, showing each line of output on
+    /// the step as it arrives. A non-zero exit throws `ComposeHooks.Failure`; `execute` decides
+    /// from the hook whether that stops the plan.
+    private func runHook(_ hook: HookOperation, stepIndex: Int) async throws {
+        guard !hook.command.isEmpty else {
+            throw ComposeRunError("it has no command")
+        }
+        let transcript = ComposeHooks.Transcript()
+        let status = try await backend.runProcess(
+            in: hook.containerName,
+            command: hook.command,
+            environment: hook.environment,
+            workingDirectory: hook.workingDirectory,
+            user: hook.user
+        ) { [weak self] line in
+            transcript.append(line)
+            // Updates can land out of order, so each shows the latest line rather than the
+            // one it was made for.
+            Task { @MainActor [weak self] in
+                self?.updateDetail(at: stepIndex, to: transcript.latest)
+            }
+        }
+        updateDetail(at: stepIndex, to: transcript.latest)
+        guard status == 0 else {
+            throw ComposeHooks.Failure(hook: hook, status: status, lastLines: transcript.lastLines)
         }
     }
 

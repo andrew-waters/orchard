@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The Compose tab runs `post_start` and `pre_stop` hooks ([#126](https://github.com/andrew-waters/orchard/issues/126)), the same way the compose plugin does. Each `post_start` hook runs in its container after it starts, and each `pre_stop` hook runs before the container stops on down and when a service is recreated. While a hook runs, its service's row shows the hook and its latest line of output. A failing `post_start` hook stops the up and leaves its container in place. A failing `pre_stop` hook is reported and the stop goes ahead. Either way the message names the hook, its exit status and its last few lines of output. Hooks don't run when you start or stop a compose container from the Containers tab or the menu bar.
+
+### Changed
+- Orchard now uses compose 0.5.0, which labels the containers it creates `com.compose.*` instead of `com.container-compose.*`. Projects brought up with an earlier version of Orchard or the compose plugin are no longer recognised in the Compose tab. To fix one, take it down with the version that brought it up (or remove its containers), then bring it up again.
+
 ## [2.5.1] - 2026-10-05
 
 ### Fixed

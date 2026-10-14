@@ -462,3 +462,176 @@ struct ComposeProcessArgumentTests {
         }
     }
 }
+
+@Suite("Compose hooks")
+@MainActor
+struct ComposeHookTests {
+    /// A service, its saved list and its file in a scratch directory, so `up` and `down` run
+    /// the real planner against the mock backend.
+    @MainActor
+    private struct Harness {
+        let root: URL
+        let backend = MockContainerBackend()
+        let alertCenter = AlertCenter()
+        let service: ComposeService
+        let preview: ComposeFilePreview
+
+        init(file: String) throws {
+            root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("compose-hooks-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let composeFile = root.appendingPathComponent("compose.yaml")
+            try file.write(to: composeFile, atomically: true, encoding: .utf8)
+            service = ComposeService(
+                backend: backend,
+                buildService: nil,
+                alertCenter: alertCenter,
+                persistence: ComposeProjectsPersistence(
+                    fileURL: root.appendingPathComponent("compose-projects.json")
+                )
+            )
+            preview = try service.preview(fileURL: composeFile)
+            service.add(preview)
+        }
+
+        var containerName: String {
+            preview.identity.containerName(for: preview.file.services["web"]!)
+        }
+
+        var project: ComposeProject {
+            ComposeProject.group(containers: backend.containers, records: service.records)
+                .first { $0.name == "shop" }!
+        }
+
+        func cleanUp() {
+            try? FileManager.default.removeItem(at: root)
+        }
+    }
+
+    private static let file = """
+    name: shop
+    services:
+      web:
+        image: nginx
+        post_start:
+          - command: ["sh", "-c", "echo one"]
+            environment:
+              MODE: start
+            working_dir: /srv
+            user: www-data
+          - command: ["echo", "two"]
+        pre_stop:
+          - command: ["sh", "-c", "drain"]
+    """
+
+    @Test("post_start and pre_stop are not listed as ignored or not honoured")
+    func hooksAreNotFindings() throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        let keys = harness.preview.findings.map(\.key)
+        #expect(!keys.contains { $0.hasPrefix("post_start") || $0.hasPrefix("pre_stop") })
+    }
+
+    @Test("A hook is its own step, named by phase and index, on its service's row")
+    func hookStep() {
+        let step = ComposeService.step(for: .runHook(HookOperation(
+            service: "web", containerName: "shop-web-1", phase: .preStop, index: 2,
+            command: ["true"], failureIsFatal: false
+        )))
+        #expect(step.activity == "pre_stop[2]")
+        #expect(step.service == "web")
+        #expect(step.summary == "run pre_stop[2] in shop-web-1")
+    }
+
+    @Test("Up runs each post_start hook in its container, in order, after it starts")
+    func upRunsPostStart() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.runProcessHandler = { run, output in
+            output(run.command.last == "two" ? "two" : "one")
+            return 0
+        }
+
+        await harness.service.up(project: harness.project)
+
+        let run = try #require(harness.service.run)
+        #expect(run.phase == .succeeded)
+        #expect(harness.backend.ranProcesses == [
+            MockProcessRun(
+                containerID: harness.containerName,
+                command: ["sh", "-c", "echo one"],
+                environment: ["MODE=start"],
+                workingDirectory: "/srv",
+                user: "www-data"
+            ),
+            MockProcessRun(
+                containerID: harness.containerName,
+                command: ["echo", "two"],
+                environment: [],
+                workingDirectory: nil,
+                user: nil
+            ),
+        ])
+        let created = try #require(run.steps.firstIndex { $0.activity == "Creating" && $0.service == "web" })
+        let hooks = run.steps.indices.filter { run.steps[$0].activity.hasPrefix("post_start") }
+        #expect(hooks.count == 2)
+        #expect(hooks.allSatisfy { $0 > created })
+        #expect(run.steps[hooks[0]].activity == "post_start[0]")
+        #expect(run.steps[hooks[0]].detail == "one")
+        #expect(run.steps[hooks[1]].detail == "two")
+    }
+
+    @Test("A failing post_start fails up, skips what follows and leaves the container")
+    func fatalPostStart() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.runProcessHandler = { _, output in
+            for number in 1...7 { output("line \(number)") }
+            return 3
+        }
+
+        await harness.service.up(project: harness.project)
+
+        let run = try #require(harness.service.run)
+        guard case .failed(let message) = run.phase else {
+            Issue.record("the run should have failed")
+            return
+        }
+        #expect(message.contains("post_start[0] in service `web` exited 3"))
+        #expect(message.contains("line 7"))
+        #expect(message.contains("line 3"))
+        #expect(!message.contains("line 2"))
+        #expect(message.contains("`\(harness.containerName)` was left in place"))
+        #expect(harness.alertCenter.current?.message == message)
+
+        let failed = try #require(run.steps.firstIndex { $0.state.failureMessage != nil })
+        #expect(run.steps[failed].activity == "post_start[0]")
+        #expect(run.steps[(failed + 1)...].allSatisfy { $0.state == .skipped })
+        #expect(harness.backend.ranProcesses.count == 1)
+        #expect(harness.backend.deletedContainers.isEmpty)
+    }
+
+    @Test("A pre_stop that cannot run is reported, and the stop goes ahead")
+    func nonFatalPreStop() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.containers = [
+            try composeContainer(id: harness.containerName, project: "shop", service: "web")
+        ]
+        harness.backend.runProcessHandler = { _, _ in
+            throw OrchardError.generic("no shell")
+        }
+
+        await harness.service.down(project: harness.project)
+
+        let run = try #require(harness.service.run)
+        #expect(run.phase == .succeeded)
+        let hook = try #require(run.steps.first { $0.activity == "pre_stop[0]" })
+        let warning = try #require(hook.state.failureMessage)
+        #expect(warning.contains("pre_stop[0] in service `web` could not run: no shell"))
+        #expect(warning.contains("Carrying on with the stop."))
+        #expect(harness.alertCenter.current?.message == warning)
+        #expect(harness.backend.ranProcesses.map(\.command) == [["sh", "-c", "drain"]])
+        #expect(harness.backend.deletedContainers.map(\.id) == [harness.containerName])
+    }
+}

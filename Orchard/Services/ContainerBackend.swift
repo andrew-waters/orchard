@@ -114,6 +114,20 @@ protocol ContainerBackend: Sendable {
     func killContainer(id: String, signal: Int32) async throws
     func deleteContainer(id: String, force: Bool) async throws
     func bootstrapAndStart(id: String) async throws
+    /// Run a command as a new process in a running container, the way `container exec` does,
+    /// passing each line of its output (stdout and stderr, interleaved) to `onOutput` as it
+    /// arrives. Whatever is not given (working directory, user) is the container process's own;
+    /// `environment` is added to the container's.
+    ///
+    /// - Returns: the process's exit status.
+    func runProcess(
+        in containerID: String,
+        command: [String],
+        environment: [String],
+        workingDirectory: String?,
+        user: String?,
+        onOutput: @escaping @Sendable (String) -> Void
+    ) async throws -> Int32
     func containerLogs(id: String) async throws -> [FileHandle]
     /// Export the container's filesystem as a tar archive at `destination`,
     /// replacing any existing file there.
@@ -248,6 +262,107 @@ struct LiveContainerBackend: ContainerBackend {
             let process = try await ContainerClient().bootstrap(id: id, stdio: stdio)
             try await process.start()
         } catch { throw mapContainerError(error) }
+    }
+
+    func runProcess(
+        in containerID: String,
+        command: [String],
+        environment: [String],
+        workingDirectory: String?,
+        user: String?,
+        onOutput: @escaping @Sendable (String) -> Void
+    ) async throws -> Int32 {
+        guard let executable = command.first else {
+            throw OrchardError.generic("there is no command to run")
+        }
+        let output = Pipe()
+        let errors = Pipe()
+        let process: any ClientProcess
+        do {
+            let client = ContainerClient()
+            let container = try await client.get(id: containerID)
+            guard container.status == .running else {
+                throw OrchardError.generic("`\(containerID)` is not running")
+            }
+
+            // Start from the container's own process, so whatever is not overridden is what
+            // the container runs with.
+            var configuration = container.configuration.initProcess
+            configuration.executable = executable
+            configuration.arguments = Array(command.dropFirst())
+            configuration.terminal = false
+            configuration.environment.append(contentsOf: environment)
+            if let workingDirectory {
+                configuration.workingDirectory = workingDirectory
+            }
+            if let user {
+                configuration.user = .raw(userString: user)
+            }
+
+            process = try await client.createProcess(
+                containerId: container.id,
+                processId: UUID().uuidString.lowercased(),
+                configuration: configuration,
+                stdio: [nil, output.fileHandleForWriting, errors.fileHandleForWriting]
+            )
+        } catch { throw mapContainerError(error) }
+
+        // The runtime holds its own copies now. Ours have to go, or the reads below never see
+        // the end of the stream.
+        try? output.fileHandleForWriting.close()
+        try? errors.fileHandleForWriting.close()
+
+        do {
+            try await process.start()
+            let relay = ProcessOutputRelay(onOutput: onOutput)
+            for handle in [output.fileHandleForReading, errors.fileHandleForReading] {
+                Task { await relay.relay(handle) }
+            }
+            let status = try await process.wait()
+            // A process that leaves something running in the background (`daemon &`) leaves
+            // it holding the output, so the end of the stream may never come. Give it a moment
+            // to drain, as `container exec` does, then move on.
+            await relay.drain(streams: 2, within: .seconds(3))
+            return status
+        } catch { throw mapContainerError(error) }
+    }
+
+    /// Passes a process's output on line by line, and stops passing it once the process has
+    /// been moved on from.
+    private final class ProcessOutputRelay: @unchecked Sendable {
+        private let lock = NSLock()
+        private let onOutput: @Sendable (String) -> Void
+        private var finished = 0
+        private var stopped = false
+
+        init(onOutput: @escaping @Sendable (String) -> Void) {
+            self.onOutput = onOutput
+        }
+
+        func relay(_ handle: FileHandle) async {
+            do {
+                for try await line in handle.bytes.lines {
+                    guard !lock.withLock({ stopped }) else { break }
+                    onOutput(line)
+                }
+            } catch {
+                // A stream that breaks part way loses the rest of the output, not the exit
+                // status, which is what the caller decides on.
+            }
+            lock.withLock { finished += 1 }
+        }
+
+        /// Waits for every stream to end, or for the deadline, whichever is first. Polled
+        /// rather than awaited: a read on a pipe something else still holds does not end when
+        /// asked to, so nothing that waits on the reads themselves could be given a deadline.
+        func drain(streams: Int, within limit: Duration) async {
+            let deadline = ContinuousClock.now + limit
+            while ContinuousClock.now < deadline {
+                if lock.withLock({ finished >= streams }) { break }
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            lock.withLock { stopped = true }
+        }
     }
 
     func containerLogs(id: String) async throws -> [FileHandle] {
