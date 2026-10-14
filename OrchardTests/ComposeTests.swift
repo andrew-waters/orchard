@@ -564,6 +564,15 @@ struct ComposeHookTests {
         #expect(!keys.contains { $0.hasPrefix("post_start") || $0.hasPrefix("pre_stop") })
     }
 
+    @Test("A hook's environment replaces the container's variables of the same name")
+    func hookEnvironmentOverrides() {
+        let merged = mergeEnvironment(
+            ["PATH=/usr/bin", "MODE=service", "EMPTY=", "KEEP=a=b"],
+            overriddenBy: ["MODE=hook", "EMPTY=set", "NEW=1"]
+        )
+        #expect(merged == ["PATH=/usr/bin", "KEEP=a=b", "MODE=hook", "EMPTY=set", "NEW=1"])
+    }
+
     @Test("A hook is its own step, named by phase and index, on its service's row")
     func hookStep() {
         let step = ComposeService.step(for: .runHook(HookOperation(

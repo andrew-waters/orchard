@@ -90,6 +90,18 @@ func resolveProcessArguments(imageEntrypoint: [String]?, imageCmd: [String]?, ov
     return processArgs
 }
 
+/// An environment with `overrides` laid over `base`: an entry in `overrides` replaces any
+/// entry of the same name in `base`, rather than being appended beside it. A process given a
+/// name twice generally reads the first one (`getenv` scans from the start), so appending
+/// alone would leave the base value in effect.
+func mergeEnvironment(_ base: [String], overriddenBy overrides: [String]) -> [String] {
+    func name(_ entry: String) -> Substring {
+        entry.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)[0]
+    }
+    let overridden = Set(overrides.map(name))
+    return base.filter { !overridden.contains(name($0)) } + overrides
+}
+
 // MARK: - Machine backing-container filtering
 
 /// A container machine is, under the hood, a container tagged with this label
@@ -122,7 +134,7 @@ protocol ContainerBackend: Sendable {
     /// Run a command as a new process in a running container, the way `container exec` does,
     /// passing each line of its output (stdout and stderr, interleaved) to `onOutput` as it
     /// arrives. Whatever is not given (working directory, user) is the container process's own;
-    /// `environment` is added to the container's.
+    /// `environment` is laid over the container's, replacing any variable of the same name.
     ///
     /// - Returns: the process's exit status.
     func runProcess(
@@ -296,7 +308,7 @@ struct LiveContainerBackend: ContainerBackend {
             configuration.executable = executable
             configuration.arguments = Array(command.dropFirst())
             configuration.terminal = false
-            configuration.environment.append(contentsOf: environment)
+            configuration.environment = mergeEnvironment(configuration.environment, overriddenBy: environment)
             if let workingDirectory {
                 configuration.workingDirectory = workingDirectory
             }
