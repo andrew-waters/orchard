@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Orchard now builds against Apple container 1.6.0 (containerization 0.52.1), up from 1.5.0 (containerization 0.47.0) ([#132](https://github.com/andrew-waters/orchard/issues/132)). Container machines changed shape: images can no longer supply their own user setup script, and the machine's account is set by the runtime. Orchard still creates machines with your Mac user's name, UID and GID, as before.
+
 ## [2.5.2] - 2026-10-14
 
 ### Added
