@@ -101,6 +101,8 @@ final class AppServices: ObservableObject {
         self.composePluginService = ComposePluginService(commandRunner: runner, containerBinaryPath: { settings.safeContainerBinaryPath() })
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
+        // A commit adds an image, or replaces one.
+        containerListService.reloadImages = { [weak imageService] in await imageService?.load() }
         // Reclaiming a container's free blocks changes what the daemon reports as used.
         containerListService.reloadDiskUsage = { [weak systemService] in
             await systemService?.loadSystemDiskUsage(showLoading: false)

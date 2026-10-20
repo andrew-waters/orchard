@@ -516,6 +516,116 @@ func exportContainerFailure() async {
     #expect(alert.current != nil)
 }
 
+// MARK: - commitContainer
+
+@MainActor
+@Test("commitContainer: success passes id and reference through, refreshes images and returns the stored reference")
+func commitContainerSuccess() async {
+    let backend = MockContainerBackend()
+    let (service, alert) = makeListService(backend)
+    var imageReloads = 0
+    service.reloadImages = { @MainActor in imageReloads += 1 }
+
+    let stored = await service.commitContainer("web", to: "web:latest")
+
+    #expect(stored == "docker.io/library/web:latest")
+    #expect(backend.committedContainers.map(\.id) == ["web"])
+    #expect(backend.committedContainers.first?.reference == "web:latest")
+    #expect(imageReloads == 1)
+    #expect(service.committingContainers.isEmpty)
+    #expect(service.lastCommits["web"] == ContainerCommitOutcome(requested: "web:latest", stored: "docker.io/library/web:latest"))
+    #expect(alert.current == nil)
+}
+
+@MainActor
+@Test("commitContainer: failure alerts, returns nil, leaves images alone and clears the in-flight state")
+func commitContainerFailure() async {
+    let backend = MockContainerBackend()
+    backend.commitContainerError = NotConfigured()
+    let (service, alert) = makeListService(backend)
+    var imageReloads = 0
+    service.reloadImages = { @MainActor in imageReloads += 1 }
+
+    let stored = await service.commitContainer("web", to: "web:latest")
+
+    #expect(stored == nil)
+    #expect(service.lastCommits["web"] == nil)
+    #expect(imageReloads == 0)
+    #expect(service.committingContainers.isEmpty)
+    #expect(alert.current != nil)
+}
+
+@MainActor
+@Test("commitContainer: the phase is tracked while in flight, and a second commit of the same id is refused")
+func commitContainerTracksPhaseAndRejectsDuplicate() async {
+    let backend = MockContainerBackend()
+    let (service, _) = makeListService(backend)
+    let commitEntered = TestGate()
+    let releaseCommit = TestGate()
+    backend.commitHandler = {
+        commitEntered.open()
+        await releaseCommit.wait()
+    }
+
+    let first = Task { @MainActor in await service.commitContainer("web", to: "web:v1") }
+    await commitEntered.wait()
+    await awaitQuiescence { service.committingContainers["web"]?.phase == .loading }
+    // A sheet opened now, from any entry point, can show the name being committed.
+    #expect(service.committingContainers["web"] == ContainerCommitProgress(reference: "web:v1", phase: .loading))
+
+    let duplicate = await service.commitContainer("web", to: "web:v2")
+    #expect(duplicate == nil)
+    #expect(service.committingContainers["web"] != nil)
+
+    releaseCommit.open()
+    #expect(await first.value == "docker.io/library/web:v1")
+    // A phase hop still queued when the commit returned must not bring it back.
+    for _ in 0..<10 { await Task.yield() }
+    #expect(service.committingContainers.isEmpty)
+    #expect(backend.committedContainers.map(\.reference) == ["web:v1"])
+    #expect(service.lastCommits["web"]?.stored == "docker.io/library/web:v1")
+}
+
+@MainActor
+@Test("commitContainer: a new commit clears the last outcome until it lands")
+func commitContainerReplacesLastOutcome() async {
+    let backend = MockContainerBackend()
+    let (service, _) = makeListService(backend)
+    await service.commitContainer("web", to: "web:v1")
+    #expect(service.lastCommits["web"]?.requested == "web:v1")
+
+    let commitEntered = TestGate()
+    let releaseCommit = TestGate()
+    backend.commitHandler = {
+        commitEntered.open()
+        await releaseCommit.wait()
+    }
+    let second = Task { @MainActor in await service.commitContainer("web", to: "web:v2") }
+    await commitEntered.wait()
+    #expect(service.lastCommits["web"] == nil)
+
+    releaseCommit.open()
+    _ = await second.value
+    #expect(service.lastCommits["web"]?.requested == "web:v2")
+}
+
+@MainActor
+@Test("existingCommitTarget: normalises with the configured registry, not docker.io")
+func existingCommitTargetUsesRegistryDomain() async {
+    let backend = MockContainerBackend()
+    let (service, _) = makeListService(backend)
+    let stored = ["docker.io/library/web:latest", "registry.example.com/web:latest", "ghcr.io/me/app:v1"]
+
+    #expect(await service.existingCommitTarget("web", among: stored) == "docker.io/library/web:latest")
+    #expect(await service.existingCommitTarget("ghcr.io/me/app:v1", among: stored) == "ghcr.io/me/app:v1")
+    #expect(await service.existingCommitTarget("web:v2", among: stored) == nil)
+
+    backend.registryDomain = "registry.example.com"
+    #expect(await service.existingCommitTarget("web", among: stored) == "registry.example.com/web:latest")
+    #expect(await service.existingCommitTarget("web:latest", among: stored) == "registry.example.com/web:latest")
+    #expect(await service.existingCommitTarget("api", among: stored) == nil)
+}
+
 // MARK: - cleanContainer
 
 @MainActor

@@ -8,6 +8,7 @@ struct ContainerDetailHeader: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
+    @EnvironmentObject var systemService: SystemService
     @Environment(\.openWindow) private var openWindow
     @State private var showEditConfiguration = false
     @State private var showDeleteConfirmation = false
@@ -18,6 +19,7 @@ struct ContainerDetailHeader: View {
     @State private var showSandboxInfo = false
     @State private var showPluginInfo = false
     @State private var recreateSettings: ClusterRecreateSettings?
+    @State private var commitTarget: CommitSheetTarget?
 
     /// The cluster this container is a node of, for Recreate.
     private var owningCluster: K8sCluster? {
@@ -282,6 +284,27 @@ struct ContainerDetailHeader: View {
                     .help("Save the container's filesystem as a tar archive")
                 }
 
+                if supportsContainerCommit(containerVersion: systemService.containerVersion) {
+                    if containerListService.committingContainers[container.configuration.id] != nil {
+                        Button {
+                            commitTarget = CommitSheetTarget(id: container.configuration.id)
+                        } label: {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Committing…")
+                            }
+                        }
+                        .buttonStyle(BorderedButtonStyle())
+                        .help("Show the commit's progress")
+                    } else {
+                        Button("Commit…") {
+                            commitTarget = CommitSheetTarget(id: container.configuration.id)
+                        }
+                        .buttonStyle(BorderedButtonStyle())
+                        .help("Create an image from the container's filesystem")
+                    }
+                }
+
                 // Trimming needs a live filesystem to trim, so it's offered only while
                 // the container runs.
                 if isRunning {
@@ -318,6 +341,9 @@ struct ContainerDetailHeader: View {
         }
         .sheet(item: $recreateSettings) { settings in
             CreateClusterView(recreating: settings)
+        }
+        .sheet(item: $commitTarget) { target in
+            CommitContainerView(containerId: target.id)
         }
         .sheet(isPresented: $showEditConfiguration) {
             EditContainerView(container: container)

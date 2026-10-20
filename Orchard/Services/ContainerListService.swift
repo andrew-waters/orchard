@@ -19,6 +19,12 @@ final class ContainerListService: ObservableObject {
     /// Containers with a filesystem export in flight - drives the per-container
     /// "Exporting…" affordance.
     @Published private(set) var exportingContainers: Set<String> = []
+    /// Containers with a commit in flight, with the name and step each is on - drives the
+    /// per-container "Committing…" affordance and the progress of any commit sheet open for it.
+    @Published private(set) var committingContainers: [String: ContainerCommitProgress] = [:]
+    /// Each container's last successful commit, so a sheet opened while the commit ran (or
+    /// reopened after) shows what it produced, not just the one that started it.
+    @Published private(set) var lastCommits: [String: ContainerCommitOutcome] = [:]
     /// Containers with a disk-space reclaim in flight - drives the per-container
     /// "Reclaiming…" affordance.
     @Published private(set) var cleaningContainers: Set<String> = []
@@ -30,6 +36,8 @@ final class ContainerListService: ObservableObject {
     var reloadBuilders: () async -> Void = {}
     /// Refresh the system disk usage a reclaim has just changed. Set by the owner.
     var reloadDiskUsage: () async -> Void = {}
+    /// Refresh the image list a commit has just added to. Set by the owner.
+    var reloadImages: () async -> Void = {}
 
     /// Delay between polls in the `refreshUntilContainer…` loops. Injected; production uses
     /// the 0.5s default, tests pass 0 to drive the loops without real sleeps.
@@ -352,6 +360,43 @@ final class ContainerListService: ObservableObject {
             Log.containers.error("Error exporting container: \(error.localizedDescription)")
             return false
         }
+    }
+
+    /// Commit a container's filesystem to an image named `reference`, replacing any image
+    /// already stored under it. Returns the reference as stored, so callers can link to the
+    /// image; failures alert, log and return nil.
+    @discardableResult
+    func commitContainer(_ id: String, to reference: String) async -> String? {
+        // One commit per container at a time; the check and the insert share a MainActor turn.
+        guard committingContainers[id] == nil else { return nil }
+        committingContainers[id] = ContainerCommitProgress(reference: reference, phase: .exporting)
+        lastCommits[id] = nil
+        defer { committingContainers[id] = nil }
+
+        do {
+            let stored = try await backend.commitContainer(id: id, reference: reference) { [weak self] phase in
+                Task { @MainActor in
+                    // A phase that lands after the commit finished must not bring it back.
+                    self?.committingContainers[id]?.phase = phase
+                }
+            }
+            Log.containers.debug("Container \(id) committed to \(stored)")
+            lastCommits[id] = ContainerCommitOutcome(requested: reference, stored: stored)
+            await reloadImages()
+            return stored
+        } catch {
+            self.alertCenter.error("Failed to commit container: \(error.localizedDescription)")
+            Log.containers.error("Error committing container: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// The stored image that committing to `reference` would replace, if any. Normalises the
+    /// name the way the commit will, with the configured default registry, so the check agrees
+    /// with what actually gets replaced. Nil when the name can't be normalised.
+    func existingCommitTarget(_ reference: String, among localReferences: [String]) async -> String? {
+        guard let normalized = try? await backend.normalizeImageReference(reference) else { return nil }
+        return localReferences.first { $0 == normalized }
     }
 
     /// Trim the free blocks in a running container's root filesystem and volumes.

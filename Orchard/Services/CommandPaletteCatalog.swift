@@ -70,6 +70,7 @@ enum PaletteAction: Equatable {
     case stopContainer(String)
     case openContainerLogs(String)
     case openContainerTerminal(String)
+    case showCommitContainerSheet(String)
     case bootMachine(String)
     case stopMachine(String)
     case openMachineLogs(String)
@@ -127,7 +128,8 @@ enum CommandPaletteCatalog {
         sandboxes: [Sandbox],
         dnsDomains: [DNSDomain],
         networks: [ContainerNetwork],
-        systemRunning: Bool
+        systemRunning: Bool,
+        supportsCommit: Bool
     ) -> [PaletteEntry] {
         var entries: [PaletteEntry] = []
 
@@ -142,7 +144,7 @@ enum CommandPaletteCatalog {
             return ra == rb ? a < b : ra
         }
         for container in ordered {
-            entries.append(contentsOf: containerEntries(container))
+            entries.append(contentsOf: containerEntries(container, supportsCommit: supportsCommit))
         }
 
         for image in images.sorted(by: { $0.reference < $1.reference }) {
@@ -408,7 +410,7 @@ enum CommandPaletteCatalog {
         }
     }
 
-    private static func containerEntries(_ container: Container) -> [PaletteEntry] {
+    private static func containerEntries(_ container: Container, supportsCommit: Bool) -> [PaletteEntry] {
         let id = container.configuration.id
         let running = container.status == "running"
         var entries: [PaletteEntry] = [
@@ -458,6 +460,17 @@ enum CommandPaletteCatalog {
             keywords: "logs tail follow output \(id)",
             showsWhenEmpty: false,
             action: .openContainerLogs(id)))
+        if supportsCommit {
+            entries.append(PaletteEntry(
+                id: "container:\(id):commit",
+                section: .containers,
+                icon: "square.and.arrow.down.on.square",
+                title: "Commit: \(id)",
+                subtitle: "Create an image from its filesystem",
+                keywords: "commit snapshot save image \(id)",
+                showsWhenEmpty: false,
+                action: .showCommitContainerSheet(id)))
+        }
         return entries
     }
 

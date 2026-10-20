@@ -149,6 +149,16 @@ protocol ContainerBackend: Sendable {
     /// Export the container's filesystem as a tar archive at `destination`,
     /// replacing any existing file there.
     func exportContainer(id: String, to destination: URL) async throws
+    /// `reference` as the image store will name it: the configured default registry filled
+    /// in when there is none, and `:latest` when there is no tag.
+    func normalizeImageReference(_ reference: String) async throws -> String
+    /// Create an image named `reference` from the container's filesystem, replacing any
+    /// image already stored under that reference. Returns the reference as stored.
+    func commitContainer(
+        id: String,
+        reference: String,
+        onPhase: (@Sendable (ContainerCommitPhase) -> Void)?
+    ) async throws -> String
     /// Trim the free blocks in a running container's root filesystem and volumes so
     /// the host-side disk images shrink back to what the container actually holds.
     func cleanContainer(id: String) async throws
@@ -272,6 +282,68 @@ struct LiveContainerBackend: ContainerBackend {
         } else {
             try FileManager.default.moveItem(at: archive, to: destination)
         }
+    }
+
+    func normalizeImageReference(_ reference: String) async throws -> String {
+        do {
+            return try ClientImage.normalizeReference(
+                reference, containerSystemConfig: try await loadContainerSystemConfig())
+        } catch { throw mapContainerError(error) }
+    }
+
+    func commitContainer(
+        id: String,
+        reference: String,
+        onPhase: (@Sendable (ContainerCommitPhase) -> Void)?
+    ) async throws -> String {
+        // The same steps as `container commit` in 1.6.0, which has no XPC route of its own:
+        // export the filesystem (the daemon snapshots a running container first), wrap it as
+        // an OCI image archive, then load and unpack that into the image store.
+        let scratchDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("orchard-commit-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: scratchDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratchDir) }
+
+        do {
+            let client = ContainerClient()
+            let normalized = try ClientImage.normalizeReference(
+                reference, containerSystemConfig: try await loadContainerSystemConfig())
+            let snapshot = try await client.get(id: id)
+            let configuration = snapshot.configuration
+            let platform = configuration.platform
+            let sourceImage = try await ClientImage(description: configuration.image).config(for: platform)
+
+            onPhase?(.exporting)
+            let rootfs = scratchDir.appendingPathComponent("rootfs.tar")
+            try await client.export(id: id, archive: rootfs)
+
+            onPhase?(.building)
+            let process = configuration.initProcess
+            let archive = try makeCommitImageArchive(
+                rootfs: rootfs,
+                in: scratchDir,
+                reference: normalized,
+                platform: platform,
+                sourceImage: sourceImage,
+                config: committedImageConfig(
+                    sourceLabels: sourceImage.config?.labels,
+                    containerLabels: configuration.labels,
+                    user: process.user.description,
+                    environment: process.environment,
+                    executable: process.executable,
+                    arguments: process.arguments,
+                    workingDirectory: process.workingDirectory,
+                    stopSignal: configuration.stopSignal
+                )
+            )
+
+            onPhase?(.loading)
+            let result = try await ClientImage.load(from: archive.path)
+            for image in result.images {
+                try await image.unpack(platform: nil)
+            }
+            return result.images.first?.reference ?? normalized
+        } catch { throw mapContainerError(error) }
     }
 
     func deleteContainer(id: String, force: Bool) async throws {

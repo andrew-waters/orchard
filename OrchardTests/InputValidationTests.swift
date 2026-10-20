@@ -38,3 +38,13 @@ func subnet() {
         #expect(!InputValidation.isValidSubnet(bad), "\(bad) should be rejected")
     }
 }
+
+@Test("Image-reference validation: lowercase repositories with an optional registry and tag")
+func imageReference() {
+    for ok in ["web", "web:latest", "myapp:V1.2_rc-1", "localhost:5000/myapp:v1", "ghcr.io/me/app", "a/b/c:d"] {
+        #expect(InputValidation.isValidImageReference(ok), "\(ok) should be valid")
+    }
+    for bad in ["", "Web:latest", "web:", ":latest", "web latest", "-web", "web:tag/x"] {
+        #expect(!InputValidation.isValidImageReference(bad), "\(bad) should be rejected")
+    }
+}

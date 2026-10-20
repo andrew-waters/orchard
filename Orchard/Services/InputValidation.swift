@@ -29,4 +29,15 @@ enum InputValidation {
         let regex = "^(\(octet)\\.){3}\(octet)/([0-9]|[1-2][0-9]|3[0-2])$"
         return NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: subnet)
     }
+
+    /// An image name to build or commit to. An optional registry host (which may carry a
+    /// :port), then the lowercase repository path, then an optional mixed-case :tag - so a
+    /// local registry form like localhost:5000/myapp:v1 validates.
+    static func isValidImageReference(_ reference: String) -> Bool {
+        let pattern = "^([a-z0-9][a-z0-9.-]*(:[0-9]+)?/)?[a-z0-9][a-z0-9._/-]*(:[A-Za-z0-9._-]+)?$"
+        return reference.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    static let invalidImageReferenceMessage =
+        "Invalid image name. Use lowercase letters, digits, separators, and an optional :tag."
 }
