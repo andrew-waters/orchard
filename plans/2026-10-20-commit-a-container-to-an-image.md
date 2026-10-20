@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Commit a container to an image on container 1.6.0+: export the filesystem over XPC, build the OCI image archive in Orchard the way upstream's internal OCIImageArchive does, and load it into the image store. A Commit to Image sheet from the detail header, list context menu and Cmd+K, asking before it replaces an existing image, and linking to the new image when done."
 issues: [andrew-waters/orchard#133]
 touches: [andrew-waters/orchard]
