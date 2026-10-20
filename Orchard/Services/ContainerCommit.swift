@@ -59,7 +59,9 @@ func committedImageConfig(
 /// Wraps an exported rootfs tar as a one-layer OCI image archive named `reference`, ready
 /// for `ClientImage.load`. A port of upstream's `OCIImageArchive.create`, which is internal
 /// to `ContainerCommands`; everything it calls is public in the libraries Orchard links.
-/// Writes into `directory` and returns the archive's URL.
+/// Writes into `directory` and returns the archive's URL. Consumes `rootfs`: it is deleted
+/// once copied into the layer blob, so a large container's filesystem isn't held on disk
+/// three times over (export, blob and archive) before the load.
 func makeCommitImageArchive(
     rootfs: URL,
     in directory: URL,
@@ -74,6 +76,7 @@ func makeCommitImageArchive(
     let writer = try ContentWriter(for: blobsDirectory)
 
     var result = try writer.create(from: rootfs)
+    try? FileManager.default.removeItem(at: rootfs)
     let layer = Descriptor(mediaType: MediaTypes.imageLayer, digest: result.digest.digestString, size: result.size)
     let created = ISO8601DateFormatter().string(from: Date())
     let image = ContainerizationOCI.Image(

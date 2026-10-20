@@ -62,6 +62,8 @@ func commitArchiveLayout() throws {
         rootfs: rootfs, in: directory, reference: "docker.io/library/web:latest",
         platform: platform, sourceImage: source, config: config)
     #expect(FileManager.default.fileExists(atPath: archive.path))
+    // The export is consumed once it's in the layer blob.
+    #expect(!FileManager.default.fileExists(atPath: rootfs.path))
 
     let layout = directory.appendingPathComponent("oci-layout")
     let index = try JSONDecoder().decode(Index.self, from: Data(contentsOf: layout.appendingPathComponent("index.json")))
