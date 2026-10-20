@@ -3,33 +3,36 @@
   <channel>
     <title>Orchard</title>
     <item>
-      <title>Version 2.5.2</title>
-      <sparkle:version>64</sparkle:version>
-      <sparkle:shortVersionString>2.5.2</sparkle:shortVersionString>
+      <title>Version 2.6.0</title>
+      <sparkle:version>65</sparkle:version>
+      <sparkle:shortVersionString>2.6.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.5.2</link>
+      <link>https://github.com/andrew-waters/orchard/releases/tag/v2.6.0</link>
       <description><![CDATA[
 <p>Thank you for using Orchard, and for the bug reports, ideas and pull requests that keep making it better. If it&#x27;s useful to you, please consider <a href="https://github.com/andrew-waters/orchard">starring Orchard on GitHub</a>. It takes a second and helps other people find it.</p>
 <h3>Added</h3>
 <ul>
-<li>The Compose tab runs <code>post_start</code> and <code>pre_stop</code> hooks (<a href="https://github.com/andrew-waters/orchard/issues/126">#126</a>), the same way the compose plugin does. Each <code>post_start</code> hook runs in its container after it starts, and each <code>pre_stop</code> hook runs before the container stops on down and when a service is recreated. While a hook runs, its service&#x27;s row shows the hook and its latest line of output. A failing <code>post_start</code> hook stops the up and leaves its container in place. A failing <code>pre_stop</code> hook is reported, and the stop goes ahead. Either way the message names the hook and its last few lines of output, along with its exit status or, for a hook that couldn&#x27;t start, why not. Hooks don&#x27;t run when you start or stop a compose container from the Containers tab or the menu bar.
+<li>Clusters can have worker nodes (<a href="https://github.com/andrew-waters/orchard/issues/87">#87</a>). With Apple container 1.6.0 or later, Create Cluster has a <strong>Workers</strong> field under Advanced. With no workers the cluster is one node that also runs workloads, as before. With workers, workloads run on the workers only, and each worker gets the same CPUs and memory as the control plane. Workers can only be chosen when a cluster is created, because Apple container can&#x27;t add a node to a running cluster yet. Recreate keeps the worker count, and deleting a cluster removes its workers. Load Image can load an image into every node, which is the default, or only the nodes you pick. On container 1.5.x neither control appears, and the single-node notice now says that 1.6.0 adds workers.
+</li>
+<li>A cluster with more than one node can be expanded in the Clusters list to show its nodes, with their roles and status. Selecting a node shows its container&#x27;s detail. The left and right arrow keys expand and collapse a cluster and move between it and its nodes, as in a Finder list.
+</li>
+<li>Clusters can be created with no CNI, for installing your own (<a href="https://github.com/andrew-waters/orchard/issues/135">#135</a>). With Apple container 1.6.0 or later, the CNI choice under Advanced in Create Cluster is <strong>Default (kindnet)</strong>, <strong>Custom manifest</strong> or <strong>None (install your own)</strong>. With None the create finishes without waiting for the nodes, which stay NotReady until you install a CNI with kubectl or Helm, so Cilium, Calico and other CNIs that a single manifest can&#x27;t express can be used. Until then the cluster reads &quot;Waiting for CNI&quot; in the list, and its detail explains what to do next. Orchard checks the nodes from inside the control plane, so this needs no kubectl on your Mac, and the state clears once every node is Ready. Recreate keeps the choice.
+</li>
+<li>Containers can be committed to an image (<a href="https://github.com/andrew-waters/orchard/issues/133">#133</a>). With Apple container 1.6.0 or later, <strong>Commit…</strong> in the container&#x27;s detail header, <strong>Commit to Image…</strong> in the containers list&#x27;s context menu and &quot;commit &lt;container&gt;&quot; in the Cmd+K palette open a sheet that asks for the image name, suggesting <code>&lt;container&gt;:latest</code>. A running container is snapshotted first and keeps running. The image holds the container&#x27;s filesystem as one layer and starts the way the container did, with the same command, user, environment, working directory, labels and stop signal; ports, volumes and the healthcheck aren&#x27;t carried over. The container&#x27;s executable becomes the image&#x27;s entrypoint, so running a different program means overriding the entrypoint, not just the command. If an image with that name already exists, the sheet says so and asks before replacing it. The sheet shows each step while it runs and, when it&#x27;s done, links to the new image in the Images tab and can run it. Orchard does this through the same client libraries as <code>container commit</code>, without running the CLI.
+</li>
+<li>Container machines can be created with an account of your choosing (<a href="https://github.com/andrew-waters/orchard/issues/136">#136</a>). With Apple container 1.6.0 or later, Create Machine has an <strong>Account</strong> section with User, UID, GID and Home Directory fields. Each starts empty, with your Mac user&#x27;s value as its placeholder, and only the fields you fill in are sent, so a machine created without touching them still gets your Mac user. The machine&#x27;s detail view shows the account and its Linux home next to the home mount. The account can&#x27;t be changed after creation, because Apple container has no way to change it. The user, UID and home directory must not already exist in the image, such as <code>ubuntu</code> or UID 1000 on Ubuntu images, or the machine can&#x27;t set up the account when it first boots.
 </li>
 </ul>
 <h3>Changed</h3>
 <ul>
-<li>Orchard now uses compose 0.5.0, which labels the containers it creates <code>com.compose.*</code> instead of <code>com.container-compose.*</code>. Projects brought up with an earlier version of Orchard or the compose plugin are no longer recognised in the Compose tab. To fix one, take it down with the version that brought it up (or remove its containers), then bring it up again.
+<li>The home mount captions in Create Machine now say that your Mac home folder is mounted at the same path, and that with read/write anything in the machine, including root through passwordless sudo, can change your files. The README and the machines guide say the same, following Apple&#x27;s updated machine docs (<a href="https://github.com/andrew-waters/orchard/issues/136">#136</a>).
 </li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Adding a compose project whose name sorts first no longer leaves its row squashed in the Compose list. The new row kept a height of about a third of the others, with the next project drawn over it, until you switched tabs and back.
-</li>
-<li>Containers brought up from a Compose project get the nameservers the file asks for (<a href="https://github.com/andrew-waters/orchard/issues/124">#124</a>). Orchard dropped a service&#x27;s <code>dns</code>, <code>dns_search</code> and <code>dns_opt</code>, and sent no resolver configuration at all, so the container had no <code>/etc/resolv.conf</code> and every lookup in it failed with <code>connection refused</code> on <code>[::1]:53</code>. Containers created from the Run form get a resolver configuration the same way, so one with no DNS domain set now gets the network&#x27;s own nameserver as <code>container run</code> gives it.
+<li>Orchard now builds against Apple container 1.6.0 (containerization 0.52.1), up from 1.5.0 (containerization 0.47.0) (<a href="https://github.com/andrew-waters/orchard/issues/132">#132</a>). Container machines changed shape: images can no longer supply their own user setup script, and the machine&#x27;s account is set by the runtime. Orchard still creates machines with your Mac user&#x27;s name, UID and GID, as before, and still works with container 1.5.x.
 </li>
 </ul>
 ]]></description>
-      <pubDate>Wed, 14 Oct 2026 08:55:45 +0000</pubDate>
-      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.5.2/Orchard-2.5.2.dmg" type="application/octet-stream" sparkle:edSignature="ea2HzqLLYJG66ZwuH4KOQXH8mRds+w6/tMbVJjjwrsvN0o7Sv9z7TmfqWc8yitjMofef1lJNaQq2ks3btLR/Cw==" length="31219219" />
+      <pubDate>Tue, 20 Oct 2026 19:23:07 +0000</pubDate>
+      <enclosure url="https://github.com/andrew-waters/orchard/releases/download/v2.6.0/Orchard-2.6.0.dmg" type="application/octet-stream" sparkle:edSignature="n+t2HhrJ0zjGij96H5Utdz1hy4IjUmnVRYDUiONmM24CchwctFH+aICNMl7R6mE93MUuIuGJzP3KRqkeSV3lCA==" length="31582251" />
     </item>
   </channel>
 </rss>
