@@ -485,6 +485,7 @@ struct ThreeColumnLayout: View {
 // MARK: - Tab Column View (First Column)
 struct TabColumnView: View {
     @EnvironmentObject var containerListService: ContainerListService
+    @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var imageBuildService: ImageBuildService
@@ -693,6 +694,7 @@ struct TabColumnView: View {
             selectedMount = nil
             selectedMachine = nil
             selectedCluster = nil
+            clusterService.selectedNode = nil
             selectedDNSDomain = nil
             selectedNetwork = nil
             break

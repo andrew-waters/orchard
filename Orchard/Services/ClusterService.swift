@@ -151,6 +151,10 @@ final class ClusterService: ObservableObject {
     /// Recent `kindest/node` versions for the Create Cluster sheet. Empty until fetched, and
     /// left empty offline: the sheet then offers the plugin default and a custom image only.
     @Published var nodeImageOptions: [K8sNodeImageOption] = []
+    /// The node picked under its cluster in the Clusters list, whose container the detail then
+    /// shows; nil shows the cluster itself. Kept here rather than as another layout binding,
+    /// like `ComposeService.selectedProject`.
+    @Published var selectedNode: String?
 
     /// Overridable for tests, which must not reach Docker Hub.
     var fetchNodeImageTags: @Sendable () async throws -> [K8sNodeImageCatalog.HubTag] = {

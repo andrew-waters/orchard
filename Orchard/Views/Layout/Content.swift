@@ -569,6 +569,7 @@ struct ContentView: View {
             NotificationCenter.default.post(name: NSNotification.Name("NavigateToMachine"), object: id)
         case .selectCluster(let name):
             selectedTab = .clusters
+            clusterService.selectedNode = nil
             selectedCluster = name
             lastSelectedCluster = name
         case .selectModel(let id):
