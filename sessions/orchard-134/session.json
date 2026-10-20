@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "134-dns-aliases-on-container-network",
+  "issue" : "andrew-waters/orchard#134",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-20T18:27:39Z",
+  "startedBy" : "andrew-waters",
+  "title" : "DNS aliases on container network attachments",
+  "url" : "https://github.com/andrew-waters/orchard/issues/134"
+}
