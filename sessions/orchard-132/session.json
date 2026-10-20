@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "132-bump-apple-container-to-1-6-0",
+  "issue" : "andrew-waters/orchard#132",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-20T12:56:55Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Bump apple/container to 1.6.0",
+  "url" : "https://github.com/andrew-waters/orchard/issues/132"
+}
