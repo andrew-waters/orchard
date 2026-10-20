@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "87-create-clusters-with-worker-nodes",
+  "issue" : "andrew-waters/orchard#87",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-20T14:18:46Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Create clusters with worker nodes",
+  "url" : "https://github.com/andrew-waters/orchard/issues/87"
+}
