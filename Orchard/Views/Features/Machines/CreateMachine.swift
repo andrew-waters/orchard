@@ -1,10 +1,11 @@
 import SwiftUI
 
 /// Create a container machine. Mirrors the `container machine create` options: image, name,
-/// CPUs, memory (default = half of host RAM), home-mount mode, nested virtualization, an
-/// optional custom kernel, set-default, and create-without-boot.
+/// CPUs, memory (default = half of host RAM), home-mount mode, the machine's account (1.6.0),
+/// nested virtualization, an optional custom kernel, set-default, and create-without-boot.
 struct CreateMachineView: View {
     @EnvironmentObject var machineService: MachineService
+    @EnvironmentObject var systemService: SystemService
     @Environment(\.dismiss) private var dismiss
 
     @State private var image: String = ""
@@ -20,6 +21,16 @@ struct CreateMachineView: View {
     @State private var kernelPath: String = ""
     @State private var setDefault: Bool = false
     @State private var boot: Bool = true
+    // Account fields start empty: an empty one is left to the runtime's host-user default, so
+    // only what the user typed is sent. The placeholders show those defaults.
+    @State private var showAccount = false
+    @State private var accountUser: String = ""
+    @State private var accountUID: String = ""
+    @State private var accountGID: String = ""
+    @State private var accountHome: String = ""
+    private let hostUser = NSUserName()
+    private let hostUID = getuid()
+    private let hostGID = getgid()
     @State private var validationError: String?
 
     var body: some View {
@@ -57,6 +68,10 @@ struct CreateMachineView: View {
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
+                    }
+
+                    if supportsUserAccount {
+                        accountGroup
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -105,11 +120,57 @@ struct CreateMachineView: View {
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    // Upstream's machine docs: the home folder is mounted at the same path, and root in the
+    // machine (passwordless sudo) writes to it with your macOS user's permissions.
     private var homeMountCaption: String {
         switch homeMount {
-        case .rw: return "The machine gets full read/write access to your home directory."
-        case .ro: return "The machine can read but not modify your home directory."
-        case .none: return "Your home directory is not mounted into the machine."
+        case .rw: return "Your Mac home folder is mounted at the same path. Anything in the machine, including root through passwordless sudo, can change your files with your permissions."
+        case .ro: return "Your Mac home folder is mounted at the same path, read-only. The machine can read everything in it but not change it."
+        case .none: return "Your Mac home folder is not mounted into the machine."
+        }
+    }
+
+    // MARK: - Account
+
+    private var supportsUserAccount: Bool {
+        MachineService.supportsUserAccount(containerVersion: systemService.containerVersion)
+    }
+
+    /// Upstream defaults the home to `/home/<user>`, so the placeholder follows a typed user.
+    private var homePlaceholder: String {
+        let user = accountUser.trimmingCharacters(in: .whitespaces)
+        return "/home/\(user.isEmpty ? hostUser : user)"
+    }
+
+    private var accountGroup: some View {
+        DisclosureGroup("Account", isExpanded: $showAccount) {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("The Linux account the machine creates, which commands in the machine run as. Leave a field empty to use your Mac user's. The account can't be changed after the machine is created.\n\nThe user, UID and home directory must not already exist in the image (such as ubuntu, UID 1000 or /root), or the machine can't set up the account when it boots.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                field(title: "User", caption: "A user name, such as dev.") {
+                    TextField(hostUser, text: $accountUser)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                HStack(alignment: .top, spacing: 16) {
+                    field(title: "UID", caption: "The account's user ID.") {
+                        TextField("\(hostUID)", text: $accountUID)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    field(title: "GID", caption: "The account's group ID.") {
+                        TextField("\(hostGID)", text: $accountGID)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+
+                field(title: "Home Directory", caption: "The account's home inside the machine. Your Mac home folder, if mounted, stays at its own path.") {
+                    TextField(homePlaceholder, text: $accountHome)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+            .padding(.top, 8)
         }
     }
 
@@ -163,6 +224,17 @@ struct CreateMachineView: View {
             validationError = "Invalid name. Use lowercase letters, digits, and hyphens (must start and end alphanumeric)."
             return
         }
+        var account = MachineAccountSpec()
+        if supportsUserAccount {
+            do {
+                account = try MachineAccountSpec(
+                    userText: accountUser, uidText: accountUID, gidText: accountGID, homeText: accountHome)
+            } catch {
+                validationError = error.localizedDescription
+                showAccount = true
+                return
+            }
+        }
         validationError = nil
 
         let spec = MachineCreateSpec(
@@ -174,7 +246,8 @@ struct CreateMachineView: View {
             virtualization: virtualization,
             kernelPath: kernelPath.trimmingCharacters(in: .whitespaces).isEmpty ? nil : kernelPath.trimmingCharacters(in: .whitespaces),
             setDefault: setDefault,
-            noBoot: !boot
+            noBoot: !boot,
+            account: account
         )
 
         Task {

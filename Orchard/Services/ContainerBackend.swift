@@ -176,6 +176,17 @@ func mapContainerError(_ error: Error) -> Error {
 /// when bumping. release.yml reads this line for the release notes' requirements.
 let supportedContainerVersion = "1.6.0"
 
+/// Whether an installed container version (`container --version`'s `1.6.0`) is at least
+/// `minimum`, compared component by component. Nil (the system is stopped) or an unparseable
+/// version is false, so version-gated controls stay hidden when the version is unknown.
+func isContainerVersion(_ version: String?, atLeast minimum: [Int]) -> Bool {
+    guard let version else { return false }
+    let parts = version.split(separator: ".").map { Int($0) }
+    guard parts.count >= 2, !parts.contains(nil) else { return false }
+    let numbers = parts.compactMap { $0 }
+    return !numbers.lexicographicallyPrecedes(minimum)
+}
+
 /// A ping reply the linked client cannot decode means the installed daemon speaks a
 /// different protocol revision than the client libraries Orchard links.
 func isContainerVersionMismatch(_ error: Error) -> Bool {

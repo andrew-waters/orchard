@@ -64,12 +64,15 @@ Orchard manages Apple **container machines** natively: persistent, stateful Linu
 ![Container machine detail with live resource usage](site/assets/screens/machines.png)
 
 - Create machines from any init-capable image, with CPU, memory, home-mount, nested-virtualization and custom-kernel options
+- Choose the machine's account (user, UID, GID and Linux home) when you create it, on Apple container 1.6.0 or later; it defaults to your Mac user
 - Start, stop, set-default and delete, plus a one-click stop / apply / restart configuration editor
 - Live CPU, memory, network and disk usage, in the machine view and on the dashboard
 - Output and boot logs in the same multi-pane log viewer as containers
 - Guardrails that warn before creating from an image with no init system, and explain a machine that stopped because of it
 
 Machines are driven over Apple's native XPC API (`MachineAPIClient`), not by shelling out. See the [Container Machines guide](https://orchard.andon.dev/machines.html) for a full walkthrough and the pitfalls to avoid.
+
+A machine trades away much of a container's isolation, so only create one from an image you trust. By default your Mac home folder is mounted read/write at the same path, and the machine's account has passwordless sudo, so anything running in the machine, root included, can change your files with your permissions. Choose a read-only home mount, or none, when you don't need it.
 
 ## Kubernetes Clusters
 

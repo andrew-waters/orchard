@@ -319,14 +319,6 @@ final class ClusterService: ObservableObject {
         isContainerVersion(containerVersion, atLeast: [1, 6])
     }
 
-    private nonisolated static func isContainerVersion(_ version: String?, atLeast minimum: [Int]) -> Bool {
-        guard let version else { return false }
-        let parts = version.split(separator: ".").map { Int($0) }
-        guard parts.count >= 2, !parts.contains(nil) else { return false }
-        let numbers = parts.compactMap { $0 }
-        return !numbers.lexicographicallyPrecedes(minimum)
-    }
-
     /// Apple container's guide to using your own CNI, linked wherever Orchard offers one.
     nonisolated static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
 

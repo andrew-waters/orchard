@@ -142,7 +142,7 @@ struct UITestMachineBackend: MachineBackend {
             createdDate: Date(timeIntervalSince1970: 1_751_888_675),
             startedDate: status == "running" ? Date(timeIntervalSince1970: 1_751_888_677) : nil,
             initialized: true,
-            userSetup: MachineUserSetup(username: "uitest", uid: 501, gid: 20)
+            userSetup: MachineUserSetup(username: "uitest", uid: 501, gid: 20, home: "/home/uitest")
         )
     }
 

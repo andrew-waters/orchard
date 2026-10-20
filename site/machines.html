@@ -55,7 +55,7 @@
       <div class="wrap doc">
         <h2>What is a container machine?</h2>
         <p>A container machine is a <strong>persistent, stateful Linux VM</strong>: “fast and lightweight like a container, persistent like a virtual machine.” Unlike a container, it boots the image's <strong>init system</strong> (systemd or openrc) as PID&nbsp;1, so long-running services survive. Changes persist across stop/start; deleting a machine removes its storage.</p>
-        <p>Your macOS user, UID/GID and home directory are mapped in automatically (via virtiofs, with passwordless sudo), so it feels like a local Linux box. Under the hood a machine <em>is</em> a container tagged with a special label, so Orchard hides those backing containers from the normal container list to keep it uncluttered.</p>
+        <p>By default the machine's account matches your macOS user, UID and GID, with passwordless sudo and a Linux home at <code>/home/&lt;you&gt;</code>, and your macOS home folder is mounted in at the same path (via virtiofs), so it feels like a local Linux box. On Apple container 1.6.0 or later you can choose a different account when you create the machine. Under the hood a machine <em>is</em> a container tagged with a special label, so Orchard hides those backing containers from the normal container list to keep it uncluttered.</p>
         <p class="muted">Orchard talks to the machine service directly through Apple's <code>MachineAPIClient</code> XPC surface (the same API the <code>container</code> CLI uses) rather than shelling out.</p>
       </div>
     </section>
@@ -64,7 +64,7 @@
       <div class="wrap doc">
         <h2>What Orchard does</h2>
         <div class="grid">
-          <div class="card"><h3>Create &amp; configure</h3><p>Pick an image, set CPUs, memory, home-mount mode, nested virtualization and an optional custom kernel.</p></div>
+          <div class="card"><h3>Create &amp; configure</h3><p>Pick an image, set CPUs, memory, home-mount mode, nested virtualization, an optional custom kernel and the machine's account.</p></div>
           <div class="card"><h3>Lifecycle</h3><p>Start, stop, delete and set-default, with clear in-progress feedback for each action.</p></div>
           <div class="card"><h3>Edit &amp; restart</h3><p>Change a machine's resources and apply them with a one-click stop, apply and restart.</p></div>
           <div class="card"><h3>Logs</h3><p>Stream a machine's output and boot logs in the same multi-pane viewer as containers.</p></div>
@@ -93,15 +93,15 @@
           </li>
           <li>
             <h3>Create a machine</h3>
-            <p>Click <strong>+</strong> (or “Create Machine”). Enter an init-capable image and a name, then set CPUs and memory with the steppers; both default to about half of your host. Choose a home-mount mode, and optionally enable nested virtualization or a custom kernel. It boots by default.</p>
+            <p>Click <strong>+</strong> (or “Create Machine”). Enter an init-capable image and a name, then set CPUs and memory with the steppers; both default to about half of your host. Choose a home-mount mode, and optionally enable nested virtualization or a custom kernel. On Apple container 1.6.0 or later, open <strong>Account</strong> to choose the machine's user, UID, GID or Linux home directory; any field you leave empty uses your Mac user's value. The user, UID and home directory must not already exist in the image (such as <code>ubuntu</code> or UID 1000 on Ubuntu images), or the machine can't set up the account when it boots. It boots by default.</p>
           </li>
           <li>
             <h3>Use it</h3>
-            <p>The detail view shows its state, IP, image, resources and mapped user. Start/stop/delete/set-default from the header, watch resource usage below, and open <strong>Logs</strong> for the output and boot streams.</p>
+            <p>The detail view shows its state, IP, image, resources, home mount and account. Start/stop/delete/set-default from the header, watch resource usage below, and open <strong>Logs</strong> for the output and boot streams.</p>
           </li>
           <li>
             <h3>Reconfigure when needed</h3>
-            <p><strong>Edit Configuration</strong> changes CPUs, memory, home-mount, virtualization or kernel. These only take effect on the next boot, so for a running machine choose <strong>Apply &amp; Restart</strong> to apply them in one step.</p>
+            <p><strong>Edit Configuration</strong> changes CPUs, memory, home-mount, virtualization or kernel. The account can't be changed once a machine is created; to change it, create a new machine. These only take effect on the next boot, so for a running machine choose <strong>Apply &amp; Restart</strong> to apply them in one step.</p>
           </li>
         </ol>
       </div>
@@ -118,7 +118,7 @@
 
         <div class="callout warn">
           <h4>“Read/Write” home mount exposes your home directory</h4>
-          <p>By default the machine gets <strong>read/write</strong> access to your macOS home directory. That's convenient, but it means anything running in the machine can modify your files. Choose <strong>Read-Only</strong> or <strong>None</strong> when you don't need it.</p>
+          <p>By default your macOS home folder is mounted <strong>read/write</strong> at the same path inside the machine, and the machine's account has passwordless sudo. That's convenient, but it means anything running in the machine, root included, can change your repos, dotfiles and anything else under your home folder with your macOS permissions. A machine trades away much of a container's isolation, so only create one from an image you trust, and choose <strong>Read-Only</strong> or <strong>None</strong> when you don't need the mount.</p>
         </div>
 
         <div class="callout info">

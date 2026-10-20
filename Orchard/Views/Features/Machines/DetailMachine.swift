@@ -95,6 +95,12 @@ struct MachineDetailView: View {
             detailRow(label: "Disk", value: machine.diskSizeBytes.map { ByteFormat.string($0) } ?? "—")
             divider
             detailRow(label: "Home Mount", value: machine.homeMount)
+            if let user = machine.userSetup {
+                divider
+                detailRow(label: "Account", value: "\(user.username) (uid \(user.uid), gid \(user.gid))")
+                divider
+                detailRow(label: "Linux Home", value: user.home, monospaced: true)
+            }
             divider
             detailRow(label: "Nested Virt", value: machine.virtualization ? "Enabled" : "Disabled")
             if let kernelPath = machine.kernelPath {
@@ -103,10 +109,6 @@ struct MachineDetailView: View {
             }
             divider
             detailRow(label: "IP Address", value: machine.ipAddress ?? "—", monospaced: true)
-            if let user = machine.userSetup {
-                divider
-                detailRow(label: "User", value: "\(user.username) (uid \(user.uid), gid \(user.gid))")
-            }
             if let containerId = machine.containerId {
                 divider
                 detailRow(label: "Container ID", value: containerId, monospaced: true)
