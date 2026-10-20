@@ -325,7 +325,7 @@ func recreateSettingsMatchPluginDefault() throws {
 
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
 
-    #expect(settings == ClusterRecreateSettings(name: "k8s-dev", cpus: 2, memoryGiB: 2, nodeImage: .pluginDefault, cni: nil))
+    #expect(settings == ClusterRecreateSettings(name: "k8s-dev", cpus: 2, memoryGiB: 2, nodeImage: .pluginDefault, cni: nil, workers: 0))
 }
 
 @MainActor
@@ -447,4 +447,101 @@ func recreateRecordsNewOptions() async throws {
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
     #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.36.4@sha256:b4"))
     #expect(settings.cni == "/Users/me/calico.yaml")
+}
+
+// MARK: - Worker nodes (1.6.0)
+
+@Test("Grouping: a 1.6.0 cluster with workers has a control-plane-only node and its workers")
+func groupClusterWithWorkers() throws {
+    // `k8s create --workers 2`: the control plane loses the worker role, the workers carry it alone.
+    let clusters = K8sCluster.group(containers: [
+        try k8sNode("k8s-dev-worker-1", role: "worker"),
+        try k8sNode("k8s-dev", role: "control-plane"),
+        try k8sNode("k8s-dev-worker-2", role: "worker"),
+    ])
+    #expect(clusters.count == 1)
+    #expect(clusters.first?.controlPlane?.id == "k8s-dev")
+    #expect(clusters.first?.workers.map(\.id) == ["k8s-dev-worker-1", "k8s-dev-worker-2"])
+}
+
+@Test("Worker nodes are offered from container 1.6.0, and not when the version is unknown")
+func supportsWorkerNodesByVersion() {
+    for version in ["1.6.0", "1.6.1", "1.10.0", "2.0", "2.0.0"] {
+        #expect(ClusterService.supportsWorkerNodes(containerVersion: version), "\(version)")
+    }
+    for version in ["1.5.0", "1.5.10", "0.9.0", "1", "", "unknown", "1.6.0-beta"] {
+        #expect(!ClusterService.supportsWorkerNodes(containerVersion: version), "\(version)")
+    }
+    #expect(!ClusterService.supportsWorkerNodes(containerVersion: nil))
+}
+
+@MainActor
+@Test("Create: --workers is passed only when workers are asked for")
+func createPassesWorkers() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, workers: 0)
+    #expect(runner.calls.last == ["k8s", "create", "--name", "k8s-dev"])
+
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, workers: 2)
+    #expect(runner.calls.last == ["k8s", "create", "--name", "k8s-dev", "--workers", "2"])
+}
+
+@MainActor
+@Test("Load image: one --node per chosen node, none for every node")
+func loadImageTargetsNodes() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+
+    await service.clusterService.loadImage(cluster: "k8s-dev", reference: "demo-api:latest", nodes: [])
+    #expect(runner.calls.last == ["k8s", "load-image", "--name", "k8s-dev", "demo-api:latest"])
+
+    await service.clusterService.loadImage(
+        cluster: "k8s-dev", reference: "demo-api:latest", nodes: ["k8s-dev-worker-1", "k8s-dev-worker-2"])
+    #expect(runner.calls.last == [
+        "k8s", "load-image", "--name", "k8s-dev",
+        "--node", "k8s-dev-worker-1", "--node", "k8s-dev-worker-2", "demo-api:latest",
+    ])
+}
+
+@MainActor
+@Test("Recreate settings: the worker count is remembered, and recreate passes it on")
+func recreateRemembersWorkers() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, workers: 3)
+
+    // Only the control plane is left, as after a create whose workers failed to come up.
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
+    #expect(settings.workers == 3)
+
+    await service.clusterService.recreate(
+        name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: nil, workers: settings.workers)
+    #expect(runner.calls.last == ["k8s", "create", "--name", "k8s-dev", "--workers", "3"])
+}
+
+@MainActor
+@Test("Recreate settings: with nothing remembered, the worker count is the workers the cluster has")
+func recreateDerivesWorkers() throws {
+    let service = makeService()
+    let cluster = try #require(K8sCluster.group(containers: [
+        try k8sNode("k8s-dev", role: "control-plane", status: "stopped"),
+        try k8sNode("k8s-dev-worker-1", role: "worker", status: "stopped"),
+        try k8sNode("k8s-dev-worker-2", role: "worker", status: "stopped"),
+    ]).first)
+
+    #expect(service.clusterService.recreateSettings(for: cluster).workers == 2)
+}
+
+@MainActor
+@Test("Remembered options saved before workers existed still decode")
+func rememberedOptionsWithoutWorkersDecode() throws {
+    let defaults = ephemeralDefaults()
+    defaults.set(Data(#"{"k8s-dev":{"cni":"/Users/me/cilium.yaml"}}"#.utf8), forKey: "clusterCreateOptions")
+    let service = makeService(defaults: defaults)
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
+    #expect(settings.cni == "/Users/me/cilium.yaml")
+    #expect(settings.workers == 0)
 }

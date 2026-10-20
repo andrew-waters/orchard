@@ -54,7 +54,7 @@
     <section>
       <div class="wrap doc">
         <h2>What is a container k8s cluster?</h2>
-        <p>Apple container 1.2.2 ships a <code>k8s</code> plugin that bootstraps a <strong>local single-node Kubernetes cluster</strong> from a <code>kindest/node</code> image: the node is an ordinary container running containerd and kubelet, initialised with <code>kubeadm</code> and wired up with the kindnet CNI. The control-plane container's name is the cluster's name, and its API server is published to your Mac.</p>
+        <p>Apple container 1.2.2 ships a <code>k8s</code> plugin that bootstraps a <strong>local single-node Kubernetes cluster</strong> from a <code>kindest/node</code> image: the node is an ordinary container running containerd and kubelet, initialised with <code>kubeadm</code> and wired up with the kindnet CNI. The control-plane container's name is the cluster's name, and its API server is published to your Mac. From container 1.6.0 the plugin can also create <strong>worker nodes</strong> alongside the control plane, named <code>&lt;cluster&gt;-worker-N</code>.</p>
         <p>Because cluster nodes are just containers carrying plugin labels, Orchard derives clusters straight from the container list it already watches - the same grouping the CLI's <code>container k8s list</code> uses. Node containers are badged in the containers list too, so a <code>kindest/node</code> row is never a mystery.</p>
         <p class="muted">The plugin has no XPC API, so lifecycle actions go through the <code>container k8s</code> CLI; node state comes from the container XPC snapshot Orchard already streams.</p>
       </div>
@@ -65,8 +65,8 @@
         <h2>What Orchard does</h2>
         <div class="grid">
           <div class="card"><h3>Clusters, grouped</h3><p>Node containers are grouped into named clusters with per-node role, status, IP, CPUs, memory and published ports.</p></div>
-          <div class="card"><h3>Lifecycle</h3><p>Create at the Kubernetes version you choose, with optional CPU/memory overrides and a custom CNI manifest, and delete with confirmation before anything destructive.</p></div>
-          <div class="card"><h3>Load local images</h3><p>Push any image from Orchard's image list into the cluster's containerd, so pods can use it without a registry.</p></div>
+          <div class="card"><h3>Lifecycle</h3><p>Create at the Kubernetes version you choose, with optional CPU/memory overrides, worker nodes (container 1.6.0+) and a custom CNI manifest, and delete with confirmation before anything destructive.</p></div>
+          <div class="card"><h3>Load local images</h3><p>Push any image from Orchard's image list into the cluster's containerd, on every node or only the ones you pick, so pods can use it without a registry.</p></div>
           <div class="card"><h3>kubectl access</h3><p>Write or merge the cluster's context into your kubeconfig, copy the kubeconfig path, or open a terminal with the context already selected.</p></div>
           <div class="card"><h3>Plugin badges</h3><p>Cluster nodes show a plugin badge (e.g. "k8s · control-plane") in the containers list and detail header.</p></div>
           <div class="card"><h3>Guardrails</h3><p>Installs without the k8s plugin get an explanatory state with upgrade guidance instead of broken buttons.</p></div>
@@ -85,7 +85,7 @@
           </li>
           <li>
             <h3>Create a cluster</h3>
-            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the k8s plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, a CNI manifest replaces the default kindnet. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
+            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the k8s plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, <strong>Workers</strong> adds that many worker nodes (container 1.6.0 and later), and a CNI manifest replaces the default kindnet. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
           </li>
           <li>
             <h3>Point kubectl at it</h3>
@@ -93,7 +93,7 @@
           </li>
           <li>
             <h3>Run your images</h3>
-            <p><strong>Load Image…</strong> exports an image from Orchard's local store into the cluster nodes' containerd. Reference it from a pod spec with <code>imagePullPolicy: Never</code> (or a matching tag) and no registry is needed.</p>
+            <p><strong>Load Image…</strong> exports an image from Orchard's local store into the cluster nodes' containerd. On a cluster with workers you can load it into every node (the default) or only the nodes you select. Reference it from a pod spec with <code>imagePullPolicy: Never</code> (or a matching tag) and no registry is needed.</p>
           </li>
         </ol>
       </div>
@@ -114,8 +114,8 @@
         </div>
 
         <div class="callout info">
-          <h4>Single-node clusters (for now)</h4>
-          <p>The plugin creates one control-plane node per cluster and untaints it so workloads schedule there. Worker naming (<code>&lt;cluster&gt;-worker-N</code>) is already part of the plugin's model, and Orchard's grouping supports workers as soon as the plugin can create them.</p>
+          <h4>Workers are chosen when the cluster is created</h4>
+          <p>With no workers, the plugin creates one control-plane node and untaints it so workloads schedule there. With workers (container 1.6.0 and later), workloads run on the workers only, and each worker is a node of its own with the same CPUs and memory as the control plane. There's no way yet to add a node to a running cluster, so pick the count up front; Recreate keeps it. Deleting a cluster removes its workers too. Before 1.6.0 every cluster is a single node.</p>
         </div>
 
         <div class="callout info">

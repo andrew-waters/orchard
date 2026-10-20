@@ -6,6 +6,7 @@ struct ClusterDetailView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
     @EnvironmentObject var statsService: StatsService
+    @EnvironmentObject var systemService: SystemService
     let clusterName: String
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
@@ -47,7 +48,9 @@ struct ClusterDetailView: View {
                 }
             }
             .sheet(isPresented: $showLoadImageSheet) {
-                LoadImageSheet(clusterName: cluster.name)
+                LoadImageSheet(
+                    clusterName: cluster.name,
+                    nodes: supportsWorkers && cluster.nodes.count > 1 ? cluster.nodes : [])
             }
             .sheet(item: $recreateSettings) { settings in
                 CreateClusterView(recreating: settings)
@@ -169,15 +172,19 @@ struct ClusterDetailView: View {
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
 
-            if cluster.nodes.count == 1 {
+            if cluster.nodes.count == 1 && !supportsWorkers {
                 singleNodeBanner
             }
         }
     }
 
-    /// Honest about the current ceiling: the k8s plugin creates single-node clusters;
-    /// worker provisioning is in development upstream (#87). Same banner style as the
-    /// machine detail's init-system warning.
+    private var supportsWorkers: Bool {
+        ClusterService.supportsWorkerNodes(containerVersion: systemService.containerVersion)
+    }
+
+    /// Before 1.6.0 the k8s plugin creates single-node clusters only. From 1.6.0 workers are
+    /// chosen at create time, so a single node is a choice and the banner goes. Same banner
+    /// style as the machine detail's init-system warning.
     private var singleNodeBanner: some View {
         HStack(alignment: .top, spacing: 10) {
             SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
@@ -185,7 +192,7 @@ struct ClusterDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Single-node clusters only")
                     .font(.subheadline).fontWeight(.medium)
-                Text("Apple container's k8s plugin can't add worker nodes yet, so every cluster is one control-plane node that also runs workloads. Worker nodes will appear in this table once the plugin supports adding them.")
+                Text("This version of Apple container's k8s plugin can't create worker nodes, so every cluster is one control-plane node that also runs workloads. Apple container 1.6.0 and later can add workers when a cluster is created.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -313,8 +320,13 @@ private struct LoadImageSheet: View {
     @EnvironmentObject var imageService: ImageService
     @Environment(\.dismiss) private var dismiss
     let clusterName: String
+    /// The nodes to offer as targets. Empty hides the choice and loads into every node: the
+    /// cluster has one node, or the installed container predates `--node` (1.6.0).
+    let nodes: [K8sClusterNode]
 
     @State private var selectedReference: String = ""
+    @State private var allNodes = true
+    @State private var selectedNodes: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -343,6 +355,10 @@ private struct LoadImageSheet: View {
                         }
                     }
                     .labelsHidden()
+
+                    if !nodes.isEmpty {
+                        nodePicker
+                    }
                 }
             }
             .padding()
@@ -357,14 +373,14 @@ private struct LoadImageSheet: View {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Load Image") { load() }
                     .buttonStyle(.borderedProminent)
-                    .disabled(selectedReference.isEmpty || clusterService.isLoadingImage)
+                    .disabled(selectedReference.isEmpty || clusterService.isLoadingImage || (!allNodes && selectedNodes.isEmpty))
                     .keyboardShortcut(.defaultAction)
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
             .overlay(Rectangle().frame(height: 1).foregroundStyle(Color(NSColor.separatorColor)), alignment: .top)
         }
-        .frame(width: 460, height: 260)
+        .frame(width: 460, height: nodes.isEmpty ? 260 : 420)
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             if selectedReference.isEmpty {
@@ -373,9 +389,47 @@ private struct LoadImageSheet: View {
         }
     }
 
+    private var nodePicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Nodes").font(.headline)
+                .padding(.top, 8)
+            Picker("Nodes", selection: $allNodes) {
+                Text("All nodes").tag(true)
+                Text("Selected nodes").tag(false)
+            }
+            .labelsHidden()
+            .pickerStyle(.radioGroup)
+
+            if !allNodes {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(nodes) { node in
+                            Toggle(isOn: Binding(
+                                get: { selectedNodes.contains(node.id) },
+                                set: { if $0 { selectedNodes.insert(node.id) } else { selectedNodes.remove(node.id) } }
+                            )) {
+                                HStack(spacing: 6) {
+                                    Text(node.id)
+                                    if let role = node.container.pluginRoleDisplay {
+                                        Text(role).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 160)
+            }
+        }
+    }
+
     private func load() {
         Task {
-            let loaded = await clusterService.loadImage(cluster: clusterName, reference: selectedReference)
+            let loaded = await clusterService.loadImage(
+                cluster: clusterName, reference: selectedReference,
+                nodes: allNodes ? [] : nodes.map(\.id).filter(selectedNodes.contains))
             if loaded { await MainActor.run { dismiss() } }
         }
     }
