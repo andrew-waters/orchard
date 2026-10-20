@@ -3,6 +3,7 @@ import SwiftUI
 struct ContainersListView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var clusterService: ClusterService
+    @EnvironmentObject var systemService: SystemService
     @Environment(\.openWindow) private var openWindow
     @Binding var selectedContainer: String?
     @Binding var selectedContainers: Set<String>
@@ -15,6 +16,7 @@ struct ContainersListView: View {
     @AppStorage("containerGroupLabelKey") private var groupLabelKey: String = ""
     @State private var collapsedGroups: Set<String> = []
     @State private var recreateSettings: ClusterRecreateSettings?
+    @State private var commitTarget: CommitSheetTarget?
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -47,6 +49,9 @@ struct ContainersListView: View {
                 .keyboardShortcut("a", modifiers: .command)
             )
             .animation(.easeInOut(duration: 0.3), value: containerListService.containers)
+            .sheet(item: $commitTarget) { target in
+                CommitContainerView(containerId: target.id)
+            }
             .sheet(item: $recreateSettings) { settings in
                 CreateClusterView(recreating: settings)
             }
@@ -265,6 +270,12 @@ struct ContainersListView: View {
                 ContainerExportFlow.run(containerId: container.configuration.id, service: containerListService)
             }
             .disabled(containerListService.exportingContainers.contains(container.configuration.id))
+            if supportsContainerCommit(containerVersion: systemService.containerVersion) {
+                Button("Commit to Image…") {
+                    commitTarget = CommitSheetTarget(id: container.configuration.id)
+                }
+                .disabled(containerListService.committingContainers[container.configuration.id] != nil)
+            }
         }
 
         Divider()

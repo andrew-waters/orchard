@@ -66,11 +66,13 @@ Offered on container 1.6.0 or later, as the issue asks. The work is client side 
 ## Tasks
 
 - [x] Confirm how the image store treats an existing reference on load (it replaces it)
-- [ ] `ContainerCommit.swift`: OCI archive and image-config mapping; backend `commitContainer`
-- [ ] `ContainerListService.commitContainer`, in-flight state, `supportsCommit`
-- [ ] `InputValidation.isValidImageReference`, shared with the build sheet
-- [ ] Commit sheet, detail header button, context menu item
-- [ ] Palette entry and `showCommitContainerSheet` handling in `ContentView`
-- [ ] `UITestSupport` and `Mocks` doubles; unit tests for the service, validation, config mapping and palette entry
-- [ ] README, site, CHANGELOG
-- [ ] Checked on 1.6.0: commit a running and a stopped container; both appear in Images; running the image shows the changed files; committing to an existing reference asks, then replaces it
+- [x] `ContainerCommit.swift`: OCI archive and image-config mapping; backend `commitContainer`
+- [x] `ContainerListService.commitContainer`, in-flight state, `supportsCommit`
+- [x] `InputValidation.isValidImageReference`, shared with the build sheet
+- [x] Commit sheet, detail header button, context menu item
+- [x] Palette entry and `showCommitContainerSheet` handling in `ContentView`
+- [x] `UITestSupport` and `Mocks` doubles; unit tests for the service, validation, config mapping and palette entry
+- [x] README, site, CHANGELOG
+- [x] OrchardTests pass (468 tests, 9 of them new)
+- [x] Checked on 1.6.0 through `LiveContainerBackend.commitContainer`, driven from a throwaway test against the local runtime: a running container (which kept running) and a stopped one both committed and appear in the image list; `container run --entrypoint cat <image> /marker` shows each container's changed file; committing a second container to an existing reference replaced it. The committed image's entrypoint is the container's executable (`sh` for `sh -c ...`), so the sheet says to override the entrypoint to run something else.
+- [ ] Clicked through in the app: the sheet from the header, context menu and Cmd+K, the replace confirmation, and View Image

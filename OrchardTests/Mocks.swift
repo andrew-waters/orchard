@@ -97,6 +97,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _pullProgressEvents: [ImagePullMetrics]?
     private var _exportContainerError: Error?
     private var _exportedContainers: [(id: String, destination: URL)] = []
+    private var _commitContainerError: Error?
+    private var _committedContainers: [(id: String, reference: String)] = []
+    private var _commitHandler: (@Sendable () async -> Void)?
     private var _cleanContainerError: Error?
     private var _cleanedContainers: [String] = []
     private var _cleanHandler: (@Sendable () async -> Void)?
@@ -163,6 +166,17 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         set { lock.withLock { _exportContainerError = newValue } }
     }
     var exportedContainers: [(id: String, destination: URL)] { lock.withLock { _exportedContainers } }
+    var commitContainerError: Error? {
+        get { lock.withLock { _commitContainerError } }
+        set { lock.withLock { _commitContainerError = newValue } }
+    }
+    var committedContainers: [(id: String, reference: String)] { lock.withLock { _committedContainers } }
+    /// Runs after the phases are reported and before the commit is recorded, so a test can
+    /// hold a commit in flight and observe the service's state.
+    var commitHandler: (@Sendable () async -> Void)? {
+        get { lock.withLock { _commitHandler } }
+        set { lock.withLock { _commitHandler = newValue } }
+    }
     var cleanContainerError: Error? {
         get { lock.withLock { _cleanContainerError } }
         set { lock.withLock { _cleanContainerError = newValue } }
@@ -304,6 +318,21 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     func exportContainer(id: String, to destination: URL) async throws {
         if let exportContainerError { throw exportContainerError }
         lock.withLock { _exportedContainers.append((id, destination)) }
+    }
+    func commitContainer(
+        id: String,
+        reference: String,
+        onPhase: (@Sendable (ContainerCommitPhase) -> Void)?
+    ) async throws -> String {
+        if let commitContainerError { throw commitContainerError }
+        onPhase?(.exporting)
+        onPhase?(.building)
+        onPhase?(.loading)
+        if let handler = lock.withLock({ _commitHandler }) {
+            await handler()
+        }
+        lock.withLock { _committedContainers.append((id, reference)) }
+        return canonicalImageReference(reference)
     }
 
     func cleanContainer(id: String) async throws {

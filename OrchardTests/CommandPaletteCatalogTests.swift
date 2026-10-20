@@ -8,7 +8,8 @@ struct CommandPaletteCatalogTests {
     private func catalog(
         containers: [Container] = [],
         machines: [Machine] = [],
-        systemRunning: Bool = true
+        systemRunning: Bool = true,
+        supportsCommit: Bool = true
     ) -> [PaletteEntry] {
         CommandPaletteCatalog.entries(
             containers: containers,
@@ -20,7 +21,8 @@ struct CommandPaletteCatalogTests {
             sandboxes: [],
             dnsDomains: [DNSDomain(domain: "test.local", isDefault: true)],
             networks: [makeNetwork(id: "default")],
-            systemRunning: systemRunning)
+            systemRunning: systemRunning,
+            supportsCommit: supportsCommit)
     }
 
     private func ids(_ entries: [PaletteEntry]) -> [String] { entries.map(\.id) }
@@ -40,6 +42,23 @@ struct CommandPaletteCatalogTests {
         #expect(all.contains("container:db:logs"))
         #expect(!all.contains("container:db:stop"))
         #expect(!all.contains("container:db:console"))
+    }
+
+    @Test("Commit is offered for running and stopped containers, only when supported, and \"commit web\" finds it")
+    func commitVerb() throws {
+        let containers = [
+            try makeContainer(id: "web", status: "running"),
+            try makeContainer(id: "db", status: "stopped"),
+        ]
+        let supported = catalog(containers: containers)
+        #expect(ids(supported).contains("container:web:commit"))
+        #expect(ids(supported).contains("container:db:commit"))
+        #expect(supported.first { $0.id == "container:web:commit" }?.action == .showCommitContainerSheet("web"))
+        #expect(CommandPaletteCatalog.rank(supported, query: "commit web").first?.id == "container:web:commit")
+        #expect(!ids(CommandPaletteCatalog.rank(supported, query: "")).contains { $0.hasSuffix(":commit") })
+
+        let unsupported = ids(catalog(containers: containers, supportsCommit: false))
+        #expect(!unsupported.contains { $0.hasSuffix(":commit") })
     }
 
     @Test("A stopped k8s node gets no start verb: it can only be recreated")

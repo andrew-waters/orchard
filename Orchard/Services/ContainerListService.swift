@@ -19,6 +19,9 @@ final class ContainerListService: ObservableObject {
     /// Containers with a filesystem export in flight - drives the per-container
     /// "Exporting…" affordance.
     @Published private(set) var exportingContainers: Set<String> = []
+    /// Containers with a commit in flight and the step each is on - drives the per-container
+    /// "Committing…" affordance and the commit sheet's progress.
+    @Published private(set) var committingContainers: [String: ContainerCommitPhase] = [:]
     /// Containers with a disk-space reclaim in flight - drives the per-container
     /// "Reclaiming…" affordance.
     @Published private(set) var cleaningContainers: Set<String> = []
@@ -30,6 +33,8 @@ final class ContainerListService: ObservableObject {
     var reloadBuilders: () async -> Void = {}
     /// Refresh the system disk usage a reclaim has just changed. Set by the owner.
     var reloadDiskUsage: () async -> Void = {}
+    /// Refresh the image list a commit has just added to. Set by the owner.
+    var reloadImages: () async -> Void = {}
 
     /// Delay between polls in the `refreshUntilContainer…` loops. Injected; production uses
     /// the 0.5s default, tests pass 0 to drive the loops without real sleeps.
@@ -351,6 +356,34 @@ final class ContainerListService: ObservableObject {
             self.alertCenter.error("Failed to export container: \(error.localizedDescription)")
             Log.containers.error("Error exporting container: \(error.localizedDescription)")
             return false
+        }
+    }
+
+    /// Commit a container's filesystem to an image named `reference`, replacing any image
+    /// already stored under it. Returns the reference as stored, so callers can link to the
+    /// image; failures alert, log and return nil.
+    @discardableResult
+    func commitContainer(_ id: String, to reference: String) async -> String? {
+        // One commit per container at a time; the check and the insert share a MainActor turn.
+        guard committingContainers[id] == nil else { return nil }
+        committingContainers[id] = .exporting
+        defer { committingContainers[id] = nil }
+
+        do {
+            let stored = try await backend.commitContainer(id: id, reference: reference) { [weak self] phase in
+                Task { @MainActor in
+                    // A phase that lands after the commit finished must not bring it back.
+                    guard let self, self.committingContainers[id] != nil else { return }
+                    self.committingContainers[id] = phase
+                }
+            }
+            Log.containers.debug("Container \(id) committed to \(stored)")
+            await reloadImages()
+            return stored
+        } catch {
+            self.alertCenter.error("Failed to commit container: \(error.localizedDescription)")
+            Log.containers.error("Error committing container: \(error.localizedDescription)")
+            return nil
         }
     }
 

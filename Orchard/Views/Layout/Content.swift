@@ -59,6 +59,7 @@ struct ContentView: View {
     @State private var showAddNetworkSheet: Bool = false
     @State private var showAddMachineSheet: Bool = false
     @State private var showCreateClusterSheet: Bool = false
+    @State private var commitTarget: CommitSheetTarget?
 
     @State private var refreshTimer: Timer?
     @State private var initialLoadTask: Task<Void, Never>?
@@ -448,6 +449,9 @@ struct ContentView: View {
                 )
             }
         }
+        .sheet(item: $commitTarget) { target in
+            CommitContainerView(containerId: target.id)
+        }
         .onReceive(
             NotificationCenter.default.publisher(for: NSNotification.Name("ToggleCommandPalette"))
         ) { _ in
@@ -542,7 +546,8 @@ struct ContentView: View {
                 networks: networkService.networks),
             dnsDomains: dnsService.dnsDomains,
             networks: networkService.networks,
-            systemRunning: systemService.systemStatus == .running)
+            systemRunning: systemService.systemStatus == .running,
+            supportsCommit: supportsContainerCommit(containerVersion: systemService.containerVersion))
     }
 
     private func handlePaletteAction(_ action: PaletteAction) {
@@ -632,6 +637,8 @@ struct ContentView: View {
             openWindow(id: "logs", value: LogTarget.container(id))
         case .openContainerTerminal(let id):
             terminalLauncher.openTerminal(for: id)
+        case .showCommitContainerSheet(let id):
+            commitTarget = CommitSheetTarget(id: id)
         case .bootMachine(let id):
             Task { await machineService.boot(id) }
         case .stopMachine(let id):

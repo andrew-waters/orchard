@@ -89,6 +89,16 @@ struct UITestBackend: ContainerBackend {
     ) async throws -> Int32 { 0 }
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
     func exportContainer(id: String, to destination: URL) async throws {}
+    func commitContainer(
+        id: String,
+        reference: String,
+        onPhase: (@Sendable (ContainerCommitPhase) -> Void)?
+    ) async throws -> String {
+        onPhase?(.exporting)
+        onPhase?(.building)
+        onPhase?(.loading)
+        return canonicalImageReference(reference)
+    }
     func cleanContainer(id: String) async throws {}
     func stats(id: String) async throws -> ContainerStats {
         ContainerStats(id: id, cpuUsageUsec: 0, memoryUsageBytes: 0, memoryLimitBytes: 0,
