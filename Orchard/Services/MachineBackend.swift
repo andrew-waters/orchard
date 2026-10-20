@@ -110,20 +110,23 @@ struct LiveMachineBackend: MachineBackend {
             let management = try Flags.MachineManagement.parse([])
             let registry = try Flags.Registry.parse([])
             let imageFetch = try Flags.ImageFetch.parse([])
+            // No user options: the machine account defaults to the host user, as the CLI's does.
+            let user = try Flags.MachineUser.parse([])
 
             // Fetch + unpack the image and build the machine configuration. Progress is
             // ignored here; the UI shows its own creating state.
-            let (config, resources) = try await MachineClient.machineConfigFromFlags(
+            let config = try await MachineClient.machineConfigFromFlags(
                 id: spec.name,
                 image: spec.imageRef,
                 management: management,
+                user: user,
                 registry: registry,
                 imageFetch: imageFetch,
                 containerSystemConfig: systemConfig,
                 progressUpdate: { _ in }
             )
 
-            try await client.create(configuration: config, resources: resources, bootConfig: bootConfig)
+            try await client.create(configuration: config, bootConfig: bootConfig)
 
             if spec.setDefault {
                 try await client.setDefault(id: spec.name)
