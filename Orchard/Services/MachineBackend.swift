@@ -22,6 +22,79 @@ struct MachineCreateSpec: Sendable {
     let kernelPath: String?
     let setDefault: Bool
     let noBoot: Bool
+    /// The machine's account. Empty means the host user, as the CLI does without user options.
+    var account: MachineAccountSpec = MachineAccountSpec()
+}
+
+/// The machine account to create (container 1.6.0's `machine create --user/--uid/--gid/--home`).
+/// Every field is optional: one left nil falls back to the host user's value, and `home` to
+/// `/home/<user>`. The account is fixed at creation; the runtime has no route to change it.
+struct MachineAccountSpec: Sendable, Equatable {
+    var user: String?
+    var uid: UInt32?
+    var gid: UInt32?
+    var home: String?
+
+    init(user: String? = nil, uid: UInt32? = nil, gid: UInt32? = nil, home: String? = nil) {
+        self.user = user
+        self.uid = uid
+        self.gid = gid
+        self.home = home
+    }
+
+    /// Build from the create form's text fields, trimmed, with an empty field left to the
+    /// host default. Throws a message for the form when a field can't be used.
+    init(userText: String, uidText: String, gidText: String, homeText: String) throws {
+        let user = userText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let uid = uidText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let gid = gidText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let home = homeText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !user.isEmpty {
+            // A name only: upstream reads an all-digit `--user` as a UID and a `:` as a GID, and
+            // the account's name ends up in /etc/passwd, so keep to portable username characters.
+            guard user.count <= 32,
+                  user.range(of: "^[A-Za-z_][A-Za-z0-9._-]*$", options: .regularExpression) != nil else {
+                throw MachineAccountError("Invalid user. Use letters, digits, “.”, “_” and “-”, starting with a letter or “_” (at most 32 characters).")
+            }
+            self.user = user
+        }
+        if !uid.isEmpty {
+            guard let value = UInt32(uid) else { throw MachineAccountError("Invalid UID. Use a whole number.") }
+            self.uid = value
+        }
+        if !gid.isEmpty {
+            guard let value = UInt32(gid) else { throw MachineAccountError("Invalid GID. Use a whole number.") }
+            self.gid = value
+        }
+        if !home.isEmpty {
+            // `:` or a line break would corrupt the account's /etc/passwd line, and `/` would
+            // make setup chown the machine's whole filesystem.
+            guard home.hasPrefix("/"), home != "/", !home.contains(":"),
+                  home.rangeOfCharacter(from: .newlines) == nil else {
+                throw MachineAccountError("Invalid home directory. Use an absolute path other than “/”, such as /home/dev.")
+            }
+            self.home = home
+        }
+    }
+
+    /// The `container machine create` user options this account stands for, for
+    /// `Flags.MachineUser.parse`. Empty for the host-user default.
+    var arguments: [String] {
+        var args: [String] = []
+        if let user { args += ["--user", user] }
+        if let uid { args += ["--uid", "\(uid)"] }
+        if let gid { args += ["--gid", "\(gid)"] }
+        if let home { args += ["--home", home] }
+        return args
+    }
+}
+
+/// Why a create form's account fields can't be used, worded for the form.
+struct MachineAccountError: LocalizedError, Equatable {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
 }
 
 /// Editable boot-time configuration for an existing machine. Applied via `setConfig`, which
@@ -110,8 +183,9 @@ struct LiveMachineBackend: MachineBackend {
             let management = try Flags.MachineManagement.parse([])
             let registry = try Flags.Registry.parse([])
             let imageFetch = try Flags.ImageFetch.parse([])
-            // No user options: the machine account defaults to the host user, as the CLI's does.
-            let user = try Flags.MachineUser.parse([])
+            // Parsed from CLI-style arguments so upstream's own rules apply; with none, the
+            // machine account defaults to the host user, as the CLI's does.
+            let user = try Flags.MachineUser.parse(spec.account.arguments)
 
             // Fetch + unpack the image and build the machine configuration. Progress is
             // ignored here; the UI shows its own creating state.
@@ -231,7 +305,8 @@ func mapMachine(_ snapshot: MachineSnapshot, isDefault: Bool) -> Machine {
         userSetup: MachineUserSetup(
             username: snapshot.configuration.userSetup.username,
             uid: Int(snapshot.configuration.userSetup.uid),
-            gid: Int(snapshot.configuration.userSetup.gid)
+            gid: Int(snapshot.configuration.userSetup.gid),
+            home: snapshot.configuration.userSetup.home
         )
     )
 }

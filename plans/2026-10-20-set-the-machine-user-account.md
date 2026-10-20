@@ -40,16 +40,16 @@ Only non-empty fields are sent, so a form left alone creates exactly what it doe
 
 ## Tasks
 
-- [ ] Shared `isContainerVersion(_:atLeast:)`; `MachineService.supportsUserAccount(containerVersion:)`
-- [ ] `MachineAccountSpec` on `MachineCreateSpec`; argument building and `Flags.MachineUser.parse` in `LiveMachineBackend.createMachine`
-- [ ] `MachineUserSetup.home`, mapped from `UserSetup.home`; mocks and UI-test fixture updated
-- [ ] Create Machine: Account group, placeholders, validation (pure function), gated on 1.6.0
-- [ ] Detail: Account and Linux Home rows beside Home Mount
-- [ ] `homeMountCaption` rewritten against upstream's wording
-- [ ] Unit tests: argument building (empty, each field, all fields), validation, version gate, mapping of `home`
-- [ ] Build; OrchardTests pass
-- [ ] Smoke test on 1.6.0: a machine created with user, UID, GID and home reports them from `id` and `echo $HOME`; one created with defaults matches the host user; the detail view shows the account
-- [ ] README Container Machines section, site machines guide, CHANGELOG
+- [x] Shared `isContainerVersion(_:atLeast:)`; `MachineService.supportsUserAccount(containerVersion:)`
+- [x] `MachineAccountSpec` on `MachineCreateSpec`; argument building and `Flags.MachineUser.parse` in `LiveMachineBackend.createMachine`
+- [x] `MachineUserSetup.home`, mapped from `UserSetup.home`; mocks and UI-test fixture updated
+- [x] Create Machine: Account group, placeholders, validation (pure function), gated on 1.6.0
+- [x] Detail: Account and Linux Home rows beside Home Mount
+- [x] `homeMountCaption` rewritten against upstream's wording
+- [x] Unit tests: argument building (empty, each field, all fields), validation, version gate, mapping of `home`
+- [x] Build; OrchardTests pass (459 tests)
+- [x] Smoke test on 1.6.0: a machine created with user, UID, GID and home reports them from `id` and `echo $HOME`; one created with defaults matches the host user; the detail view shows the account. Driven through `LiveMachineBackend.createMachine` from a throwaway test, with `alpine:latest`: `--user devuser --uid 1500 --gid 1600 --home /srv/devhome` gave `uid=1500(devuser) gid=1600(devuser)` and `HOME=/srv/devhome`; the defaults gave `uid=501(aw) gid=20` and `HOME=/home/aw`. The detail view (via `orchard://machine/<id>`) showed "devuser (uid 1500, gid 1600)" and "/srv/devhome". The Create Machine sheet showed the Account group, collapsed, with the host user as the User placeholder
+- [x] README Container Machines section, site machines guide, CHANGELOG
 
 ## Out of scope
 

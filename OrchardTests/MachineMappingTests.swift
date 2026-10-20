@@ -13,7 +13,8 @@ import ContainerizationOCI
 private func makeSnapshot(
     id: String,
     status: RuntimeStatus,
-    running: Bool
+    running: Bool,
+    userSetup: UserSetup = UserSetup(username: "aw", uid: 501, gid: 20)
 ) throws -> MachineSnapshot {
     let image = ImageDescription(
         reference: "docker.io/library/alpine:3.22",
@@ -27,7 +28,7 @@ private func makeSnapshot(
         id: id,
         image: image,
         platform: ContainerizationOCI.Platform(arch: "arm64", os: "linux"),
-        userSetup: UserSetup(username: "aw", uid: 501, gid: 20)
+        userSetup: userSetup
     )
     let bootConfig = try MachineConfig(
         cpus: 4,
@@ -73,6 +74,8 @@ func mapMachineRunning() throws {
     #expect(machine.userSetup?.username == "aw")
     #expect(machine.userSetup?.uid == 501)
     #expect(machine.userSetup?.gid == 20)
+    // Upstream defaults the home to /home/<user> when none was chosen.
+    #expect(machine.userSetup?.home == "/home/aw")
 }
 
 @Test("Machine mapping: a stopped snapshot leaves ip/started/containerId nil and isDefault false")
@@ -88,4 +91,15 @@ func mapMachineStopped() throws {
     #expect(machine.containerId == nil)
     #expect(machine.isStopped == true)
     #expect(machine.isRunning == false)
+}
+
+@Test("Machine mapping: an account chosen at creation carries its user, ids and home")
+func mapMachineCustomAccount() throws {
+    let snapshot = try makeSnapshot(
+        id: "dev", status: .running, running: true,
+        userSetup: UserSetup(username: "devuser", uid: 1500, gid: 1600, home: "/srv/devhome"))
+
+    let machine = mapMachine(snapshot, isDefault: false)
+
+    #expect(machine.userSetup == MachineUserSetup(username: "devuser", uid: 1500, gid: 1600, home: "/srv/devhome"))
 }

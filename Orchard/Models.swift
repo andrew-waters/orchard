@@ -287,11 +287,13 @@ struct Machine: Codable, Equatable, Identifiable {
     var isStopped: Bool { status == "stopped" }
 }
 
-/// The host user mapped into a machine at first-boot provisioning.
+/// The account provisioned in a machine: the host user unless chosen at creation (1.6.0).
 struct MachineUserSetup: Codable, Equatable {
     let username: String
     let uid: Int
     let gid: Int
+    /// The account's home directory inside the machine, separate from the home mount.
+    let home: String
 }
 
 // MARK: - Local model providers (the container↔model bridge)

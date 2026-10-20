@@ -44,6 +44,14 @@ final class MachineService: ObservableObject {
         }
     }
 
+    /// Container 1.6.0 added choosing the machine's account at creation (apple/container#2322).
+    /// Orchard still runs against 1.5.x, whose runtime predates the options (it ignores `home`),
+    /// so the fields are gated on the installed version. Nil (the system is stopped) or an
+    /// unparseable version is false.
+    nonisolated static func supportsUserAccount(containerVersion: String?) -> Bool {
+        isContainerVersion(containerVersion, atLeast: [1, 6])
+    }
+
     /// Whether a create is in flight — drives the create form's spinner and disables re-submit.
     @Published var isCreating = false
 
