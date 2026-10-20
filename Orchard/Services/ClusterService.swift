@@ -109,7 +109,7 @@ enum K8sPluginAvailability: Equatable {
 /// What a cluster was created with, as far as recreating it needs. The node container keeps
 /// its CPUs and memory but not the rest: its image reference loses the tag (it reads
 /// `kindest/node@sha256:<digest>`), and nothing records a CNI manifest. The worker count is
-/// what Orchard remembers, else the workers the cluster has now.
+/// the workers the cluster has now, else what Orchard remembers.
 struct ClusterRecreateSettings: Equatable, Identifiable {
     enum NodeImage: Equatable {
         /// The plugin's own default, so no `--node-image` is needed.
@@ -155,6 +155,9 @@ final class ClusterService: ObservableObject {
     /// shows; nil shows the cluster itself. Kept here rather than as another layout binding,
     /// like `ComposeService.selectedProject`.
     @Published var selectedNode: String?
+    /// Clusters whose nodes the Clusters list shows under them. Kept beside `selectedNode`, so a
+    /// tab switch can't hide a selected node in a collapsed cluster. Collapsed by default.
+    @Published var expandedClusters: Set<String> = []
 
     /// Overridable for tests, which must not reach Docker Hub.
     var fetchNodeImageTags: @Sendable () async throws -> [K8sNodeImageCatalog.HubTag] = {
@@ -249,7 +252,10 @@ final class ClusterService: ObservableObject {
         return ClusterRecreateSettings(
             name: cluster.name, cpus: cpus, memoryGiB: memoryGiB,
             nodeImage: nodeImage, cni: remembered?.cni,
-            workers: remembered?.workers ?? cluster.workers.count)
+            // The live count wins: unlike the image and CNI it can be read off the cluster, and a
+            // remembered one is stale after a delete and create outside Orchard. Remembered only
+            // covers a cluster left with no workers.
+            workers: cluster.workers.isEmpty ? (remembered?.workers ?? 0) : cluster.workers.count)
     }
 
     /// Container 1.6.0 added worker nodes (`k8s create --workers`, `k8s load-image --node`).

@@ -17,8 +17,6 @@ struct ClustersListView: View {
     @Binding var searchText: String
     @Binding var showCreateClusterSheet: Bool
     @State private var recreateSettings: ClusterRecreateSettings?
-    /// Clusters whose nodes are listed under them. Collapsed by default.
-    @State private var expandedClusters: Set<String> = []
     @FocusState var listFocusedTab: TabSelection?
 
     private var clusters: [K8sCluster] {
@@ -133,7 +131,7 @@ struct ClustersListView: View {
     private var clustersListView: some View {
         List(selection: selection) {
             ForEach(filteredClusters) { cluster in
-                let isExpanded = expandedClusters.contains(cluster.name)
+                let isExpanded = clusterService.expandedClusters.contains(cluster.name)
                 HStack(spacing: 4) {
                     disclosureButton(for: cluster, isExpanded: isExpanded)
                     ClusterRowView(
@@ -206,9 +204,9 @@ struct ClustersListView: View {
     private func setExpanded(_ expanded: Bool, cluster name: String) {
         withAnimation(.easeInOut(duration: 0.2)) {
             if expanded {
-                expandedClusters.insert(name)
+                clusterService.expandedClusters.insert(name)
             } else {
-                expandedClusters.remove(name)
+                clusterService.expandedClusters.remove(name)
                 // A node hidden by the collapse hands the selection back to its cluster.
                 if selectedCluster == name { clusterService.selectedNode = nil }
             }
@@ -222,7 +220,7 @@ struct ClustersListView: View {
               let cluster = filteredClusters.first(where: { $0.name == name }),
               cluster.nodes.count > 1
         else { return .ignored }
-        let isExpanded = expandedClusters.contains(name)
+        let isExpanded = clusterService.expandedClusters.contains(name)
         switch key {
         case .rightArrow:
             guard clusterService.selectedNode == nil else { return .ignored }

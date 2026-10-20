@@ -512,7 +512,7 @@ func recreateRemembersWorkers() async throws {
     let service = makeService(runner: runner)
     await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, workers: 3)
 
-    // Only the control plane is left, as after a create whose workers failed to come up.
+    // Only the control plane is listed, so the remembered count is all there is to go on.
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
     #expect(settings.workers == 3)
 
@@ -544,4 +544,19 @@ func rememberedOptionsWithoutWorkersDecode() throws {
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
     #expect(settings.cni == "/Users/me/cilium.yaml")
     #expect(settings.workers == 0)
+}
+
+@MainActor
+@Test("Recreate settings: the workers a cluster has beat a remembered count gone stale")
+func recreatePrefersLiveWorkers() async throws {
+    let service = makeService()
+    // Created through Orchard with no workers, then deleted and created again with two from the CLI.
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, workers: 0)
+    let cluster = try #require(K8sCluster.group(containers: [
+        try k8sNode("k8s-dev", role: "control-plane", status: "stopped"),
+        try k8sNode("k8s-dev-worker-1", role: "worker", status: "stopped"),
+        try k8sNode("k8s-dev-worker-2", role: "worker", status: "stopped"),
+    ]).first)
+
+    #expect(service.clusterService.recreateSettings(for: cluster).workers == 2)
 }
