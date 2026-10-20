@@ -22,6 +22,8 @@ struct K8sClusterNode: Identifiable, Equatable {
 struct K8sCluster: Identifiable, Equatable {
     static let pluginName = "k8s"
     static let controlPlaneRole = "control-plane"
+    /// The most workers `container k8s create --workers` accepts (1.6.0).
+    static let maxWorkers = 1024
 
     let name: String
     let nodes: [K8sClusterNode]
@@ -106,7 +108,8 @@ enum K8sPluginAvailability: Equatable {
 
 /// What a cluster was created with, as far as recreating it needs. The node container keeps
 /// its CPUs and memory but not the rest: its image reference loses the tag (it reads
-/// `kindest/node@sha256:<digest>`), and nothing records a CNI manifest.
+/// `kindest/node@sha256:<digest>`), and nothing records a CNI manifest. The worker count is
+/// the workers the cluster has now, else what Orchard remembers.
 struct ClusterRecreateSettings: Equatable, Identifiable {
     enum NodeImage: Equatable {
         /// The plugin's own default, so no `--node-image` is needed.
@@ -123,6 +126,7 @@ struct ClusterRecreateSettings: Equatable, Identifiable {
     let memoryGiB: Int
     let nodeImage: NodeImage
     let cni: String?
+    let workers: Int
 
     var id: String { name }
 }
@@ -147,6 +151,13 @@ final class ClusterService: ObservableObject {
     /// Recent `kindest/node` versions for the Create Cluster sheet. Empty until fetched, and
     /// left empty offline: the sheet then offers the plugin default and a custom image only.
     @Published var nodeImageOptions: [K8sNodeImageOption] = []
+    /// The node picked under its cluster in the Clusters list, whose container the detail then
+    /// shows; nil shows the cluster itself. Kept here rather than as another layout binding,
+    /// like `ComposeService.selectedProject`.
+    @Published var selectedNode: String?
+    /// Clusters whose nodes the Clusters list shows under them. Kept beside `selectedNode`, so a
+    /// tab switch can't hide a selected node in a collapsed cluster. Collapsed by default.
+    @Published var expandedClusters: Set<String> = []
 
     /// Overridable for tests, which must not reach Docker Hub.
     var fetchNodeImageTags: @Sendable () async throws -> [K8sNodeImageCatalog.HubTag] = {
@@ -173,13 +184,16 @@ final class ClusterService: ObservableObject {
 
     // MARK: - Remembered create options
 
-    /// The node image and CNI manifest each cluster was created with through Orchard, keyed
-    /// by cluster name, since neither survives on the node container in a usable form.
+    /// The node image, CNI manifest and worker count each cluster was created with through
+    /// Orchard, keyed by cluster name. The image and CNI don't survive on the node container in
+    /// a usable form, and the worker count is lost with any worker that failed to come up.
     private static let createOptionsKey = "clusterCreateOptions"
 
     private struct RememberedOptions: Codable {
         let nodeImage: String?
         let cni: String?
+        /// Nil in options saved before workers existed.
+        let workers: Int?
     }
 
     private func rememberedOptions(for name: String) -> RememberedOptions? {
@@ -237,7 +251,22 @@ final class ClusterService: ObservableObject {
 
         return ClusterRecreateSettings(
             name: cluster.name, cpus: cpus, memoryGiB: memoryGiB,
-            nodeImage: nodeImage, cni: remembered?.cni)
+            nodeImage: nodeImage, cni: remembered?.cni,
+            // The live count wins: unlike the image and CNI it can be read off the cluster, and a
+            // remembered one is stale after a delete and create outside Orchard. Remembered only
+            // covers a cluster left with no workers.
+            workers: cluster.workers.isEmpty ? (remembered?.workers ?? 0) : cluster.workers.count)
+    }
+
+    /// Container 1.6.0 added worker nodes (`k8s create --workers`, `k8s load-image --node`).
+    /// Orchard still runs against 1.5.x, which refuses both flags, so the controls are gated on
+    /// the installed version. Nil (the system is stopped) or an unparseable version is false.
+    nonisolated static func supportsWorkerNodes(containerVersion: String?) -> Bool {
+        guard let containerVersion else { return false }
+        let parts = containerVersion.split(separator: ".").map { Int($0) }
+        guard parts.count >= 2, !parts.contains(nil) else { return false }
+        let numbers = parts.compactMap { $0 }
+        return !numbers.lexicographicallyPrecedes([1, 6])
     }
 
     /// The kubeconfig file `container k8s write-config` writes to by default.
@@ -306,28 +335,33 @@ final class ClusterService: ObservableObject {
     ///
     /// `cni` is a host path to a CNI manifest applied instead of the default kindnet (1.5.0).
     /// Nothing checks that it suits the cluster; a bad one fails late, at the apply step.
+    ///
+    /// `workers` above 0 adds that many worker nodes (1.6.0). The flag is left out at 0, the
+    /// CLI's own default, so a 1.5.x install never sees it.
     @discardableResult
-    func create(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String? = nil) async -> Bool {
+    func create(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String? = nil, workers: Int = 0) async -> Bool {
         // A taken name fails in the CLI, and must not first overwrite what the existing
         // cluster was created with: its Recreate would then rebuild it from the wrong choices.
         // The list is refreshed first, since a container made outside Orchard since the last
         // poll would otherwise be missed. A failed refresh leaves the cached list to check.
         await reloadContainers()
         return await performCreate(
-            name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni,
+            name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
             rememberOptions: !existingContainerIDs().contains(name))
     }
 
     /// `create`, with the options' save decided by the caller. Recreate always saves: its
     /// delete has succeeded, though the container list may not have caught up yet.
     private func performCreate(
-        name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String?, rememberOptions: Bool
+        name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String?, workers: Int,
+        rememberOptions: Bool
     ) async -> Bool {
         var arguments = ["k8s", "create", "--name", name]
         if let cpus { arguments += ["--cpus", String(cpus)] }
         if let memory, !memory.isEmpty { arguments += ["--memory", memory] }
         if let nodeImage, !nodeImage.isEmpty { arguments += ["--node-image", nodeImage] }
         if let cni, !cni.isEmpty { arguments += ["--cni", cni] }
+        if workers > 0 { arguments += ["--workers", String(workers)] }
 
         isCreating = true
         defer { isCreating = false }
@@ -336,7 +370,8 @@ final class ClusterService: ObservableObject {
         if rememberOptions {
             setRememberedOptions(
                 RememberedOptions(nodeImage: nodeImage?.isEmpty == false ? nodeImage : nil,
-                                  cni: cni?.isEmpty == false ? cni : nil),
+                                  cni: cni?.isEmpty == false ? cni : nil,
+                                  workers: workers),
                 for: name)
         }
         return await runClusterCommand(arguments, failureVerb: "create cluster") { result in
@@ -378,24 +413,26 @@ final class ClusterService: ObservableObject {
     /// has to delete first and then retype what they created. Stops if the delete fails,
     /// which leaves the cluster as it was.
     @discardableResult
-    func recreate(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String?) async -> Bool {
+    func recreate(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String?, workers: Int = 0) async -> Bool {
         busyClusters.insert(name)
         defer { busyClusters.remove(name) }
         let deleted = await runClusterCommand(
             ["k8s", "delete", "--name", name], failureVerb: "delete cluster", reloadOnSuccess: false)
         guard deleted else { return false }
         return await performCreate(
-            name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, rememberOptions: true)
+            name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
+            rememberOptions: true)
     }
 
     /// Load a local image into the cluster's containerd (`container k8s load-image`),
-    /// so cluster workloads can use images built or pulled in Orchard.
+    /// so cluster workloads can use images built or pulled in Orchard. Empty `nodes` loads it
+    /// into every node; otherwise only into those named, one `--node` each (1.6.0).
     @discardableResult
-    func loadImage(cluster: String, reference: String) async -> Bool {
+    func loadImage(cluster: String, reference: String, nodes: [String] = []) async -> Bool {
         isLoadingImage = true
         defer { isLoadingImage = false }
         return await runClusterCommand(
-            ["k8s", "load-image", "--name", cluster, reference],
+            ["k8s", "load-image", "--name", cluster] + nodes.flatMap { ["--node", $0] } + [reference],
             failureVerb: "load image", reloadOnSuccess: false)
     }
 

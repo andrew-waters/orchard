@@ -2,6 +2,13 @@ import SwiftUI
 import AppKit
 
 struct ClustersListView: View {
+    /// A row in the list: a cluster, or one of its nodes listed under it. A control plane's id
+    /// is its cluster's name, so the two need telling apart.
+    private enum Row: Hashable {
+        case cluster(String)
+        case node(cluster: String, id: String)
+    }
+
     @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
@@ -98,25 +105,142 @@ struct ClustersListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// The list's selection, kept as the cluster plus `ClusterService.selectedNode`.
+    private var selection: Binding<Row?> {
+        Binding(
+            get: {
+                guard let selectedCluster else { return nil }
+                if let node = clusterService.selectedNode { return .node(cluster: selectedCluster, id: node) }
+                return .cluster(selectedCluster)
+            },
+            set: { row in
+                switch row {
+                case .cluster(let name):
+                    clusterService.selectedNode = nil
+                    selectedCluster = name
+                case .node(let cluster, let id):
+                    clusterService.selectedNode = id
+                    selectedCluster = cluster
+                case nil:
+                    clusterService.selectedNode = nil
+                    selectedCluster = nil
+                }
+            })
+    }
+
     private var clustersListView: some View {
-        List(selection: $selectedCluster) {
+        List(selection: selection) {
             ForEach(filteredClusters) { cluster in
-                ClusterRowView(
-                    cluster: cluster,
-                    isSelected: selectedCluster == cluster.name,
-                    isBusy: clusterService.busyClusters.contains(cluster.name)
-                )
+                let isExpanded = clusterService.expandedClusters.contains(cluster.name)
+                HStack(spacing: 4) {
+                    disclosureButton(for: cluster, isExpanded: isExpanded)
+                    ClusterRowView(
+                        cluster: cluster,
+                        isSelected: selectedCluster == cluster.name && clusterService.selectedNode == nil,
+                        isBusy: clusterService.busyClusters.contains(cluster.name)
+                    )
+                }
                 .contextMenu {
                     contextMenu(for: cluster)
                 }
-                .tag(cluster.name)
+                .tag(Row.cluster(cluster.name))
+
+                if isExpanded {
+                    ForEach(cluster.nodes) { node in
+                        NodeRowView(
+                            node: node,
+                            isSelected: selectedCluster == cluster.name && clusterService.selectedNode == node.id
+                        )
+                        .padding(.leading, 24)
+                        .tag(Row.node(cluster: cluster.name, id: node.id))
+                    }
+                }
             }
         }
         .listStyle(PlainListStyle())
         .animation(.easeInOut(duration: 0.3), value: containerListService.containers)
         .focused($listFocusedTab, equals: .clusters)
+        .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in handleArrow(press.key) }
         .onChange(of: selectedCluster) { _, newValue in
             lastSelectedCluster = newValue
+            // Another view (a cross-link, the command palette) picked a cluster: show it, not a
+            // node left selected from a different one.
+            if let node = clusterService.selectedNode,
+               !clusters.contains(where: { $0.name == newValue && $0.nodes.contains { $0.id == node } }) {
+                clusterService.selectedNode = nil
+            }
+        }
+        .onChange(of: containerListService.containers) { _, _ in
+            // A node that has gone falls back to its cluster.
+            if let node = clusterService.selectedNode,
+               !clusters.contains(where: { $0.nodes.contains { $0.id == node } }) {
+                clusterService.selectedNode = nil
+            }
+        }
+    }
+
+    /// A chevron for a cluster with workers. A single-node cluster gets the same width of
+    /// space, so every cluster's name lines up.
+    @ViewBuilder
+    private func disclosureButton(for cluster: K8sCluster, isExpanded: Bool) -> some View {
+        if cluster.nodes.count > 1 {
+            Button {
+                setExpanded(!isExpanded, cluster: cluster.name)
+            } label: {
+                SwiftUI.Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(isExpanded ? "Hide nodes" : "Show nodes")
+        } else {
+            Color.clear.frame(width: 14, height: 14)
+        }
+    }
+
+    private func setExpanded(_ expanded: Bool, cluster name: String) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if expanded {
+                clusterService.expandedClusters.insert(name)
+            } else {
+                clusterService.expandedClusters.remove(name)
+                // A node hidden by the collapse hands the selection back to its cluster.
+                if selectedCluster == name { clusterService.selectedNode = nil }
+            }
+        }
+    }
+
+    /// Left and right arrows, as in a Finder outline: right expands a cluster, then steps
+    /// into its first node; left steps from a node back to its cluster, then collapses it.
+    private func handleArrow(_ key: KeyEquivalent) -> KeyPress.Result {
+        guard let name = selectedCluster,
+              let cluster = filteredClusters.first(where: { $0.name == name }),
+              cluster.nodes.count > 1
+        else { return .ignored }
+        let isExpanded = clusterService.expandedClusters.contains(name)
+        switch key {
+        case .rightArrow:
+            guard clusterService.selectedNode == nil else { return .ignored }
+            if isExpanded {
+                clusterService.selectedNode = cluster.nodes.first?.id
+            } else {
+                setExpanded(true, cluster: name)
+            }
+            return .handled
+        case .leftArrow:
+            if clusterService.selectedNode != nil {
+                clusterService.selectedNode = nil
+            } else if isExpanded {
+                setExpanded(false, cluster: name)
+            } else {
+                return .ignored
+            }
+            return .handled
+        default:
+            return .ignored
         }
     }
 
@@ -159,6 +283,22 @@ struct ClustersListView: View {
                 primaryText: cluster.name,
                 secondaryLeftText: nodeCount == 1 ? "1 node" : "\(nodeCount) nodes",
                 secondaryRightText: isBusy ? "Working…" : cluster.status.capitalized,
+                isSelected: isSelected
+            )
+        }
+    }
+
+    private struct NodeRowView: View {
+        let node: K8sClusterNode
+        let isSelected: Bool
+
+        var body: some View {
+            ListItemRow(
+                icon: "cube",
+                iconColor: node.isRunning ? .green : .secondary,
+                primaryText: node.id,
+                secondaryLeftText: node.container.pluginRoleDisplay,
+                secondaryRightText: node.container.status.capitalized,
                 isSelected: isSelected
             )
         }

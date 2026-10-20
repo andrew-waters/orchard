@@ -4,6 +4,7 @@ struct DetailContentView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var composeService: ComposeService
+    @EnvironmentObject var clusterService: ClusterService
     let selectedTab: TabSelection
     let selectedContainer: String?
     let selectedContainers: Set<String>
@@ -69,7 +70,16 @@ struct DetailContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         case .clusters:
-            if let selectedCluster = selectedCluster {
+            if let node = clusterService.selectedNode,
+               let container = containerListService.containers.first(where: { $0.configuration.id == node }) {
+                ContainerDetailView(
+                    container: container,
+                    selectedTabBinding: $selectedTabBinding,
+                    selectedNetwork: $selectedNetworkBinding,
+                    selectedCluster: clusterLinkBinding,
+                    selectedSandbox: $selectedSandboxBinding
+                )
+            } else if let selectedCluster = selectedCluster {
                 ClusterDetailView(
                     clusterName: selectedCluster,
                     selectedTab: $selectedTabBinding,
@@ -142,12 +152,23 @@ struct DetailContentView: View {
                         container: container,
                         selectedTabBinding: $selectedTabBinding,
                         selectedNetwork: $selectedNetworkBinding,
-                        selectedCluster: $selectedClusterBinding,
+                        selectedCluster: clusterLinkBinding,
                         selectedSandbox: $selectedSandboxBinding
                     )
                 }
             }
         }
+    }
+
+    /// The cluster binding a container's "Show in Clusters" link writes to. Following it shows
+    /// the cluster, even from its own node's detail in the Clusters tab.
+    private var clusterLinkBinding: Binding<String?> {
+        Binding(
+            get: { selectedClusterBinding },
+            set: {
+                clusterService.selectedNode = nil
+                selectedClusterBinding = $0
+            })
     }
 
     @ViewBuilder

@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 /// Create a local Kubernetes cluster via `container k8s create`. Mirrors the CLI's
 /// options: name, optional resource overrides, the Kubernetes version (as a node image),
-/// and, under Advanced, a custom CNI manifest.
+/// and, under Advanced, worker nodes (1.6.0) and a custom CNI manifest.
 struct CreateClusterView: View {
     /// `pluginDefault` passes no `--node-image`, so the CLI uses its own default even when
     /// Orchard could not read which one that is.
@@ -14,6 +14,7 @@ struct CreateClusterView: View {
     }
 
     @EnvironmentObject var clusterService: ClusterService
+    @EnvironmentObject var systemService: SystemService
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = "k8s-dev"
@@ -24,6 +25,7 @@ struct CreateClusterView: View {
     @State private var customNodeImage: String = ""
     @State private var showAdvanced = false
     @State private var cniPath: String?
+    @State private var workers: Int = 0
     @State private var validationError: String?
 
     private static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
@@ -53,7 +55,8 @@ struct CreateClusterView: View {
             _validationError = State(initialValue: "Orchard doesn't know which version this cluster ran: its node records the image without a tag. Add the tag, or choose a version.")
         }
         _cniPath = State(initialValue: recreating.cni)
-        _showAdvanced = State(initialValue: recreating.cni != nil)
+        _workers = State(initialValue: recreating.workers)
+        _showAdvanced = State(initialValue: recreating.cni != nil || recreating.workers > 0)
     }
 
     private let hostCores = ProcessInfo.processInfo.processorCount
@@ -95,8 +98,13 @@ struct CreateClusterView: View {
                     kubernetesVersionField
 
                     DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-                        cniField
-                            .padding(.top, 8)
+                        VStack(alignment: .leading, spacing: 20) {
+                            if supportsWorkers {
+                                workersField
+                            }
+                            cniField
+                        }
+                        .padding(.top, 8)
                     }
 
                     slownessNote
@@ -182,6 +190,23 @@ struct CreateClusterView: View {
                 TextField("docker.io/kindest/node:v1.34.11", text: $customNodeImage)
                     .textFieldStyle(.roundedBorder)
             }
+        }
+    }
+
+    // MARK: - Workers
+
+    private var supportsWorkers: Bool {
+        ClusterService.supportsWorkerNodes(containerVersion: systemService.containerVersion)
+    }
+
+    private var workersField: some View {
+        field(
+            title: "Workers",
+            caption: workers == 0
+                ? "With no workers, the control-plane node also runs workloads."
+                : "Workloads run on the workers only. Each worker is a node of its own with the same CPUs and memory as the control plane, and each adds to the time the cluster takes to create."
+        ) {
+            NumericStepperField(value: $workers, range: 0...K8sCluster.maxWorkers)
         }
     }
 
@@ -315,11 +340,12 @@ struct CreateClusterView: View {
         Task {
             let cpus = overrideResources ? cpus : nil
             let memory = overrideResources ? "\(memoryGiB)GB" : nil
+            let workers = supportsWorkers ? workers : 0
             let created: Bool
             if recreating == nil {
-                created = await clusterService.create(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cniPath)
+                created = await clusterService.create(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cniPath, workers: workers)
             } else {
-                created = await clusterService.recreate(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cniPath)
+                created = await clusterService.recreate(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cniPath, workers: workers)
             }
             if created { await MainActor.run { dismiss() } }
         }

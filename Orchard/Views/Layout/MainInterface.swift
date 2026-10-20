@@ -3,6 +3,7 @@ import SwiftUI
 struct MainInterfaceView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var composeService: ComposeService
+    @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var systemService: SystemService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
@@ -87,7 +88,7 @@ struct MainInterfaceView: View {
         case .compose:
             return composeService.selectedProject ?? ""
         case .clusters:
-            return selectedCluster ?? ""
+            return clusterService.selectedNode ?? selectedCluster ?? ""
         case .registries:
             return ""
         case .systemLogs:
