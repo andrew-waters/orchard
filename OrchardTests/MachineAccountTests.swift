@@ -43,8 +43,8 @@ func machineAccountAllFieldsParse() throws {
 
 @Test("Machine account: users that upstream would misread or that don't suit /etc/passwd are refused")
 func machineAccountRejectsBadUsers() {
-    // All digits reads as a UID upstream, and `:` as a GID.
-    for user in ["1500", "dev:20", "dev user", "dev\nroot", "-dev", "dev/x", String(repeating: "a", count: 33)] {
+    // All digits reads as a UID upstream, and `:` as a GID. Every image already has root.
+    for user in ["root", "1500", "dev:20", "dev user", "dev\nroot", "-dev", "dev/x", String(repeating: "a", count: 33)] {
         #expect(throws: MachineAccountError.self, "\(user)") {
             try MachineAccountSpec(userText: user, uidText: "", gidText: "", homeText: "")
         }
@@ -56,7 +56,7 @@ func machineAccountRejectsBadUsers() {
     }
 }
 
-@Test("Machine account: UID and GID must be whole numbers that fit a UInt32")
+@Test("Machine account: UID and GID must be whole numbers that fit a UInt32, and the UID not root's")
 func machineAccountRejectsBadIds() {
     for id in ["-1", "1.5", "abc", "4294967296"] {
         #expect(throws: MachineAccountError.self, "uid \(id)") {
@@ -66,8 +66,12 @@ func machineAccountRejectsBadIds() {
             try MachineAccountSpec(userText: "", uidText: "", gidText: id, homeText: "")
         }
     }
+    // UID 0 is root, which every image has; an existing GID such as 0 is reused, so it's allowed.
+    #expect(throws: MachineAccountError.self) {
+        try MachineAccountSpec(userText: "", uidText: "0", gidText: "", homeText: "")
+    }
     #expect(throws: Never.self) {
-        try MachineAccountSpec(userText: "", uidText: "0", gidText: "4294967295", homeText: "")
+        try MachineAccountSpec(userText: "", uidText: "4294967295", gidText: "0", homeText: "")
     }
 }
 

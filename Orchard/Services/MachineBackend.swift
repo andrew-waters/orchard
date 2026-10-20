@@ -57,10 +57,15 @@ struct MachineAccountSpec: Sendable, Equatable {
                   user.range(of: "^[A-Za-z_][A-Za-z0-9._-]*$", options: .regularExpression) != nil else {
                 throw MachineAccountError("Invalid user. Use letters, digits, “.”, “_” and “-”, starting with a letter or “_” (at most 32 characters).")
             }
+            // Every image has root, and upstream's setup refuses an account that clashes with
+            // an existing one, but only at first boot; catch it here for a clear error.
+            guard user != "root" else { throw MachineAccountError("Invalid user. Every image already has root; choose another name.") }
             self.user = user
         }
         if !uid.isEmpty {
             guard let value = UInt32(uid) else { throw MachineAccountError("Invalid UID. Use a whole number.") }
+            // UID 0 is root, refused for the same reason. An existing GID is fine: setup reuses it.
+            guard value != 0 else { throw MachineAccountError("Invalid UID. UID 0 is root, which every image already has.") }
             self.uid = value
         }
         if !gid.isEmpty {
