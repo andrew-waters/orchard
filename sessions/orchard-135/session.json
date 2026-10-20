@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "135-create-clusters-with-no-cni",
+  "finishedAt" : "2026-10-20T16:11:56Z",
   "issue" : "andrew-waters/orchard#135",
   "pullRequests" : [
     "https://github.com/andrew-waters/orchard/pull/139"
