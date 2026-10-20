@@ -102,7 +102,7 @@ func createPassesCNI() async {
 
     await service.clusterService.create(
         name: "k8s-dev", cpus: nil, memory: nil,
-        nodeImage: "docker.io/kindest/node:v1.34.11", cni: "/Users/me/cilium.yaml")
+        nodeImage: "docker.io/kindest/node:v1.34.11", cni: .manifest("/Users/me/cilium.yaml"))
 
     #expect(runner.calls.contains([
         "k8s", "create", "--name", "k8s-dev",

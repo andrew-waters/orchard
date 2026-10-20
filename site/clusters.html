@@ -65,7 +65,7 @@
         <h2>What Orchard does</h2>
         <div class="grid">
           <div class="card"><h3>Clusters, grouped</h3><p>Node containers are grouped into named clusters with per-node role, status, IP, CPUs, memory and published ports. Expand a cluster in the list (or press the right arrow key) to see its nodes and open any of them.</p></div>
-          <div class="card"><h3>Lifecycle</h3><p>Create at the Kubernetes version you choose, with optional CPU/memory overrides, worker nodes (container 1.6.0+) and a custom CNI manifest, and delete with confirmation before anything destructive.</p></div>
+          <div class="card"><h3>Lifecycle</h3><p>Create at the Kubernetes version you choose, with optional CPU/memory overrides, worker nodes (container 1.6.0+) and a CNI of your choosing (kindnet, your own manifest, or none at all on container 1.6.0+), and delete with confirmation before anything destructive.</p></div>
           <div class="card"><h3>Load local images</h3><p>Push any image from Orchard's image list into the cluster's containerd, on every node or only the ones you pick, so pods can use it without a registry.</p></div>
           <div class="card"><h3>kubectl access</h3><p>Write or merge the cluster's context into your kubeconfig, copy the kubeconfig path, or open a terminal with the context already selected.</p></div>
           <div class="card"><h3>Plugin badges</h3><p>Cluster nodes show a plugin badge (e.g. "k8s · control-plane") in the containers list and detail header.</p></div>
@@ -85,7 +85,7 @@
           </li>
           <li>
             <h3>Create a cluster</h3>
-            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the k8s plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, <strong>Workers</strong> adds that many worker nodes (container 1.6.0 and later), and a CNI manifest replaces the default kindnet. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
+            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the k8s plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, <strong>Workers</strong> adds that many worker nodes (container 1.6.0 and later), and <strong>CNI</strong> keeps the default kindnet, applies a manifest of yours in its place, or (container 1.6.0 and later) installs none, for you to add your own afterwards. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
           </li>
           <li>
             <h3>Point kubectl at it</h3>
@@ -111,6 +111,11 @@
         <div class="callout info">
           <h4>A custom CNI has to fit the cluster</h4>
           <p>Orchard passes the manifest straight to the plugin, which applies it once the control plane is up. A manifest whose pod network overlaps the cluster's (Cilium's default IP settings do, for instance) leaves a cluster that never becomes ready. See the <a href="https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni">Custom CNI section</a> of Apple container's Kubernetes guide.</p>
+        </div>
+
+        <div class="callout info">
+          <h4>A cluster with no CNI waits for you</h4>
+          <p>With <strong>None (install your own)</strong>, the plugin skips the CNI and the create returns without waiting for the nodes, because they can't become Ready without one. Install your CNI with <code>kubectl apply</code> or Helm from <strong>Terminal (kubectl)</strong>; this suits Cilium, Calico and anything else a single manifest can't express. Until every node is Ready the cluster reads <strong>Waiting for CNI</strong> in the list, and its detail says what to do next. Orchard asks the API server from inside the control-plane node every few seconds while the Clusters section is open, so this needs no kubectl on your Mac, and the state clears by itself. Recreate keeps the choice. Only clusters created this way from Orchard are tracked: one created with <code>--cni NONE</code> in the terminal shows as Running.</p>
         </div>
 
         <div class="callout info">

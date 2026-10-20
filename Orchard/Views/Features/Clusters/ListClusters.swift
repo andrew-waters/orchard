@@ -45,6 +45,14 @@ struct ClustersListView: View {
             // thing to probe is whether the CLI plugin exists for lifecycle actions.
             await clusterService.probePluginAvailability()
         }
+        .task {
+            // Clusters created with no CNI wait for the user to install one. Checked while the
+            // list is on screen, which it is beside a cluster's detail; ends with the view.
+            while !Task.isCancelled {
+                await clusterService.refreshCNIReadiness(of: clusters)
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
     }
 
     @ViewBuilder
@@ -137,7 +145,8 @@ struct ClustersListView: View {
                     ClusterRowView(
                         cluster: cluster,
                         isSelected: selectedCluster == cluster.name && clusterService.selectedNode == nil,
-                        isBusy: clusterService.busyClusters.contains(cluster.name)
+                        isBusy: clusterService.busyClusters.contains(cluster.name),
+                        isAwaitingCNI: clusterService.awaitingCNI.contains(cluster.name)
                     )
                 }
                 .contextMenu {
@@ -274,15 +283,16 @@ struct ClustersListView: View {
         let cluster: K8sCluster
         let isSelected: Bool
         let isBusy: Bool
+        let isAwaitingCNI: Bool
 
         var body: some View {
             let nodeCount = cluster.nodes.count
             ListItemRow(
                 icon: "helm",
-                iconColor: cluster.isRunning ? .green : .secondary,
+                iconColor: isAwaitingCNI ? .orange : cluster.isRunning ? .green : .secondary,
                 primaryText: cluster.name,
                 secondaryLeftText: nodeCount == 1 ? "1 node" : "\(nodeCount) nodes",
-                secondaryRightText: isBusy ? "Working…" : cluster.status.capitalized,
+                secondaryRightText: isBusy ? "Working…" : isAwaitingCNI ? "Waiting for CNI" : cluster.status.capitalized,
                 isSelected: isSelected
             )
         }

@@ -106,6 +106,15 @@ enum K8sPluginAvailability: Equatable {
     case missingPlugin
 }
 
+/// The CNI a cluster is created with: `k8s create`'s default kindnet, a manifest applied in its
+/// place (1.5.0), or none at all (`--cni NONE`, 1.6.0), which leaves the user to install one.
+/// Not `none`, which would read as `Optional.none` wherever this is optional.
+enum ClusterCNI: Equatable {
+    case kindnet
+    case manifest(String)
+    case userInstalled
+}
+
 /// What a cluster was created with, as far as recreating it needs. The node container keeps
 /// its CPUs and memory but not the rest: its image reference loses the tag (it reads
 /// `kindest/node@sha256:<digest>`), and nothing records a CNI manifest. The worker count is
@@ -125,7 +134,7 @@ struct ClusterRecreateSettings: Equatable, Identifiable {
     let cpus: Int
     let memoryGiB: Int
     let nodeImage: NodeImage
-    let cni: String?
+    let cni: ClusterCNI
     let workers: Int
 
     var id: String { name }
@@ -141,6 +150,9 @@ final class ClusterService: ObservableObject {
     /// True while a create is in flight. Creates are slow (node image pull + kubeadm
     /// bootstrap), so this drives a persistent spinner rather than a sheet-local one.
     @Published var isCreating = false
+    /// Running clusters created with no CNI whose nodes aren't all Ready yet: waiting for the
+    /// user to install one. Kept up to date by `refreshCNIReadiness(of:)`.
+    @Published var awaitingCNI: Set<String> = []
     /// Cluster names with a delete currently in flight.
     @Published var busyClusters: Set<String> = []
     /// True while a load-image is in flight.
@@ -168,6 +180,9 @@ final class ClusterService: ObservableObject {
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
     private let defaults: UserDefaults
+    /// Clusters created with no CNI whose nodes have all been Ready, so they aren't checked
+    /// again. In memory only: after a relaunch each is checked once more and lands back here.
+    private var cniReadyClusters: Set<String> = []
 
     /// Refresh the container list after a lifecycle change. Set by the owner.
     var reloadContainers: () async -> Void = {}
@@ -191,9 +206,34 @@ final class ClusterService: ObservableObject {
 
     private struct RememberedOptions: Codable {
         let nodeImage: String?
+        /// A CNI manifest's path; nil for kindnet or no CNI.
         let cni: String?
         /// Nil in options saved before workers existed.
         let workers: Int?
+        /// True for a cluster created with no CNI. Separate from `cni` so it can never be taken
+        /// for a path, and nil in options saved before it existed.
+        let noCNI: Bool?
+
+        init(nodeImage: String?, cni: ClusterCNI, workers: Int) {
+            self.nodeImage = nodeImage
+            self.workers = workers
+            switch cni {
+            case .kindnet:
+                self.cni = nil
+                self.noCNI = nil
+            case .manifest(let path):
+                self.cni = path
+                self.noCNI = nil
+            case .userInstalled:
+                self.cni = nil
+                self.noCNI = true
+            }
+        }
+
+        var clusterCNI: ClusterCNI {
+            if noCNI == true { return .userInstalled }
+            return cni.map { .manifest($0) } ?? .kindnet
+        }
     }
 
     private func rememberedOptions(for name: String) -> RememberedOptions? {
@@ -251,7 +291,7 @@ final class ClusterService: ObservableObject {
 
         return ClusterRecreateSettings(
             name: cluster.name, cpus: cpus, memoryGiB: memoryGiB,
-            nodeImage: nodeImage, cni: remembered?.cni,
+            nodeImage: nodeImage, cni: remembered?.clusterCNI ?? .kindnet,
             // The live count wins: unlike the image and CNI it can be read off the cluster, and a
             // remembered one is stale after a delete and create outside Orchard. Remembered only
             // covers a cluster left with no workers.
@@ -262,11 +302,21 @@ final class ClusterService: ObservableObject {
     /// Orchard still runs against 1.5.x, which refuses both flags, so the controls are gated on
     /// the installed version. Nil (the system is stopped) or an unparseable version is false.
     nonisolated static func supportsWorkerNodes(containerVersion: String?) -> Bool {
-        guard let containerVersion else { return false }
-        let parts = containerVersion.split(separator: ".").map { Int($0) }
+        isContainerVersion(containerVersion, atLeast: [1, 6])
+    }
+
+    /// Container 1.6.0 added `k8s create --cni NONE` (apple/container#2277); 1.5.x would take
+    /// `NONE` for a manifest path and fail. Gated like `supportsWorkerNodes`.
+    nonisolated static func supportsNoCNI(containerVersion: String?) -> Bool {
+        isContainerVersion(containerVersion, atLeast: [1, 6])
+    }
+
+    private nonisolated static func isContainerVersion(_ version: String?, atLeast minimum: [Int]) -> Bool {
+        guard let version else { return false }
+        let parts = version.split(separator: ".").map { Int($0) }
         guard parts.count >= 2, !parts.contains(nil) else { return false }
         let numbers = parts.compactMap { $0 }
-        return !numbers.lexicographicallyPrecedes([1, 6])
+        return !numbers.lexicographicallyPrecedes(minimum)
     }
 
     /// The kubeconfig file `container k8s write-config` writes to by default.
@@ -333,13 +383,15 @@ final class ClusterService: ObservableObject {
     /// Create and start a cluster (`container k8s create`). Slow: pulls the kindest/node
     /// image on first use and bootstraps kubeadm. Returns true on success.
     ///
-    /// `cni` is a host path to a CNI manifest applied instead of the default kindnet (1.5.0).
-    /// Nothing checks that it suits the cluster; a bad one fails late, at the apply step.
+    /// A `.manifest` CNI is a host path applied instead of the default kindnet (1.5.0). Nothing
+    /// checks that it suits the cluster; a bad one fails late, at the apply step. With
+    /// `.userInstalled` (1.6.0) the CLI installs no CNI and returns without waiting for the
+    /// nodes, which stay NotReady until the user applies one: see `awaitingCNI`.
     ///
     /// `workers` above 0 adds that many worker nodes (1.6.0). The flag is left out at 0, the
     /// CLI's own default, so a 1.5.x install never sees it.
     @discardableResult
-    func create(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String? = nil, workers: Int = 0) async -> Bool {
+    func create(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI = .kindnet, workers: Int = 0) async -> Bool {
         // A taken name fails in the CLI, and must not first overwrite what the existing
         // cluster was created with: its Recreate would then rebuild it from the wrong choices.
         // The list is refreshed first, since a container made outside Orchard since the last
@@ -353,14 +405,18 @@ final class ClusterService: ObservableObject {
     /// `create`, with the options' save decided by the caller. Recreate always saves: its
     /// delete has succeeded, though the container list may not have caught up yet.
     private func performCreate(
-        name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String?, workers: Int,
+        name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI, workers: Int,
         rememberOptions: Bool
     ) async -> Bool {
         var arguments = ["k8s", "create", "--name", name]
         if let cpus { arguments += ["--cpus", String(cpus)] }
         if let memory, !memory.isEmpty { arguments += ["--memory", memory] }
         if let nodeImage, !nodeImage.isEmpty { arguments += ["--node-image", nodeImage] }
-        if let cni, !cni.isEmpty { arguments += ["--cni", cni] }
+        switch cni {
+        case .kindnet: break
+        case .manifest(let path): if !path.isEmpty { arguments += ["--cni", path] }
+        case .userInstalled: arguments += ["--cni", "NONE"]
+        }
         if workers > 0 { arguments += ["--workers", String(workers)] }
 
         isCreating = true
@@ -370,11 +426,13 @@ final class ClusterService: ObservableObject {
         if rememberOptions {
             setRememberedOptions(
                 RememberedOptions(nodeImage: nodeImage?.isEmpty == false ? nodeImage : nil,
-                                  cni: cni?.isEmpty == false ? cni : nil,
-                                  workers: workers),
+                                  cni: cni, workers: workers),
                 for: name)
         }
-        return await runClusterCommand(arguments, failureVerb: "create cluster") { result in
+        // A recreate starts the wait again; anything else under this name has stopped waiting.
+        cniReadyClusters.remove(name)
+        awaitingCNI.remove(name)
+        let created = await runClusterCommand(arguments, failureVerb: "create cluster") { result in
             // Node prep aborts with the output of the step *before* the one that failed, so
             // the raw stderr would tell the user a sysctl they cannot act on. Everything the
             // plugin prints, progress and error alike, goes to stderr; stdout is checked too
@@ -383,6 +441,12 @@ final class ClusterService: ObservableObject {
             guard Self.outputIndicatesNodePrepFailure(output) else { return nil }
             return .k8sNodePrepFailed(cluster: name)
         }
+        // The CLI returned before the nodes were Ready, since that needs a CNI, so the wait is
+        // certain without checking. A create under a taken name failed above and never gets here.
+        if created && cni == .userInstalled {
+            awaitingCNI.insert(name)
+        }
+        return created
     }
 
     /// True when a `container k8s create` failure is the node-preparation abort. Node prep is
@@ -405,6 +469,8 @@ final class ClusterService: ObservableObject {
         defer { busyClusters.remove(name) }
         if await runClusterCommand(["k8s", "delete", "--name", name], failureVerb: "delete cluster") {
             setRememberedOptions(nil, for: name)
+            awaitingCNI.remove(name)
+            cniReadyClusters.remove(name)
         }
     }
 
@@ -413,7 +479,7 @@ final class ClusterService: ObservableObject {
     /// has to delete first and then retype what they created. Stops if the delete fails,
     /// which leaves the cluster as it was.
     @discardableResult
-    func recreate(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: String?, workers: Int = 0) async -> Bool {
+    func recreate(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI, workers: Int = 0) async -> Bool {
         busyClusters.insert(name)
         defer { busyClusters.remove(name) }
         let deleted = await runClusterCommand(
@@ -422,6 +488,82 @@ final class ClusterService: ObservableObject {
         return await performCreate(
             name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
             rememberOptions: true)
+    }
+
+    // MARK: - Waiting for a CNI
+
+    /// Check the clusters created with no CNI that aren't known to be Ready yet, and update
+    /// `awaitingCNI`. Only running clusters Orchard remembers creating with no CNI are checked,
+    /// so the rest cost nothing. Once a cluster's nodes are all Ready it isn't checked again.
+    func refreshCNIReadiness(of clusters: [K8sCluster]) async {
+        for cluster in clusters {
+            guard rememberedOptions(for: cluster.name)?.clusterCNI == .userInstalled,
+                  !cniReadyClusters.contains(cluster.name)
+            else {
+                awaitingCNI.remove(cluster.name)
+                continue
+            }
+            // A stopped cluster shows as stopped, and its Recreate starts the wait again.
+            guard cluster.isRunning, let controlPlane = cluster.controlPlane else {
+                awaitingCNI.remove(cluster.name)
+                continue
+            }
+            if await nodesReady(controlPlane: controlPlane.id, expectedNodes: cluster.nodes.count) == true {
+                cniReadyClusters.insert(cluster.name)
+                awaitingCNI.remove(cluster.name)
+            } else {
+                // A failed check (API server still starting, say) keeps the wait: no CNI has
+                // been seen working, and the next check will tell.
+                awaitingCNI.insert(cluster.name)
+            }
+        }
+        // Clusters gone from the list stop waiting.
+        awaitingCNI.formIntersection(clusters.map(\.name))
+    }
+
+    /// Whether the cluster's nodes are all Ready, asked of the API server from inside the
+    /// control-plane node, whose kindest/node image carries kubectl and the admin kubeconfig.
+    /// That needs neither kubectl on the Mac nor a written kubeconfig. Nil when it can't tell.
+    private func nodesReady(controlPlane: String, expectedNodes: Int) async -> Bool? {
+        do {
+            let result = try await runner.run(
+                program: settings.safeContainerBinaryPath(),
+                arguments: ["exec", controlPlane,
+                            "kubectl", "--kubeconfig", "/etc/kubernetes/admin.conf",
+                            "get", "nodes", "-o", "json"])
+            guard !result.failed, let stdout = result.stdout else { return nil }
+            return Self.allNodesReady(kubectlNodesJSON: stdout, expectedNodes: expectedNodes)
+        } catch {
+            Log.containers.error("CNI readiness check for \(controlPlane) could not run: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private struct KubectlNodeList: Decodable {
+        struct Node: Decodable {
+            struct Status: Decodable {
+                struct Condition: Decodable {
+                    let type: String
+                    let status: String
+                }
+                let conditions: [Condition]?
+            }
+            let status: Status?
+        }
+        let items: [Node]
+    }
+
+    /// Parse `kubectl get nodes -o json`: true when at least `expectedNodes` nodes are listed
+    /// and every one has a `Ready` condition of `True`. A worker that hasn't registered yet
+    /// would otherwise let a cluster count as Ready early. Nil when the output isn't a node list.
+    nonisolated static func allNodesReady(kubectlNodesJSON: String, expectedNodes: Int) -> Bool? {
+        guard let list = try? JSONDecoder().decode(KubectlNodeList.self, from: Data(kubectlNodesJSON.utf8)) else {
+            return nil
+        }
+        guard list.items.count >= max(expectedNodes, 1) else { return false }
+        return list.items.allSatisfy { node in
+            node.status?.conditions?.contains { $0.type == "Ready" && $0.status == "True" } == true
+        }
     }
 
     /// Load a local image into the cluster's containerd (`container k8s load-image`),

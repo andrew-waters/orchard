@@ -19,6 +19,10 @@ struct ClusterDetailView: View {
     @State private var copiedPath = false
     @State private var recreateSettings: ClusterRecreateSettings?
 
+    private static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
+
+    private var awaitingCNI: Bool { clusterService.awaitingCNI.contains(clusterName) }
+
     private var cluster: K8sCluster? {
         K8sCluster.group(containers: containerListService.containers)
             .first(where: { $0.name == clusterName })
@@ -33,6 +37,8 @@ struct ClusterDetailView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         if !cluster.isRunning {
                             stoppedBanner
+                        } else if awaitingCNI {
+                            awaitingCNIBanner
                         }
 
                         VStack(alignment: .leading, spacing: 12) {
@@ -83,9 +89,9 @@ struct ClusterDetailView: View {
                         .font(.title2)
                         .fontWeight(.semibold)
                     Circle()
-                        .fill(cluster.isRunning ? Color.green : Color.gray)
+                        .fill(awaitingCNI ? Color.orange : cluster.isRunning ? Color.green : Color.gray)
                         .frame(width: 8, height: 8)
-                        .help(cluster.status.capitalized)
+                        .help(awaitingCNI ? "Waiting for a CNI" : cluster.status.capitalized)
                 }
                 Text(cluster.nodes.count == 1 ? "Kubernetes cluster · 1 node" : "Kubernetes cluster · \(cluster.nodes.count) nodes")
                     .font(.subheadline)
@@ -200,6 +206,28 @@ struct ClusterDetailView: View {
         }
         .padding(12)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// A cluster created with no CNI (1.6.0) has NotReady nodes until the user installs one.
+    /// That's the expected next step rather than a fault, so it reads as information, not as
+    /// a warning. Goes once `ClusterService.refreshCNIReadiness` sees every node Ready.
+    private var awaitingCNIBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: "network")
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Waiting for a CNI")
+                    .font(.subheadline).fontWeight(.medium)
+                Text("This cluster was created without a CNI, so its nodes stay NotReady until you install one. Open Terminal (kubectl) and apply it with kubectl or Helm; this clears once the nodes are Ready.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Link("Custom CNI in Apple container's docs", destination: Self.cniDocsURL)
+                    .font(.caption)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     /// Container 1.5.0 removed `container k8s start` (apple/container#2290), so there is no
