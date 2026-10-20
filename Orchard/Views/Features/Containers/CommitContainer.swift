@@ -133,7 +133,10 @@ struct CommitContainerView: View {
             }
         }
         .task(id: replaceCheckKey) {
-            existingImage = await checkExistingImage()
+            // The XPC round trip doesn't stop when SwiftUI cancels this task for a newer
+            // name, so a late answer for the old name must not overwrite the new one's.
+            let found = await checkExistingImage()
+            if !Task.isCancelled { existingImage = found }
         }
         .alert("Replace Image?", isPresented: $showReplaceConfirmation) {
             Button("Cancel", role: .cancel) { }
