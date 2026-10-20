@@ -149,6 +149,9 @@ protocol ContainerBackend: Sendable {
     /// Export the container's filesystem as a tar archive at `destination`,
     /// replacing any existing file there.
     func exportContainer(id: String, to destination: URL) async throws
+    /// `reference` as the image store will name it: the configured default registry filled
+    /// in when there is none, and `:latest` when there is no tag.
+    func normalizeImageReference(_ reference: String) async throws -> String
     /// Create an image named `reference` from the container's filesystem, replacing any
     /// image already stored under that reference. Returns the reference as stored.
     func commitContainer(
@@ -279,6 +282,13 @@ struct LiveContainerBackend: ContainerBackend {
         } else {
             try FileManager.default.moveItem(at: archive, to: destination)
         }
+    }
+
+    func normalizeImageReference(_ reference: String) async throws -> String {
+        do {
+            return try ClientImage.normalizeReference(
+                reference, containerSystemConfig: try await loadContainerSystemConfig())
+        } catch { throw mapContainerError(error) }
     }
 
     func commitContainer(

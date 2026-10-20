@@ -9,22 +9,23 @@ enum ContainerCommitPhase: String, Equatable, Sendable {
     case loading = "Loading the image"
 }
 
+/// A commit in flight: the name it was asked for and the step it is on.
+struct ContainerCommitProgress: Equatable {
+    let reference: String
+    var phase: ContainerCommitPhase
+}
+
+/// A finished commit: the name it was asked for and the reference the store gave it.
+struct ContainerCommitOutcome: Equatable {
+    let requested: String
+    let stored: String
+}
+
 /// Whether the installed container offers commit. Orchard drives it client side over the
 /// export and load routes, as `container commit` does, and follows upstream in offering it
 /// from 1.6.0, the release that ships and tests it.
 func supportsContainerCommit(containerVersion: String?) -> Bool {
     isContainerVersion(containerVersion, atLeast: [1, 6])
-}
-
-/// The stored image `input` would replace when committed, if one exists. Compares canonical
-/// forms with `:latest` filled in, so `web` matches a stored `docker.io/library/web:latest`.
-func existingCommitTarget(_ input: String, localReferences: [String]) -> String? {
-    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-    let lastSegment = trimmed.split(separator: "/").last.map(String.init) ?? trimmed
-    let tagged = lastSegment.contains(":") || lastSegment.contains("@") ? trimmed : "\(trimmed):latest"
-    let target = canonicalImageReference(tagged)
-    return localReferences.first { canonicalImageReference($0) == target }
 }
 
 /// The image config a commit writes. Mirrors upstream's `OCIImageArchive` (container 1.6.0):

@@ -89,6 +89,11 @@ struct UITestBackend: ContainerBackend {
     ) async throws -> Int32 { 0 }
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
     func exportContainer(id: String, to destination: URL) async throws {}
+    func normalizeImageReference(_ reference: String) async throws -> String {
+        let canonical = canonicalImageReference(reference)
+        let last = canonical.split(separator: "/").last.map(String.init) ?? canonical
+        return last.contains(":") || last.contains("@") ? canonical : "\(canonical):latest"
+    }
     func commitContainer(
         id: String,
         reference: String,

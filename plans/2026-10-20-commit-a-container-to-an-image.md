@@ -39,12 +39,12 @@ The sheet says this in one caption, rather than "filesystem only".
 
 ## Replacing an existing reference
 
-Loading an image under a reference that already exists moves the reference to the new image (`ReferenceManager.create` sets `state[reference] = descriptor`), so `container commit` silently replaces it. Orchard **asks first**: when the normalised reference matches an image in `ImageService.images`, the sheet shows "An image named <reference> already exists" under the field and the button reads **Replace Image**, with a confirmation alert. The old image's tag moves; containers already created from it keep running, because their rootfs is a copy. Its blobs are left for Prune, as the CLI leaves them.
+Loading an image under a reference that already exists moves the reference to the new image (`ReferenceManager.create` sets `state[reference] = descriptor`), so `container commit` silently replaces it. Orchard **asks first**: when the reference, normalised the way the commit will normalise it (`ClientImage.normalizeReference` with the system config, so a custom `registry.domain` is honoured), matches an image in `ImageService.images`, the sheet shows "An image named <reference> already exists" under the field and the button reads **Replace Image**, with a confirmation alert. The old image's tag moves; containers already created from it keep running, because their rootfs is a copy. Its blobs are left for Prune, as the CLI leaves them.
 
 ## Orchard changes
 
 - **Backend** (`ContainerBackend.swift`): `commitContainer(id:reference:onPhase:) async throws -> String`, returning the stored reference so the UI links to what was actually loaded. The live implementation follows the steps above in a scratch directory removed on exit, and reports phases ("Exporting filesystem", "Building image", "Loading image") for the sheet. The archive building goes in a new `Orchard/Services/ContainerCommit.swift`, with the image-config mapping as a pure function so it can be unit tested.
-- **Service** (`ContainerListService`): `commitContainer(_:to:)` with `committingContainers: Set<String>` and the current phase per container, matching `exportingContainers`; refreshes images after a commit; errors through `AlertCenter`. `static func supportsCommit(containerVersion:)` (1.6+), like `MachineService.supportsUserAccount`.
+- **Service** (`ContainerListService`): `commitContainer(_:to:)` with `committingContainers` holding each in-flight commit's name and phase, and `lastCommits` its outcome, so a sheet opened from any entry point mid-commit follows it; refreshes images after a commit; errors through `AlertCenter`. `static func supportsCommit(containerVersion:)` (1.6+), like `MachineService.supportsUserAccount`.
 - **Validation:** move the build sheet's image-name regex out of `ImageBuildService.validationError` into `InputValidation.isValidImageReference`, used by both sheets, so they validate identically.
 - **Sheet** (`Containers/CommitContainer.swift`): reference field prefilled with `<container-name>:latest`, the inheritance caption, a note on running containers being snapshotted, the replace warning, progress while it runs, and on success "Committed <reference>" with **View Image** (opens `orchard://image/<reference>`) and **Run Image**, as finished builds do. Closing the sheet mid-commit leaves it running; the header shows "Committing…".
 - **Entry points**, all only when `supportsCommit` is true:
@@ -73,6 +73,6 @@ Offered on container 1.6.0 or later, as the issue asks. The work is client side 
 - [x] Palette entry and `showCommitContainerSheet` handling in `ContentView`
 - [x] `UITestSupport` and `Mocks` doubles; unit tests for the service, validation, config mapping and palette entry
 - [x] README, site, CHANGELOG
-- [x] OrchardTests pass (468 tests, 9 of them new)
+- [x] OrchardTests pass (469 tests, 10 of them new)
 - [x] Checked on 1.6.0 through `LiveContainerBackend.commitContainer`, driven from a throwaway test against the local runtime: a running container (which kept running) and a stopped one both committed and appear in the image list; `container run --entrypoint cat <image> /marker` shows each container's changed file; committing a second container to an existing reference replaced it. The committed image's entrypoint is the container's executable (`sh` for `sh -c ...`), so the sheet says to override the entrypoint to run something else.
 - [ ] Clicked through in the app: the sheet from the header, context menu and Cmd+K, the replace confirmation, and View Image

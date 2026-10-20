@@ -100,6 +100,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _commitContainerError: Error?
     private var _committedContainers: [(id: String, reference: String)] = []
     private var _commitHandler: (@Sendable () async -> Void)?
+    private var _registryDomain = "docker.io"
     private var _cleanContainerError: Error?
     private var _cleanedContainers: [String] = []
     private var _cleanHandler: (@Sendable () async -> Void)?
@@ -171,6 +172,12 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         set { lock.withLock { _commitContainerError = newValue } }
     }
     var committedContainers: [(id: String, reference: String)] { lock.withLock { _committedContainers } }
+    /// The default registry `normalizeImageReference` fills in, as the system's
+    /// `registry.domain` would.
+    var registryDomain: String {
+        get { lock.withLock { _registryDomain } }
+        set { lock.withLock { _registryDomain = newValue } }
+    }
     /// Runs after the phases are reported and before the commit is recorded, so a test can
     /// hold a commit in flight and observe the service's state.
     var commitHandler: (@Sendable () async -> Void)? {
@@ -319,6 +326,21 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         if let exportContainerError { throw exportContainerError }
         lock.withLock { _exportedContainers.append((id, destination)) }
     }
+    /// A small stand-in for `ClientImage.normalizeReference`: a bare name gets the registry
+    /// domain (and `library/` on docker.io), and a missing tag gets `:latest`.
+    func normalizeImageReference(_ reference: String) async throws -> String {
+        let segments = reference.split(separator: "/").map(String.init)
+        let first = segments.first ?? reference
+        let hasRegistry = segments.count > 1 && (first.contains(".") || first.contains(":") || first == "localhost")
+        var normalized = reference
+        if !hasRegistry {
+            let domain = registryDomain
+            normalized = domain == "docker.io" && segments.count == 1 ? "\(domain)/library/\(reference)" : "\(domain)/\(reference)"
+        }
+        let last = normalized.split(separator: "/").last.map(String.init) ?? normalized
+        return last.contains(":") || last.contains("@") ? normalized : "\(normalized):latest"
+    }
+
     func commitContainer(
         id: String,
         reference: String,

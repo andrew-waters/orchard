@@ -8,7 +8,8 @@ struct CommitSheetTarget: Identifiable {
 /// Commit a container's filesystem to an image (container 1.6.0+). Asks for the image name,
 /// suggesting `<container>:latest`, asks before replacing an image that already exists, and
 /// links to the new image when done. Closing the sheet leaves the commit running; the detail
-/// header shows that it is still committing.
+/// header shows that it is still committing. The commit's name, progress and outcome live in
+/// `ContainerListService`, so a sheet reopened mid-commit, from any entry point, follows it.
 struct CommitContainerView: View {
     let containerId: String
 
@@ -18,7 +19,8 @@ struct CommitContainerView: View {
 
     @State private var reference: String
     @State private var validationError: String?
-    @State private var committedReference: String?
+    /// The stored image the name would replace, from the last check of the current name.
+    @State private var existingImage: String?
     @State private var showReplaceConfirmation = false
     @State private var showRunImage = false
 
@@ -32,7 +34,21 @@ struct CommitContainerView: View {
     }
 
     private var phase: ContainerCommitPhase? {
-        containerListService.committingContainers[containerId]
+        containerListService.committingContainers[containerId]?.phase
+    }
+
+    /// The image this container was last committed to, while the field still holds the name
+    /// that commit was asked for. Editing the name goes back to the form.
+    private var committedReference: String? {
+        guard phase == nil,
+              let outcome = containerListService.lastCommits[containerId],
+              outcome.requested == trimmedReference else { return nil }
+        return outcome.stored
+    }
+
+    /// The replace warning, hidden while committing and once the commit has landed.
+    private var replaceWarning: String? {
+        phase == nil && committedReference == nil ? existingImage : nil
     }
 
     private var isRunning: Bool {
@@ -41,10 +57,17 @@ struct CommitContainerView: View {
             .status.lowercased() == "running"
     }
 
-    /// The stored image this commit would replace, once the name is valid.
-    private var existingImage: String? {
-        guard committedReference == nil, InputValidation.isValidImageReference(trimmedReference) else { return nil }
-        return existingCommitTarget(trimmedReference, localReferences: imageService.images.map(\.reference))
+    /// What the replace check depends on: the name and the stored images.
+    private var replaceCheckKey: String {
+        ([trimmedReference] + imageService.images.map(\.reference)).joined(separator: "\n")
+    }
+
+    /// The stored image committing to the current name would replace, normalised the way the
+    /// commit will normalise it. Nil for a name that isn't valid yet.
+    private func checkExistingImage() async -> String? {
+        guard InputValidation.isValidImageReference(trimmedReference) else { return nil }
+        return await containerListService.existingCommitTarget(
+            trimmedReference, among: imageService.images.map(\.reference))
     }
 
     var body: some View {
@@ -59,7 +82,6 @@ struct CommitContainerView: View {
                         .disabled(phase != nil)
                         .onChange(of: reference) { _, _ in
                             validationError = nil
-                            committedReference = nil
                         }
                         .accessibilityIdentifier("commit-image-reference")
                     Text("Lowercase repository name with an optional :tag.")
@@ -75,7 +97,7 @@ struct CommitContainerView: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-                if let existingImage {
+                if let existingImage = replaceWarning {
                     HStack(alignment: .top, spacing: 8) {
                         SwiftUI.Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                         Text("An image named \(existingImage) already exists. Committing replaces it; containers already created from it keep running.")
@@ -101,6 +123,18 @@ struct CommitContainerView: View {
         }
         .frame(width: 480, height: 400)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            // Follow a commit already running for this container, or the one that last
+            // finished, rather than offering a fresh form over it.
+            if let progress = containerListService.committingContainers[containerId] {
+                reference = progress.reference
+            } else if let outcome = containerListService.lastCommits[containerId] {
+                reference = outcome.requested
+            }
+        }
+        .task(id: replaceCheckKey) {
+            existingImage = await checkExistingImage()
+        }
         .alert("Replace Image?", isPresented: $showReplaceConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Replace", role: .destructive) { commit() }
@@ -148,6 +182,7 @@ struct CommitContainerView: View {
         HStack {
             Spacer()
             if let committedReference {
+                Button("Commit Again") { requestCommit() }
                 Button("Run Image") { showRunImage = true }
                 // The same destination as orchard://image/<reference>.
                 Button("View Image") {
@@ -158,7 +193,7 @@ struct CommitContainerView: View {
                 .keyboardShortcut(.defaultAction)
                 .help("Show the committed image in the Images tab")
             } else {
-                Button(existingImage == nil ? "Commit" : "Replace Image") { requestCommit() }
+                Button(replaceWarning == nil ? "Commit" : "Replace Image") { requestCommit() }
                     .buttonStyle(.borderedProminent)
                     .disabled(trimmedReference.isEmpty || phase != nil)
                     .keyboardShortcut(.defaultAction)
@@ -176,19 +211,20 @@ struct CommitContainerView: View {
             return
         }
         validationError = nil
-        if existingImage != nil {
-            showReplaceConfirmation = true
-        } else {
-            commit()
+        // Check again rather than trust the last background check, which may not have
+        // finished for the name as typed, so a replace is never committed without asking.
+        Task {
+            existingImage = await checkExistingImage()
+            if existingImage != nil {
+                showReplaceConfirmation = true
+            } else {
+                commit()
+            }
         }
     }
 
     private func commit() {
         let target = trimmedReference
-        Task {
-            if let stored = await containerListService.commitContainer(containerId, to: target) {
-                committedReference = stored
-            }
-        }
+        Task { await containerListService.commitContainer(containerId, to: target) }
     }
 }

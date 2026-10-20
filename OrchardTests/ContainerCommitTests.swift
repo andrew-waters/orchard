@@ -3,7 +3,7 @@ import Testing
 import ContainerizationOCI
 @testable import Orchard
 
-// Commit's pure parts: the version gate, the replace check, the image config it writes and
+// Commit's pure parts: the version gate, the image config it writes and
 // the OCI layout it archives. The XPC export and load are exercised by hand against 1.6.0.
 
 @Test("Commit is offered from container 1.6.0")
@@ -12,19 +12,6 @@ func commitVersionGate() {
     #expect(supportsContainerCommit(containerVersion: "1.7.1"))
     #expect(!supportsContainerCommit(containerVersion: "1.5.0"))
     #expect(!supportsContainerCommit(containerVersion: nil))
-}
-
-@Test("The replace check matches a stored image across spellings, with :latest filled in")
-func existingCommitTargetMatches() {
-    let stored = ["docker.io/library/web:latest", "ghcr.io/me/app:v1", "localhost:5000/api:dev"]
-    #expect(existingCommitTarget("web", localReferences: stored) == "docker.io/library/web:latest")
-    #expect(existingCommitTarget("web:latest", localReferences: stored) == "docker.io/library/web:latest")
-    #expect(existingCommitTarget(" docker.io/library/web:latest ", localReferences: stored) == "docker.io/library/web:latest")
-    #expect(existingCommitTarget("ghcr.io/me/app:v1", localReferences: stored) == "ghcr.io/me/app:v1")
-    #expect(existingCommitTarget("localhost:5000/api:dev", localReferences: stored) == "localhost:5000/api:dev")
-    #expect(existingCommitTarget("web:v2", localReferences: stored) == nil)
-    #expect(existingCommitTarget("ghcr.io/me/app", localReferences: stored) == nil)
-    #expect(existingCommitTarget("", localReferences: stored) == nil)
 }
 
 @Test("The committed config starts the image the way the container started, with container labels on top")
