@@ -183,6 +183,9 @@ final class ClusterService: ObservableObject {
     /// Clusters created with no CNI whose nodes have all been Ready, so they aren't checked
     /// again. In memory only: after a relaunch each is checked once more and lands back here.
     private var cniReadyClusters: Set<String> = []
+    /// Bumped per name on each create and delete, so a readiness check that was in flight
+    /// across a recreate can't apply the old cluster's result to the new one.
+    private var cniGenerations: [String: Int] = [:]
     /// Views showing clusters, between `beginCNIChecks` and `endCNIChecks`.
     private var cniCheckConsumers = 0
     private var cniCheckTask: Task<Void, Never>?
@@ -438,6 +441,7 @@ final class ClusterService: ObservableObject {
                 for: name)
         }
         // A recreate starts the wait again; anything else under this name has stopped waiting.
+        cniGenerations[name, default: 0] += 1
         cniReadyClusters.remove(name)
         awaitingCNI.remove(name)
         let created = await runClusterCommand(arguments, failureVerb: "create cluster") { result in
@@ -477,6 +481,7 @@ final class ClusterService: ObservableObject {
         defer { busyClusters.remove(name) }
         if await runClusterCommand(["k8s", "delete", "--name", name], failureVerb: "delete cluster") {
             setRememberedOptions(nil, for: name)
+            cniGenerations[name, default: 0] += 1
             awaitingCNI.remove(name)
             cniReadyClusters.remove(name)
         }
@@ -541,7 +546,11 @@ final class ClusterService: ObservableObject {
                 awaitingCNI.remove(cluster.name)
                 continue
             }
-            if await nodesReady(controlPlane: controlPlane.id, expectedNodes: cluster.nodes.count) == true {
+            let generation = cniGenerations[cluster.name]
+            let ready = await nodesReady(controlPlane: controlPlane.id, expectedNodes: cluster.nodes.count)
+            // Deleted or created again while the check ran: the result is the old cluster's.
+            guard cniGenerations[cluster.name] == generation else { continue }
+            if ready == true {
                 cniReadyClusters.insert(cluster.name)
                 awaitingCNI.remove(cluster.name)
             } else {

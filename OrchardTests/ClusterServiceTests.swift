@@ -690,3 +690,32 @@ func cniReadinessSkipsStoppedClusters() async throws {
     #expect(runner.calls.count == callsAfterCreate)
     #expect(service.clusterService.awaitingCNI.isEmpty)
 }
+
+@MainActor
+@Test("CNI readiness: a check in flight across a recreate doesn't apply the old cluster's result")
+func cniReadinessIgnoresResultFromBeforeRecreate() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+    let cluster = try runningCluster()
+
+    // The old cluster answers Ready, but only after it has been recreated with no CNI.
+    let clusterService = service.clusterService
+    runner.runHandler = { _, arguments in
+        if arguments.first == "exec" {
+            await clusterService.recreate(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+            return ProcessResult(exitCode: 0, stdout: kubectlNodes([true, true]), stderr: nil)
+        }
+        return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
+    }
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
+
+    // And the new cluster is still checked rather than taken as Ready.
+    runner.runHandler = nil
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: kubectlNodes([false, false]), stderr: nil)
+    let callsBefore = runner.calls.count
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(runner.calls.count == callsBefore + 1)
+    #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
+}
