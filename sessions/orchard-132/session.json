@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "132-bump-apple-container-to-1-6-0",
+  "finishedAt" : "2026-10-20T14:24:50Z",
   "issue" : "andrew-waters/orchard#132",
   "pullRequests" : [
     "https://github.com/andrew-waters/orchard/pull/137"
