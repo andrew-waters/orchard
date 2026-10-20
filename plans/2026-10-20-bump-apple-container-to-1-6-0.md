@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Build Orchard against apple/container 1.6.0 (containerization 0.52.1). Only machine creation needs a code change; 1.6.0 features are left to their own issues (#133-#136)."
 issues: [andrew-waters/orchard#132]
 touches: [andrew-waters/orchard]
@@ -25,7 +25,7 @@ From a diff of the two tags:
 
 ## Over XPC with a 1.5.x runtime
 
-A 1.6.0 client no longer sends `machineResources` (optional on 1.5.x) and adds `home` to `UserSetup` (ignored by 1.5.x's synthesised decoder; 1.6.0 falls back to `/home/<user>` when it is missing). Expected to keep working; confirmed by the smoke test below.
+A 1.6.0 client no longer sends `machineResources` (optional on 1.5.x) and adds `home` to `UserSetup` (ignored by 1.5.x's synthesised decoder; 1.6.0 falls back to `/home/<user>` when it is missing). Confirmed by the smoke test below: the 1.6.0 build creates, boots and stops machines on a 1.5.0 runtime.
 
 ## Out of scope
 
@@ -38,6 +38,6 @@ A 1.6.0 client no longer sends `machineResources` (optional on 1.5.x) and adds `
 - [x] `MachineBackend.createMachine`: pass default `Flags.MachineUser`, drop `resources`
 - [x] `supportedContainerVersion` to 1.6.0
 - [x] App builds; OrchardTests pass (434 tests; the per-file filter matches nothing because the tests are free `@Test` functions, so the whole unit target ran)
-- [ ] Smoke test on 1.5.x: create, start and stop a container and a machine; build an image; builder status; logs on a silent container
-- [ ] Smoke test on 1.6.0: the same
+- [x] Smoke test on 1.5.x (1.5.0, driven through the app): a container ran, stopped, started, and its empty log opened without error; a machine was created over XPC with the host user (aw, uid 501, gid 20), booted, stopped and booted again; an image built from the Build sheet; `container builder status --format json` unchanged. Builder status has no Settings view; it only feeds the menu bar.
+- [x] Smoke test on 1.6.0: the same flows pass; the machine is stored with user aw, uid 501, gid 20, home /home/aw. A container and a machine created under 1.5.0 start and boot after the upgrade, and the builder status JSON has the same shape.
 - [x] README requirements and CHANGELOG
