@@ -93,7 +93,7 @@
           </li>
           <li>
             <h3>Create a machine</h3>
-            <p>Click <strong>+</strong> (or “Create Machine”). Enter an init-capable image and a name, then set CPUs and memory with the steppers; both default to about half of your host. Choose a home-mount mode, and optionally enable nested virtualization or a custom kernel. On Apple container 1.6.0 or later, open <strong>Account</strong> to choose the machine's user, UID, GID or Linux home directory; any field you leave empty uses your Mac user's value. It boots by default.</p>
+            <p>Click <strong>+</strong> (or “Create Machine”). Enter an init-capable image and a name, then set CPUs and memory with the steppers; both default to about half of your host. Choose a home-mount mode, and optionally enable nested virtualization or a custom kernel. On Apple container 1.6.0 or later, open <strong>Account</strong> to choose the machine's user, UID, GID or Linux home directory; any field you leave empty uses your Mac user's value. The user, UID and home directory must not already exist in the image (such as <code>ubuntu</code> or UID 1000 on Ubuntu images), or the machine can't set up the account when it boots. It boots by default.</p>
           </li>
           <li>
             <h3>Use it</h3>

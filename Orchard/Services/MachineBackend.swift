@@ -68,8 +68,9 @@ struct MachineAccountSpec: Sendable, Equatable {
             self.gid = value
         }
         if !home.isEmpty {
-            // `:` or a line break would corrupt the account's /etc/passwd line, and `/` would
-            // make setup chown the machine's whole filesystem.
+            // `:` or a line break would corrupt the account's /etc/passwd line. Upstream's setup
+            // refuses any home that already exists, `/` included, but only at first boot, so
+            // `/` is caught here for a clear error at create time.
             guard home.hasPrefix("/"), home != "/", !home.contains(":"),
                   home.rangeOfCharacter(from: .newlines) == nil else {
                 throw MachineAccountError("Invalid home directory. Use an absolute path other than “/”, such as /home/dev.")

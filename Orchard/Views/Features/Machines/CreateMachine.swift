@@ -145,7 +145,7 @@ struct CreateMachineView: View {
     private var accountGroup: some View {
         DisclosureGroup("Account", isExpanded: $showAccount) {
             VStack(alignment: .leading, spacing: 20) {
-                Text("The Linux account the machine creates, which commands in the machine run as. Leave a field empty to use your Mac user's. The account can't be changed after the machine is created.")
+                Text("The Linux account the machine creates, which commands in the machine run as. Leave a field empty to use your Mac user's. The account can't be changed after the machine is created.\n\nThe user, UID and home directory must not already exist in the image (such as ubuntu, UID 1000 or /root), or the machine can't set up the account when it boots.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
