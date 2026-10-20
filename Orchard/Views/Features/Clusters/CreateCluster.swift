@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 /// Create a local Kubernetes cluster via `container k8s create`. Mirrors the CLI's
 /// options: name, optional resource overrides, the Kubernetes version (as a node image),
-/// and, under Advanced, worker nodes (1.6.0) and a custom CNI manifest.
+/// and, under Advanced, worker nodes (1.6.0) and the CNI: kindnet, a manifest, or none (1.6.0).
 struct CreateClusterView: View {
     /// `pluginDefault` passes no `--node-image`, so the CLI uses its own default even when
     /// Orchard could not read which one that is.
@@ -11,6 +11,12 @@ struct CreateClusterView: View {
         case pluginDefault
         case image(String)
         case custom
+    }
+
+    private enum CNIChoice: Hashable {
+        case kindnet
+        case manifest
+        case userInstalled
     }
 
     @EnvironmentObject var clusterService: ClusterService
@@ -24,11 +30,12 @@ struct CreateClusterView: View {
     @State private var nodeImageChoice: NodeImageChoice = .pluginDefault
     @State private var customNodeImage: String = ""
     @State private var showAdvanced = false
+    @State private var cniChoice: CNIChoice = .kindnet
     @State private var cniPath: String?
+    /// Set when a recreated cluster had no CNI but this install can't skip it, so it gets kindnet.
+    @State private var cniFallbackNote: String?
     @State private var workers: Int = 0
     @State private var validationError: String?
-
-    private static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
 
     /// Set when recreating: the sheet opens filled in from the existing cluster, keeps its
     /// name, and its one button deletes and creates in a single step.
@@ -54,9 +61,17 @@ struct CreateClusterView: View {
             _customNodeImage = State(initialValue: reference)
             _validationError = State(initialValue: "Orchard doesn't know which version this cluster ran: its node records the image without a tag. Add the tag, or choose a version.")
         }
-        _cniPath = State(initialValue: recreating.cni)
+        switch recreating.cni {
+        case .kindnet:
+            break
+        case .manifest(let path):
+            _cniChoice = State(initialValue: .manifest)
+            _cniPath = State(initialValue: path)
+        case .userInstalled:
+            _cniChoice = State(initialValue: .userInstalled)
+        }
         _workers = State(initialValue: recreating.workers)
-        _showAdvanced = State(initialValue: recreating.cni != nil || recreating.workers > 0)
+        _showAdvanced = State(initialValue: recreating.cni != .kindnet || recreating.workers > 0)
     }
 
     private let hostCores = ProcessInfo.processInfo.processorCount
@@ -123,9 +138,18 @@ struct CreateClusterView: View {
         .frame(width: 520, height: 520)
         .background(Color(NSColor.windowBackgroundColor))
         .task {
+            fallBackFromNoCNIIfUnsupported()
             await clusterService.loadNodeImageOptions()
             adoptListedVersion()
         }
+    }
+
+    /// The version isn't known in `init`, so a recreate remembered with no CNI is checked here,
+    /// on an install that has since gone back below 1.6.0.
+    private func fallBackFromNoCNIIfUnsupported() {
+        guard cniChoice == .userInstalled, !supportsNoCNI else { return }
+        cniChoice = .kindnet
+        cniFallbackNote = "This cluster was created with no CNI, which needs Apple container 1.6.0 or later. It will get kindnet instead."
     }
 
     /// A recreated cluster's image arrives as a custom reference; once the version list is
@@ -212,25 +236,52 @@ struct CreateClusterView: View {
 
     // MARK: - CNI
 
+    private var supportsNoCNI: Bool {
+        ClusterService.supportsNoCNI(containerVersion: systemService.containerVersion)
+    }
+
+    private var cniCaption: String {
+        switch cniChoice {
+        case .kindnet:
+            return "The k8s plugin installs kindnet, and the create waits for the nodes to be Ready."
+        case .manifest:
+            return "Applied instead of kindnet once the control plane is up. It must fit the cluster's pod subnet, or the cluster never becomes ready."
+        case .userInstalled:
+            return "No CNI is installed, so the create finishes without waiting for the nodes, which stay NotReady until you apply one with kubectl or Helm. Use this for Cilium, Calico or anything a single manifest can't express."
+        }
+    }
+
     private var cniField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("CNI Manifest (Optional)").font(.headline)
-            HStack {
-                Text(cniPath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Default (kindnet)")
-                    .foregroundStyle(cniPath == nil ? .secondary : .primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(cniPath ?? "")
-                Spacer()
-                if cniPath != nil {
-                    Button("Clear") { cniPath = nil }
+            Text("CNI").font(.headline)
+            Picker("CNI", selection: $cniChoice) {
+                Text("Default (kindnet)").tag(CNIChoice.kindnet)
+                Text("Custom manifest").tag(CNIChoice.manifest)
+                if supportsNoCNI {
+                    Text("None (install your own)").tag(CNIChoice.userInstalled)
                 }
-                Button("Choose…") { chooseCNIManifest() }
             }
-            Text("Applied instead of kindnet once the control plane is up. It must fit the cluster's pod subnet, or the cluster never becomes ready.")
-                .font(.caption).foregroundStyle(.secondary)
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(maxWidth: 260, alignment: .leading)
+
+            if cniChoice == .manifest {
+                HStack {
+                    Text(cniPath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "No manifest chosen")
+                        .foregroundStyle(cniPath == nil ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(cniPath ?? "")
+                    Spacer()
+                    Button("Choose…") { chooseCNIManifest() }
+                }
+            }
+            // The fallback note stands in for kindnet's caption until another choice is made.
+            let note = cniChoice == .kindnet ? cniFallbackNote : nil
+            Text(note ?? cniCaption)
+                .font(.caption).foregroundStyle(note == nil ? .secondary : Color.orange)
                 .fixedSize(horizontal: false, vertical: true)
-            Link("Custom CNI in Apple container's docs", destination: Self.cniDocsURL)
+            Link("Custom CNI in Apple container's docs", destination: ClusterService.cniDocsURL)
                 .font(.caption)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -335,6 +386,20 @@ struct CreateClusterView: View {
             }
             nodeImage = trimmedImage
         }
+
+        let cni: ClusterCNI
+        switch cniChoice {
+        case .kindnet:
+            cni = .kindnet
+        case .manifest:
+            guard let cniPath else {
+                validationError = "Choose a CNI manifest, or pick Default (kindnet)."
+                return
+            }
+            cni = .manifest(cniPath)
+        case .userInstalled:
+            cni = supportsNoCNI ? .userInstalled : .kindnet
+        }
         validationError = nil
 
         Task {
@@ -343,9 +408,9 @@ struct CreateClusterView: View {
             let workers = supportsWorkers ? workers : 0
             let created: Bool
             if recreating == nil {
-                created = await clusterService.create(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cniPath, workers: workers)
+                created = await clusterService.create(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers)
             } else {
-                created = await clusterService.recreate(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cniPath, workers: workers)
+                created = await clusterService.recreate(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers)
             }
             if created { await MainActor.run { dismiss() } }
         }

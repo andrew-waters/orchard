@@ -45,6 +45,9 @@ struct ClustersListView: View {
             // thing to probe is whether the CLI plugin exists for lifecycle actions.
             await clusterService.probePluginAvailability()
         }
+        // Clusters created with no CNI wait for the user to install one; checked while shown.
+        .onAppear { clusterService.beginCNIChecks() }
+        .onDisappear { clusterService.endCNIChecks() }
     }
 
     @ViewBuilder
@@ -137,7 +140,8 @@ struct ClustersListView: View {
                     ClusterRowView(
                         cluster: cluster,
                         isSelected: selectedCluster == cluster.name && clusterService.selectedNode == nil,
-                        isBusy: clusterService.busyClusters.contains(cluster.name)
+                        isBusy: clusterService.busyClusters.contains(cluster.name),
+                        isAwaitingCNI: clusterService.awaitingCNI.contains(cluster.name)
                     )
                 }
                 .contextMenu {
@@ -274,15 +278,16 @@ struct ClustersListView: View {
         let cluster: K8sCluster
         let isSelected: Bool
         let isBusy: Bool
+        let isAwaitingCNI: Bool
 
         var body: some View {
             let nodeCount = cluster.nodes.count
             ListItemRow(
                 icon: "helm",
-                iconColor: cluster.isRunning ? .green : .secondary,
+                iconColor: isAwaitingCNI ? .blue : cluster.isRunning ? .green : .secondary,
                 primaryText: cluster.name,
                 secondaryLeftText: nodeCount == 1 ? "1 node" : "\(nodeCount) nodes",
-                secondaryRightText: isBusy ? "Working…" : cluster.status.capitalized,
+                secondaryRightText: isBusy ? "Working…" : isAwaitingCNI ? "Waiting for CNI" : cluster.status.capitalized,
                 isSelected: isSelected
             )
         }

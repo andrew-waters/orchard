@@ -325,7 +325,7 @@ func recreateSettingsMatchPluginDefault() throws {
 
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
 
-    #expect(settings == ClusterRecreateSettings(name: "k8s-dev", cpus: 2, memoryGiB: 2, nodeImage: .pluginDefault, cni: nil, workers: 0))
+    #expect(settings == ClusterRecreateSettings(name: "k8s-dev", cpus: 2, memoryGiB: 2, nodeImage: .pluginDefault, cni: .kindnet, workers: 0))
 }
 
 @MainActor
@@ -359,22 +359,22 @@ func recreateSettingsPreferRemembered() async throws {
     let service = makeService()
     await service.clusterService.create(
         name: "k8s-dev", cpus: nil, memory: nil,
-        nodeImage: "docker.io/kindest/node:v1.34.11@sha256:zz", cni: "/Users/me/cilium.yaml")
+        nodeImage: "docker.io/kindest/node:v1.34.11@sha256:zz", cni: .manifest("/Users/me/cilium.yaml"))
 
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster(digest: "sha256:zz"))
 
     #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.34.11@sha256:zz"))
-    #expect(settings.cni == "/Users/me/cilium.yaml")
+    #expect(settings.cni == .manifest("/Users/me/cilium.yaml"))
 }
 
 @MainActor
 @Test("Recreate settings: deleting a cluster forgets what it was created with")
 func deleteForgetsRememberedOptions() async throws {
     let service = makeService()
-    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: "/Users/me/cilium.yaml")
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .manifest("/Users/me/cilium.yaml"))
     await service.clusterService.delete(name: "k8s-dev")
 
-    #expect(service.clusterService.recreateSettings(for: try stoppedCluster()).cni == nil)
+    #expect(service.clusterService.recreateSettings(for: try stoppedCluster()).cni == .kindnet)
 }
 
 @MainActor
@@ -384,7 +384,7 @@ func recreateDeletesThenCreates() async {
     let service = makeService(runner: runner)
 
     let ok = await service.clusterService.recreate(
-        name: "k8s-dev", cpus: 2, memory: "2GB", nodeImage: nil, cni: nil)
+        name: "k8s-dev", cpus: 2, memory: "2GB", nodeImage: nil, cni: .kindnet)
 
     #expect(ok)
     let calls = runner.calls
@@ -405,7 +405,7 @@ func recreateStopsWhenDeleteFails() async {
     }
     let service = makeService(runner: runner)
 
-    let ok = await service.clusterService.recreate(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: nil)
+    let ok = await service.clusterService.recreate(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .kindnet)
 
     #expect(!ok)
     #expect(!runner.calls.contains { $0.starts(with: ["k8s", "create"]) })
@@ -418,7 +418,7 @@ func createUnderTakenNameKeepsRememberedOptions() async throws {
     let service = makeService(backend: backend)
     await service.clusterService.create(
         name: "k8s-dev", cpus: nil, memory: nil,
-        nodeImage: "docker.io/kindest/node:v1.37.0@sha256:a1", cni: "/Users/me/cilium.yaml")
+        nodeImage: "docker.io/kindest/node:v1.37.0@sha256:a1", cni: .manifest("/Users/me/cilium.yaml"))
     // The node exists on the daemon but not yet in Orchard's cached list, as when it was made
     // since the last poll: create must refresh before it checks.
     backend.containers = [try stoppedCluster(digest: "sha256:a1").nodes[0].container]
@@ -426,11 +426,11 @@ func createUnderTakenNameKeepsRememberedOptions() async throws {
 
     // A second Create with the same name: the CLI refuses it, and it must not first
     // overwrite what the real k8s-dev was created with.
-    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: nil)
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .kindnet)
 
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster(digest: "sha256:a1"))
     #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.37.0@sha256:a1"))
-    #expect(settings.cni == "/Users/me/cilium.yaml")
+    #expect(settings.cni == .manifest("/Users/me/cilium.yaml"))
 }
 
 @MainActor
@@ -442,11 +442,11 @@ func recreateRecordsNewOptions() async throws {
 
     await service.clusterService.recreate(
         name: "k8s-dev", cpus: nil, memory: nil,
-        nodeImage: "docker.io/kindest/node:v1.36.4@sha256:b4", cni: "/Users/me/calico.yaml")
+        nodeImage: "docker.io/kindest/node:v1.36.4@sha256:b4", cni: .manifest("/Users/me/calico.yaml"))
 
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
     #expect(settings.nodeImage == .reference("docker.io/kindest/node:v1.36.4@sha256:b4"))
-    #expect(settings.cni == "/Users/me/calico.yaml")
+    #expect(settings.cni == .manifest("/Users/me/calico.yaml"))
 }
 
 // MARK: - Worker nodes (1.6.0)
@@ -517,7 +517,7 @@ func recreateRemembersWorkers() async throws {
     #expect(settings.workers == 3)
 
     await service.clusterService.recreate(
-        name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: nil, workers: settings.workers)
+        name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .kindnet, workers: settings.workers)
     #expect(runner.calls.last == ["k8s", "create", "--name", "k8s-dev", "--workers", "3"])
 }
 
@@ -542,7 +542,7 @@ func rememberedOptionsWithoutWorkersDecode() throws {
     let service = makeService(defaults: defaults)
 
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
-    #expect(settings.cni == "/Users/me/cilium.yaml")
+    #expect(settings.cni == .manifest("/Users/me/cilium.yaml"))
     #expect(settings.workers == 0)
 }
 
@@ -559,4 +559,163 @@ func recreatePrefersLiveWorkers() async throws {
     ]).first)
 
     #expect(service.clusterService.recreateSettings(for: cluster).workers == 2)
+}
+
+// MARK: - No CNI (1.6.0)
+
+private func kubectlNodes(_ ready: [Bool]) -> String {
+    let items = ready.enumerated().map { index, isReady in
+        #"{"metadata":{"name":"node-\#(index)"},"status":{"conditions":[{"type":"MemoryPressure","status":"False"},{"type":"Ready","status":"\#(isReady ? "True" : "False")"}]}}"#
+    }
+    return #"{"apiVersion":"v1","kind":"List","items":[\#(items.joined(separator: ","))]}"#
+}
+
+private func runningCluster() throws -> K8sCluster {
+    try #require(K8sCluster.group(containers: [
+        try k8sNode("k8s-dev", role: "control-plane"),
+        try k8sNode("k8s-dev-worker-1", role: "worker"),
+    ]).first)
+}
+
+@Test("No CNI is offered from container 1.6.0, and not when the version is unknown")
+func supportsNoCNIByVersion() {
+    #expect(ClusterService.supportsNoCNI(containerVersion: "1.6.0"))
+    #expect(ClusterService.supportsNoCNI(containerVersion: "2.0"))
+    #expect(!ClusterService.supportsNoCNI(containerVersion: "1.5.10"))
+    #expect(!ClusterService.supportsNoCNI(containerVersion: nil))
+}
+
+@MainActor
+@Test("Create: no CNI passes --cni NONE, and the cluster waits for one straight away")
+func createWithNoCNI() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+    #expect(runner.calls.last == ["k8s", "create", "--name", "k8s-dev", "--cni", "NONE"])
+    #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
+}
+
+@MainActor
+@Test("Create: a failed create with no CNI doesn't wait for one")
+func failedCreateWithNoCNIDoesNotWait() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 1, stdout: nil, stderr: "boom") }
+    let service = makeService(runner: runner)
+
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+    #expect(service.clusterService.awaitingCNI.isEmpty)
+}
+
+@MainActor
+@Test("Recreate settings: no CNI is remembered apart from a manifest path, and recreate passes it on")
+func recreateRemembersNoCNI() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+
+    let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
+    #expect(settings.cni == .userInstalled)
+
+    await service.clusterService.recreate(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: settings.cni)
+    #expect(runner.calls.last == ["k8s", "create", "--name", "k8s-dev", "--cni", "NONE"])
+}
+
+@Test("Node readiness: every node Ready, some NotReady, too few nodes, and output that isn't a node list")
+func parsesNodeReadiness() {
+    #expect(ClusterService.allNodesReady(kubectlNodesJSON: kubectlNodes([true, true]), expectedNodes: 2) == true)
+    #expect(ClusterService.allNodesReady(kubectlNodesJSON: kubectlNodes([true, false]), expectedNodes: 2) == false)
+    // A worker that hasn't registered yet: the one node listed is Ready, but the cluster isn't.
+    #expect(ClusterService.allNodesReady(kubectlNodesJSON: kubectlNodes([true]), expectedNodes: 2) == false)
+    #expect(ClusterService.allNodesReady(kubectlNodesJSON: kubectlNodes([]), expectedNodes: 0) == false)
+    #expect(ClusterService.allNodesReady(kubectlNodesJSON: #"{"items":[{"status":{}}]}"#, expectedNodes: 1) == false)
+    #expect(ClusterService.allNodesReady(kubectlNodesJSON: "The connection to the server was refused", expectedNodes: 1) == nil)
+}
+
+@MainActor
+@Test("CNI readiness: checked inside the control plane until the nodes are Ready, then no more")
+func cniReadinessClearsAndStops() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+    let cluster = try runningCluster()
+
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: kubectlNodes([false, false]), stderr: nil)
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(runner.calls.last == [
+        "exec", "k8s-dev", "kubectl", "--kubeconfig", "/etc/kubernetes/admin.conf",
+        "--request-timeout", "5s", "get", "nodes", "-o", "json",
+    ])
+    #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
+
+    // A failed check keeps the wait.
+    runner.defaultResult = ProcessResult(exitCode: 1, stdout: nil, stderr: "connection refused")
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
+
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: kubectlNodes([true, true]), stderr: nil)
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(service.clusterService.awaitingCNI.isEmpty)
+
+    let callsAfterReady = runner.calls.count
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(runner.calls.count == callsAfterReady)
+    #expect(service.clusterService.awaitingCNI.isEmpty)
+}
+
+@MainActor
+@Test("CNI readiness: clusters created with kindnet or a manifest, or not through Orchard, are never checked")
+func cniReadinessSkipsOtherClusters() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    await service.clusterService.create(
+        name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .manifest("/Users/me/cilium.yaml"))
+    let callsAfterCreate = runner.calls.count
+
+    let other = try #require(K8sCluster.group(containers: [try k8sNode("other", role: "control-plane")]).first)
+    await service.clusterService.refreshCNIReadiness(of: [try runningCluster(), other])
+    #expect(runner.calls.count == callsAfterCreate)
+    #expect(service.clusterService.awaitingCNI.isEmpty)
+}
+
+@MainActor
+@Test("CNI readiness: a stopped cluster isn't checked and doesn't read as waiting")
+func cniReadinessSkipsStoppedClusters() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+    let callsAfterCreate = runner.calls.count
+
+    await service.clusterService.refreshCNIReadiness(of: [try stoppedCluster()])
+    #expect(runner.calls.count == callsAfterCreate)
+    #expect(service.clusterService.awaitingCNI.isEmpty)
+}
+
+@MainActor
+@Test("CNI readiness: a check in flight across a recreate doesn't apply the old cluster's result")
+func cniReadinessIgnoresResultFromBeforeRecreate() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    await service.clusterService.create(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+    let cluster = try runningCluster()
+
+    // The old cluster answers Ready, but only after it has been recreated with no CNI.
+    let clusterService = service.clusterService
+    runner.runHandler = { _, arguments in
+        if arguments.first == "exec" {
+            await clusterService.recreate(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .userInstalled)
+            return ProcessResult(exitCode: 0, stdout: kubectlNodes([true, true]), stderr: nil)
+        }
+        return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
+    }
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
+
+    // And the new cluster is still checked rather than taken as Ready.
+    runner.runHandler = nil
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: kubectlNodes([false, false]), stderr: nil)
+    let callsBefore = runner.calls.count
+    await service.clusterService.refreshCNIReadiness(of: [cluster])
+    #expect(runner.calls.count == callsBefore + 1)
+    #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
 }
