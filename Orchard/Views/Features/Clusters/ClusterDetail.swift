@@ -19,8 +19,6 @@ struct ClusterDetailView: View {
     @State private var copiedPath = false
     @State private var recreateSettings: ClusterRecreateSettings?
 
-    private static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
-
     private var awaitingCNI: Bool { clusterService.awaitingCNI.contains(clusterName) }
 
     private var cluster: K8sCluster? {
@@ -61,8 +59,15 @@ struct ClusterDetailView: View {
             .sheet(item: $recreateSettings) { settings in
                 CreateClusterView(recreating: settings)
             }
-            .onAppear { statsService.beginSampling() }
-            .onDisappear { statsService.endSampling() }
+            .onAppear {
+                statsService.beginSampling()
+                // The list can be hidden while this shows, so this keeps its banner current too.
+                clusterService.beginCNIChecks()
+            }
+            .onDisappear {
+                statsService.endSampling()
+                clusterService.endCNIChecks()
+            }
             .confirmationDialog(
                 "Delete '\(cluster.name)'? This permanently removes the cluster's node containers and any workloads running on them.",
                 isPresented: $showDeleteConfirmation
@@ -89,7 +94,7 @@ struct ClusterDetailView: View {
                         .font(.title2)
                         .fontWeight(.semibold)
                     Circle()
-                        .fill(awaitingCNI ? Color.orange : cluster.isRunning ? Color.green : Color.gray)
+                        .fill(awaitingCNI ? Color.blue : cluster.isRunning ? Color.green : Color.gray)
                         .frame(width: 8, height: 8)
                         .help(awaitingCNI ? "Waiting for a CNI" : cluster.status.capitalized)
                 }
@@ -218,10 +223,10 @@ struct ClusterDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Waiting for a CNI")
                     .font(.subheadline).fontWeight(.medium)
-                Text("This cluster was created without a CNI, so its nodes stay NotReady until you install one. Open Terminal (kubectl) and apply it with kubectl or Helm; this clears once the nodes are Ready.")
+                Text("This cluster was created without a CNI, so its nodes stay NotReady until you install one. Write Kubeconfig, then open Terminal (kubectl) and apply it with kubectl or Helm; this clears once the nodes are Ready.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Link("Custom CNI in Apple container's docs", destination: Self.cniDocsURL)
+                Link("Custom CNI in Apple container's docs", destination: ClusterService.cniDocsURL)
                     .font(.caption)
             }
             Spacer()

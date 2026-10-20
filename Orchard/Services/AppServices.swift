@@ -117,6 +117,9 @@ final class AppServices: ObservableObject {
         clusterService.existingContainerIDs = { [weak containerListService] in
             Set(containerListService?.containers.map(\.configuration.id) ?? [])
         }
+        clusterService.currentClusters = { [weak containerListService] in
+            K8sCluster.group(containers: containerListService?.containers ?? [])
+        }
         // Stats samples running machines through their backing container (re-keyed to the
         // stable machine id). Supplied lazily so the sampler always sees the current machines.
         statsService.machineStatTargets = { [weak machineService] in

@@ -37,8 +37,6 @@ struct CreateClusterView: View {
     @State private var workers: Int = 0
     @State private var validationError: String?
 
-    private static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
-
     /// Set when recreating: the sheet opens filled in from the existing cluster, keeps its
     /// name, and its one button deletes and creates in a single step.
     private let recreating: ClusterRecreateSettings?
@@ -283,7 +281,7 @@ struct CreateClusterView: View {
             Text(note ?? cniCaption)
                 .font(.caption).foregroundStyle(note == nil ? .secondary : Color.orange)
                 .fixedSize(horizontal: false, vertical: true)
-            Link("Custom CNI in Apple container's docs", destination: Self.cniDocsURL)
+            Link("Custom CNI in Apple container's docs", destination: ClusterService.cniDocsURL)
                 .font(.caption)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -45,14 +45,9 @@ struct ClustersListView: View {
             // thing to probe is whether the CLI plugin exists for lifecycle actions.
             await clusterService.probePluginAvailability()
         }
-        .task {
-            // Clusters created with no CNI wait for the user to install one. Checked while the
-            // list is on screen, which it is beside a cluster's detail; ends with the view.
-            while !Task.isCancelled {
-                await clusterService.refreshCNIReadiness(of: clusters)
-                try? await Task.sleep(for: .seconds(10))
-            }
-        }
+        // Clusters created with no CNI wait for the user to install one; checked while shown.
+        .onAppear { clusterService.beginCNIChecks() }
+        .onDisappear { clusterService.endCNIChecks() }
     }
 
     @ViewBuilder
@@ -289,7 +284,7 @@ struct ClustersListView: View {
             let nodeCount = cluster.nodes.count
             ListItemRow(
                 icon: "helm",
-                iconColor: isAwaitingCNI ? .orange : cluster.isRunning ? .green : .secondary,
+                iconColor: isAwaitingCNI ? .blue : cluster.isRunning ? .green : .secondary,
                 primaryText: cluster.name,
                 secondaryLeftText: nodeCount == 1 ? "1 node" : "\(nodeCount) nodes",
                 secondaryRightText: isBusy ? "Working…" : isAwaitingCNI ? "Waiting for CNI" : cluster.status.capitalized,

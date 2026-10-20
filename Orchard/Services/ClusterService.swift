@@ -183,12 +183,17 @@ final class ClusterService: ObservableObject {
     /// Clusters created with no CNI whose nodes have all been Ready, so they aren't checked
     /// again. In memory only: after a relaunch each is checked once more and lands back here.
     private var cniReadyClusters: Set<String> = []
+    /// Views showing clusters, between `beginCNIChecks` and `endCNIChecks`.
+    private var cniCheckConsumers = 0
+    private var cniCheckTask: Task<Void, Never>?
 
     /// Refresh the container list after a lifecycle change. Set by the owner.
     var reloadContainers: () async -> Void = {}
     /// The ids of the containers that exist now. A cluster's name is its control-plane
     /// container's id, so a create under a taken name is one the CLI will refuse. Set by the owner.
     var existingContainerIDs: @MainActor () -> Set<String> = { [] }
+    /// The clusters there are now, for the CNI readiness check. Set by the owner.
+    var currentClusters: @MainActor () -> [K8sCluster] = { [] }
 
     init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter, defaults: UserDefaults = .standard) {
         self.runner = runner
@@ -318,6 +323,9 @@ final class ClusterService: ObservableObject {
         let numbers = parts.compactMap { $0 }
         return !numbers.lexicographicallyPrecedes(minimum)
     }
+
+    /// Apple container's guide to using your own CNI, linked wherever Orchard offers one.
+    nonisolated static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
 
     /// The kubeconfig file `container k8s write-config` writes to by default.
     nonisolated static var kubeconfigPath: String {
@@ -492,6 +500,31 @@ final class ClusterService: ObservableObject {
 
     // MARK: - Waiting for a CNI
 
+    /// How often `awaitingCNI` is refreshed while a view showing clusters is on screen.
+    private static let cniCheckInterval: Duration = .seconds(10)
+
+    /// Call when a view showing clusters appears: the list or a cluster's detail, either of
+    /// which can be on screen without the other. Checks run every `cniCheckInterval` until the
+    /// last such view calls `endCNIChecks`, as `StatsService.beginSampling` counts its views.
+    func beginCNIChecks() {
+        cniCheckConsumers += 1
+        guard cniCheckTask == nil else { return }
+        cniCheckTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.refreshCNIReadiness(of: self.currentClusters())
+                try? await Task.sleep(for: Self.cniCheckInterval)
+            }
+        }
+    }
+
+    func endCNIChecks() {
+        cniCheckConsumers = max(0, cniCheckConsumers - 1)
+        guard cniCheckConsumers == 0 else { return }
+        cniCheckTask?.cancel()
+        cniCheckTask = nil
+    }
+
     /// Check the clusters created with no CNI that aren't known to be Ready yet, and update
     /// `awaitingCNI`. Only running clusters Orchard remembers creating with no CNI are checked,
     /// so the rest cost nothing. Once a cluster's nodes are all Ready it isn't checked again.
@@ -524,13 +557,15 @@ final class ClusterService: ObservableObject {
     /// Whether the cluster's nodes are all Ready, asked of the API server from inside the
     /// control-plane node, whose kindest/node image carries kubectl and the admin kubeconfig.
     /// That needs neither kubectl on the Mac nor a written kubeconfig. Nil when it can't tell.
+    /// The request timeout keeps an API server that accepts but never answers from stalling
+    /// the checks: the runner itself waits as long as the process runs.
     private func nodesReady(controlPlane: String, expectedNodes: Int) async -> Bool? {
         do {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: ["exec", controlPlane,
                             "kubectl", "--kubeconfig", "/etc/kubernetes/admin.conf",
-                            "get", "nodes", "-o", "json"])
+                            "--request-timeout", "5s", "get", "nodes", "-o", "json"])
             guard !result.failed, let stdout = result.stdout else { return nil }
             return Self.allNodesReady(kubectlNodesJSON: stdout, expectedNodes: expectedNodes)
         } catch {

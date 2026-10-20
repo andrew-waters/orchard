@@ -643,7 +643,8 @@ func cniReadinessClearsAndStops() async throws {
     runner.defaultResult = ProcessResult(exitCode: 0, stdout: kubectlNodes([false, false]), stderr: nil)
     await service.clusterService.refreshCNIReadiness(of: [cluster])
     #expect(runner.calls.last == [
-        "exec", "k8s-dev", "kubectl", "--kubeconfig", "/etc/kubernetes/admin.conf", "get", "nodes", "-o", "json",
+        "exec", "k8s-dev", "kubectl", "--kubeconfig", "/etc/kubernetes/admin.conf",
+        "--request-timeout", "5s", "get", "nodes", "-o", "json",
     ])
     #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
 
