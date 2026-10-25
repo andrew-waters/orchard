@@ -376,34 +376,17 @@ struct ContainerRow: View {
 struct PowerButton: View {
     let isLoading: Bool
     let action: () -> Void
-    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
-            SwiftUI.Image(systemName: "power")
-                .font(.system(size: 60))
-                .foregroundColor(buttonColor)
-                .scaleEffect(isHovered ? 1.1 : 1.0)
+            Label(isLoading ? "Starting…" : "Start Container System", systemImage: "power")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
         .disabled(isLoading)
+        .accessibilityLabel("Start Container System")
+        .accessibilityValue(isLoading ? "Starting…" : "")
         .help("Click to start the container system")
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering && !isLoading
-            }
-        }
-        .modifier(CursorModifier(cursor: isLoading ? .arrow : .pointingHand))
-    }
-
-    private var buttonColor: Color {
-        if isLoading {
-            return .white
-        } else if isHovered {
-            return .blue
-        } else {
-            return .gray
-        }
     }
 }
 

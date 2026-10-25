@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The stopped-system screen now shows a prominent "Start Container System" button instead of an unlabeled power icon, with "Starting…" feedback while startup is in progress ([#123](https://github.com/andrew-waters/orchard/issues/123)).
+
 ## [2.6.0] - 2026-10-20
 
 ### Added
