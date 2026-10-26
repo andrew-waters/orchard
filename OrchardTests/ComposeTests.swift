@@ -274,6 +274,14 @@ struct ComposeCreateSpecTests {
         #expect(spec.dnsSearchDomains.isEmpty)
         #expect(spec.dnsOptions.isEmpty)
     }
+
+    @Test("A service's platform reaches the create spec; none leaves it to Automatic")
+    func platformCarried() throws {
+        let amd64 = try plan("services:\n  web:\n    image: nginx\n    platform: linux/amd64\n")
+        #expect(ComposeService.createSpec(from: amd64).platform == "linux/amd64")
+        let plain = try plan("services:\n  web:\n    image: nginx\n")
+        #expect(ComposeService.createSpec(from: plain).platform == nil)
+    }
 }
 
 @Suite("Bind mounts")

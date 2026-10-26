@@ -199,6 +199,8 @@ func startContainerNotFoundRecreatesFromSnapshot() async throws {
     // (the initial failure), and the branch isn't marked recovery-failed. Labels, resources,
     // and hostname aren't preserved (no field in the create path); see recoverContainer.
     #expect(backend.createdSpecs.contains { $0.id == "web" })
+    // The platform is carried, so an amd64 container is not recovered as the host's (#147).
+    #expect(backend.createdSpecs.first { $0.id == "web" }?.platform == "linux/arm64")
     #expect(backend.bootstrapAndStartCount == 1)   // no second start on the recovered container
     #expect(service.recoveryFailedContainerIDs.contains("web") == false)
 }

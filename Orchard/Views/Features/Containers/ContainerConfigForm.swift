@@ -15,17 +15,25 @@ enum ContainerConfigMode: Equatable {
 struct ContainerConfigForm: View {
     @Binding var config: ContainerRunConfig
     @Binding var nameValidationError: String?
+    /// Set while the chosen platform cannot run here (Rosetta missing, or the image does not
+    /// offer it), so the host can disable its action.
+    @Binding var platformError: String?
     let mode: ContainerConfigMode
 
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var modelService: ModelService
+    @EnvironmentObject var imageService: ImageService
+    @EnvironmentObject var rosettaService: RosettaService
 
     @State private var selectedTab: ConfigTab = .basic
     /// The detected model provider the user chose to bridge into this container, by
     /// `ModelProvider.id`. Empty means "none" - the bridge section is opt-in.
     @State private var bridgeProviderID: String = ""
+    /// What the image offers, or nil while unknown (not loaded yet, or unreadable).
+    @State private var imagePlatforms: [String]?
+    @State private var isLoadingPlatforms = false
 
     enum ConfigTab: String, CaseIterable {
         case basic = "Basic"
@@ -65,9 +73,17 @@ struct ContainerConfigForm: View {
                 config.dnsDomain = defaultDomain.domain
             }
         }
+        .task(id: config.image) {
+            await loadImagePlatforms()
+        }
         .onAppear {
             if mode == .run { validateContainerName() }
+            rosettaService.refresh()
+            updatePlatformError()
         }
+        .onChange(of: config.platform) { updatePlatformError() }
+        .onChange(of: imagePlatforms) { updatePlatformError() }
+        .onChange(of: rosettaService.availability) { updatePlatformError() }
     }
 
     private var tabPickerView: some View {
@@ -183,6 +199,8 @@ struct ContainerConfigForm: View {
                 }
             }
 
+            platformSection
+
             VStack(alignment: .leading, spacing: 8) {
                 // Recreating from the edit sheet always happens in the background, so the
                 // detached toggle only appears (and only acts) when running a container.
@@ -204,6 +222,144 @@ struct ContainerConfigForm: View {
             resourcesConfigView
 
             Spacer()
+        }
+    }
+
+    // MARK: - Platform (#147)
+
+    /// What Automatic resolves to for this image, or nil when that cannot be said yet.
+    private var automaticPlatform: String? {
+        guard let imagePlatforms else { return nil }
+        return try? ContainerPlatform.resolve(requested: nil, candidates: imagePlatforms)
+    }
+
+    /// The platform the container will be created as, as far as is known.
+    private var effectivePlatform: String? {
+        config.platform.isEmpty ? automaticPlatform : config.platform
+    }
+
+    /// The picker's choices: what the image offers, plus the current choice when the image
+    /// cannot be read (an edit of a container whose image is not here, say), so it stays put.
+    private var platformChoices: [String] {
+        var choices = imagePlatforms ?? []
+        if !config.platform.isEmpty, !choices.contains(config.platform) {
+            choices.append(config.platform)
+        }
+        return choices
+    }
+
+    private var platformSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Platform")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            HStack(spacing: 8) {
+                Picker("Platform", selection: $config.platform) {
+                    Text(automaticPlatform.map { "Automatic (\($0))" } ?? "Automatic").tag("")
+                    ForEach(platformChoices, id: \.self) { platform in
+                        Text(platform).tag(platform)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 240, alignment: .leading)
+
+                if isLoadingPlatforms {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            if let platformError {
+                rosettaNotice(platformError)
+            } else if let platform = effectivePlatform, ContainerPlatform.needsRosetta(platform) {
+                Text("Runs under Rosetta translation")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else if imagePlatforms == nil, !isLoadingPlatforms, !config.image.isEmpty {
+                Text("The image's platforms can't be read until it is pulled. Automatic runs it as \(hostContainerPlatform).")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Automatic picks \(hostContainerPlatform) when the image has it, otherwise the one it offers")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func rosettaNotice(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundColor(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if rosettaService.availability == .notInstalled,
+               effectivePlatform.map({ ContainerPlatform.needsRosetta($0) }) == true {
+                HStack(spacing: 8) {
+                    Button(rosettaService.isInstalling ? "Installing Rosetta..." : "Install Rosetta") {
+                        Task { await rosettaService.install() }
+                    }
+                    .disabled(rosettaService.isInstalling)
+
+                    if rosettaService.isInstalling {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            }
+
+            if let installError = rosettaService.installError {
+                Text(installError)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Reads what the image offers. Debounced, since in the Run sheet's picker mode this runs
+    /// on every keystroke of the reference.
+    private func loadImagePlatforms() async {
+        let reference = resolveRunImageReference(
+            config.image, localReferences: imageService.images.map(\.reference)
+        )
+        guard !reference.isEmpty else {
+            imagePlatforms = nil
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        guard !Task.isCancelled else { return }
+        isLoadingPlatforms = true
+        let platforms = await imageService.platforms(for: reference)
+        guard !Task.isCancelled else { return }
+        isLoadingPlatforms = false
+        imagePlatforms = platforms
+        // A choice the newly picked image does not offer goes back to Automatic. An edit keeps
+        // the container's own platform: the image cannot change there.
+        if mode == .run, let platforms, !config.platform.isEmpty, !platforms.contains(config.platform) {
+            config.platform = ""
+        }
+    }
+
+    private func updatePlatformError() {
+        if imagePlatforms != nil, config.platform.isEmpty, automaticPlatform == nil {
+            platformError = "The image offers \((imagePlatforms ?? []).joined(separator: ", ")) but not \(hostContainerPlatform). Choose one."
+            return
+        }
+        guard let platform = effectivePlatform, ContainerPlatform.needsRosetta(platform) else {
+            platformError = nil
+            return
+        }
+        switch rosettaService.availability {
+        case .installed:
+            platformError = nil
+        case .notInstalled:
+            platformError = "\(platform) runs under Rosetta, which is not installed on this Mac."
+        case .notSupported:
+            platformError = "\(platform) needs Rosetta, which this Mac cannot run."
         }
     }
 

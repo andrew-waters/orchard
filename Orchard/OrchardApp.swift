@@ -98,6 +98,7 @@ extension View {
             .environmentObject(s.containerInstallService)
             .environmentObject(s.modelService)
             .environmentObject(s.modelServerService)
+            .environmentObject(s.rosettaService)
     }
 }
 

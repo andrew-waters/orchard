@@ -24,6 +24,9 @@ enum OrchardError: Error, LocalizedError, Equatable {
     /// the CLI's message names a step that succeeded rather than the one that failed, so the
     /// raw text is actively misleading (see `ClusterService.outputIndicatesNodePrepFailure`).
     case k8sNodePrepFailed(cluster: String)
+    /// A container of another architecture was asked for and Rosetta, which runs it, is not
+    /// installed. Raised before anything is fetched or created.
+    case rosettaNotInstalled(platform: String)
     /// An error we haven't classified; carries the original message verbatim.
     case generic(String)
 
@@ -59,6 +62,8 @@ enum OrchardError: Error, LocalizedError, Equatable {
             return "Apple container reported the filesystem trim as unsupported, so no space was reclaimed on \(id). This needs a container release that can trim a container's root filesystem; 1.5.0 cannot."
         case .k8sNodePrepFailed(let cluster):
             return "Preparing the node for '\(cluster)' failed. Apple container reports the output of the last step that succeeded instead of the one that failed, so its own message names a step that worked rather than the cause."
+        case .rosettaNotInstalled(let platform):
+            return "Rosetta is needed to run \(platform) containers on this Mac and is not installed. Install it from the Run sheet, or with `softwareupdate --install-rosetta`."
         case .generic(let message):
             return message
         }

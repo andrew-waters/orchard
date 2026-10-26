@@ -65,6 +65,9 @@ struct ContainerCreateSpec: Sendable {
     /// Key/value labels stamped on the container at creation - e.g. the sandbox marker
     /// that lets the Sandboxes view recognise a container Orchard wired to a model.
     var labels: [String: String] = [:]
+    /// `os/arch[/variant]` to run as, or nil for Automatic: the host's platform when the image
+    /// has it, otherwise the one it offers (`ContainerPlatform.resolve`).
+    var platform: String? = nil
 }
 
 /// Combine an image's entrypoint and cmd with a user command override into the final
@@ -168,6 +171,11 @@ protocol ContainerBackend: Sendable {
     func pullImage(reference: String, onProgress: (@Sendable (ImagePullMetrics) -> Void)?) async throws
     func deleteImage(reference: String) async throws
     func inspectImage(reference: String) async throws -> ImageInspection
+    /// The platforms an image can run as, `os/arch[/variant]`, without pulling it: from the
+    /// local index when the image is here, otherwise from the registry through the images
+    /// service's `imagePlatforms` route, which container 1.6.1 added. On an older runtime an
+    /// image that is not here throws.
+    func imagePlatforms(reference: String) async throws -> [String]
     func listNetworks() async throws -> [ContainerNetwork]
     func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws
     func deleteNetwork(id: String) async throws
@@ -532,11 +540,22 @@ struct LiveContainerBackend: ContainerBackend {
                 options: spec.dnsOptions
             )
 
-            // Fetch/unpack the image and read its OCI config.
+            // Choose the platform the way `container run` does, then fetch, unpack and read the
+            // config for it. Fetching with a platform pulls that variant when the stored image
+            // lacks it.
             let systemConfig = try await loadContainerSystemConfig()
-            let image = try await ClientImage.fetch(reference: spec.imageRef, containerSystemConfig: systemConfig)
-            let platform = ContainerizationOCI.Platform.current
+            let candidates = (try? await imagePlatforms(reference: spec.imageRef)) ?? []
+            let platformName = try ContainerPlatform.resolve(requested: spec.platform, candidates: candidates)
+            if ContainerPlatform.needsRosetta(platformName), RosettaAvailability.current != .installed {
+                throw OrchardError.rosettaNotInstalled(platform: platformName)
+            }
+            let platform = try ContainerizationOCI.Platform(from: platformName)
+            let image = try await ClientImage.fetch(
+                reference: spec.imageRef, platform: platform, containerSystemConfig: systemConfig
+            )
             try await image.getCreateSnapshot(platform: platform)
+            // The kernel is always the host's: only the container's userspace is another
+            // architecture, and Rosetta runs that. `container run --platform` does the same.
             let kernel = try await ClientKernel.getDefaultKernel(for: .current)
             let imageConfig = try await image.config(for: platform).config
 
@@ -576,6 +595,9 @@ struct LiveContainerBackend: ContainerBackend {
             containerConfig.labels = spec.labels
             containerConfig.resources.cpus = spec.cpus
             containerConfig.resources.memoryInBytes = spec.memoryBytes
+            containerConfig.platform = platform
+            containerConfig.rosetta = ContainerPlatform.needsRosetta(platformName)
+            containerConfig.runtimeHandler = "container-runtime-\(platform.os)"
 
             let builtinNetworkId = try await NetworkClient().builtin?.id
             let networkId = spec.networkName.isEmpty ? (builtinNetworkId ?? NetworkClient.defaultNetworkName) : spec.networkName
@@ -701,6 +723,16 @@ struct LiveContainerBackend: ContainerBackend {
                 size: descriptor.size,
                 variants: variants
             )
+        } catch { throw mapContainerError(error) }
+    }
+
+    func imagePlatforms(reference: String) async throws -> [String] {
+        do {
+            let platforms = try await ClientImage.platforms(
+                reference: reference, containerSystemConfig: try await loadContainerSystemConfig()
+            )
+            var seen = Set<String>()
+            return platforms.map(\.description).filter { seen.insert($0).inserted }
         } catch { throw mapContainerError(error) }
     }
 

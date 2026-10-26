@@ -514,9 +514,9 @@ final class ComposeService: ObservableObject {
                 dockerfile: dockerfile,
                 contextDir: operation.context,
                 tag: operation.imageReference,
-                // Every container on this stack is a linux/arm64 guest, which is why a
-                // compose file's `platform` is reported and ignored rather than passed on.
-                arch: "arm64",
+                // The service's architecture when its `platform:` names one, so a
+                // `platform: linux/amd64` service gets an image it can run (#147).
+                arch: operation.platform.flatMap(ContainerPlatform.architecture(of:)) ?? "arm64",
                 noCache: false,
                 buildArgs: operation.arguments.isEmpty ? nil : operation.arguments,
                 target: operation.target
@@ -592,7 +592,8 @@ final class ComposeService: ObservableObject {
             // container created through the Run form, rather than something invented here.
             cpus: operation.cpus.map { max(1, Int($0.rounded(.up))) } ?? ContainerRunConfig.defaultCPUs,
             memoryBytes: operation.memoryBytes ?? ContainerRunConfig.defaultMemoryBytes,
-            labels: operation.labels
+            labels: operation.labels,
+            platform: operation.platform
         )
     }
 }

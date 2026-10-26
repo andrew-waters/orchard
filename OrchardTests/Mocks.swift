@@ -388,6 +388,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         lock.withLock { _deletedImageReferences.append(reference) }
     }
     func inspectImage(reference: String) async throws -> ImageInspection { throw NotConfigured() }
+    func imagePlatforms(reference: String) async throws -> [String] { throw NotConfigured() }
     func listNetworks() async throws -> [ContainerNetwork] {
         if let listNetworksError { throw listNetworksError }
         return networks
@@ -515,8 +516,12 @@ func makeService(
     runner: MockCommandRunner = MockCommandRunner(),
     defaults: UserDefaults = ephemeralDefaults()
 ) -> AppServices {
-    // Installed, whatever the machine running the tests has: CI runners have no container.
-    AppServices(backend: backend, runner: runner, defaults: defaults, secrets: InMemorySecretsStore(), isContainerInstalled: { true })
+    // Installed, whatever the machine running the tests has: CI runners have no container,
+    // and Intel runners no Rosetta.
+    AppServices(
+        backend: backend, runner: runner, defaults: defaults, secrets: InMemorySecretsStore(),
+        isContainerInstalled: { true }, rosettaService: RosettaService(probe: { .installed }, installer: {})
+    )
 }
 
 /// A throwaway `UserDefaults` suite, unique per call, so a service built in a test never

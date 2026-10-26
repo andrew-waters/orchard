@@ -12,6 +12,7 @@ struct RunContainerView: View {
     @State private var config: ContainerRunConfig
     @State private var isRunning = false
     @State private var nameValidationError: String?
+    @State private var platformError: String?
 
     init(imageName: String) {
         self.imageName = imageName
@@ -54,7 +55,12 @@ struct RunContainerView: View {
                 imagePickerSection
                 Divider()
             }
-            ContainerConfigForm(config: $config, nameValidationError: $nameValidationError, mode: .run)
+            ContainerConfigForm(
+                config: $config,
+                nameValidationError: $nameValidationError,
+                platformError: $platformError,
+                mode: .run
+            )
             Divider()
             footerView
         }
@@ -119,7 +125,7 @@ struct RunContainerView: View {
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-            .disabled(config.name.isEmpty || config.image.isEmpty || isRunning || nameValidationError != nil)
+            .disabled(config.name.isEmpty || config.image.isEmpty || isRunning || nameValidationError != nil || platformError != nil)
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
@@ -226,7 +232,7 @@ struct RunContainerView: View {
         let imageReference = resolveRunImageReference(
             config.image, localReferences: imageService.images.map(\.reference)
         )
-        guard nameValidationError == nil, !imageReference.isEmpty else { return }
+        guard nameValidationError == nil, platformError == nil, !imageReference.isEmpty else { return }
 
         isRunning = true
         Task {

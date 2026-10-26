@@ -122,6 +122,9 @@ struct UITestBackend: ContainerBackend {
     func inspectImage(reference: String) async throws -> ImageInspection {
         throw OrchardError.generic("inspect unavailable in UI-test mode")
     }
+    func imagePlatforms(reference: String) async throws -> [String] {
+        ["linux/arm64", "linux/amd64"]
+    }
     func listNetworks() async throws -> [ContainerNetwork] {
         [ContainerNetwork(id: UITestSeed.networkID, state: "running",
                           config: NetworkConfig(labels: [:], id: UITestSeed.networkID),
