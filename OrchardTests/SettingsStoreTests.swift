@@ -225,22 +225,41 @@ func modelEndpointsGainNewBuiltIns() throws {
 }
 
 @MainActor
-@Test("Dock icon: defaults to visible, persists, and round-trips across store instances")
+@Test("Dock icon: defaults to always, persists, and round-trips across store instances")
 func dockIconPreferencePersists() {
     withSettingsStore { store, defaults in
-        #expect(store.hideDockIcon == false)
+        #expect(store.dockIconMode == .always)
 
-        store.setHideDockIcon(true)
-        #expect(store.hideDockIcon == true)
-        #expect(defaults.bool(forKey: SettingsStore.hideDockIconDefaultsKey) == true)
+        store.setDockIconMode(.never)
+        #expect(store.dockIconMode == .never)
+        #expect(defaults.string(forKey: DockIconMode.defaultsKey) == "never")
 
         // A fresh store on the same suite reads the persisted value back.
         let second = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore())
-        #expect(second.hideDockIcon == true)
+        #expect(second.dockIconMode == .never)
 
-        second.setHideDockIcon(false)
-        #expect(second.hideDockIcon == false)
-        #expect(defaults.bool(forKey: SettingsStore.hideDockIconDefaultsKey) == false)
+        second.setDockIconMode(.whileWindowsOpen)
+        #expect(second.dockIconMode == .whileWindowsOpen)
+        #expect(defaults.string(forKey: DockIconMode.defaultsKey) == "whileWindowsOpen")
+    }
+}
+
+@MainActor
+@Test("Dock icon: the old Hide Dock icon toggle carries over, and a chosen mode replaces it")
+func dockIconLegacyToggleMigrates() {
+    withSettingsStore { _, defaults in
+        // On, it becomes the mode that keeps the menu bar, not the stuck state from #142.
+        defaults.set(true, forKey: DockIconMode.legacyHiddenDefaultsKey)
+        let store = SettingsStore(alertCenter: AlertCenter(), defaults: defaults, secrets: InMemorySecretsStore())
+        #expect(store.dockIconMode == .whileWindowsOpen)
+
+        store.setDockIconMode(.always)
+        #expect(defaults.object(forKey: DockIconMode.legacyHiddenDefaultsKey) == nil)
+        #expect(DockIconMode.stored(in: defaults) == .always)
+
+        defaults.set(false, forKey: DockIconMode.legacyHiddenDefaultsKey)
+        defaults.removeObject(forKey: DockIconMode.defaultsKey)
+        #expect(DockIconMode.stored(in: defaults) == .always)
     }
 }
 

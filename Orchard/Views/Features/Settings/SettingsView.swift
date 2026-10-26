@@ -79,15 +79,19 @@ struct GeneralSettingsView: View {
             }
 
             Section {
-                Toggle("Hide Dock icon when no windows are open", isOn: Binding(
-                    get: { settings.hideDockIcon },
-                    set: { hidden in
-                        settings.setHideDockIcon(hidden)
-                        DockIconPolicy.apply(hidden: hidden)
+                Picker("Show Dock Icon", selection: Binding(
+                    get: { settings.dockIconMode },
+                    set: { mode in
+                        settings.setDockIconMode(mode)
+                        DockIconPolicy.apply(mode)
                     }
-                ))
+                )) {
+                    ForEach(DockIconMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
             } footer: {
-                Text("Orchard stays available from the menu bar. While one of its windows is open, Orchard shows its Dock icon and menu bar and can go full screen; when the last one closes, the Dock icon goes and Orchard leaves the Cmd-Tab app switcher.")
+                Text(dockIconFooter)
                     .foregroundColor(.secondary)
             }
 
@@ -165,6 +169,17 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear { containerShell = settings.containerShell }
+    }
+
+    private var dockIconFooter: String {
+        switch settings.dockIconMode {
+        case .always:
+            return "Orchard is also available from the menu bar."
+        case .whileWindowsOpen:
+            return "While one of its windows is open, Orchard shows its Dock icon and menu bar and can go full screen. When the last one closes, the Dock icon goes and Orchard leaves the Cmd-Tab app switcher, staying available from the menu bar."
+        case .never:
+            return "Orchard runs from the menu bar only and isn't in the Cmd-Tab app switcher. Its windows don't get Orchard's menu bar or go full screen, because macOS only gives those to apps with a Dock icon. Settings and Quit are in the menu bar panel."
+        }
     }
 }
 

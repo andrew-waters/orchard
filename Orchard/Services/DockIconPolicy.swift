@@ -1,24 +1,58 @@
 import AppKit
 
-/// Applies the Dock-icon preference by switching the app's activation policy at runtime.
-/// With the icon hidden, Orchard is `.regular` while any of its windows is open, so it has
-/// its menu bar, full screen and a place in Cmd-Tab, and `.accessory` once the last one
-/// closes, leaving only the menu-bar extra (#142). An accessory app gets no menu bar of its
-/// own, so staying `.accessory` with a window open left the previous app's menu showing.
-/// Runtime policy switching means the preference needs no relaunch, unlike `LSUIElement`.
+/// When Orchard shows its Dock icon. Hiding it means running as an accessory app, which
+/// macOS gives no menu bar of its own and no proper full screen, so `whileWindowsOpen` is
+/// the middle ground: a regular app while a window is open, menu-bar-only otherwise (#142).
+enum DockIconMode: String, CaseIterable, Identifiable {
+    case always
+    case whileWindowsOpen
+    case never
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .always: return "Always"
+        case .whileWindowsOpen: return "While a Window Is Open"
+        case .never: return "Never"
+        }
+    }
+
+    /// Static so the app can read the launch policy straight from defaults before any
+    /// services are built.
+    static let defaultsKey = "OrchardDockIconMode"
+    /// The Hide Dock icon toggle this replaced. Read only to carry an old choice over.
+    static let legacyHiddenDefaultsKey = "OrchardHideDockIcon"
+
+    /// The stored mode. A Hide Dock icon toggle left on before the modes existed becomes
+    /// `whileWindowsOpen`, so nobody upgrades into the stuck state #142 reported.
+    static func stored(in defaults: UserDefaults) -> DockIconMode {
+        if let raw = defaults.string(forKey: defaultsKey), let mode = DockIconMode(rawValue: raw) {
+            return mode
+        }
+        return defaults.bool(forKey: legacyHiddenDefaultsKey) ? .whileWindowsOpen : .always
+    }
+}
+
+/// Applies the Dock-icon preference by switching the app's activation policy at runtime:
+/// `.regular` shows the Dock icon, `.accessory` hides it (and removes the app from the
+/// Cmd-Tab switcher and its main menu from the menu bar) while the menu-bar extra keeps
+/// the app reachable. In `whileWindowsOpen` the policy follows Orchard's windows, so
+/// they get their menu bar and full screen. Runtime policy switching means the
+/// preference needs no relaunch, unlike `LSUIElement`.
 ///
 /// Deliberately not a `SettingsStore` side effect: the store runs in unit tests on
 /// ephemeral defaults, and flipping the test runner's activation policy from a setter
-/// would be a nasty surprise. Callers (launch and the Settings toggle) apply it
+/// would be a nasty surprise. Callers (launch and the Settings picker) apply it
 /// explicitly instead.
 @MainActor
 enum DockIconPolicy {
-    private static var hidden = false
+    private static var mode: DockIconMode = .always
     private static var observers: [NSObjectProtocol] = []
 
-    static func apply(hidden: Bool) {
-        self.hidden = hidden
-        if hidden { startObserving() } else { stopObserving() }
+    static func apply(_ mode: DockIconMode) {
+        self.mode = mode
+        if mode == .whileWindowsOpen { startObserving() } else { stopObserving() }
         update()
     }
 
@@ -49,7 +83,12 @@ enum DockIconPolicy {
         // AppKit hasn't created the application object yet, so NSApp - an implicitly
         // unwrapped optional - is still nil and would crash. Accessing .shared creates it.
         let app = NSApplication.shared
-        let regular = !hidden || app.windows.contains { $0 !== closing && isAppWindow($0) }
+        let regular: Bool
+        switch mode {
+        case .always: regular = true
+        case .never: regular = false
+        case .whileWindowsOpen: regular = app.windows.contains { $0 !== closing && isAppWindow($0) }
+        }
         let policy: NSApplication.ActivationPolicy = regular ? .regular : .accessory
         guard app.activationPolicy() != policy else { return }
         app.setActivationPolicy(policy)

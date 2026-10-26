@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- With "Hide Dock icon" on, Orchard keeps its menu bar and can go full screen again ([#142](https://github.com/andrew-waters/orchard/issues/142)). macOS gives a menu-bar-only app no menu of its own, so the previous app's menu stayed up, full screen misbehaved and Settings couldn't be reached. Orchard now shows its Dock icon and menu bar while any of its windows is open, and becomes menu-bar-only again when the last one closes. The setting is renamed "Hide Dock icon when no windows are open". The menu bar panel also gains Settings and Quit buttons, so both are always within reach.
+- Hiding the Dock icon no longer takes Orchard's menu bar and full screen with it ([#142](https://github.com/andrew-waters/orchard/issues/142)). macOS gives a menu-bar-only app no menu of its own, so the previous app's menu stayed up, full screen misbehaved and there was no way back to Settings. The Hide Dock icon toggle is now a **Show Dock Icon** choice in Settings > General: **Always**, **While a Window Is Open**, which shows the Dock icon and menu bar while any Orchard window is open and goes back to the menu bar only when the last one closes, or **Never**, which keeps Orchard menu-bar-only as before. If you had Hide Dock icon on, you get While a Window Is Open. The menu bar panel also gains Settings and Quit buttons, so both are always within reach.
 - The stopped-system screen now shows a prominent "Start Container System" button instead of an unlabeled power icon, with "Starting…" feedback while startup is in progress ([#123](https://github.com/andrew-waters/orchard/issues/123)).
 
 ## [2.6.0] - 2026-10-20

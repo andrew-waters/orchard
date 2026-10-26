@@ -1,7 +1,7 @@
 ---
 type: plan
 status: in-progress
-summary: "With Hide Dock icon on, run Orchard as a regular app while any of its windows is open (menu bar, full screen, Cmd-Tab) and as a menu-bar accessory only once the last window closes. Add Settings and Quit to the menu bar panel so they're always reachable."
+summary: "Replace the Hide Dock icon toggle with a Show Dock Icon choice: Always, While a Window Is Open (regular app while any Orchard window is open, menu-bar accessory once the last closes) or Never (the old accessory behaviour). A toggle left on migrates to While a Window Is Open. Add Settings and Quit to the menu bar panel so they're always reachable."
 issues: [andrew-waters/orchard#142]
 touches: [andrew-waters/orchard]
 owner: andrew-waters
@@ -15,17 +15,25 @@ With "Hide Dock icon" on, `DockIconPolicy` sets the activation policy to `.acces
 
 ## Design
 
-**Dock icon only while windows are open.** With the setting on, Orchard is `.regular` while any of its own windows (main, logs, Settings) is open or minimised, and `.accessory` once the last one closes. The menu bar panel and other panels don't count. `DockIconPolicy` watches `NSWindow.didBecomeKeyNotification` and `NSWindow.willCloseNotification` while the setting is on and re-evaluates the policy on each, leaving out the window that is closing. Turning the setting off stops observing and goes back to `.regular`, as before. At launch the policy starts as `.accessory` and the main window, if one opens, switches it to `.regular`.
+**A choice of three, not a toggle.** Some people want Orchard in the menu bar only and accept losing its main menu and full screen; others want those while they work in a window. macOS can't give a window its app's menu bar without a Dock icon, so this is the user's choice. `DockIconMode` replaces the bool:
 
-**Settings and Quit in the menu bar panel.** The "Open Orchard" card gains a Settings button (SwiftUI's `openSettings`, with the app activated first so the window comes forward) and a Quit button, so both are reachable whatever the Dock setting is.
+- **Always**: `.regular` all the time. The default.
+- **While a Window Is Open**: `.regular` while any of Orchard's own windows (main, logs, Settings) is open or minimised, and `.accessory` once the last one closes. The menu bar panel and other panels don't count. `DockIconPolicy` watches `NSWindow.didBecomeKeyNotification` and `NSWindow.willCloseNotification` only in this mode and re-evaluates the policy on each, leaving out the window that is closing.
+- **Never**: `.accessory` all the time, the old Hide Dock icon behaviour. The footer says plainly that windows don't get the menu bar or full screen in this mode.
 
-**Copy.** The toggle reads "Hide Dock icon when no windows are open", and its footer explains that Orchard shows its Dock icon and menu bar while a window is open.
+**Migration.** The mode is stored as a string under `OrchardDockIconMode`. With nothing stored, the old `OrchardHideDockIcon` bool decides: on becomes While a Window Is Open, so nobody upgrades into the stuck state from #142, and off becomes Always. Choosing a mode removes the old key.
+
+**Settings and Quit in the menu bar panel.** The "Open Orchard" card gains a Settings button (SwiftUI's `openSettings`, with the app activated first so the window comes forward) and a Quit button. In Never mode they are the only way to reach either without a window.
+
+**Copy.** The toggle becomes a "Show Dock Icon" picker, and its footer describes the chosen mode.
 
 ## Tasks
 
-- [x] `DockIconPolicy` switches between `.regular` and `.accessory` as Orchard's windows open and close.
+- [x] `DockIconMode` with migration from the old toggle, stored by `SettingsStore`.
+- [x] `DockIconPolicy` applies each mode, following Orchard's windows in While a Window Is Open.
 - [x] Settings and Quit buttons in the menu bar panel.
-- [x] Toggle label and footer copy.
+- [x] Show Dock Icon picker and per-mode footer.
+- [x] `SettingsStore` tests for the mode and the migration.
 - [x] CHANGELOG entry under Unreleased > Fixed.
-- [x] Debug build.
-- [ ] Try it by hand: menu bar and full screen with a window open, Dock icon gone once it closes, Settings and Quit from the panel.
+- [x] Debug build and `SettingsStoreTests`.
+- [ ] Try it by hand: each mode, switching between them, relaunching, and Settings and Quit from the panel.
