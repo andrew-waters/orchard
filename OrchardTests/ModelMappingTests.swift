@@ -80,8 +80,10 @@ func platformMapping() {
 
     #expect(mapped.os == "linux")
     #expect(mapped.architecture == "arm64")
-    // NB: mapPlatform hardcodes variant to nil even though Orchard.Platform has the field —
-    // see the KNOWN-ISSUE on mapPlatform. Not asserted here (a constant can't be falsified).
+    #expect(mapped.variant == "v8")
+    // arm64's only variant is left out of the description, as upstream's is.
+    #expect(mapped.description == "linux/arm64")
+    #expect(mapPlatform(ContainerizationOCI.Platform(arch: "arm", os: "linux", variant: "v7")).description == "linux/arm/v7")
 }
 
 // MARK: - mapProcessConfiguration (the user-enum switch — actual branching)

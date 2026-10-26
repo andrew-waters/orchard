@@ -240,6 +240,17 @@ final class ImageService: ObservableObject {
         try await backend.inspectImage(reference: reference)
     }
 
+    /// The platforms an image offers, for the Platform picker on Run and Edit (#147). Nil when
+    /// they could not be read: an image that is not here yet, on a runtime older than 1.6.1,
+    /// or a reference that does not resolve. Never alerts, since the picker is asked while
+    /// the reference is still being typed.
+    func platforms(for reference: String) async -> [String]? {
+        let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let platforms = try? await backend.imagePlatforms(reference: trimmed)
+        return platforms?.isEmpty == false ? platforms : nil
+    }
+
     func sizeText(for image: ContainerImage) -> String {
         sizeText(forReference: image.reference)
     }

@@ -455,10 +455,44 @@ final class ContainerListService: ObservableObject {
         }.value
     }
 
+    /// The platform a recreate as `config` will create, checked before the old container is
+    /// deleted, since nothing brings it back afterwards. Throws when the create would fail: a
+    /// platform the image no longer offers, or one that needs a Rosetta this Mac lacks.
+    /// Platforms that cannot be read refuse too: unread, any platform would pass, and the delete
+    /// would go ahead on a guess. That mostly means the image has gone from the store on a
+    /// runtime older than 1.6.1, where pulling it again lets the recreate through.
+    ///
+    /// The caller creates exactly this platform, rather than letting the create resolve
+    /// Automatic again: a lookup that failed the second time would fall back to the host's
+    /// platform, which is not the one checked here.
+    private func checkedRecreatePlatform(for config: ContainerRunConfig) async throws -> String {
+        let candidates: [String]
+        do {
+            candidates = try await backend.imagePlatforms(reference: config.image)
+        } catch {
+            throw OrchardError.generic(
+                "Orchard could not read which platforms \(config.image) offers "
+                    + "(\(error.localizedDescription)), so the container was kept. Pull the image and try again."
+            )
+        }
+        let platform = try ContainerPlatform.resolve(requested: config.platform, candidates: candidates)
+        if let refusal = ContainerPlatform.rosettaRefusal(for: platform) {
+            throw refusal
+        }
+        return platform
+    }
+
     func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
+        var config = newConfig
+        do {
+            config.platform = try await checkedRecreatePlatform(for: newConfig)
+        } catch {
+            alertCenter.error("Did not recreate \(oldContainerId): \(error.localizedDescription)")
+            return
+        }
         do {
             try await backend.deleteContainer(id: oldContainerId, force: true)
-            await runContainer(config: newConfig)
+            await runContainer(config: config)
         } catch {
             self.alertCenter.error("Failed to recreate container: \(error.localizedDescription)")
         }
@@ -466,7 +500,7 @@ final class ContainerListService: ObservableObject {
 
     // Recovery recreates an auto-removed container from its snapshot. It preserves every
     // field the create path (ContainerRunConfig → ContainerCreateSpec → createContainer)
-    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS.
+    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS, platform.
     // Labels, resources (cpus/memory), and hostname are NOT preserved - no field exists for
     // them anywhere in the create path (a normal `run` drops them too); adding them means
     // extending the spec and the XPC create call. Command override is intentionally not
@@ -523,7 +557,9 @@ final class ContainerListService: ObservableObject {
             labels: config.labels,
             cpus: config.resources.cpus,
             // Exact bytes, not a GB round-trip: recovery must never resize a container.
-            memoryBytes: UInt64(clamping: config.resources.memoryInBytes)
+            memoryBytes: UInt64(clamping: config.resources.memoryInBytes),
+            // An amd64 container comes back as amd64, not as the host's variant of its image.
+            platform: config.platform.description
         )
 
         let started = await runContainer(config: runConfig)
@@ -580,7 +616,8 @@ final class ContainerListService: ObservableObject {
                 // enforced: the runtime accepts overcommitted VMs.
                 cpus: max(1, config.cpus),
                 memoryBytes: max(1_048_576, config.memoryBytes),
-                labels: config.effectiveLabels
+                labels: config.effectiveLabels,
+                platform: config.platform.isEmpty ? nil : config.platform
             )
             try await backend.createContainer(spec)
 
@@ -596,6 +633,9 @@ final class ContainerListService: ObservableObject {
     func deleteMounts(_ mounts: [ContainerMount]) async {
         var deletedCount = 0
         var failedCount = 0
+        /// Why a container was left alone before anything was deleted, so the alert can say
+        /// what to do about it rather than only how many failed.
+        var refusals: [String] = []
         
         var mountsToRemoveByContainer: [String: Set<String>] = [:]
         for mount in mounts {
@@ -661,7 +701,7 @@ final class ContainerListService: ObservableObject {
                 ))
             }
             
-            let runConfig = ContainerRunConfig(
+            var runConfig = ContainerRunConfig(
                 name: oldConfig.id,
                 image: oldConfig.image.reference,
                 detached: true,
@@ -674,9 +714,21 @@ final class ContainerListService: ObservableObject {
                 dnsDomain: oldConfig.dns.domain ?? "",
                 network: container.networks.first?.network ?? "",
                 // The mount-removal recreate must carry labels through too.
-                labels: oldConfig.labels
+                labels: oldConfig.labels,
+                platform: oldConfig.platform.description
             )
             
+            // Checked before the delete: a container whose platform can no longer be created
+            // keeps its mount rather than being lost.
+            do {
+                runConfig.platform = try await checkedRecreatePlatform(for: runConfig)
+            } catch {
+                Log.containers.error("Not recreating \(containerId) without the mount: \(error.localizedDescription)")
+                refusals.append("\(containerId): \(error.localizedDescription)")
+                failedCount += 1
+                continue
+            }
+
             do {
                 try await backend.deleteContainer(id: containerId, force: true)
                 let started = await runContainer(config: runConfig)
@@ -691,7 +743,8 @@ final class ContainerListService: ObservableObject {
         }
         await loadContainers(showLoading: false)
         if failedCount > 0 {
-            alertCenter.error("Failed to remove mount(s) from \(failedCount) container(s)")
+            let reasons = refusals.isEmpty ? "" : "\n" + refusals.joined(separator: "\n")
+            alertCenter.error("Failed to remove mount(s) from \(failedCount) container(s)\(reasons)")
         }
     }
 

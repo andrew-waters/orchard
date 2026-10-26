@@ -54,6 +54,9 @@ final class ImageBuildService: ObservableObject {
         var buildArgs: [String: String]?
         /// `--target`, the build stage to stop at.
         var target: String?
+        /// `--platform`, in place of `--arch`, when a variant has to survive: a compose
+        /// service's `platform: linux/arm/v7` (#147). Optional so older records still decode.
+        var platform: String? = nil
     }
 
     /// Newest first. Finished builds are kept (capped) so their logs stay
@@ -126,9 +129,13 @@ final class ImageBuildService: ObservableObject {
             "build",
             "--file", request.dockerfile,
             "--tag", request.tag,
-            "--arch", request.arch,
-            "--progress", "plain",
         ]
+        if let platform = request.platform, !platform.isEmpty {
+            arguments += ["--platform", platform]
+        } else {
+            arguments += ["--arch", request.arch]
+        }
+        arguments += ["--progress", "plain"]
         if request.noCache {
             arguments.append("--no-cache")
         }

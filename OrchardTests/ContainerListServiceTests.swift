@@ -199,6 +199,8 @@ func startContainerNotFoundRecreatesFromSnapshot() async throws {
     // (the initial failure), and the branch isn't marked recovery-failed. Labels, resources,
     // and hostname aren't preserved (no field in the create path); see recoverContainer.
     #expect(backend.createdSpecs.contains { $0.id == "web" })
+    // The platform is carried, so an amd64 container is not recovered as the host's (#147).
+    #expect(backend.createdSpecs.first { $0.id == "web" }?.platform == "linux/arm64")
     #expect(backend.bootstrapAndStartCount == 1)   // no second start on the recovered container
     #expect(service.recoveryFailedContainerIDs.contains("web") == false)
 }
@@ -457,6 +459,7 @@ func loadContainersSpinnerFollowsNewestRefresh() async throws {
 @Test("recreateContainer: success force-deletes the old container and runs the new config")
 func recreateContainerSuccess() async {
     let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
     let (service, alert) = makeListService(backend)
 
     await service.recreateContainer(
@@ -472,6 +475,7 @@ func recreateContainerSuccess() async {
 @Test("recreateContainer: a delete failure alerts and does not recreate")
 func recreateContainerFailureAlerts() async {
     let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
     backend.deleteContainerError = NotConfigured()
     let (service, alert) = makeListService(backend)
 
@@ -481,6 +485,54 @@ func recreateContainerFailureAlerts() async {
 
     #expect(alert.current != nil)
     #expect(backend.createdSpecs.isEmpty)   // never reached runContainer
+}
+
+@MainActor
+@Test("recreateContainer: a platform the image no longer offers is refused before the delete")
+func recreateContainerRefusesMissingPlatform() async {
+    let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
+    let (service, alert) = makeListService(backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.platform = "linux/amd64"
+
+    await service.recreateContainer(oldContainerId: "web", newConfig: config)
+
+    #expect(backend.deletedContainers.isEmpty)   // the old container is kept
+    #expect(backend.createdSpecs.isEmpty)
+    #expect(alert.current != nil)
+}
+
+@MainActor
+@Test("recreateContainer: platforms that cannot be read keep the old container")
+func recreateContainerKeepsWhenPlatformsUnreadable() async {
+    let backend = MockContainerBackend()   // imagePlatforms throws
+    let (service, alert) = makeListService(backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.platform = "linux/arm64"
+
+    await service.recreateContainer(oldContainerId: "web", newConfig: config)
+
+    #expect(backend.deletedContainers.isEmpty)
+    #expect(backend.createdSpecs.isEmpty)
+    #expect(alert.current != nil)
+}
+
+@MainActor
+@Test("recreateContainer: Automatic is pinned to the platform checked before the delete")
+func recreateContainerPinsCheckedPlatform() async {
+    let backend = MockContainerBackend()
+    // One platform, not the host's. arm/v7 rather than amd64, so the Rosetta check does not
+    // make this depend on what the machine running the tests has installed.
+    backend.imagePlatformsResult = ["linux/arm/v7"]
+    let (service, _) = makeListService(backend)
+
+    await service.recreateContainer(
+        oldContainerId: "web", newConfig: ContainerRunConfig(name: "web", image: "nginx")
+    )
+
+    // Sent explicitly, so the create cannot resolve Automatic again and land on the host's.
+    #expect(backend.createdSpecs.first?.platform == "linux/arm/v7")
 }
 
 // MARK: - exportContainer

@@ -177,8 +177,9 @@ struct ContainerDetailView: View {
                 InfoRow(label: "Runtime", value: container.configuration.runtimeHandler)
                 InfoRow(
                     label: "Platform",
-                    value:
-                        "\(container.configuration.platform.os)/\(container.configuration.platform.architecture)"
+                    value: ContainerPlatform.needsRosetta(container.configuration.platform.description)
+                        ? "\(container.configuration.platform.description) (Rosetta)"
+                        : container.configuration.platform.description
                 )
                 if let hostname = container.configuration.hostname {
                     InfoRow(label: "Hostname", value: hostname)

@@ -29,6 +29,7 @@ final class AppServices: ObservableObject {
     let containerInstallService: ContainerInstallService
     let modelService: ModelService
     let modelServerService: ModelServerService
+    let rosettaService: RosettaService
 
     /// The services for app launch: normally the live backend, or (Debug + launch arg) an
     /// in-memory stub seeded with fixtures for the XCUITest smoke suite.
@@ -37,7 +38,7 @@ final class AppServices: ObservableObject {
         if isUITestMockBackendRequested {
             // The stub backend is the container install; whether the machine running the
             // suite has one is beside the point.
-            return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), modelBackend: UITestModelBackend(), modelServerEngine: UITestModelServerEngine(), runner: UITestCommandRunner(), isContainerInstalled: { true })
+            return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), modelBackend: UITestModelBackend(), modelServerEngine: UITestModelServerEngine(), runner: UITestCommandRunner(), isContainerInstalled: { true }, rosettaService: RosettaService(probe: { .installed }, installer: {}))
         }
         #endif
         let services = AppServices()
@@ -61,7 +62,8 @@ final class AppServices: ObservableObject {
         runner: CommandRunner = SystemCommandRunner(),
         defaults: UserDefaults = .standard,
         secrets: SecretsStore = KeychainSecretsStore(),
-        isContainerInstalled: (@MainActor () -> Bool)? = nil
+        isContainerInstalled: (@MainActor () -> Bool)? = nil,
+        rosettaService: RosettaService? = nil
     ) {
         let alertCenter = AlertCenter()
         self.alertCenter = alertCenter
@@ -92,6 +94,7 @@ final class AppServices: ObservableObject {
         self.machineService = MachineService(backend: machineBackend, alertCenter: alertCenter)
         self.modelService = ModelService(backend: modelBackend, settings: settings)
         self.modelServerService = ModelServerService(engine: modelServerEngine, alertCenter: alertCenter)
+        self.rosettaService = rosettaService ?? RosettaService()
         // Compose runs plans through the same backend as everything else, and its builds
         // through the same build service as the Images tab, so a compose build shows up in
         // the Builds tab with its log.

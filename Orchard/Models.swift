@@ -924,6 +924,9 @@ struct ContainerRunConfig: Equatable {
     /// container) survives edit and recovery untouched; the form edits it in whole GB.
     var cpus: Int = ContainerRunConfig.defaultCPUs
     var memoryBytes: UInt64 = ContainerRunConfig.defaultMemoryBytes
+    /// The platform to run as, `os/arch[/variant]`. Empty is Automatic: the host's when the
+    /// image has it, otherwise what the image offers (`ContainerPlatform.resolve`).
+    var platform: String = ""
 
     static let bytesPerGiB: UInt64 = 1_073_741_824
     /// What a container gets when nothing asks for anything: the runtime's own defaults.

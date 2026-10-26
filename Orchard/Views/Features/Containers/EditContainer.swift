@@ -8,6 +8,7 @@ struct EditContainerView: View {
     let container: Container
     @State private var config: ContainerRunConfig
     @State private var isUpdating = false
+    @State private var platformError: String?
 
     init(container: Container) {
         self.container = container
@@ -64,7 +65,9 @@ struct EditContainerView: View {
             labelPairs: editableLabelPairs,
             cpus: container.configuration.resources.cpus,
             // Exact bytes: a non-integral allocation only changes if the user edits it.
-            memoryBytes: UInt64(clamping: container.configuration.resources.memoryInBytes)
+            memoryBytes: UInt64(clamping: container.configuration.resources.memoryInBytes),
+            // Recreating keeps the platform the container was created as (#147).
+            platform: container.configuration.platform.description
         ))
     }
 
@@ -74,7 +77,12 @@ struct EditContainerView: View {
             Divider()
             warningBanner
             Divider()
-            ContainerConfigForm(config: $config, nameValidationError: .constant(nil), mode: .edit)
+            ContainerConfigForm(
+                config: $config,
+                nameValidationError: .constant(nil),
+                platformError: $platformError,
+                mode: .edit
+            )
             Divider()
             footerView
         }
@@ -153,7 +161,7 @@ struct EditContainerView: View {
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-            .disabled(config.name.isEmpty || isUpdating)
+            .disabled(config.name.isEmpty || isUpdating || platformError != nil)
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))

@@ -67,6 +67,22 @@ struct ContainerDetailHeader: View {
         }
     }
 
+    /// Capsule badge shown when the container is not the host's architecture, such as an
+    /// amd64 container on Apple silicon, which runs under Rosetta (#147).
+    private var platformBadge: some View {
+        let platform = container.configuration.platform
+        let viaRosetta = ContainerPlatform.needsRosetta(platform.description)
+        return Text(viaRosetta ? "\(platform.architecture) · Rosetta" : platform.architecture)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(.orange)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Color.orange.opacity(0.14)))
+            .help(viaRosetta
+                ? "Runs as \(platform.description) under Rosetta translation"
+                : "Runs as \(platform.description), not this Mac's \(hostContainerPlatform)")
+    }
+
     /// Capsule badge shown when a plugin owns the container (e.g. a k8s cluster node).
     /// Tapping it explains which plugin manages it and what role the container plays.
     private var pluginBadge: some View {
@@ -197,6 +213,9 @@ struct ContainerDetailHeader: View {
                     }
                     if container.pluginBadgeText != nil {
                         pluginBadge
+                    }
+                    if container.configuration.platform.architecture != hostContainerArchitecture {
+                        platformBadge
                     }
                 }
                 Text(imageReference)
