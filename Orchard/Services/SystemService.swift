@@ -3,6 +3,8 @@ import SwiftUI
 
 enum SystemStatus {
     case unknown
+    /// No `container` binary to run: nothing to start until it is installed (#145).
+    case notInstalled
     case stopped
     case running
     case newerVersion
@@ -10,7 +12,7 @@ enum SystemStatus {
 
     var color: Color {
         switch self {
-        case .unknown, .stopped: return .gray
+        case .unknown, .notInstalled, .stopped: return .gray
         case .running: return .green
         case .newerVersion: return .yellow
         case .unsupportedVersion: return .red
@@ -20,6 +22,7 @@ enum SystemStatus {
     var text: String {
         switch self {
         case .unknown: return "unknown"
+        case .notInstalled: return "not installed"
         case .stopped: return "stopped"
         case .running: return "running"
         case .newerVersion: return "version not yet supported"
@@ -49,6 +52,9 @@ final class SystemService: ObservableObject {
     private let runner: CommandRunner
     private let settings: SettingsStore
     private let alertCenter: AlertCenter
+    /// Whether the `container` binary is there to run. Injected so tests do not depend on
+    /// what the machine running them has installed.
+    private let isContainerInstalled: @MainActor () -> Bool
 
     /// Bumped on every lifecycle call (start/stop/restart). A `checkSystemStatus`
     /// pinged before the bump completes after it; its stale `.running` result would
@@ -60,11 +66,18 @@ final class SystemService: ObservableObject {
     /// Clear the container list after the system stops. Set by the owner.
     var onSystemStopped: () -> Void = {}
 
-    init(backend: ContainerBackend, runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter) {
+    init(
+        backend: ContainerBackend,
+        runner: CommandRunner,
+        settings: SettingsStore,
+        alertCenter: AlertCenter,
+        isContainerInstalled: (@MainActor () -> Bool)? = nil
+    ) {
         self.backend = backend
         self.runner = runner
         self.settings = settings
         self.alertCenter = alertCenter
+        self.isContainerInstalled = isContainerInstalled ?? { settings.isContainerInstalled }
     }
 
     func checkSystemStatus() async {
@@ -72,6 +85,15 @@ final class SystemService: ObservableObject {
         // while the ping is in flight, drop this stale result rather than overwrite
         // the new state.
         let generation = lifecycleGeneration
+        // Without the binary there is no daemon to ping, and "stopped" would offer a Start
+        // button that can only fail.
+        guard isContainerInstalled() else {
+            self.containerVersion = nil
+            self.parsedContainerVersion = nil
+            self.systemStatus = .notInstalled
+            self.systemStatusError = nil
+            return
+        }
         do {
             let health = try await backend.ping()
             guard lifecycleGeneration == generation else { return }
@@ -100,7 +122,10 @@ final class SystemService: ObservableObject {
         await checkSystemStatus()
     }
 
-    func startSystem() async {
+    /// Start the container system. `installKernel` answers the CLI's first-run kernel
+    /// prompt with yes, which Orchard cannot do on stdin; used straight after an install,
+    /// when there is no kernel yet.
+    func startSystem(installKernel: Bool = false) async {
         if isSystemLoading { return }
         lifecycleGeneration &+= 1
         isSystemLoading = true
@@ -109,7 +134,7 @@ final class SystemService: ObservableObject {
         do {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
-                arguments: ["system", "start"])
+                arguments: ["system", "start"] + (installKernel ? ["--enable-kernel-install"] : []))
             
             if result.failed {
                 isSystemLoading = false
@@ -143,21 +168,13 @@ final class SystemService: ObservableObject {
             Log.containers.debug("Container system started successfully")
             await onSystemStarted()
         } catch {
-            let nsError = error as NSError
-            if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileNoSuchFileError {
-                // `try!` is bad, but we know this is valid markdown
-                alertCenter.error("""
-                                   Failed to start system: \(error.localizedDescription)
-                                   Make sure Apple Container is installed.
-                                   """,
-                                  alertButtons: [
-                                    AlertButton(text: "Download Apple Container", url: URL(string: "https://github.com/apple/container?tab=readme-ov-file#initial-install"))
-                                  ])
-            } else {
-                alertCenter.error("Failed to start system: \(error.localizedDescription)")
-            }
             isSystemLoading = false
             await checkSystemStatus()
+            // A binary that has gone missing lands on the not-installed screen, which says
+            // what to do about it; an alert on top would only repeat it.
+            if systemStatus != .notInstalled {
+                alertCenter.error("Failed to start system: \(error.localizedDescription)")
+            }
             Log.containers.error("Error starting system: \(error.localizedDescription)")
         }
     }

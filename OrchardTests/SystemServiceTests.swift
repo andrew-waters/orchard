@@ -131,3 +131,45 @@ func setRecommendedKernelSucceedsFirstTime() async {
     #expect(service.systemService.kernelConfig.isRecommended)
     #expect(service.alertCenter.current == nil)
 }
+
+// MARK: - Not installed (#145)
+
+@MainActor
+private func makeSystemService(
+    backend: MockContainerBackend = MockContainerBackend(),
+    runner: MockCommandRunner = MockCommandRunner(),
+    installed: Bool
+) -> SystemService {
+    let alertCenter = AlertCenter()
+    let settings = SettingsStore(alertCenter: alertCenter, defaults: ephemeralDefaults(), secrets: InMemorySecretsStore())
+    return SystemService(
+        backend: backend, runner: runner, settings: settings, alertCenter: alertCenter,
+        isContainerInstalled: { installed })
+}
+
+@MainActor
+@Test("checkSystemStatus: a missing binary is .notInstalled, without pinging the daemon")
+func checkSystemStatusNotInstalled() async {
+    let backend = MockContainerBackend()
+    let service = makeSystemService(backend: backend, installed: false)
+
+    await service.checkSystemStatus()
+
+    #expect(service.systemStatus == .notInstalled)
+    #expect(service.systemStatusError == nil)
+    #expect(backend.pingCount == 0)
+}
+
+@MainActor
+@Test("startSystem: installKernel answers the first-run kernel prompt; a plain start does not")
+func startSystemInstallKernelFlag() async {
+    let runner = MockCommandRunner()
+    let service = makeSystemService(runner: runner, installed: true)
+
+    await service.startSystem(installKernel: true)
+    #expect(runner.calls.first == ["system", "start", "--enable-kernel-install"])
+
+    await service.stopSystem()
+    await service.startSystem()
+    #expect(runner.calls.last == ["system", "start"])
+}

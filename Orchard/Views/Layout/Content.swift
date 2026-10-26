@@ -79,7 +79,9 @@ struct ContentView: View {
     @ViewBuilder
     private var baseView: some View {
         Group {
-            if systemService.systemStatus == .stopped {
+            if systemService.systemStatus == .notInstalled {
+                NotInstalledView()
+            } else if systemService.systemStatus == .stopped {
                 NotRunningView()
             } else if systemService.systemStatus == .newerVersion {
                 NewerVersionView()
