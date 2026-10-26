@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "155-offer-to-update-the-compose-plugin-when",
+  "finishedAt" : "2026-10-26T21:44:50Z",
   "issue" : "andrew-waters/orchard#155",
   "pullRequests" : [
     "https://github.com/andrew-waters/orchard/pull/156"
