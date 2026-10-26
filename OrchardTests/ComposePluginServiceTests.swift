@@ -74,3 +74,138 @@ func composePluginNeedsAdministrator() throws {
     #expect(!ComposePluginService.needsAdministrator(toWrite: owned.path + "/libexec/container-plugins/compose"))
     #expect(ComposePluginService.needsAdministrator(toWrite: "/System/Library/container-plugins/compose"))
 }
+
+// MARK: - Updates (#155)
+
+@Test("Versions: dotted numbers parse, with an optional v; anything else does not")
+func composePluginVersionParsing() {
+    #expect(ComposePluginVersion("0.7.0")?.components == [0, 7, 0])
+    #expect(ComposePluginVersion("v0.7.0")?.components == [0, 7, 0])
+    #expect(ComposePluginVersion(" 0.7.0\n")?.components == [0, 7, 0])
+    #expect(ComposePluginVersion("1.2")?.components == [1, 2])
+    #expect(ComposePluginVersion("1.2.3.4")?.components == [1, 2, 3, 4])
+
+    // A working-copy build reports this; it is not a release and is not compared.
+    #expect(ComposePluginVersion("0.0.0-dev") == nil)
+    #expect(ComposePluginVersion("0.7.0-rc.1") == nil)
+    #expect(ComposePluginVersion("compose version 0.7.0") == nil)
+    #expect(ComposePluginVersion("0..7") == nil)
+    #expect(ComposePluginVersion("") == nil)
+}
+
+@Test("Versions: compared as numbers, missing components as zero")
+func composePluginVersionOrdering() throws {
+    let v = { (text: String) throws -> ComposePluginVersion in try #require(ComposePluginVersion(text)) }
+    #expect(try v("0.10.0") > v("0.9.0"))
+    #expect(try v("1.0.0") > v("0.99.99"))
+    #expect(try v("0.7.1") > v("0.7"))
+    #expect(try v("0.7") == v("0.7.0"))
+    #expect(try !(v("0.7.0") < v("v0.7.0")))
+}
+
+@Test("Offer: a newer release is offered; the latest or newer installed is not")
+func composePluginUpdateAgainstLatest() {
+    #expect(ComposePluginService.updateOffer(installed: "0.6.0", latest: "0.7.0", linked: "0.7.0") == .newerRelease("0.7.0"))
+    #expect(ComposePluginService.updateOffer(installed: "0.9.0", latest: "0.10.0", linked: "0.7.0") == .newerRelease("0.10.0"))
+    #expect(ComposePluginService.updateOffer(installed: "0.7.0", latest: "0.7.0", linked: "0.7.0") == nil)
+    #expect(ComposePluginService.updateOffer(installed: "0.8.0", latest: "0.7.0", linked: "0.7.0") == nil)
+}
+
+@Test("Offer: with no latest release known, a plugin older than Orchard's package is still offered")
+func composePluginUpdateAgainstLinked() {
+    #expect(ComposePluginService.updateOffer(installed: "0.6.0", latest: nil, linked: "0.7.0") == .olderThanOrchard("0.7.0"))
+    #expect(ComposePluginService.updateOffer(installed: "0.7.0", latest: nil, linked: "0.7.0") == nil)
+    // An unreadable latest counts as unknown, not as newer.
+    #expect(ComposePluginService.updateOffer(installed: "0.6.0", latest: "nightly", linked: "0.7.0") == .olderThanOrchard("0.7.0"))
+    #expect(ComposePluginService.updateOffer(installed: "0.7.0", latest: "nightly", linked: "0.7.0") == nil)
+}
+
+@Test("Offer: an installed version that does not parse is left alone")
+func composePluginUpdateUnparseable() {
+    #expect(ComposePluginService.updateOffer(installed: "0.0.0-dev", latest: "0.7.0", linked: "0.7.0") == nil)
+    #expect(ComposePluginService.updateOffer(installed: "unknown", latest: nil, linked: "0.7.0") == nil)
+}
+
+@Test("Linked version: matches the compose pin in Package.resolved")
+func composePluginLinkedVersionMatchesPin() throws {
+    let resolved = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Orchard.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved")
+
+    struct Resolved: Decodable {
+        struct Pin: Decodable {
+            struct State: Decodable { let version: String? }
+            let identity: String
+            let state: State
+        }
+        let pins: [Pin]
+    }
+
+    let pins = try JSONDecoder().decode(Resolved.self, from: Data(contentsOf: resolved)).pins
+    let compose = try #require(pins.first { $0.identity == "compose" })
+    #expect(compose.state.version == ComposePluginService.linkedVersion)
+}
+
+/// Answers every request with one canned reply. Serialised below, since the reply is shared.
+private final class ReleaseStubProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var status = 200
+    nonisolated(unsafe) static var body = Data()
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+
+    static func session(status: Int, body: String) -> URLSession {
+        self.status = status
+        self.body = Data(body.utf8)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReleaseStubProtocol.self]
+        return URLSession(configuration: config)
+    }
+}
+
+@MainActor
+@Suite("Update lookup", .serialized)
+struct ComposePluginUpdateLookupTests {
+    private func service(session: URLSession) -> ComposePluginService {
+        let runner = MockCommandRunner()
+        runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: "0.6.0\n", stderr: nil) }
+        return ComposePluginService(commandRunner: runner, session: session, containerBinaryPath: { "/usr/local/bin/container" })
+    }
+
+    @Test("A published release is recorded and offered over 0.6.0")
+    func recordsLatest() async {
+        let body = """
+            {"tag_name": "0.7.0", "assets": [{"name": "compose-0.7.0-macos-arm64.tar.gz",
+              "browser_download_url": "https://example.com/compose-0.7.0-macos-arm64.tar.gz"}]}
+            """
+        let service = service(session: ReleaseStubProtocol.session(status: 200, body: body))
+
+        await service.refresh()
+        await service.checkForUpdate()
+
+        #expect(service.latestVersion == "0.7.0")
+        #expect(service.update == .newerRelease("0.7.0"))
+    }
+
+    @Test("A failed lookup leaves the latest unknown, falling back to Orchard's package")
+    func failedLookupIsUnknown() async {
+        let service = service(session: ReleaseStubProtocol.session(status: 403, body: "rate limited"))
+
+        await service.refresh()
+        await service.checkForUpdate()
+
+        #expect(service.latestVersion == nil)
+        #expect(service.state == .installed(version: "0.6.0"))
+        #expect(service.update == .olderThanOrchard(ComposePluginService.linkedVersion))
+    }
+}

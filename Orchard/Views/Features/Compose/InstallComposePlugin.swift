@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Installing the `container compose` CLI plugin, with the work shown.
+/// Installing or updating the `container compose` CLI plugin, with the work shown.
 ///
 /// A modal rather than a line in the banner because this reaches out to the network, unpacks
 /// an archive and then asks for an administrator password. Someone who is about to be asked
@@ -12,6 +12,10 @@ import SwiftUI
 struct InstallComposePluginSheet: View {
     @EnvironmentObject var composePluginService: ComposePluginService
     @Environment(\.dismiss) private var dismiss
+
+    /// Replacing an installed plugin rather than adding a missing one. The work is the same;
+    /// only the wording changes.
+    var isUpdate = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -25,15 +29,21 @@ struct InstallComposePluginSheet: View {
         .task {
             // Only start a fresh run: reopening the sheet over a finished install should show
             // the result, not do it again.
-            if composePluginService.isMissing { composePluginService.beginInstall() }
+            if composePluginService.isMissing || composePluginService.update != nil {
+                composePluginService.beginInstall()
+            }
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Install container compose")
+            Text(isUpdate ? "Update container compose" : "Install container compose")
                 .font(.title2.weight(.semibold))
-            Text("Fetches the latest release and puts it where the container CLI looks.")
+            Text(
+                isUpdate
+                    ? "Fetches the latest release and replaces the installed plugin."
+                    : "Fetches the latest release and puts it where the container CLI looks."
+            )
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -48,10 +58,7 @@ struct InstallComposePluginSheet: View {
             }
 
             if let version = composePluginService.installedVersion, !composePluginService.isWorking {
-                Label(
-                    "Installed \(version). `container compose up` now works in a terminal.",
-                    systemImage: "checkmark.circle.fill"
-                )
+                Label(finishedMessage(version), systemImage: "checkmark.circle.fill")
                 .font(.callout)
                 .foregroundStyle(.green)
                 .padding(.top, 4)
@@ -68,6 +75,13 @@ struct InstallComposePluginSheet: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A fresh install is worth a word on what it changes; an update only needs the version.
+    private func finishedMessage(_ version: String) -> LocalizedStringKey {
+        isUpdate
+            ? "Installed \(version)."
+            : "Installed \(version). `container compose up` now works in a terminal."
     }
 
     /// One step, marked done, running, or still to come.

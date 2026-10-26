@@ -9,6 +9,9 @@ struct ComposeProjectsListView: View {
     @Binding var searchText: String
     @FocusState var listFocusedTab: TabSelection?
     @State private var showingPluginInstaller = false
+    /// Whether the sheet is replacing an installed plugin. Fixed when the button is pressed,
+    /// because the offer itself goes away as soon as the install starts.
+    @State private var pluginSheetIsUpdate = false
 
     private var projects: [ComposeProject] {
         ComposeProject.group(
@@ -27,11 +30,16 @@ struct ComposeProjectsListView: View {
         VStack(spacing: 0) {
             if composePluginService.isMissing {
                 pluginBanner
+            } else if let update = composePluginService.update {
+                updateBanner(update)
             }
             if projects.isEmpty {
                 emptyState
             } else {
                 list
+            }
+            if composePluginService.isInstalled {
+                pluginFooter
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -39,10 +47,13 @@ struct ComposeProjectsListView: View {
         .task {
             // Looked for when the tab is opened rather than polled: it only changes when
             // someone installs it, or when container's installer clears the plugin directory.
+            // The release lookup happens here too, once per visit, so the tab never polls
+            // GitHub and a failed lookup simply leaves nothing to offer.
             await composePluginService.refresh()
+            await composePluginService.checkForUpdate()
         }
         .sheet(isPresented: $showingPluginInstaller) {
-            InstallComposePluginSheet()
+            InstallComposePluginSheet(isUpdate: pluginSheetIsUpdate)
         }
         .sheet(item: $composeService.pendingPreview) { preview in
             ComposeReviewSheet(
@@ -60,14 +71,49 @@ struct ComposeProjectsListView: View {
     /// directory on every upgrade (apple/container#1617), so it goes missing again through
     /// nobody's fault.
     private var pluginBanner: some View {
+        banner(
+            title: "container compose is not installed",
+            detail: "Projects here work without it. The command in a terminal does not.",
+            action: "Install",
+            isUpdate: false
+        )
+    }
+
+    /// Says the installed plugin is behind, and offers the newer one.
+    ///
+    /// The reason it matters is the window and the terminal disagreeing about the same file:
+    /// Orchard plans with the package it links, and an older plugin may ignore a key that
+    /// package honours (a 0.6.0 plugin ignores `platform:`, #155).
+    private func updateBanner(_ update: ComposePluginService.Update) -> some View {
+        let installed = composePluginService.installedVersion ?? ""
+        let consequence = "The terminal may not handle a file the way this window does."
+        switch update {
+        case .newerRelease(let latest):
+            return banner(
+                title: "container compose \(latest) is available",
+                detail: "\(installed) is installed. \(consequence)",
+                action: "Update",
+                isUpdate: true
+            )
+        case .olderThanOrchard:
+            return banner(
+                title: "container compose \(installed) is older than Orchard's",
+                detail: consequence,
+                action: "Update",
+                isUpdate: true
+            )
+        }
+    }
+
+    private func banner(title: String, detail: String, action: String, isUpdate: Bool) -> some View {
         HStack(alignment: .top, spacing: 10) {
             SwiftUI.Image(systemName: "terminal")
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("container compose is not installed")
+                Text(title)
                     .font(.callout.weight(.medium))
-                Text("Projects here work without it. The command in a terminal does not.")
+                Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -76,13 +122,30 @@ struct ComposeProjectsListView: View {
 
             Spacer()
 
-            Button("Install") { showingPluginInstaller = true }
-                .controlSize(.small)
+            Button(action) {
+                pluginSheetIsUpdate = isUpdate
+                showingPluginInstaller = true
+            }
+            .controlSize(.small)
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
         .padding(.horizontal, 10)
         .padding(.top, 10)
+    }
+
+    /// The installed plugin's version, quietly, so it can be checked at a glance without a
+    /// terminal. Shown whether or not an update is known, including offline.
+    private var pluginFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+            Text(composePluginService.installedVersion.map { "container compose \($0)" } ?? "container compose")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+        }
     }
 
     private var emptyState: some View {
