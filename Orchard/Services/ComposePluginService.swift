@@ -68,6 +68,11 @@ final class ComposePluginService: ObservableObject {
     /// it works rather than after.
     @Published private(set) var targetVersion: String?
 
+    /// The version the last install finished with, once the CLI reports it. Kept apart from
+    /// `installedVersion` because an update the user declines still leaves a plugin installed,
+    /// and the sheet must not read that as a finished job.
+    @Published private(set) var finishedVersion: String?
+
     /// The newest published release, once `checkForUpdate` has looked. Nil until then and nil
     /// when the lookup failed: unknown, which is never read as out of date.
     @Published private(set) var latestVersion: String?
@@ -320,6 +325,7 @@ final class ComposePluginService: ObservableObject {
     /// started it by accident should not have to wait it out.
     func beginInstall() {
         guard installTask == nil else { return }
+        finishedVersion = nil
         // Working from the first frame, so an update's sheet never shows the old plugin as
         // the finished result while the task gets going.
         state = .working(.findingRelease)
@@ -391,15 +397,21 @@ final class ComposePluginService: ObservableObject {
         try? fileManager.removeItem(at: scratch)
         await refresh()
 
-        // Every step can succeed while the CLI goes on running another copy, if the files
-        // landed somewhere it does not look first. Say so rather than ticking everything off
-        // over the old version.
+        // Every step can succeed while the CLI goes on running another copy, or none at all, if
+        // the files landed somewhere it does not look first. Say so rather than ticking
+        // everything off over the old version.
+        if state == .missing {
+            state = .failed("The plugin was installed, but the container CLI does not find it.")
+            return
+        }
         if let target = targetVersion.flatMap(ComposePluginVersion.init),
            let reported = installedVersion,
            let current = ComposePluginVersion(reported),
            current != target {
             state = .failed("Installed \(targetVersion ?? ""), but the container CLI still runs \(reported) from another directory.")
+            return
         }
+        finishedVersion = installedVersion ?? targetVersion
     }
 
     /// The newest published release, and the asset built for this machine.

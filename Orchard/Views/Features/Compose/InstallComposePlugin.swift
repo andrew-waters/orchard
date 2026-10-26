@@ -57,7 +57,7 @@ struct InstallComposePluginSheet: View {
                 row(for: step)
             }
 
-            if let version = composePluginService.installedVersion, !composePluginService.isWorking {
+            if let version = composePluginService.finishedVersion, !composePluginService.isWorking {
                 Label(finishedMessage(version), systemImage: "checkmark.circle.fill")
                 .font(.callout)
                 .foregroundStyle(.green)
@@ -121,7 +121,7 @@ struct InstallComposePluginSheet: View {
     /// A step is done when the run has moved past it, or when the whole thing finished.
     private func isPast(_ step: ComposePluginService.Step, current: ComposePluginService.Step?) -> Bool {
         if let current { return step.rawValue < current.rawValue }
-        return composePluginService.installedVersion != nil && composePluginService.failureMessage == nil
+        return composePluginService.finishedVersion != nil && composePluginService.failureMessage == nil
     }
 
     /// The download step names the version once it is known, so the sheet says what it is
