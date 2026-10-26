@@ -37,10 +37,11 @@ struct ClusterDetailView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        // A stranded cluster's note already offers Recreate, so it stands in
+                        // for the stopped note rather than repeat it.
                         if isStranded(cluster) {
                             strandedBanner
-                        }
-                        if !cluster.isRunning {
+                        } else if !cluster.isRunning {
                             stoppedBanner
                         } else if awaitingCNI {
                             awaitingCNIBanner

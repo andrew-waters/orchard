@@ -1,8 +1,8 @@
 ---
 type: plan
 status: in-progress
-summary: "Container 1.6.1 renamed the k8s plugin to cluster. Pick the subcommand from the installed version in one place, treat nodes labelled either cluster or k8s as cluster nodes, and keep clusters made before the upgrade listable, deletable and recreatable by deleting their nodes directly, with load image and write config disabled for them."
-issues: [andrew-waters/orchard#146]
+summary: "Container 1.6.1 renamed the k8s plugin to cluster. Pick the subcommand from the installed version in one place, treat nodes labelled either cluster or k8s as cluster nodes, and keep clusters made before the upgrade listable, deletable and recreatable by deleting their nodes directly, with load image and write config disabled for them. Also builds against and installs 1.6.1 (#152)."
+issues: [andrew-waters/orchard#146, andrew-waters/orchard#152]
 touches: [andrew-waters/orchard]
 owner: andrew-waters
 agreed_by: [andrew-waters]
@@ -50,6 +50,12 @@ apple/container 1.6.1 renames the Kubernetes plugin from `k8s` to `cluster` (app
 
 - README Clusters section and comparison footnote, `site/clusters.html`, and a CHANGELOG entry under Unreleased > Fixed.
 
+### Build against 1.6.1 (#152, folded in)
+
+- Package pin to 1.6.1, which moves containerization to 0.53.0. Nothing Orchard calls changed shape.
+- `supportedContainerVersion` to 1.6.1, so **Install container** fetches the 1.6.1 package, which is signed by the same team the install checks for.
+- The Compose hook runner kills its process when the wait fails, now that the 1.6.1 client's `ClientProcess.kill` sends a signal the service reads (apple/container#1778).
+
 ## Tasks
 
 - [x] `pluginCommand(containerVersion:)`, the `containerVersion` hook and its wiring; every CLI call uses it
@@ -61,10 +67,13 @@ apple/container 1.6.1 renames the Kubernetes plugin from `k8s` to `cluster` (app
 - [x] Tests in `ClusterServiceTests`: command by version (1.6.0, 1.6.1, 1.7, nil), commands issued on 1.6.1, probe on 1.6.1 missing and present, grouping with `cluster` and mixed labels, stranded delete and recreate issue `delete --force` with every node, nothing stranded on 1.6.0
 - [x] README, site guide, CHANGELOG
 - [x] One scoped test run of `ClusterServiceTests` and a build
+- [x] A failed command's alert keeps only the last progress line and the last 10 lines of the rest (found in testing)
+- [x] Package pin, `supportedContainerVersion`, hook kill, README and CHANGELOG for 1.6.1
+- [x] Hand test on 1.6.0 and 1.6.1 (see the PR)
+- [ ] A 1.6.1 build against a 1.6.0 install: containers, machines, a build and a hook
 
 ## Out of scope
 
-- Bumping the pinned install (`Install container 1.6.0`) to 1.6.1: a separate change.
 - Reading or cleaning the plugin's state directory.
 
 ## Checked by
