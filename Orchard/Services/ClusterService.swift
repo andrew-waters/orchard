@@ -149,8 +149,8 @@ struct ClusterRecreateSettings: Equatable, Identifiable {
     var id: String { name }
 }
 
-/// Owns Kubernetes-cluster lifecycle, driven through the `container cluster` CLI plugin —
-/// the plugin has no XPC API. Cluster *state* is not owned here: clusters are derived
+/// Owns Kubernetes-cluster lifecycle, driven through the `container cluster` CLI plugin,
+/// since the plugin has no XPC API. Cluster *state* is not owned here: clusters are derived
 /// from the container list (the nodes are ordinary containers with plugin labels), so
 /// views group `ContainerListService.containers` via `K8sCluster.group`.
 @MainActor

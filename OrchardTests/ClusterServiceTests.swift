@@ -752,6 +752,7 @@ func commandsOnRenamedPlugin() async {
     _ = await service.clusterService.writeConfig(cluster: "cluster-dev")
     await service.clusterService.delete(name: "cluster-dev")
 
+    #expect(service.clusterService.pluginAvailability == .available)
     #expect(runner.calls.contains(["cluster", "list"]))
     #expect(runner.calls.contains(["cluster", "create", "--name", "cluster-dev"]))
     #expect(runner.calls.contains(["cluster", "load-image", "--name", "cluster-dev", "demo-api:latest"]))

@@ -246,8 +246,6 @@ struct ClusterDetailView: View {
         .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    /// Container 1.5.0 removed `container k8s start` (apple/container#2290), so there is no
-    /// Start to offer. Say so rather than leave a stopped cluster with no way forward.
     /// A cluster made by the `k8s` plugin before container 1.6.1, which the renamed plugin
     /// can't see. Same banner style as `stoppedBanner`.
     private var strandedBanner: some View {
@@ -267,6 +265,8 @@ struct ClusterDetailView: View {
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    /// Container 1.5.0 removed `container k8s start` (apple/container#2290), so there is no
+    /// Start to offer. Say so rather than leave a stopped cluster with no way forward.
     private var stoppedBanner: some View {
         HStack(alignment: .top, spacing: 10) {
             SwiftUI.Image(systemName: "stop.circle.fill")
