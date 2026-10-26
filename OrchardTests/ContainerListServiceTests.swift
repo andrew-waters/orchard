@@ -518,6 +518,23 @@ func recreateContainerKeepsWhenPlatformsUnreadable() async {
     #expect(alert.current != nil)
 }
 
+@MainActor
+@Test("recreateContainer: Automatic is pinned to the platform checked before the delete")
+func recreateContainerPinsCheckedPlatform() async {
+    let backend = MockContainerBackend()
+    // One platform, not the host's. arm/v7 rather than amd64, so the Rosetta check does not
+    // make this depend on what the machine running the tests has installed.
+    backend.imagePlatformsResult = ["linux/arm/v7"]
+    let (service, _) = makeListService(backend)
+
+    await service.recreateContainer(
+        oldContainerId: "web", newConfig: ContainerRunConfig(name: "web", image: "nginx")
+    )
+
+    // Sent explicitly, so the create cannot resolve Automatic again and land on the host's.
+    #expect(backend.createdSpecs.first?.platform == "linux/arm/v7")
+}
+
 // MARK: - exportContainer
 
 @MainActor

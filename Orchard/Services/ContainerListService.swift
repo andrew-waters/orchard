@@ -455,38 +455,44 @@ final class ContainerListService: ObservableObject {
         }.value
     }
 
-    /// Why a recreate as `config` would fail at the create, found before the old container is
-    /// deleted, since nothing brings it back afterwards: a platform the image no longer offers,
-    /// or one that needs a Rosetta this Mac lacks. Platforms that cannot be read refuse too:
-    /// unread, any platform would pass, and the delete would go ahead on a guess. That mostly
-    /// means the image has gone from the store on a runtime older than 1.6.1, where pulling it
-    /// again lets the recreate through.
-    private func recreateRefusal(for config: ContainerRunConfig) async -> Error? {
+    /// The platform a recreate as `config` will create, checked before the old container is
+    /// deleted, since nothing brings it back afterwards. Throws when the create would fail: a
+    /// platform the image no longer offers, or one that needs a Rosetta this Mac lacks.
+    /// Platforms that cannot be read refuse too: unread, any platform would pass, and the delete
+    /// would go ahead on a guess. That mostly means the image has gone from the store on a
+    /// runtime older than 1.6.1, where pulling it again lets the recreate through.
+    ///
+    /// The caller creates exactly this platform, rather than letting the create resolve
+    /// Automatic again: a lookup that failed the second time would fall back to the host's
+    /// platform, which is not the one checked here.
+    private func checkedRecreatePlatform(for config: ContainerRunConfig) async throws -> String {
         let candidates: [String]
         do {
             candidates = try await backend.imagePlatforms(reference: config.image)
         } catch {
-            return OrchardError.generic(
+            throw OrchardError.generic(
                 "Orchard could not read which platforms \(config.image) offers "
                     + "(\(error.localizedDescription)), so the container was kept. Pull the image and try again."
             )
         }
-        do {
-            let platform = try ContainerPlatform.resolve(requested: config.platform, candidates: candidates)
-            return ContainerPlatform.rosettaRefusal(for: platform)
-        } catch {
-            return error
+        let platform = try ContainerPlatform.resolve(requested: config.platform, candidates: candidates)
+        if let refusal = ContainerPlatform.rosettaRefusal(for: platform) {
+            throw refusal
         }
+        return platform
     }
 
     func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
-        if let refusal = await recreateRefusal(for: newConfig) {
-            alertCenter.error("Did not recreate \(oldContainerId): \(refusal.localizedDescription)")
+        var config = newConfig
+        do {
+            config.platform = try await checkedRecreatePlatform(for: newConfig)
+        } catch {
+            alertCenter.error("Did not recreate \(oldContainerId): \(error.localizedDescription)")
             return
         }
         do {
             try await backend.deleteContainer(id: oldContainerId, force: true)
-            await runContainer(config: newConfig)
+            await runContainer(config: config)
         } catch {
             self.alertCenter.error("Failed to recreate container: \(error.localizedDescription)")
         }
@@ -692,7 +698,7 @@ final class ContainerListService: ObservableObject {
                 ))
             }
             
-            let runConfig = ContainerRunConfig(
+            var runConfig = ContainerRunConfig(
                 name: oldConfig.id,
                 image: oldConfig.image.reference,
                 detached: true,
@@ -711,8 +717,10 @@ final class ContainerListService: ObservableObject {
             
             // Checked before the delete: a container whose platform can no longer be created
             // keeps its mount rather than being lost.
-            if let refusal = await recreateRefusal(for: runConfig) {
-                Log.containers.error("Not recreating \(containerId) without the mount: \(refusal.localizedDescription)")
+            do {
+                runConfig.platform = try await checkedRecreatePlatform(for: runConfig)
+            } catch {
+                Log.containers.error("Not recreating \(containerId) without the mount: \(error.localizedDescription)")
                 failedCount += 1
                 continue
             }
