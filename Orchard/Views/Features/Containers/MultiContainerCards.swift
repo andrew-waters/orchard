@@ -139,7 +139,19 @@ struct MultiContainerCardsView: View {
         let header = "The following \(affected.count) container\(affected.count == 1 ? "" : "s") will be \(verb):"
         let list = affected.map { "• \($0)" }.joined(separator: "\n")
         let suffix = (action == .remove) ? "\n\nThis action cannot be undone." : ""
-        return "\(header)\n\n\(list)\(suffix)"
+        let owned = ownedWarning(for: action).map { "\n\n\($0.title)\n\($0.message)" } ?? ""
+        return "\(header)\n\n\(list)\(owned)\(suffix)"
+    }
+
+    /// The warning about sandboxes another app manages among the containers `action` hits.
+    private func ownedWarning(for action: BulkAction) -> (title: String, message: String)? {
+        let affected = Set(ids(for: action))
+        let targets = containers.filter { affected.contains($0.configuration.id) }
+        switch action {
+        case .start: return nil
+        case .stop: return OwnedSandboxConfirmation.warning(.stop, containers: targets)
+        case .remove: return OwnedSandboxConfirmation.warning(.remove, containers: targets)
+        }
     }
 
     private func performAction(_ action: BulkAction) {
@@ -161,6 +173,8 @@ private struct ContainerSummaryCard: View {
     @EnvironmentObject var statsService: StatsService
     let container: Container
     let onOpen: () -> Void
+
+    @State private var pendingOwnedConfirmation: OwnedSandboxConfirmation?
 
     private var isRunning: Bool { container.status.lowercased() == "running" }
 
@@ -205,7 +219,9 @@ private struct ContainerSummaryCard: View {
                 if isRunning {
                     Button("Stop") {
                         let id = container.configuration.id
-                        Task { await containerListService.stopContainer(id) }
+                        OwnedSandboxConfirmation.run(.stop, containers: [container], pending: $pendingOwnedConfirmation) {
+                            Task { await containerListService.stopContainer(id) }
+                        }
                     }
                 } else if !container.isK8sNode {
                     Button("Start") {
@@ -216,7 +232,9 @@ private struct ContainerSummaryCard: View {
 
                 Button("Remove") {
                     let id = container.configuration.id
-                    Task { await containerListService.removeContainer(id) }
+                    OwnedSandboxConfirmation.run(.remove, containers: [container], pending: $pendingOwnedConfirmation) {
+                        Task { await containerListService.removeContainer(id) }
+                    }
                 }
                 .foregroundColor(.red)
 
@@ -262,5 +280,6 @@ private struct ContainerSummaryCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 1)
         )
+        .ownedSandboxConfirmation($pendingOwnedConfirmation)
     }
 }

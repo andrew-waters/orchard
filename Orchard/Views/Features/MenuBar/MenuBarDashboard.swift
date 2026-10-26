@@ -14,6 +14,7 @@ struct MenuBarView: View {
     @State private var refreshTimer: Timer?
     @State private var hoveringTop = false
     @State private var hoveredContainer: String?
+    @State private var pendingOwnedConfirmation: OwnedSandboxConfirmation?
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
@@ -235,6 +236,7 @@ struct MenuBarView: View {
         }
         .padding(12)
         .frame(width: 320)
+        .ownedSandboxConfirmation($pendingOwnedConfirmation)
         .task {
             // Register sampling/refresh synchronously at the start of the task — before any
             // await — so a panel that's closed before these loads finish can't have its
@@ -312,12 +314,10 @@ struct MenuBarView: View {
                 Color.clear
             } else {
                 Button {
-                    Task { @MainActor in
-                        if row.isRunning {
-                            await containerListService.stopContainer(row.id)
-                        } else {
-                            await containerListService.startContainer(row.id)
-                        }
+                    if row.isRunning {
+                        stop(row)
+                    } else {
+                        Task { @MainActor in await containerListService.startContainer(row.id) }
                     }
                 } label: {
                     SwiftUI.Image(systemName: row.isRunning ? "stop.fill" : "play.fill")
@@ -335,13 +335,27 @@ struct MenuBarView: View {
     @ViewBuilder
     private func rowMenu(_ row: Row) -> some View {
         if row.isRunning {
-            Button("Stop") { Task { @MainActor in await containerListService.stopContainer(row.id) } }
+            Button("Stop") { stop(row) }
         } else {
             if !row.isClusterNode {
                 Button("Start") { Task { @MainActor in await containerListService.startContainer(row.id) } }
             }
-            Button("Remove") { Task { @MainActor in await containerListService.removeContainer(row.id) } }
+            Button("Remove") {
+                OwnedSandboxConfirmation.run(.remove, containers: containers(for: row), pending: $pendingOwnedConfirmation) {
+                    Task { @MainActor in await containerListService.removeContainer(row.id) }
+                }
+            }
         }
+    }
+
+    private func stop(_ row: Row) {
+        OwnedSandboxConfirmation.run(.stop, containers: containers(for: row), pending: $pendingOwnedConfirmation) {
+            Task { @MainActor in await containerListService.stopContainer(row.id) }
+        }
+    }
+
+    private func containers(for row: Row) -> [Container] {
+        containerListService.containers.filter { $0.configuration.id == row.id }
     }
 
     @ViewBuilder

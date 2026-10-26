@@ -17,6 +17,7 @@ struct ContainerDetailHeader: View {
     @State private var isStopping = false
     @State private var wasRunningBeforeStop = false
     @State private var showSandboxInfo = false
+    @State private var pendingOwnedConfirmation: OwnedSandboxConfirmation?
     @State private var showPluginInfo = false
     @State private var recreateSettings: ClusterRecreateSettings?
     @State private var commitTarget: CommitSheetTarget?
@@ -27,9 +28,9 @@ struct ContainerDetailHeader: View {
         return K8sCluster.group(containers: containerListService.containers).first { $0.name == name }
     }
 
-    /// Shield badge shown when the container is a sandbox (wired to a local model). Tapping
-    /// it explains what that means and shows the endpoint - since a sandbox appears in both
-    /// the Containers and Sandboxes lists.
+    /// Badge shown when the container is a sandbox (an isolated workload). Tapping it
+    /// explains what that means and shows who manages it and its model endpoint, when it has
+    /// either - since a sandbox appears in both the Containers and Sandboxes lists.
     private var sandboxBadge: some View {
         Button(action: { showSandboxInfo.toggle() }) {
             Text("sandbox")
@@ -40,7 +41,7 @@ struct ContainerDetailHeader: View {
                 .background(Capsule().fill(Color.accentColor.opacity(0.14)))
         }
         .buttonStyle(.plain)
-        .help("Sandbox - wired to a local model")
+        .help("Sandbox - an isolated workload")
         .popover(isPresented: $showSandboxInfo) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
@@ -49,9 +50,18 @@ struct ContainerDetailHeader: View {
                     Text("Sandbox")
                         .font(.headline)
                 }
-                Text("This container is wired to a local model. It also appears under Compute → Sandboxes.")
+                Text("This container is an isolated workload. It also appears under Compute → Sandboxes.")
                     .font(.callout)
                     .foregroundColor(.secondary)
+                if let owner = container.sandboxOwner {
+                    Divider()
+                    Text("Managed by")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("\(owner.name) (\(owner.id))")
+                        .font(.callout)
+                        .textSelection(.enabled)
+                }
                 if let endpoint = container.sandboxEndpoint {
                     Divider()
                     Text("Model endpoint")
@@ -180,6 +190,11 @@ struct ContainerDetailHeader: View {
         }
     }
 
+    /// The warning to fold into Delete's confirmation when another app manages this sandbox.
+    private var ownedDeleteWarning: (title: String, message: String)? {
+        OwnedSandboxConfirmation.warning(.remove, containers: [container])
+    }
+
     private func exportContainer() {
         ContainerExportFlow.run(containerId: container.configuration.id, service: containerListService)
     }
@@ -211,6 +226,15 @@ struct ContainerDetailHeader: View {
                     if container.isSandbox {
                         sandboxBadge
                     }
+                    if let owner = container.sandboxOwner {
+                        Text(owner.badge)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.purple)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.purple.opacity(0.14)))
+                            .help("\(owner.name) manages this sandbox")
+                    }
                     if container.pluginBadgeText != nil {
                         pluginBadge
                     }
@@ -230,7 +254,9 @@ struct ContainerDetailHeader: View {
                 if isRunning {
                     // Container is running - show stop button and terminal options
                     Button("Stop") {
-                        stopContainer()
+                        OwnedSandboxConfirmation.run(.stop, containers: [container], pending: $pendingOwnedConfirmation) {
+                            stopContainer()
+                        }
                     }
                     .buttonStyle(BorderedProminentButtonStyle())
                     .tint(.orange)
@@ -350,14 +376,16 @@ struct ContainerDetailHeader: View {
         .padding(.horizontal, 16)
         .padding(.top, 20)
         .padding(.bottom, 12)
-        .alert("Delete Container?", isPresented: $showDeleteConfirmation) {
+        .alert(ownedDeleteWarning?.title ?? "Delete Container?", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 deleteContainer()
             }
         } message: {
-            Text("Are you sure you want to delete '\(containerName)'? This action cannot be undone.")
+            Text(ownedDeleteWarning.map { "\($0.message)\n\nThis action cannot be undone." }
+                 ?? "Are you sure you want to delete '\(containerName)'? This action cannot be undone.")
         }
+        .ownedSandboxConfirmation($pendingOwnedConfirmation)
         .sheet(item: $recreateSettings) { settings in
             CreateClusterView(recreating: settings)
         }
