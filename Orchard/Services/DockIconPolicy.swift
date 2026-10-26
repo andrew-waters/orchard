@@ -49,11 +49,35 @@ enum DockIconMode: String, CaseIterable, Identifiable {
 enum DockIconPolicy {
     private static var mode: DockIconMode = .always
     private static var observers: [NSObjectProtocol] = []
+    private static var launchObserver: NSObjectProtocol?
 
     static func apply(_ mode: DockIconMode) {
         self.mode = mode
         if mode == .whileWindowsOpen { startObserving() } else { stopObserving() }
         update()
+    }
+
+    /// The launch-time apply, from App.init. Never applies straight away, so no window
+    /// shows with a Dock icon. While a Window Is Open waits for launch to finish: no
+    /// window exists yet, so evaluating now would drop to .accessory only for the main
+    /// window to bring the icon back. After launch, one opened stays .regular and none
+    /// leaves Orchard menu-bar-only.
+    static func applyAtLaunch(_ mode: DockIconMode) {
+        guard mode == .whileWindowsOpen else { return apply(mode) }
+        self.mode = mode
+        startObserving()
+        launchObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                launchObserver.map(NotificationCenter.default.removeObserver)
+                launchObserver = nil
+                // One more hop: SwiftUI puts its first window on screen just after this.
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { update() }
+                }
+            }
+        }
     }
 
     /// Re-evaluates the policy whenever a window comes forward or closes. Key covers a
@@ -87,7 +111,10 @@ enum DockIconPolicy {
         switch mode {
         case .always: regular = true
         case .never: regular = false
-        case .whileWindowsOpen: regular = app.windows.contains { $0 !== closing && isAppWindow($0) }
+        case .whileWindowsOpen:
+            // A hidden app (Cmd-H) reports its windows as not visible. They're still open,
+            // and the Dock icon is how they come back.
+            regular = app.isHidden || app.windows.contains { $0 !== closing && isAppWindow($0) }
         }
         let policy: NSApplication.ActivationPolicy = regular ? .regular : .accessory
         guard app.activationPolicy() != policy else { return }

@@ -14,7 +14,7 @@ struct OrchardApp: App {
         // every launch.
         let mode = DockIconMode.stored(in: .standard)
         if mode != .always {
-            DockIconPolicy.apply(mode)
+            DockIconPolicy.applyAtLaunch(mode)
         }
     }
 
