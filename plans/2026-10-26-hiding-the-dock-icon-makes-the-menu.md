@@ -36,4 +36,4 @@ With "Hide Dock icon" on, `DockIconPolicy` sets the activation policy to `.acces
 - [x] `SettingsStore` tests for the mode and the migration.
 - [x] CHANGELOG entry under Unreleased > Fixed.
 - [x] Debug build and `SettingsStoreTests`.
-- [ ] Try it by hand: each mode, switching between them, relaunching, and Settings and Quit from the panel.
+- [x] Try it by hand: each mode, switching between them, relaunching, and Settings and Quit from the panel.
