@@ -633,6 +633,9 @@ final class ContainerListService: ObservableObject {
     func deleteMounts(_ mounts: [ContainerMount]) async {
         var deletedCount = 0
         var failedCount = 0
+        /// Why a container was left alone before anything was deleted, so the alert can say
+        /// what to do about it rather than only how many failed.
+        var refusals: [String] = []
         
         var mountsToRemoveByContainer: [String: Set<String>] = [:]
         for mount in mounts {
@@ -721,6 +724,7 @@ final class ContainerListService: ObservableObject {
                 runConfig.platform = try await checkedRecreatePlatform(for: runConfig)
             } catch {
                 Log.containers.error("Not recreating \(containerId) without the mount: \(error.localizedDescription)")
+                refusals.append("\(containerId): \(error.localizedDescription)")
                 failedCount += 1
                 continue
             }
@@ -739,7 +743,8 @@ final class ContainerListService: ObservableObject {
         }
         await loadContainers(showLoading: false)
         if failedCount > 0 {
-            alertCenter.error("Failed to remove mount(s) from \(failedCount) container(s)")
+            let reasons = refusals.isEmpty ? "" : "\n" + refusals.joined(separator: "\n")
+            alertCenter.error("Failed to remove mount(s) from \(failedCount) container(s)\(reasons)")
         }
     }
 
