@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kubernetes Clusters · Orchard</title>
+  <title>Clusters · Orchard</title>
   <meta name="description" content="Manage local Kubernetes clusters created with Apple container's cluster plugin from Orchard: create and delete clusters at the Kubernetes version you choose, load local images, and get a kubectl-ready terminal in one click." />
-  <meta property="og:title" content="Kubernetes Clusters · Orchard" />
+  <meta property="og:title" content="Clusters · Orchard" />
   <meta property="og:description" content="Local Kubernetes clusters on Apple container, from a native macOS app." />
   <meta property="og:image" content="assets/screens/clusters.png" />
   <script>(function(){var t;try{t=localStorage.getItem('theme')}catch(e){}if(!t&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})();</script>
@@ -41,8 +41,8 @@
     <section class="hero">
       <div class="wrap">
         <p class="eyebrow mono-xs">Guide</p>
-        <h1>Kubernetes Clusters</h1>
-        <p class="sub">Create, run and manage local Kubernetes clusters built on Apple container's cluster plugin - grouped nodes, one-click kubeconfig, and a terminal that opens ready for <code>kubectl</code>.</p>
+        <h1>Clusters</h1>
+        <p class="sub">Create, run and manage local Kubernetes (k8s) clusters built on Apple container's cluster plugin - grouped nodes, one-click kubeconfig, and a terminal that opens ready for <code>kubectl</code>.</p>
         <div class="pill-row"><span class="badge badge--primary">Requires Apple <code>container</code> 1.2.2+ (ships the cluster plugin) · macOS 26 · Apple silicon</span></div>
         <div class="hero-shot lined">
           <span class="dot dot--tl"></span><span class="dot dot--tr"></span><span class="dot dot--bl"></span><span class="dot dot--br"></span>
@@ -53,8 +53,8 @@
 
     <section>
       <div class="wrap doc">
-        <h2>What is a container cluster?</h2>
-        <p>Apple container 1.2.2 ships a Kubernetes plugin that bootstraps a <strong>local single-node Kubernetes cluster</strong> from a <code>kindest/node</code> image: the node is an ordinary container running containerd and kubelet, initialised with <code>kubeadm</code> and wired up with the kindnet CNI. The control-plane container's name is the cluster's name, and its API server is published to your Mac. From container 1.6.0 the plugin can also create <strong>worker nodes</strong> alongside the control plane, named <code>&lt;cluster&gt;-worker-N</code>. Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, so its commands are now <code>container cluster ...</code>; Orchard uses whichever your install has.</p>
+        <h2>What is a cluster?</h2>
+        <p>Apple container 1.2.2 ships a plugin that bootstraps a <strong>local single-node Kubernetes (k8s) cluster</strong> from a <code>kindest/node</code> image: the node is an ordinary container running containerd and kubelet, initialised with <code>kubeadm</code> and wired up with the kindnet CNI. The control-plane container's name is the cluster's name, and its API server is published to your Mac. From container 1.6.0 the plugin can also create <strong>worker nodes</strong> alongside the control plane, named <code>&lt;cluster&gt;-worker-N</code>. Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, so its commands are now <code>container cluster ...</code>; Orchard uses whichever your install has.</p>
         <p>Because cluster nodes are just containers carrying plugin labels, Orchard derives clusters straight from the container list it already watches, grouping them as the CLI's <code>container cluster list</code> does. Orchard also lists clusters made before container 1.6.1, which that command no longer shows (see below). Node containers are badged in the containers list too, so a <code>kindest/node</code> row is never a mystery.</p>
         <p class="muted">The plugin has no XPC API, so lifecycle actions go through the <code>container cluster</code> CLI (<code>container k8s</code> before 1.6.1); node state comes from the container XPC snapshot Orchard already streams.</p>
       </div>

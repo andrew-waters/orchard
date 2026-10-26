@@ -88,7 +88,7 @@ Orchard manages **local Kubernetes clusters** built on Apple container's cluster
 - Clusters made before container 1.6.1 renamed the plugin still show after upgrading, and can be deleted or recreated under the new plugin
 - Installs without the cluster plugin get an explanatory state with upgrade guidance
 
-Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard hands you a configured context and gets out of the way. See the [Kubernetes Clusters guide](https://orchard.andon.dev/clusters.html) for a walkthrough.
+Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard hands you a configured context and gets out of the way. See the [Clusters guide](https://orchard.andon.dev/clusters.html) for a walkthrough.
 
 ## Compose Projects
 
