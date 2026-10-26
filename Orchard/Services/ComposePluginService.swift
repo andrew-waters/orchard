@@ -68,7 +68,30 @@ final class ComposePluginService: ObservableObject {
     /// it works rather than after.
     @Published private(set) var targetVersion: String?
 
+    /// The version the last install finished with, once the CLI reports it. Kept apart from
+    /// `installedVersion` because an update the user declines still leaves a plugin installed,
+    /// and the sheet must not read that as a finished job.
+    @Published private(set) var finishedVersion: String?
+
+    /// The newest published release, once `checkForUpdate` has looked. Nil until then and nil
+    /// when the lookup failed: unknown, which is never read as out of date.
+    @Published private(set) var latestVersion: String?
+
     private var installTask: Task<Void, Never>?
+
+    /// The compose package Orchard is built against, which is the behaviour the Compose tab
+    /// shows. The package does not report its own version at runtime, so this is kept by hand
+    /// and a test holds it to the pin in `Package.resolved`.
+    static let linkedVersion = "0.7.0"
+
+    /// Why the installed plugin is worth replacing.
+    enum Update: Equatable {
+        /// A newer release is published, named here.
+        case newerRelease(String)
+        /// Older than the package Orchard links, named here, and nothing newer is known. Offered
+        /// without a lookup, so a plugin that will disagree with the window is flagged offline.
+        case olderThanOrchard(String)
+    }
 
     /// Where a pkg-installed `container` looks, in the order its own error message lists
     /// them. Only a fallback: the directories depend on where the CLI is installed, so the CLI
@@ -109,6 +132,11 @@ final class ComposePluginService: ObservableObject {
 
     var isMissing: Bool { state == .missing }
 
+    var isInstalled: Bool {
+        if case .installed = state { return true }
+        return false
+    }
+
     var isWorking: Bool {
         if case .working = state { return true }
         return false
@@ -143,6 +171,13 @@ final class ComposePluginService: ObservableObject {
     /// Called when the Compose tab is opened rather than polled: it only changes when someone
     /// installs it or an upgrade leaves it behind, and both happen between visits to this tab.
     func refresh() async {
+        // The CLI only names its plugin directories when the plugin is missing, so a working
+        // plugin would leave the /usr/local defaults in place and an update would land where a
+        // Homebrew CLI never looks. Work them out from where the binary really lives instead.
+        let binary = URL(fileURLWithPath: containerBinaryPath()).resolvingSymlinksInPath().path
+        let derived = Self.pluginDirectories(forContainerBinary: binary)
+        if !derived.isEmpty { searchPaths = derived }
+
         let result = try? await commandRunner.run(program: containerBinaryPath(), arguments: ["compose", "--version"])
         if let result, !result.failed {
             let version = result.stdout?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -167,6 +202,40 @@ final class ComposePluginService: ObservableObject {
         state = .installed(version: await Self.version(of: binary, using: commandRunner))
     }
 
+    // MARK: - Updates
+
+    /// What there is to offer the installed plugin, if anything.
+    var update: Update? {
+        guard let installedVersion else { return nil }
+        return Self.updateOffer(installed: installedVersion, latest: latestVersion, linked: Self.linkedVersion)
+    }
+
+    /// Whether `installed` is behind, and why.
+    ///
+    /// A known latest release decides it. Without one, the linked package is the floor: the
+    /// window behaves as that version does, so a plugin older than it can bring the same file up
+    /// differently in a terminal (a 0.6.0 plugin ignores `platform:`, #155). A version that does
+    /// not parse is left alone, which is what a working-copy build (`0.0.0-dev`) reports.
+    nonisolated static func updateOffer(installed: String, latest: String?, linked: String) -> Update? {
+        guard let current = ComposePluginVersion(installed) else { return nil }
+        if let latest, let newest = ComposePluginVersion(latest) {
+            return newest > current ? .newerRelease(latest) : nil
+        }
+        if let floor = ComposePluginVersion(linked), floor > current { return .olderThanOrchard(linked) }
+        return nil
+    }
+
+    /// Look up the newest release, so `update` can compare against it.
+    ///
+    /// Called once per visit to the Compose tab, after `refresh`, and only for a plugin whose
+    /// version can be compared. Any failure (offline, rate limited, an odd response) leaves the
+    /// latest version unknown and says nothing: a lookup that did not work is no reason to
+    /// tell anyone their plugin is out of date.
+    func checkForUpdate() async {
+        guard let installedVersion, ComposePluginVersion(installedVersion) != nil else { return }
+        latestVersion = (try? await latestRelease())?.tag
+    }
+
     /// True when the CLI's output says it has no `compose` command: "unknown command" from
     /// 1.5.0, "Plugin 'container-compose' not found" before.
     nonisolated static func indicatesMissingPlugin(_ output: String) -> Bool {
@@ -184,6 +253,22 @@ final class ComposePluginService: ObservableObject {
             let path = String(trimmed.dropFirst(2))
             return path.hasSuffix("/compose") ? path : nil
         }
+    }
+
+    /// The plugin directories a CLI at `binary` searches, in its own order: the same two its
+    /// missing-plugin error lists, under the install's prefix. `binary` should have its
+    /// symlinks resolved, so Homebrew's `/opt/homebrew/bin/container` becomes the keg's
+    /// `/opt/homebrew/Cellar/container/1.6.1/bin/container`. Empty for a path that is not
+    /// `<prefix>/bin/container`, which leaves whatever was known before.
+    nonisolated static func pluginDirectories(forContainerBinary binary: String) -> [String] {
+        let url = URL(fileURLWithPath: binary)
+        let bin = url.deletingLastPathComponent()
+        guard url.lastPathComponent == "container", bin.lastPathComponent == "bin" else { return [] }
+        let libexec = bin.deletingLastPathComponent().appendingPathComponent("libexec")
+        return [
+            libexec.appendingPathComponent("container-plugins/compose").path,
+            libexec.appendingPathComponent("container/plugins/compose").path,
+        ]
     }
 
     /// True when writing `path` needs an administrator: the nearest directory that already
@@ -240,6 +325,10 @@ final class ComposePluginService: ObservableObject {
     /// started it by accident should not have to wait it out.
     func beginInstall() {
         guard installTask == nil else { return }
+        finishedVersion = nil
+        // Working from the first frame, so an update's sheet never shows the old plugin as
+        // the finished result while the task gets going.
+        state = .working(.findingRelease)
         installTask = Task { [weak self] in
             await self?.install()
             self?.installTask = nil
@@ -267,6 +356,7 @@ final class ComposePluginService: ObservableObject {
             state = .working(.findingRelease)
             let release = try await latestRelease()
             targetVersion = release.tag
+            latestVersion = release.tag
             try Task.checkCancellation()
 
             state = .working(.downloading)
@@ -306,6 +396,22 @@ final class ComposePluginService: ObservableObject {
 
         try? fileManager.removeItem(at: scratch)
         await refresh()
+
+        // Every step can succeed while the CLI goes on running another copy, or none at all, if
+        // the files landed somewhere it does not look first. Say so rather than ticking
+        // everything off over the old version.
+        if state == .missing {
+            state = .failed("The plugin was installed, but the container CLI does not find it.")
+            return
+        }
+        if let target = targetVersion.flatMap(ComposePluginVersion.init),
+           let reported = installedVersion,
+           let current = ComposePluginVersion(reported),
+           current != target {
+            state = .failed("Installed \(targetVersion ?? ""), but the container CLI still runs \(reported) from another directory.")
+            return
+        }
+        finishedVersion = installedVersion ?? targetVersion
     }
 
     /// The newest published release, and the asset built for this machine.
@@ -408,5 +514,43 @@ final class ComposePluginService: ObservableObject {
         let message = result.stderr ?? ""
         if message.contains("User canceled") || message.contains("-128") { return false }
         throw InstallError.badResponse
+    }
+}
+
+/// A plugin version as numbers, so 0.10.0 sorts after 0.9.0.
+///
+/// Only plain dotted numbers parse, with an optional leading `v`. Anything else (a
+/// pre-release, `0.0.0-dev` from a working copy, text that was never a version) does not, and
+/// is not compared at all rather than guessed at.
+struct ComposePluginVersion: Comparable {
+    let components: [Int]
+
+    init?(_ text: String) {
+        var trimmed = Substring(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        if trimmed.first == "v" { trimmed = trimmed.dropFirst() }
+        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
+        guard !parts.isEmpty else { return nil }
+        var components: [Int] = []
+        for part in parts {
+            guard !part.isEmpty, part.allSatisfy(\.isASCII), part.allSatisfy(\.isNumber), let value = Int(part) else {
+                return nil
+            }
+            components.append(value)
+        }
+        self.components = components
+    }
+
+    /// Missing components count as zero, so 0.7 and 0.7.0 are the same release.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.padded(to: rhs.components.count) == rhs.padded(to: lhs.components.count)
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        let count = max(lhs.components.count, rhs.components.count)
+        return lhs.padded(to: count).lexicographicallyPrecedes(rhs.padded(to: count))
+    }
+
+    private func padded(to count: Int) -> [Int] {
+        components + Array(repeating: 0, count: max(0, count - components.count))
     }
 }

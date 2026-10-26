@@ -115,6 +115,8 @@ container compose up
 
 Orchard links the package directly and runs the resulting plans over XPC, so it never needs the plugin installed. The Compose tab offers to install it anyway, because container's own installer clears the plugin directory on every upgrade: installing fetches the latest release, unpacks it and puts the files where the CLI looks, showing each step before it asks for an administrator password.
 
+Once it is installed, the tab shows the plugin's version along the bottom and offers **Update** when a newer release is out, or when the plugin is older than the compose package Orchard links (in which case the terminal may not handle a file the way the window does, and the offer stands even offline). Updating uses the same install flow. Orchard looks for a release once each time the tab is opened, and a lookup that fails counts as unknown, so it never prompts an update on its own.
+
 There is no Orchard-specific logic in the package, so other tools can build on it too. See [compose.andon.dev](https://compose.andon.dev) for the syntax it supports, install instructions and the current state of coverage.
 
 Two limitations are worth stating up front: without health reporting in the runtime, `up` starts dependencies before dependents but does not wait for them to become ready, and hostnames have to be unique across every container on the machine, so a service answers to `<project>-<service>` rather than to its service name.
