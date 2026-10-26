@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Orchard now notices when Apple container is not installed and offers to install it ([#145](https://github.com/andrew-waters/orchard/issues/145)). Instead of a "not running" screen whose Start button could only fail, the window explains what is missing and offers **Install container 1.6.0**: it downloads Apple's signed package for the version Orchard supports, checks it is signed by Apple's container team, installs it behind one administrator prompt and starts the system with the default kernel. Each step is shown as it happens. Declining the prompt or a failed install leaves the manual instructions on screen, and the menu bar panel shows the same state.
+
 ### Fixed
 - Hiding the Dock icon no longer takes Orchard's menu bar and full screen with it ([#142](https://github.com/andrew-waters/orchard/issues/142)). macOS gives a menu-bar-only app no menu of its own, so the previous app's menu stayed up, full screen misbehaved and there was no way back to Settings. The Hide Dock icon toggle is now a **Show Dock Icon** choice in Settings > General: **Always**, **While a Window Is Open**, which shows the Dock icon and menu bar while any Orchard window is open and goes back to the menu bar only when the last one closes, or **Never**, which keeps Orchard menu-bar-only as before. If you had Hide Dock icon on, you get While a Window Is Open. The menu bar panel also gains Settings and Quit buttons, so both are always within reach.
 - The stopped-system screen now shows a prominent "Start Container System" button instead of an unlabeled power icon, with "Starting…" feedback while startup is in progress ([#123](https://github.com/andrew-waters/orchard/issues/123)).

@@ -61,6 +61,16 @@ final class SettingsStore: ObservableObject {
         return validateBinaryPath(path) ? path : defaultBinaryPath
     }
 
+    /// Whether there is a `container` binary to run at all. Without one, Orchard has
+    /// nothing to talk to and offers to install it rather than to start it (#145).
+    var isContainerInstalled: Bool {
+        if validateBinaryPath(containerBinaryPath) { return true }
+        // The cached default may predate an install made while Orchard was open, in a
+        // place other than the fallback (Homebrew, say). Look again before saying no.
+        cachedDefaultBinaryPath = nil
+        return validateBinaryPath(containerBinaryPath)
+    }
+
     var isUsingCustomBinary: Bool {
         guard let customPath = customBinaryPath else { return false }
         return customPath != defaultBinaryPath && validateBinaryPath(customPath)

@@ -515,7 +515,8 @@ func makeService(
     runner: MockCommandRunner = MockCommandRunner(),
     defaults: UserDefaults = ephemeralDefaults()
 ) -> AppServices {
-    AppServices(backend: backend, runner: runner, defaults: defaults, secrets: InMemorySecretsStore())
+    // Installed, whatever the machine running the tests has: CI runners have no container.
+    AppServices(backend: backend, runner: runner, defaults: defaults, secrets: InMemorySecretsStore(), isContainerInstalled: { true })
 }
 
 /// A throwaway `UserDefaults` suite, unique per call, so a service built in a test never

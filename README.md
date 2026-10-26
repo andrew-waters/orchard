@@ -259,7 +259,7 @@ Different trade-offs, honestly stated: OrbStack and Docker Desktop win on Docker
 
 - macOS 26 (Tahoe)
 - Xcode 26 / Swift 6.2 (for building from source)
-- [Apple container](https://github.com/apple/container) 1.6.0 installed - [follow the instructions here](https://github.com/apple/container?tab=readme-ov-file#install-or-upgrade)
+- [Apple container](https://github.com/apple/container) 1.6.0 installed - [follow the instructions here](https://github.com/apple/container?tab=readme-ov-file#install-or-upgrade). If it is missing, Orchard says so and offers to install it for you: it downloads Apple's signed 1.6.0 package, checks the signature, installs it behind an administrator prompt and starts the system with the default kernel
 
 ## Architecture
 

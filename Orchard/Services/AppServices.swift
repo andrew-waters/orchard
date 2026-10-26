@@ -26,6 +26,7 @@ final class AppServices: ObservableObject {
     let clusterService: ClusterService
     let composeService: ComposeService
     let composePluginService: ComposePluginService
+    let containerInstallService: ContainerInstallService
     let modelService: ModelService
     let modelServerService: ModelServerService
 
@@ -34,7 +35,9 @@ final class AppServices: ObservableObject {
     static func forLaunch() -> AppServices {
         #if DEBUG
         if isUITestMockBackendRequested {
-            return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), modelBackend: UITestModelBackend(), modelServerEngine: UITestModelServerEngine(), runner: UITestCommandRunner())
+            // The stub backend is the container install; whether the machine running the
+            // suite has one is beside the point.
+            return AppServices(backend: UITestBackend(), machineBackend: UITestMachineBackend(), modelBackend: UITestModelBackend(), modelServerEngine: UITestModelServerEngine(), runner: UITestCommandRunner(), isContainerInstalled: { true })
         }
         #endif
         let services = AppServices()
@@ -57,7 +60,8 @@ final class AppServices: ObservableObject {
         modelServerEngine: ModelServerEngine = MLXServerEngine(),
         runner: CommandRunner = SystemCommandRunner(),
         defaults: UserDefaults = .standard,
-        secrets: SecretsStore = KeychainSecretsStore()
+        secrets: SecretsStore = KeychainSecretsStore(),
+        isContainerInstalled: (@MainActor () -> Bool)? = nil
     ) {
         let alertCenter = AlertCenter()
         self.alertCenter = alertCenter
@@ -78,7 +82,7 @@ final class AppServices: ObservableObject {
         imageBuildService.onImageBuilt = { [weak imageService] in await imageService?.load() }
         let dnsService = DNSService(runner: runner, settings: settings, alertCenter: alertCenter)
         self.dnsService = dnsService
-        let systemService = SystemService(backend: backend, runner: runner, settings: settings, alertCenter: alertCenter)
+        let systemService = SystemService(backend: backend, runner: runner, settings: settings, alertCenter: alertCenter, isContainerInstalled: isContainerInstalled)
         self.systemService = systemService
         // ContainerListService is built before StatsService, which depends on it.
         let containerListService = ContainerListService(backend: backend, alertCenter: alertCenter)
@@ -99,6 +103,8 @@ final class AppServices: ObservableObject {
         self.composeService = composeService
         // Only ever informs: a missing CLI plugin changes nothing about what the window can do.
         self.composePluginService = ComposePluginService(commandRunner: runner, containerBinaryPath: { settings.safeContainerBinaryPath() })
+        let containerInstallService = ContainerInstallService(commandRunner: runner)
+        self.containerInstallService = containerInstallService
 
         containerListService.reloadBuilders = { [weak builderService] in await builderService?.loadBuilders() }
         // A commit adds an image, or replaces one.
@@ -136,6 +142,10 @@ final class AppServices: ObservableObject {
         dnsService.daemonDefaultDomain = { [weak systemService] in
             systemService?.systemProperties
                 .first(where: { $0.id == "dns.domain" && !$0.isUndefined && !$0.value.isEmpty })?.value
+        }
+        // A fresh install has no kernel yet: start with the default one.
+        containerInstallService.onInstalled = { [weak systemService] in
+            await systemService?.startSystem(installKernel: true)
         }
         // System → containers side effects.
         systemService.onSystemStarted = { [weak containerListService] in await containerListService?.loadContainers() }

@@ -95,6 +95,7 @@ extension View {
             .environmentObject(s.clusterService)
             .environmentObject(s.composeService)
             .environmentObject(s.composePluginService)
+            .environmentObject(s.containerInstallService)
             .environmentObject(s.modelService)
             .environmentObject(s.modelServerService)
     }
