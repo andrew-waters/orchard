@@ -12,7 +12,7 @@ struct K8sNodeImageOption: Identifiable, Equatable, Hashable {
     var id: String { reference }
 }
 
-/// Builds the version list for `container k8s create --node-image`.
+/// Builds the version list for `container cluster create --node-image`.
 ///
 /// Since container 1.5.0 the control plane is configured from the node image's tag
 /// (apple/container#2271); before that it was always the plugin default's version, so a
@@ -29,7 +29,7 @@ enum K8sNodeImageCatalog {
     /// which kubeadm understands from 1.31.
     static let oldestSupportedMinor = 31
 
-    /// The plugin's default image, read from `container k8s create --help` so it follows the
+    /// The plugin's default image, read from the plugin's `create --help` so it follows the
     /// installed plugin instead of a copy that goes stale. The help wraps the reference onto
     /// its own line, so whitespace after "default:" can include a newline.
     static func parsePluginDefault(helpText: String) -> String? {

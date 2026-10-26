@@ -76,7 +76,7 @@ A machine trades away much of a container's isolation, so only create one from a
 
 ## Kubernetes Clusters
 
-Orchard manages **local Kubernetes clusters** built on Apple container's `k8s` plugin (container 1.2.2+): cluster nodes are grouped, inspectable and one click from a working `kubectl`.
+Orchard manages **local Kubernetes clusters** built on Apple container's cluster plugin (container 1.2.2+, named `k8s` before 1.6.1): cluster nodes are grouped, inspectable and one click from a working `kubectl`.
 
 ![A local Kubernetes cluster in Orchard - nodes table with role, IP and resources, and one-click kubectl access](site/assets/screens/clusters.png)
 
@@ -84,8 +84,9 @@ Orchard manages **local Kubernetes clusters** built on Apple container's `k8s` p
 - Create clusters from the app, choosing the Kubernetes version, resource overrides, worker nodes (container 1.6.0+) and the CNI: kindnet, your own manifest, or none at all (container 1.6.0+) for installing Cilium, Calico or similar yourself. A cluster with no CNI shows as waiting for one until its nodes are Ready
 - Load any local image into the cluster's containerd, on every node or only the ones you pick, so pods can use it without a registry
 - Write or merge the cluster's context into your kubeconfig, copy its path, or open a terminal with the kubectl context already selected
-- Cluster nodes are badged in the containers list ("k8s · control-plane"), and container and cluster views cross-link both ways
-- Installs without the k8s plugin get an explanatory state with upgrade guidance
+- Cluster nodes are badged in the containers list ("cluster · control-plane"), and container and cluster views cross-link both ways
+- Clusters made before container 1.6.1 renamed the plugin still show after upgrading, and can be deleted or recreated under the new plugin
+- Installs without the cluster plugin get an explanatory state with upgrade guidance
 
 Deploying workloads stays with the tools you know - kubectl, k9s, Lens - Orchard hands you a configured context and gets out of the way. See the [Kubernetes Clusters guide](https://orchard.andon.dev/clusters.html) for a walkthrough.
 
@@ -130,7 +131,7 @@ Two limitations are worth stating up front: without health reporting in the runt
 - Command palette: press Cmd+K to fuzzy-search everything Orchard manages, jump to any resource, or run actions from the keyboard - "stop db", "logs api", "console web", "commit web"
 - Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
-- Kubernetes clusters: create and manage local k8s clusters (container's k8s plugin), load images into them, and get one-click kubectl access
+- Kubernetes clusters: create and manage local k8s clusters (container's cluster plugin), load images into them, and get one-click kubectl access
 - Compose projects: bring a set of services up and down from a compose file, in dependency order, with a second `up` working out what changed from the containers themselves. Anything the file asks for that cannot be honoured is listed before the first run, with the line it sits on, and stays listed on the project afterwards, all of it planned by the open-source [compose](https://compose.andon.dev) package that also backs the `container compose` CLI plugin
 - Container management: create, start, stop, force stop, delete, export as tar, commit to an image (container 1.6.0+), reclaim disk space (pending a container release that can trim a container's root filesystem), label at launch, group by label
 - Image management: pull with live byte/blob progress, delete, search Docker Hub
@@ -246,7 +247,7 @@ The table above compares apps that manage Apple's `container` runtime. OrbStack 
 2. Native Swift app, but on a custom proprietary virtualization stack.
 3. The Docker Desktop dashboard is built on Electron.
 4. Runs standard OCI images; does not expose a Docker-compatible API socket.
-5. Experimental, via the `container k8s` plugin (control plane + workers).
+5. Experimental, via the `container cluster` plugin (`container k8s` before 1.6.1) (control plane + workers).
 6. Docker Model Runner runs local models; no agent-sandbox workflow.
 7. Free for personal, non-commercial use; commercial use requires Pro ($8/user/month).
 8. Free only for personal use, education, and companies under 250 employees **and** $10M annual revenue.

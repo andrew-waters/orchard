@@ -21,6 +21,10 @@ struct ClusterDetailView: View {
 
     private var awaitingCNI: Bool { clusterService.awaitingCNI.contains(clusterName) }
 
+    private func isStranded(_ cluster: K8sCluster) -> Bool {
+        ClusterService.isStranded(cluster, containerVersion: systemService.containerVersion)
+    }
+
     private var cluster: K8sCluster? {
         K8sCluster.group(containers: containerListService.containers)
             .first(where: { $0.name == clusterName })
@@ -33,6 +37,9 @@ struct ClusterDetailView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        if isStranded(cluster) {
+                            strandedBanner
+                        }
                         if !cluster.isRunning {
                             stoppedBanner
                         } else if awaitingCNI {
@@ -69,7 +76,8 @@ struct ClusterDetailView: View {
                 clusterService.endCNIChecks()
             }
             .confirmationDialog(
-                "Delete '\(cluster.name)'? This permanently removes the cluster's node containers and any workloads running on them.",
+                "Delete '\(cluster.name)'? This permanently removes the cluster's node containers and any workloads running on them."
+                    + (isStranded(cluster) ? " Apple container's cluster plugin can't see this cluster, so Orchard deletes its node containers directly." : ""),
                 isPresented: $showDeleteConfirmation
             ) {
                 Button("Delete Cluster", role: .destructive) {
@@ -87,6 +95,7 @@ struct ClusterDetailView: View {
 
     private func header(_ cluster: K8sCluster) -> some View {
         let busy = clusterService.busyClusters.contains(cluster.name)
+        let stranded = isStranded(cluster)
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
@@ -108,7 +117,7 @@ struct ClusterDetailView: View {
                 if busy {
                     ProgressView().controlSize(.small)
                 }
-                if !cluster.isRunning {
+                if !cluster.isRunning || stranded {
                     Button("Recreate…") {
                         Task { recreateSettings = await clusterService.prepareRecreate(cluster) }
                     }
@@ -132,7 +141,8 @@ struct ClusterDetailView: View {
                         }
                     }
                     .buttonStyle(BorderedButtonStyle())
-                    .disabled(busy || kubeconfigWritten)
+                    .disabled(busy || kubeconfigWritten || stranded)
+                    .help(stranded ? ClusterService.strandedHelp : "")
 
                     Button(copiedPath ? "Copied ✓" : "Copy Kubeconfig Path") {
                         NSPasteboard.general.clearContents()
@@ -148,7 +158,8 @@ struct ClusterDetailView: View {
 
                     Button("Load Image…") { showLoadImageSheet = true }
                         .buttonStyle(BorderedButtonStyle())
-                        .disabled(busy || clusterService.isLoadingImage)
+                        .disabled(busy || clusterService.isLoadingImage || stranded)
+                        .help(stranded ? ClusterService.strandedHelp : "")
                 }
                 Button("Delete") { showDeleteConfirmation = true }
                     .buttonStyle(BorderedButtonStyle())
@@ -193,7 +204,7 @@ struct ClusterDetailView: View {
         ClusterService.supportsWorkerNodes(containerVersion: systemService.containerVersion)
     }
 
-    /// Before 1.6.0 the k8s plugin creates single-node clusters only. From 1.6.0 workers are
+    /// Before 1.6.0 the plugin creates single-node clusters only. From 1.6.0 workers are
     /// chosen at create time, so a single node is a choice and the banner goes. Same banner
     /// style as the machine detail's init-system warning.
     private var singleNodeBanner: some View {
@@ -203,7 +214,7 @@ struct ClusterDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Single-node clusters only")
                     .font(.subheadline).fontWeight(.medium)
-                Text("This version of Apple container's k8s plugin can't create worker nodes, so every cluster is one control-plane node that also runs workloads. Apple container 1.6.0 and later can add workers when a cluster is created.")
+                Text("This version of Apple container's cluster plugin can't create worker nodes, so every cluster is one control-plane node that also runs workloads. Apple container 1.6.0 and later can add workers when a cluster is created.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -237,6 +248,25 @@ struct ClusterDetailView: View {
 
     /// Container 1.5.0 removed `container k8s start` (apple/container#2290), so there is no
     /// Start to offer. Say so rather than leave a stopped cluster with no way forward.
+    /// A cluster made by the `k8s` plugin before container 1.6.1, which the renamed plugin
+    /// can't see. Same banner style as `stoppedBanner`.
+    private var strandedBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Made by an older Apple container")
+                    .font(.subheadline).fontWeight(.medium)
+                Text("Apple container 1.6.1 renamed its Kubernetes plugin, and the renamed plugin can't see clusters made before it, so loading images and writing the kubeconfig are off. Recreate deletes this cluster and creates it again with the same settings under the new plugin. Workloads and images loaded into it are not kept. Delete removes its node containers directly.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private var stoppedBanner: some View {
         HStack(alignment: .top, spacing: 10) {
             SwiftUI.Image(systemName: "stop.circle.fill")

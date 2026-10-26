@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Create a local Kubernetes cluster via `container k8s create`. Mirrors the CLI's
+/// Create a local Kubernetes cluster via `container cluster create`. Mirrors the CLI's
 /// options: name, optional resource overrides, the Kubernetes version (as a node image),
 /// and, under Advanced, worker nodes (1.6.0) and the CNI: kindnet, a manifest, or none (1.6.0).
 struct CreateClusterView: View {
@@ -23,7 +23,8 @@ struct CreateClusterView: View {
     @EnvironmentObject var systemService: SystemService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var name: String = "k8s-dev"
+    /// Replaced by the plugin's own default once the version is known: see `adoptDefaultName`.
+    @State private var name: String = ClusterService.defaultClusterName(containerVersion: nil)
     @State private var overrideResources: Bool = false
     @State private var cpus: Int = max(ProcessInfo.processInfo.processorCount / 2, 1)
     @State private var memoryGiB: Int = 4
@@ -88,7 +89,7 @@ struct CreateClusterView: View {
                     }
 
                     field(title: "Name", caption: "Lowercase letters, digits, and hyphens. The control-plane container takes this name.") {
-                        TextField("k8s-dev", text: $name)
+                        TextField(defaultName, text: $name)
                             .textFieldStyle(.roundedBorder)
                             .disabled(recreating != nil)
                     }
@@ -138,10 +139,22 @@ struct CreateClusterView: View {
         .frame(width: 520, height: 520)
         .background(Color(NSColor.windowBackgroundColor))
         .task {
+            adoptDefaultName()
             fallBackFromNoCNIIfUnsupported()
             await clusterService.loadNodeImageOptions()
             adoptListedVersion()
         }
+    }
+
+    private var defaultName: String {
+        ClusterService.defaultClusterName(containerVersion: systemService.containerVersion)
+    }
+
+    /// The version isn't known in `init`, so a new cluster's untouched name follows the plugin's
+    /// default here: `cluster-dev` from 1.6.1.
+    private func adoptDefaultName() {
+        guard recreating == nil, name == ClusterService.defaultClusterName(containerVersion: nil) else { return }
+        name = defaultName
     }
 
     /// The version isn't known in `init`, so a recreate remembered with no CNI is checked here,
@@ -193,7 +206,7 @@ struct CreateClusterView: View {
     private var kubernetesVersionField: some View {
         field(
             title: "Kubernetes Version",
-            caption: "Recommended is the node image Apple container's k8s plugin ships with and is tested against. Others are the newest kindest/node release of each version from 1.31."
+            caption: "Recommended is the node image Apple container's cluster plugin ships with and is tested against. Others are the newest kindest/node release of each version from 1.31."
         ) {
             Picker("Kubernetes Version", selection: $nodeImageChoice) {
                 Text(pluginDefaultLabel).tag(NodeImageChoice.pluginDefault)
@@ -243,7 +256,7 @@ struct CreateClusterView: View {
     private var cniCaption: String {
         switch cniChoice {
         case .kindnet:
-            return "The k8s plugin installs kindnet, and the create waits for the nodes to be Ready."
+            return "Apple container's cluster plugin installs kindnet, and the create waits for the nodes to be Ready."
         case .manifest:
             return "Applied instead of kindnet once the control plane is up. It must fit the cluster's pod subnet, or the cluster never becomes ready."
         case .userInstalled:

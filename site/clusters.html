@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kubernetes Clusters · Orchard</title>
-  <meta name="description" content="Manage local Kubernetes clusters created with Apple container's k8s plugin from Orchard: create and delete clusters at the Kubernetes version you choose, load local images, and get a kubectl-ready terminal in one click." />
+  <meta name="description" content="Manage local Kubernetes clusters created with Apple container's cluster plugin from Orchard: create and delete clusters at the Kubernetes version you choose, load local images, and get a kubectl-ready terminal in one click." />
   <meta property="og:title" content="Kubernetes Clusters · Orchard" />
   <meta property="og:description" content="Local Kubernetes clusters on Apple container, from a native macOS app." />
   <meta property="og:image" content="assets/screens/clusters.png" />
@@ -42,8 +42,8 @@
       <div class="wrap">
         <p class="eyebrow mono-xs">Guide</p>
         <h1>Kubernetes Clusters</h1>
-        <p class="sub">Create, run and manage local Kubernetes clusters built on Apple container's <code>k8s</code> plugin - grouped nodes, one-click kubeconfig, and a terminal that opens ready for <code>kubectl</code>.</p>
-        <div class="pill-row"><span class="badge badge--primary">Requires Apple <code>container</code> 1.2.2+ (ships the k8s plugin) · macOS 26 · Apple silicon</span></div>
+        <p class="sub">Create, run and manage local Kubernetes clusters built on Apple container's cluster plugin - grouped nodes, one-click kubeconfig, and a terminal that opens ready for <code>kubectl</code>.</p>
+        <div class="pill-row"><span class="badge badge--primary">Requires Apple <code>container</code> 1.2.2+ (ships the cluster plugin) · macOS 26 · Apple silicon</span></div>
         <div class="hero-shot lined">
           <span class="dot dot--tl"></span><span class="dot dot--tr"></span><span class="dot dot--bl"></span><span class="dot dot--br"></span>
           <img src="assets/screens/clusters.png" data-light="assets/screens/light/clusters.png" alt="A local Kubernetes cluster in Orchard, with its control-plane node, kubectl access and per-node details" />
@@ -53,10 +53,10 @@
 
     <section>
       <div class="wrap doc">
-        <h2>What is a container k8s cluster?</h2>
-        <p>Apple container 1.2.2 ships a <code>k8s</code> plugin that bootstraps a <strong>local single-node Kubernetes cluster</strong> from a <code>kindest/node</code> image: the node is an ordinary container running containerd and kubelet, initialised with <code>kubeadm</code> and wired up with the kindnet CNI. The control-plane container's name is the cluster's name, and its API server is published to your Mac. From container 1.6.0 the plugin can also create <strong>worker nodes</strong> alongside the control plane, named <code>&lt;cluster&gt;-worker-N</code>.</p>
-        <p>Because cluster nodes are just containers carrying plugin labels, Orchard derives clusters straight from the container list it already watches - the same grouping the CLI's <code>container k8s list</code> uses. Node containers are badged in the containers list too, so a <code>kindest/node</code> row is never a mystery.</p>
-        <p class="muted">The plugin has no XPC API, so lifecycle actions go through the <code>container k8s</code> CLI; node state comes from the container XPC snapshot Orchard already streams.</p>
+        <h2>What is a container cluster?</h2>
+        <p>Apple container 1.2.2 ships a Kubernetes plugin that bootstraps a <strong>local single-node Kubernetes cluster</strong> from a <code>kindest/node</code> image: the node is an ordinary container running containerd and kubelet, initialised with <code>kubeadm</code> and wired up with the kindnet CNI. The control-plane container's name is the cluster's name, and its API server is published to your Mac. From container 1.6.0 the plugin can also create <strong>worker nodes</strong> alongside the control plane, named <code>&lt;cluster&gt;-worker-N</code>. Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, so its commands are now <code>container cluster ...</code>; Orchard uses whichever your install has.</p>
+        <p>Because cluster nodes are just containers carrying plugin labels, Orchard derives clusters straight from the container list it already watches - the same grouping the CLI's <code>container cluster list</code> uses. Node containers are badged in the containers list too, so a <code>kindest/node</code> row is never a mystery.</p>
+        <p class="muted">The plugin has no XPC API, so lifecycle actions go through the <code>container cluster</code> CLI (<code>container k8s</code> before 1.6.1); node state comes from the container XPC snapshot Orchard already streams.</p>
       </div>
     </section>
 
@@ -68,8 +68,8 @@
           <div class="card"><h3>Lifecycle</h3><p>Create at the Kubernetes version you choose, with optional CPU/memory overrides, worker nodes (container 1.6.0+) and a CNI of your choosing (kindnet, your own manifest, or none at all on container 1.6.0+), and delete with confirmation before anything destructive.</p></div>
           <div class="card"><h3>Load local images</h3><p>Push any image from Orchard's image list into the cluster's containerd, on every node or only the ones you pick, so pods can use it without a registry.</p></div>
           <div class="card"><h3>kubectl access</h3><p>Write or merge the cluster's context into your kubeconfig, copy the kubeconfig path, or open a terminal with the context already selected.</p></div>
-          <div class="card"><h3>Plugin badges</h3><p>Cluster nodes show a plugin badge (e.g. "k8s · control-plane") in the containers list and detail header.</p></div>
-          <div class="card"><h3>Guardrails</h3><p>Installs without the k8s plugin get an explanatory state with upgrade guidance instead of broken buttons.</p></div>
+          <div class="card"><h3>Plugin badges</h3><p>Cluster nodes show a plugin badge (e.g. "cluster · control-plane", or "k8s · control-plane" for a node made before 1.6.1) in the containers list and detail header.</p></div>
+          <div class="card"><h3>Guardrails</h3><p>Installs without the cluster plugin get an explanatory state with upgrade guidance instead of broken buttons.</p></div>
         </div>
       </div>
     </section>
@@ -81,11 +81,11 @@
         <ol class="steps">
           <li>
             <h3>Open the Clusters section</h3>
-            <p>Select <strong>Clusters</strong> in the sidebar. If your <code>container</code> install predates the k8s plugin (before 1.2.2), the section explains that and links to upgrade instructions.</p>
+            <p>Select <strong>Clusters</strong> in the sidebar. If your <code>container</code> install predates the cluster plugin (before 1.2.2), the section explains that and links to upgrade instructions.</p>
           </li>
           <li>
             <h3>Create a cluster</h3>
-            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>k8s-dev</code>; resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the k8s plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, <strong>Workers</strong> adds that many worker nodes (container 1.6.0 and later), and <strong>CNI</strong> keeps the default kindnet, applies a manifest of yours in its place, or (container 1.6.0 and later) installs none, for you to add your own afterwards. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
+            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>cluster-dev</code> (<code>k8s-dev</code> before container 1.6.1); resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the cluster plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, <strong>Workers</strong> adds that many worker nodes (container 1.6.0 and later), and <strong>CNI</strong> keeps the default kindnet, applies a manifest of yours in its place, or (container 1.6.0 and later) installs none, for you to add your own afterwards. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
           </li>
           <li>
             <h3>Point kubectl at it</h3>
@@ -106,6 +106,11 @@
         <div class="callout warn">
           <h4>A stopped cluster can't be restarted</h4>
           <p>Apple container 1.5.0 removed <code>container k8s start</code>, so a cluster whose node has stopped (after a reboot or <code>container system stop</code>, for example) can only be deleted and created again. <strong>Recreate</strong> on the stopped cluster does both in one step, with the same name, resources, Kubernetes version and CNI. Workloads and images loaded into it aren't kept, so keep your manifests somewhere you can re-apply them from.</p>
+        </div>
+
+        <div class="callout warn">
+          <h4>Clusters made before container 1.6.1</h4>
+          <p>Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, and the renamed plugin only sees nodes it labelled itself. A cluster made on 1.6.0 or earlier still shows in Orchard after you upgrade, with a note saying so, but <strong>Load Image</strong> and <strong>Write Kubeconfig</strong> are off for it because the CLI can't find it. <strong>Recreate</strong> deletes it and creates it again under the new plugin with the same settings. <strong>Delete</strong> removes its node containers directly, which leaves the old plugin's files under <code>plugins/k8s</code> in container's data directory and the cluster's context in your kubeconfig.</p>
         </div>
 
         <div class="callout info">
@@ -149,7 +154,7 @@
       <div class="wrap doc">
         <h2>Requirements</h2>
         <ul>
-          <li>Apple <code>container</code> <strong>1.2.2 or later</strong> - earlier releases don't ship the <code>k8s</code> plugin (1.2.1's package had a packaging bug).</li>
+          <li>Apple <code>container</code> <strong>1.2.2 or later</strong> - earlier releases don't ship the plugin (1.2.1's package had a packaging bug).</li>
           <li><strong>macOS 26 (Tahoe)</strong> on <strong>Apple silicon</strong>, the same floor Orchard already requires.</li>
           <li><code>kubectl</code> on your Mac for the terminal button - the cluster works without it, but that button assumes it's installed.</li>
         </ul>

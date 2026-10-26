@@ -719,3 +719,116 @@ func cniReadinessIgnoresResultFromBeforeRecreate() async throws {
     #expect(runner.calls.count == callsBefore + 1)
     #expect(service.clusterService.awaitingCNI == ["k8s-dev"])
 }
+
+// MARK: - The cluster rename (1.6.1)
+
+private func clusterNode(_ id: String, role: String? = nil, status: String = "running") throws -> Container {
+    var labels = ["com.apple.container.plugin": "cluster"]
+    if let role { labels["com.apple.container.resource.role"] = role }
+    return try makeContainer(id: id, status: status, labels: labels)
+}
+
+@Test("Plugin command: cluster from container 1.6.1, k8s before or when the version is unknown")
+func pluginCommandByVersion() {
+    #expect(ClusterService.pluginCommand(containerVersion: "1.6.1") == "cluster")
+    #expect(ClusterService.pluginCommand(containerVersion: "1.7") == "cluster")
+    #expect(ClusterService.pluginCommand(containerVersion: "1.6.0") == "k8s")
+    #expect(ClusterService.pluginCommand(containerVersion: "1.6") == "k8s")
+    #expect(ClusterService.pluginCommand(containerVersion: nil) == "k8s")
+    #expect(ClusterService.defaultClusterName(containerVersion: "1.6.1") == "cluster-dev")
+    #expect(ClusterService.defaultClusterName(containerVersion: "1.6.0") == "k8s-dev")
+}
+
+@MainActor
+@Test("On 1.6.1 every plugin command is `cluster`")
+func commandsOnRenamedPlugin() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.6.1"
+
+    await service.clusterService.probePluginAvailability()
+    await service.clusterService.create(name: "cluster-dev", cpus: nil, memory: nil, nodeImage: nil)
+    _ = await service.clusterService.loadImage(cluster: "cluster-dev", reference: "demo-api:latest")
+    _ = await service.clusterService.writeConfig(cluster: "cluster-dev")
+    await service.clusterService.delete(name: "cluster-dev")
+
+    #expect(runner.calls.contains(["cluster", "list"]))
+    #expect(runner.calls.contains(["cluster", "create", "--name", "cluster-dev"]))
+    #expect(runner.calls.contains(["cluster", "load-image", "--name", "cluster-dev", "demo-api:latest"]))
+    #expect(runner.calls.contains(["cluster", "write-config", "--name", "cluster-dev"]))
+    #expect(runner.calls.contains(["cluster", "delete", "--name", "cluster-dev"]))
+    #expect(!runner.calls.contains { $0.first == "k8s" })
+}
+
+@MainActor
+@Test("Probe: on 1.6.1 an unknown `cluster` command marks the plugin missing")
+func probeMissingRenamedPlugin() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in
+        ProcessResult(exitCode: 1, stdout: nil, stderr: "Error: unknown command 'cluster'")
+    }
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.6.1"
+    await service.clusterService.probePluginAvailability()
+    #expect(service.clusterService.pluginAvailability == .missingPlugin)
+}
+
+@Test("Grouping: nodes labelled `cluster` group like `k8s` ones, and both labels can coexist")
+func groupRenamedAndLegacyLabels() throws {
+    let containers = [
+        try clusterNode("cluster-dev", role: "control-plane"),
+        try clusterNode("cluster-dev-worker-1", role: "worker"),
+        try k8sNode("k8s-dev", role: "control-plane,worker"),
+        try makeContainer(id: "web", status: "running"),
+    ]
+    let clusters = K8sCluster.group(containers: containers)
+    #expect(clusters.map(\.name) == ["cluster-dev", "k8s-dev"])
+    #expect(clusters.first?.nodes.map(\.id) == ["cluster-dev", "cluster-dev-worker-1"])
+    #expect(clusters.map(\.isLegacy) == [false, true])
+    #expect(try clusterNode("cluster-dev").isK8sNode)
+    #expect(K8sCluster.clusterName(for: try clusterNode("cluster-dev-worker-1")) == "cluster-dev")
+}
+
+@Test("Stranded: only a k8s-labelled cluster on an install that runs `cluster`")
+func strandedByVersion() throws {
+    let legacy = try #require(K8sCluster.group(containers: [try k8sNode("k8s-dev", role: "control-plane")]).first)
+    let renamed = try #require(K8sCluster.group(containers: [try clusterNode("cluster-dev", role: "control-plane")]).first)
+    #expect(ClusterService.isStranded(legacy, containerVersion: "1.6.1"))
+    #expect(!ClusterService.isStranded(legacy, containerVersion: "1.6.0"))
+    #expect(!ClusterService.isStranded(legacy, containerVersion: nil))
+    #expect(!ClusterService.isStranded(renamed, containerVersion: "1.6.1"))
+}
+
+@MainActor
+@Test("Stranded: delete and recreate remove the nodes directly, and recreate creates under `cluster`")
+func strandedDeleteAndRecreate() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.6.1"
+    let legacy = try runningCluster()
+    service.clusterService.currentClusters = { [legacy] }
+
+    await service.clusterService.delete(name: "k8s-dev")
+    #expect(runner.calls.last == ["delete", "--force", "k8s-dev", "k8s-dev-worker-1"])
+
+    let ok = await service.clusterService.recreate(name: "k8s-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .kindnet, workers: 1)
+    #expect(ok)
+    let calls = runner.calls
+    let deleteAt = calls.lastIndex(of: ["delete", "--force", "k8s-dev", "k8s-dev-worker-1"])
+    let createAt = calls.firstIndex(of: ["cluster", "create", "--name", "k8s-dev", "--workers", "1"])
+    #expect(deleteAt != nil && createAt != nil)
+    #expect((deleteAt ?? .max) < (createAt ?? .min))
+}
+
+@MainActor
+@Test("On 1.6.0 a k8s cluster is deleted through the plugin, as before")
+func legacyDeleteOnOldInstall() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.6.0"
+    let legacy = try runningCluster()
+    service.clusterService.currentClusters = { [legacy] }
+
+    await service.clusterService.delete(name: "k8s-dev")
+    #expect(runner.calls.last == ["k8s", "delete", "--name", "k8s-dev"])
+}
