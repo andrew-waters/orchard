@@ -84,7 +84,7 @@ Orchard creates every container as `Platform.current`, so an image published onl
 ## Tasks
 
 - [x] [andrew-waters/compose#17](https://github.com/andrew-waters/compose/issues/17) compose: `platform:` parsed, planned and honoured by the plugin; README and site (committed on its branch)
-- [ ] compose 0.7.0 released, and Orchard's pin moved to it
+- [ ] compose 0.7.0 released, and Orchard's pin moved to it (pinned to compose#18's head, 9a9a1e1, until then so CI can build)
 - [x] Orchard: model, `imagePlatforms`, `ContainerPlatform.resolve`, platform-aware create with Rosetta check
 - [x] Orchard: `RosettaService`, Platform picker and Rosetta notice on Run and Edit
 - [x] Orchard: keep the platform on edit, recovery and mount-removal recreate; `mapPlatform` variant
