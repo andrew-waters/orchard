@@ -144,6 +144,10 @@ struct CreateClusterView: View {
             await clusterService.loadNodeImageOptions()
             adoptListedVersion()
         }
+        // The sheet can open (from the command palette, say) before the version is known.
+        .onChange(of: systemService.containerVersion) { _, _ in
+            adoptDefaultName()
+        }
     }
 
     private var defaultName: String {
