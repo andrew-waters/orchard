@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Tell someone on an older `container compose` plugin that a newer one exists: compare the installed version with the latest release (fetched once per visit to the Compose tab, a failed lookup meaning unknown) and with the compose package Orchard links, show the installed version in a quiet footer, and offer **Update** through the existing install flow when it is behind."
 issues: [andrew-waters/orchard#155]
 touches: [andrew-waters/orchard]
