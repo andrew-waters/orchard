@@ -44,7 +44,7 @@ apple/container 1.6.1 renames the Kubernetes plugin from `k8s` to `cluster` (app
 
 - "the `k8s` plugin" becomes "Apple container's cluster plugin" in `ListClusters` (missing-plugin state), `CreateCluster` (node image caption, CNI caption) and `ClusterDetail` (workers notice), whatever the version. Doc comments that name the command say `cluster` (formerly `k8s`) where they describe it.
 - The Create Cluster sheet's default name follows upstream: `cluster-dev` on 1.6.1, `k8s-dev` before.
-- Sidebar tab title "k8s Clusters" stays: it names Kubernetes, not the plugin.
+- The sidebar tab is **Clusters**, not "k8s Clusters", matching upstream's naming. The command palette still finds it by "k8s" and "kubernetes".
 
 ### Docs
 
