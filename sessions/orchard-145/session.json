@@ -3,7 +3,7 @@
   "branch" : "145-detect-missing-containers-dependency-and",
   "issue" : "andrew-waters/orchard#145",
   "pullRequests" : [
-
+    "https://github.com/andrew-waters/orchard/pull/151"
   ],
   "repos" : [
 
