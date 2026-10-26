@@ -79,7 +79,7 @@ struct GeneralSettingsView: View {
             }
 
             Section {
-                Toggle("Hide Dock icon", isOn: Binding(
+                Toggle("Hide Dock icon when no windows are open", isOn: Binding(
                     get: { settings.hideDockIcon },
                     set: { hidden in
                         settings.setHideDockIcon(hidden)
@@ -87,7 +87,7 @@ struct GeneralSettingsView: View {
                     }
                 ))
             } footer: {
-                Text("Orchard stays available from the menu bar. Hiding the Dock icon also removes Orchard from the Cmd-Tab app switcher; reopen the main window from the menu bar.")
+                Text("Orchard stays available from the menu bar. While one of its windows is open, Orchard shows its Dock icon and menu bar and can go full screen; when the last one closes, the Dock icon goes and Orchard leaves the Cmd-Tab app switcher.")
                     .foregroundColor(.secondary)
             }
 
