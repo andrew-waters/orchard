@@ -8,11 +8,13 @@ struct OrchardApp: App {
 
     init() {
         // Apply the persisted Dock-icon preference before any window appears. Read
-        // straight from defaults: the services aren't built yet. Only the hidden case
-        // needs applying - the app launches as .regular anyway, and applying .regular
-        // here would trigger the restore-activation dance at every launch.
-        if UserDefaults.standard.bool(forKey: SettingsStore.hideDockIconDefaultsKey) {
-            DockIconPolicy.apply(hidden: true)
+        // straight from defaults: the services aren't built yet. .always needs no
+        // applying - the app launches as .regular, the policy's starting mode is
+        // .always, and applying it here would trigger the restore-activation dance at
+        // every launch.
+        let mode = DockIconMode.stored(in: .standard)
+        if mode != .always {
+            DockIconPolicy.applyAtLaunch(mode)
         }
     }
 

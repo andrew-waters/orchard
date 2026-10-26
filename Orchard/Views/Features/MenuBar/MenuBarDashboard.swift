@@ -14,6 +14,7 @@ struct MenuBarView: View {
     @State private var hoveringTop = false
     @State private var hoveredContainer: String?
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     /// Distinct colors assigned to containers by memory rank; shared by the rings and list.
     private static let palette: [Color] = [.blue, .purple, .green, .orange, .teal, .pink, .yellow, .indigo, .mint, .cyan]
@@ -153,14 +154,33 @@ struct MenuBarView: View {
                 }
             }
 
+            // Settings and Quit live here too: with the Dock icon hidden and no window open,
+            // Orchard has no main menu to reach them from (#142).
             card {
-                Button {
-                    if !MainWindows.bringToFront() {
-                        openWindow(id: "main")
-                        NSApplication.shared.activate(ignoringOtherApps: true)
+                HStack(spacing: 8) {
+                    Button {
+                        if !MainWindows.bringToFront() {
+                            openWindow(id: "main")
+                            NSApplication.shared.activate(ignoringOtherApps: true)
+                        }
+                    } label: {
+                        Text("Open Orchard").frame(maxWidth: .infinity)
                     }
-                } label: {
-                    Text("Open Orchard").frame(maxWidth: .infinity)
+                    Button {
+                        NSApplication.shared.activate(ignoringOtherApps: true)
+                        openSettings()
+                    } label: {
+                        SwiftUI.Image(systemName: "gearshape")
+                    }
+                    .help("Settings")
+                    .accessibilityLabel("Settings")
+                    Button {
+                        NSApplication.shared.terminate(nil)
+                    } label: {
+                        SwiftUI.Image(systemName: "power")
+                    }
+                    .help("Quit Orchard")
+                    .accessibilityLabel("Quit Orchard")
                 }
                 .font(.callout)
             }

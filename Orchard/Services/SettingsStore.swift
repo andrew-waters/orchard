@@ -12,10 +12,10 @@ final class SettingsStore: ObservableObject {
     /// as written and passed through, because which shells exist and which flags they take
     /// is a property of the image, not something Orchard can enumerate.
     @Published private(set) var containerShell: String = SettingsStore.defaultContainerShell
-    /// Whether the app hides its Dock icon and runs as a menu-bar accessory. Persisted
-    /// here; the activation-policy side effect is applied by callers via
+    /// When the app shows its Dock icon, and otherwise runs as a menu-bar accessory.
+    /// Persisted here; the activation-policy side effect is applied by callers via
     /// `DockIconPolicy` (see that type for why it isn't applied from the setter).
-    @Published private(set) var hideDockIcon: Bool = false
+    @Published private(set) var dockIconMode: DockIconMode = .always
     @Published var installedTerminals: [TerminalApp] = [.terminal]
     /// The DNS domain Orchard gives new containers by default. An Orchard preference
     /// because the `container` CLI no longer has a way to write `dns.domain` (#116); nil
@@ -55,9 +55,6 @@ final class SettingsStore: ObservableObject {
     /// `sh` rather than a login shell: it is the one shell a minimal image is likely to
     /// have, which is what makes it a safe default rather than a good one.
     static let defaultContainerShell = "sh"
-    /// Static so the app can read the launch policy straight from defaults before any
-    /// services are built.
-    static let hideDockIconDefaultsKey = "OrchardHideDockIcon"
 
     var containerBinaryPath: String {
         let path = customBinaryPath ?? defaultBinaryPath
@@ -77,13 +74,15 @@ final class SettingsStore: ObservableObject {
         loadPreferredTerminal()
         loadContainerShell()
         loadModelEndpoints()
-        hideDockIcon = defaults.bool(forKey: Self.hideDockIconDefaultsKey)
+        dockIconMode = DockIconMode.stored(in: defaults)
         defaultDNSDomain = defaults.string(forKey: defaultDNSDomainKey).flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    func setHideDockIcon(_ hidden: Bool) {
-        hideDockIcon = hidden
-        defaults.set(hidden, forKey: Self.hideDockIconDefaultsKey)
+    func setDockIconMode(_ mode: DockIconMode) {
+        dockIconMode = mode
+        defaults.set(mode.rawValue, forKey: DockIconMode.defaultsKey)
+        // The mode now speaks for itself, so the old toggle can't be read back over it.
+        defaults.removeObject(forKey: DockIconMode.legacyHiddenDefaultsKey)
     }
 
     private func loadCustomBinaryPath() {
