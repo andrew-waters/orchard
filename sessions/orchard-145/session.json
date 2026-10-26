@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "145-detect-missing-containers-dependency-and",
+  "issue" : "andrew-waters/orchard#145",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-26T09:25:20Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Detect missing containers dependency and offer to install it",
+  "url" : "https://github.com/andrew-waters/orchard/issues/145"
+}
