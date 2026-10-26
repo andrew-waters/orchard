@@ -217,12 +217,13 @@ struct ContainersListView: View {
         }()
         let multiple = targetIds.count > 1
         let targetContainers = containerListService.containers.filter { targetIds.contains($0.configuration.id) }
-        let anyRunning = targetContainers.contains { $0.status.lowercased() == "running" }
+        let runningContainers = targetContainers.filter { $0.status.lowercased() == "running" }
+        let anyRunning = !runningContainers.isEmpty
         let anyStopped = targetContainers.contains { $0.status.lowercased() != "running" }
 
         if anyRunning {
             Button(multiple ? "Stop \(targetIds.count) Containers" : "Stop Container") {
-                OwnedSandboxConfirmation.run(.stop, containers: targetContainers, pending: $pendingOwnedConfirmation) {
+                OwnedSandboxConfirmation.run(.stop, containers: runningContainers, pending: $pendingOwnedConfirmation) {
                     Task {
                         for id in targetIds {
                             await containerListService.stopContainer(id)
@@ -231,7 +232,7 @@ struct ContainersListView: View {
                 }
             }
             Button(multiple ? "Force Stop \(targetIds.count) Containers" : "Force Stop", role: .destructive) {
-                OwnedSandboxConfirmation.run(.forceStop, containers: targetContainers, pending: $pendingOwnedConfirmation) {
+                OwnedSandboxConfirmation.run(.forceStop, containers: runningContainers, pending: $pendingOwnedConfirmation) {
                     Task {
                         for id in targetIds {
                             await containerListService.forceStopContainer(id)
@@ -241,9 +242,7 @@ struct ContainersListView: View {
             }
             // Only running containers can be trimmed, so a mixed selection reclaims
             // just the running ones.
-            let runningIds = targetContainers
-                .filter { $0.status.lowercased() == "running" }
-                .map { $0.configuration.id }
+            let runningIds = runningContainers.map { $0.configuration.id }
             Button(runningIds.count > 1 ? "Reclaim Disk Space on \(runningIds.count) Containers" : "Reclaim Disk Space") {
                 Task {
                     await containerListService.cleanContainers(runningIds)

@@ -61,10 +61,10 @@ Any app can make a sandbox Orchard shows by labelling the container:
 |---|---|
 | `com.orchard.sandbox=true` | A sandbox: an isolated workload. The label alone is enough. |
 | `com.orchard.sandbox.owner` | The app that made it and manages its lifecycle, such as `dev.andon.gannin`. Orchard stamps `dev.andon.orchard`; absent also means Orchard's own. |
-| `com.orchard.sandbox.network` | `nat`, `host-only` or `allowlist`. A container seen on a host-only network shows as host-only whatever the label says. |
+| `com.orchard.sandbox.network` | `nat`, `host-only` or `allowlist`. What Orchard sees of the network wins: a container on a host-only network shows as host-only, and a `host-only` label on a network with internet access shows as NAT. The label decides alone only when Orchard doesn't know the network. |
 | `com.orchard.model.endpoint` | Optional: the model endpoint it's wired to. |
 
-A sandbox another app manages, such as a Gannin session, is badged with that app, and Orchard asks before stopping or removing it from anywhere in the app. Containers with `OPENAI_BASE_URL`, `OLLAMA_HOST` or `ANTHROPIC_BASE_URL` in their environment are still detected as sandboxes.
+A sandbox another app manages, such as a Gannin session, is badged with that app, and Orchard asks before stopping, removing or editing it (an edit recreates the container) from anywhere in the app. Containers with `OPENAI_BASE_URL`, `OLLAMA_HOST` or `ANTHROPIC_BASE_URL` in their environment are still detected as sandboxes.
 
 See the [Local AI guide](https://orchard.andon.dev/ai.html) for a full walkthrough and a runnable quick start.
 

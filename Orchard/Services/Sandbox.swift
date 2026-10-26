@@ -44,13 +44,19 @@ enum SandboxMarker {
         return owner
     }
 
-    /// How the sandbox's network is contained. A container seen on a host-only network is
-    /// host-only whatever its label says, since that's observed rather than claimed;
-    /// otherwise the label's mode, and NAT when there is no label (or one this build
-    /// doesn't know).
-    static func networkMode(labels: [String: String], onHostOnlyNetwork: Bool) -> SandboxNetworkMode {
-        if onHostOnlyNetwork { return .hostOnly }
-        return labels[networkLabelKey].flatMap(SandboxNetworkMode.init(label:)) ?? .nat
+    /// How the sandbox's network is contained. What Orchard sees of the container's network
+    /// beats what the label claims: on a host-only network it's host-only whatever the label
+    /// says, and on a network with egress a `host-only` label isn't believed (an allow list
+    /// can't be seen from here, so that claim stands). Only when the network is unknown,
+    /// because it isn't named or isn't in the list (or the list hasn't loaded), does the
+    /// label decide alone. NAT when there's no label, or one this build doesn't know.
+    static func networkMode(labels: [String: String], observed: SandboxNetworkObservation) -> SandboxNetworkMode {
+        let claimed = labels[networkLabelKey].flatMap(SandboxNetworkMode.init(label:))
+        switch observed {
+        case .hostOnly: return .hostOnly
+        case .egress: return claimed == .allowlist ? .allowlist : .nat
+        case .unknown: return claimed ?? .nat
+        }
     }
 
     /// The model endpoint a workload targets - from its label first, else its env. nil when
@@ -94,6 +100,16 @@ enum SandboxMarker {
         }
         return nil
     }
+}
+
+/// What Orchard can see of a container's network.
+enum SandboxNetworkObservation: Equatable {
+    /// On a host-only network: no internet egress.
+    case hostOnly
+    /// On a network with internet egress.
+    case egress
+    /// No network named, or one Orchard doesn't have in its list.
+    case unknown
 }
 
 /// How a sandbox's network is contained, as the `com.orchard.sandbox.network` label says it.
@@ -230,8 +246,8 @@ struct Sandbox: Identifiable, Equatable {
     var isIsolated: Bool { networkMode == .hostOnly }
 
     /// Build a sandbox from a container if it shows any sandbox signal, else nil.
-    /// `hostOnlyNetworks` is the set of network names with no internet egress.
-    static func from(container: Container, hostOnlyNetworks: Set<String>) -> Sandbox? {
+    /// `networks` maps each known network's name to whether it's host-only (no egress).
+    static func from(container: Container, networks: [String: Bool]) -> Sandbox? {
         let labels = container.configuration.labels
         let environment = container.configuration.initProcess.environment
         let endpoint = SandboxMarker.modelEndpoint(labels: labels, environment: environment)
@@ -248,6 +264,12 @@ struct Sandbox: Identifiable, Equatable {
         }
 
         let networkName = container.attachedNetworkName
+        let observed: SandboxNetworkObservation
+        switch networkName.flatMap({ networks[$0] }) {
+        case true?: observed = .hostOnly
+        case false?: observed = .egress
+        case nil: observed = .unknown
+        }
         return Sandbox(
             id: container.configuration.id,
             name: container.configuration.id,
@@ -256,10 +278,7 @@ struct Sandbox: Identifiable, Equatable {
             modelEndpoint: endpoint,
             chatAPI: endpoint == nil ? nil : SandboxMarker.chatAPIStyle(labels: labels, environment: environment),
             isRunning: container.status.lowercased() == "running",
-            networkMode: SandboxMarker.networkMode(
-                labels: labels,
-                onHostOnlyNetwork: networkName.map(hostOnlyNetworks.contains) ?? false
-            ),
+            networkMode: SandboxMarker.networkMode(labels: labels, observed: observed),
             networkName: networkName,
             mounts: container.configuration.mounts.map(SandboxMount.init),
             cpus: container.configuration.resources.cpus,
@@ -271,8 +290,8 @@ struct Sandbox: Identifiable, Equatable {
 /// Derive the current sandboxes from the container list, enriched with network isolation.
 /// Shared by the Sandboxes view and the sidebar count so they never disagree.
 func detectSandboxes(containers: [Container], networks: [ContainerNetwork]) -> [Sandbox] {
-    let hostOnly = Set(networks.filter { $0.isHostOnly }.map { $0.id })
-    return containers.compactMap { Sandbox.from(container: $0, hostOnlyNetworks: hostOnly) }
+    let isHostOnly = Dictionary(networks.map { ($0.id, $0.isHostOnly) }, uniquingKeysWith: { first, _ in first })
+    return containers.compactMap { Sandbox.from(container: $0, networks: isHostOnly) }
 }
 
 extension Container {
@@ -315,20 +334,26 @@ struct OwnedSandboxConfirmation: Identifiable {
         case stop
         case forceStop
         case remove
+        /// Edit Configuration, which deletes the container and creates it again.
+        case edit
 
         var title: String {
             switch self {
             case .stop: return "Stop"
             case .forceStop: return "Force Stop"
             case .remove: return "Remove"
+            case .edit: return "Edit"
             }
         }
 
-        fileprivate var gerund: String {
+        /// The start of the warning's last sentence, which goes on "can interrupt work in
+        /// progress".
+        fileprivate func doing(_ pronoun: String) -> String {
             switch self {
-            case .stop: return "Stopping"
-            case .forceStop: return "Force stopping"
-            case .remove: return "Removing"
+            case .stop: return "Stopping \(pronoun) here"
+            case .forceStop: return "Force stopping \(pronoun) here"
+            case .remove: return "Removing \(pronoun) here"
+            case .edit: return "Editing \(pronoun) here deletes and recreates \(pronoun), which"
             }
         }
     }
@@ -376,7 +401,7 @@ struct OwnedSandboxConfirmation: Identifiable {
         let names = owned.map { "\($0.id) (\($0.owner.badge))" }.joined(separator: "\n")
         let pronoun = single ? "it" : "them"
         let message = "\(names)\n\n\(ownerNames) \(manages) \(single ? "this sandbox" : "these sandboxes"). "
-            + "\(action.gerund) \(pronoun) here can interrupt work in progress, and \(ownerNames) may not expect it."
+            + "\(action.doing(pronoun)) can interrupt work in progress, and \(ownerNames) may not expect it."
         return (title, message)
     }
 }

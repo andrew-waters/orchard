@@ -301,7 +301,11 @@ struct ContainerDetailHeader: View {
                     }
 
                     Button("Edit Configuration") {
-                        showEditConfiguration = true
+                        // Saving an edit deletes the container and creates it again, so
+                        // another app's sandbox warns as a remove would.
+                        OwnedSandboxConfirmation.run(.edit, containers: [container], pending: $pendingOwnedConfirmation) {
+                            showEditConfiguration = true
+                        }
                     }
                     .buttonStyle(BorderedButtonStyle())
                 }

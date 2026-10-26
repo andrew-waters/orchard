@@ -46,7 +46,7 @@ func stampedLabels() {
     // Round-trips through detection.
     #expect(SandboxMarker.hasSandboxLabel(labels))
     #expect(SandboxMarker.owner(labels: labels) == nil)
-    #expect(SandboxMarker.networkMode(labels: labels, onHostOnlyNetwork: false) == .hostOnly)
+    #expect(SandboxMarker.networkMode(labels: labels, observed: .unknown) == .hostOnly)
     #expect(SandboxMarker.modelEndpoint(labels: labels, environment: []) == "http://192.168.128.1:8080/v1")
 }
 
@@ -68,21 +68,46 @@ func sandboxOwnerNames() {
     #expect(other.badge == "com.example.agent")
 }
 
-@Test("Network mode: from the label, NAT without one, and a host-only network wins")
-func sandboxNetworkMode() {
+@Test("Network mode: the label decides only when the network is unknown")
+func sandboxNetworkModeUnknown() {
     let key = SandboxMarker.networkLabelKey
-    #expect(SandboxMarker.networkMode(labels: [key: "nat"], onHostOnlyNetwork: false) == .nat)
-    #expect(SandboxMarker.networkMode(labels: [key: "host-only"], onHostOnlyNetwork: false) == .hostOnly)
-    #expect(SandboxMarker.networkMode(labels: [key: "allowlist"], onHostOnlyNetwork: false) == .allowlist)
-    #expect(SandboxMarker.networkMode(labels: [:], onHostOnlyNetwork: false) == .nat)
-    #expect(SandboxMarker.networkMode(labels: [key: "bridged"], onHostOnlyNetwork: false) == .nat)
-    #expect(SandboxMarker.networkMode(labels: [key: "nat"], onHostOnlyNetwork: true) == .hostOnly)
+    #expect(SandboxMarker.networkMode(labels: [key: "nat"], observed: .unknown) == .nat)
+    #expect(SandboxMarker.networkMode(labels: [key: "host-only"], observed: .unknown) == .hostOnly)
+    #expect(SandboxMarker.networkMode(labels: [key: "allowlist"], observed: .unknown) == .allowlist)
+    #expect(SandboxMarker.networkMode(labels: [:], observed: .unknown) == .nat)
+    #expect(SandboxMarker.networkMode(labels: [key: "bridged"], observed: .unknown) == .nat)
+}
+
+@Test("Network mode: what Orchard sees beats the label")
+func sandboxNetworkModeObserved() {
+    let key = SandboxMarker.networkLabelKey
+    // A host-only network is host-only whatever the label says.
+    #expect(SandboxMarker.networkMode(labels: [key: "nat"], observed: .hostOnly) == .hostOnly)
+    #expect(SandboxMarker.networkMode(labels: [:], observed: .hostOnly) == .hostOnly)
+    // A host-only claim on a network with egress isn't believed.
+    #expect(SandboxMarker.networkMode(labels: [key: "host-only"], observed: .egress) == .nat)
+    // An allow list can't be seen from the network, so that claim stands.
+    #expect(SandboxMarker.networkMode(labels: [key: "allowlist"], observed: .egress) == .allowlist)
+    #expect(SandboxMarker.networkMode(labels: [:], observed: .egress) == .nat)
+}
+
+@Test("Sandbox: a host-only label on a known NAT network isn't shown as isolated")
+func sandboxFalseIsolationClaim() throws {
+    let labels = [SandboxMarker.sandboxLabelKey: "true", SandboxMarker.networkLabelKey: "host-only"]
+    let onNAT = try makeContainer(id: "claims", status: "stopped", labels: labels, networkName: "default")
+    let sandbox = try #require(Sandbox.from(container: onNAT, networks: ["default": false]))
+    #expect(sandbox.networkMode == .nat)
+    #expect(!sandbox.isIsolated)
+
+    // Networks not loaded yet: the label is all there is to go on.
+    let unknown = try #require(Sandbox.from(container: onNAT, networks: [:]))
+    #expect(unknown.networkMode == .hostOnly)
 }
 
 @Test("Sandbox: the label alone makes one, with no endpoint and no tester")
 func sandboxLabelOnly() throws {
     let container = try makeContainer(id: "plain", status: "running", labels: [SandboxMarker.sandboxLabelKey: "true"])
-    let sandbox = try #require(Sandbox.from(container: container, hostOnlyNetworks: []))
+    let sandbox = try #require(Sandbox.from(container: container, networks: [:]))
     #expect(sandbox.source == .orchard)
     #expect(sandbox.modelEndpoint == nil)
     #expect(sandbox.chatAPI == nil)
@@ -96,7 +121,7 @@ func sandboxLabelWithEndpoint() throws {
         id: "wired", status: "running",
         labels: SandboxMarker.labels(endpoint: "http://192.168.64.1:8080/v1", networkMode: .nat)
     )
-    let sandbox = try #require(Sandbox.from(container: container, hostOnlyNetworks: []))
+    let sandbox = try #require(Sandbox.from(container: container, networks: [:]))
     #expect(sandbox.source == .orchard)
     #expect(sandbox.modelEndpoint == "http://192.168.64.1:8080/v1")
     #expect(sandbox.chatAPI == .openAI)
@@ -105,13 +130,13 @@ func sandboxLabelWithEndpoint() throws {
 @Test("Sandbox: a model env var alone is detected; nothing at all is not a sandbox")
 func sandboxEnvironmentOnly() throws {
     let detected = try makeContainer(id: "agent", status: "running", environment: ["OLLAMA_HOST=http://g:11434"])
-    let sandbox = try #require(Sandbox.from(container: detected, hostOnlyNetworks: []))
+    let sandbox = try #require(Sandbox.from(container: detected, networks: [:]))
     #expect(sandbox.source == .detected)
     #expect(sandbox.chatAPI == .ollama)
     #expect(detected.sandboxOwner == nil)
 
     let plain = try makeContainer(id: "web", status: "running")
-    #expect(Sandbox.from(container: plain, hostOnlyNetworks: []) == nil)
+    #expect(Sandbox.from(container: plain, networks: [:]) == nil)
 }
 
 @Test("Sandbox: another app's owner makes it owned, and only with the sandbox label")
@@ -121,7 +146,7 @@ func sandboxOwned() throws {
         SandboxMarker.ownerLabelKey: "dev.andon.gannin",
         SandboxMarker.networkLabelKey: "nat",
     ])
-    let sandbox = try #require(Sandbox.from(container: owned, hostOnlyNetworks: []))
+    let sandbox = try #require(Sandbox.from(container: owned, networks: [:]))
     #expect(sandbox.source == .owned(SandboxOwner(id: "dev.andon.gannin")))
     #expect(sandbox.owner?.name == "Gannin")
     #expect(owned.sandboxOwner == SandboxOwner(id: "dev.andon.gannin"))
@@ -145,7 +170,7 @@ func sandboxContainment() throws {
         cpus: 4, memoryInBytes: 8 * 1024 * 1024 * 1024,
         mountsJSON: mounts, networkName: "isolated"
     )
-    let sandbox = try #require(Sandbox.from(container: container, hostOnlyNetworks: ["isolated"]))
+    let sandbox = try #require(Sandbox.from(container: container, networks: ["isolated": true]))
     #expect(sandbox.mounts == [
         SandboxMount(source: "/Users/me/harness", destination: "/harness", access: .readOnly),
         SandboxMount(source: "/Users/me/work", destination: "/work", access: .readWrite),
@@ -197,4 +222,15 @@ func ownedConfirmationBulk() throws {
     ])
     let twoOwners = try #require(OwnedSandboxConfirmation.make(.forceStop, containers: [first, other], perform: {}))
     #expect(twoOwners.title == "Force Stop 2 sandboxes Gannin and com.example.agent manage?")
+}
+
+@Test("Owned confirmation: editing says it replaces the container")
+func ownedConfirmationEdit() throws {
+    let session = try makeContainer(id: "gannin-122", status: "stopped", labels: [
+        SandboxMarker.sandboxLabelKey: "true", SandboxMarker.ownerLabelKey: "dev.andon.gannin",
+    ])
+    let confirmation = try #require(OwnedSandboxConfirmation.make(.edit, containers: [session], perform: {}))
+    #expect(confirmation.title == "Edit a sandbox Gannin manages?")
+    #expect(confirmation.confirmTitle == "Edit")
+    #expect(confirmation.message.contains("Editing it here deletes and recreates it"))
 }

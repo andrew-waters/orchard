@@ -30,7 +30,7 @@ agreed_at: 2026-10-26
 - `orchardOwner = "dev.andon.orchard"`, the identifier Orchard already uses for its log subsystem, URL scheme and keychain service. The app's bundle ID is left as it is.
 - `owner(labels:) -> String?`: the owner label, nil when absent, empty or `dev.andon.orchard`, so Orchard's own sandboxes, old (absent) and new (stamped), read the same.
 - `SandboxNetworkMode` (`nat`, `hostOnly`, `allowlist`) with `init?(label:)` for `nat` / `host-only` / `allowlist`.
-- `networkMode(labels:onHostOnlyNetwork:)`: a container observed on a host-only network is `hostOnly` whatever the label says, since that is a fact rather than a claim; otherwise the label's mode; otherwise `nat`.
+- `networkMode(labels:observed:)`, where what Orchard sees of the network is host-only, egress or unknown (not named, or not in the list yet). Host-only observed is `hostOnly` whatever the label says; on a network with egress a `host-only` label is not believed (`nat`), while `allowlist` stands since an allow list can't be seen from the network; only when the network is unknown does the label decide alone. `nat` with no label.
 - `labels(endpoint:networkMode:)` stamps the marker, the owner `dev.andon.orchard`, the endpoint and the network mode. The New Sandbox sheet passes `hostOnly` when the chosen network is host-only, else `nat`.
 - `chatAPIStyle` and `modelEndpoint` unchanged: the env heuristic still finds sandboxes made elsewhere.
 
@@ -53,7 +53,7 @@ agreed_at: 2026-10-26
 
 - A shared `OwnedSandboxConfirmation` (pure): given the action and the target containers, nil when none is a sandbox another app manages, else a title and message naming them and their owner(s), such as "Stop a sandbox Gannin manages?" / "Gannin manages this sandbox. Stopping it here can interrupt work in progress, and Gannin may not expect it."
 - `ownedSandboxConfirmation(_:)`, a view modifier that presents that confirmation and runs the action only on confirm; with no owned sandbox among the targets the action runs straight away, so nothing changes for ordinary containers.
-- Applied at every stop, force stop and remove entry point: container detail header (Stop, Delete), list context menu (single and multi-select), the group "Stop All" menu, multi-select cards, the Cmd+K palette's stop action, the menu bar dashboard (Stop, Remove) and the Sandbox detail (Stop, Delete). A bulk action warns once for the whole set.
+- Applied at every stop, force stop and remove entry point: container detail header (Stop, Delete, and Edit Configuration, which recreates the container), list context menu (single and multi-select), the group "Stop All" menu, multi-select cards, the Cmd+K palette's stop action, the menu bar dashboard (Stop, Remove, asked inline in the panel rather than in an alert) and the Sandbox detail (Stop, Delete). A bulk action warns once for the whole set.
 - Compose's own teardown and Orchard-internal recreate paths are not user requests on a sandbox and are left alone.
 
 ### Container views
@@ -89,4 +89,5 @@ None.
 
 - Where does the warning apply? **Every user entry point that stops, force stops or removes a container, bulk and menu bar included.**
 - Does Orchard stamp an owner on its own sandboxes? **Yes, `dev.andon.orchard`; absent still counts as Orchard's for sandboxes made before this. The bundle ID is not renamed.**
-- Label and observed network disagree? **An observed host-only network wins; otherwise the label; otherwise NAT.**
+- Label and observed network disagree? **What Orchard sees wins: host-only observed is host-only, and a host-only claim on a network with egress is NAT. The label decides alone only when the network is unknown.**
+- Edit Configuration recreates the container. **It warns like a remove for another app's sandbox.**

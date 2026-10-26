@@ -119,6 +119,11 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Asked inline rather than in an alert: an alert from a menu bar panel can fail
+            // to show, or close the panel when it takes focus.
+            if let pending = pendingOwnedConfirmation {
+                ownedConfirmationCard(pending)
+            }
             card {
                 HStack(spacing: 16) {
                     ResourceRing(title: "CPU", center: cpuCenter, segments: cpuSegments)
@@ -236,7 +241,6 @@ struct MenuBarView: View {
         }
         .padding(12)
         .frame(width: 320)
-        .ownedSandboxConfirmation($pendingOwnedConfirmation)
         .task {
             // Register sampling/refresh synchronously at the start of the task — before any
             // await — so a panel that's closed before these loads finish can't have its
@@ -343,6 +347,29 @@ struct MenuBarView: View {
             Button("Remove") {
                 OwnedSandboxConfirmation.run(.remove, containers: containers(for: row), pending: $pendingOwnedConfirmation) {
                     Task { @MainActor in await containerListService.removeContainer(row.id) }
+                }
+            }
+        }
+    }
+
+    private func ownedConfirmationCard(_ pending: OwnedSandboxConfirmation) -> some View {
+        card {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(pending.title, systemImage: "exclamationmark.shield")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Text(pending.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { pendingOwnedConfirmation = nil }
+                        .keyboardShortcut(.cancelAction)
+                    Button(pending.confirmTitle, role: .destructive) {
+                        pendingOwnedConfirmation = nil
+                        pending.perform()
+                    }
                 }
             }
         }
