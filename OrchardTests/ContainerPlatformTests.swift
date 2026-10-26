@@ -20,6 +20,21 @@ func resolveRequestedMissing() {
     #expect(error?.message.contains("linux/arm64") == true)
 }
 
+@Test("Platform: a request is normalised before it is compared, as upstream's is")
+func resolveNormalisesRequest() throws {
+    #expect(try ContainerPlatform.resolve(
+        requested: "linux/arm64/v8", candidates: ["linux/arm64", "linux/amd64"], host: "linux/arm64"
+    ) == "linux/arm64")
+    // With nothing to compare against, the alias still comes back normalised, so Rosetta is
+    // decided on amd64 rather than missed for x86_64.
+    let intel = try ContainerPlatform.resolve(requested: "linux/x86_64", candidates: [], host: "linux/arm64")
+    #expect(intel == "linux/amd64")
+    #expect(ContainerPlatform.needsRosetta(intel, hostArchitecture: "arm64"))
+    #expect(throws: ContainerPlatform.ResolutionError.self) {
+        try ContainerPlatform.resolve(requested: "amd64", candidates: [], host: "linux/arm64")
+    }
+}
+
 @Test("Platform: Automatic runs a single-platform image as that platform")
 func resolveSingleCandidate() throws {
     #expect(try ContainerPlatform.resolve(requested: nil, candidates: ["linux/amd64"], host: "linux/arm64") == "linux/amd64")

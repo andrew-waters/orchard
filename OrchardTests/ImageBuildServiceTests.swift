@@ -20,6 +20,18 @@ func buildArguments() {
     ])
 }
 
+@Test("ImageBuildService: a platform replaces --arch, keeping its variant")
+func buildArgumentsPlatform() {
+    let request = ImageBuildService.Request(
+        dockerfile: "/p/Dockerfile", contextDir: "/p", tag: "a", arch: "arm", noCache: false,
+        platform: "linux/arm/v7"
+    )
+    let arguments = ImageBuildService.arguments(for: request)
+    #expect(arguments.contains("--platform"))
+    #expect(arguments[arguments.firstIndex(of: "--platform")! + 1] == "linux/arm/v7")
+    #expect(!arguments.contains("--arch"))
+}
+
 @Test("ImageBuildService: no-cache adds the flag and the context stays last")
 func buildArgumentsNoCache() {
     let request = ImageBuildService.Request(

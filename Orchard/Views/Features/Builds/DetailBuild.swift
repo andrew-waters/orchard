@@ -79,7 +79,7 @@ struct BuildDetailView: View {
                     Text("·")
                     Text(BuildPhaseStyle.durationText(build.duration))
                     Text("·")
-                    Text(build.request.arch == "amd64" ? "linux/amd64" : "linux/arm64")
+                    Text(build.request.platform ?? (build.request.arch == "amd64" ? "linux/amd64" : "linux/arm64"))
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)

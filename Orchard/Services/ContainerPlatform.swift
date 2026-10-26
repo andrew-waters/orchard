@@ -1,3 +1,4 @@
+import ContainerizationOCI
 import Foundation
 
 // MARK: - Choosing the platform a container runs as (#147)
@@ -7,7 +8,7 @@ import Foundation
 /// the form every platform string in Orchard takes.
 let hostContainerPlatform = "linux/\(hostContainerArchitecture)"
 
-extension Platform {
+extension Orchard.Platform {
     /// `os/arch`, or `os/arch/variant`, in the form `ContainerizationOCI.Platform.description`
     /// uses: arm64's `v8` is its only variant and is left out, so a container's platform
     /// compares equal to the one an image lists.
@@ -27,6 +28,13 @@ enum ContainerPlatform {
     }
 
     /// The architecture part of `os/arch[/variant]`, or nil when there is none.
+    /// `platform` written the way the runtime writes one, which is how image platforms come
+    /// back: `linux/arm64/v8` is `linux/arm64`, `linux/x86_64` is `linux/amd64`. Nil when it is
+    /// not a platform at all.
+    static func normalized(_ platform: String) -> String? {
+        (try? ContainerizationOCI.Platform(from: platform))?.description
+    }
+
     static func architecture(of platform: String) -> String? {
         let parts = platform.split(separator: "/")
         return parts.count >= 2 ? String(parts[1]) : nil
@@ -52,7 +60,16 @@ enum ContainerPlatform {
         candidates: [String],
         host: String = hostContainerPlatform
     ) throws -> String {
-        let requested = requested.flatMap { $0.isEmpty ? nil : $0 }
+        // Compared as parsed platforms, as upstream does, so an alias or arm64's redundant v8
+        // in a compose file matches what the image lists, and Rosetta is decided on the
+        // normalised architecture.
+        var requested = requested.flatMap { $0.isEmpty ? nil : $0 }
+        if let raw = requested {
+            guard let normalized = normalized(raw) else {
+                throw ResolutionError(message: "\(raw) is not a platform. Write it as os/arch, such as linux/amd64.")
+            }
+            requested = normalized
+        }
         guard !candidates.isEmpty else { return requested ?? host }
 
         if let requested {

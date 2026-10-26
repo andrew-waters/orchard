@@ -514,12 +514,14 @@ final class ComposeService: ObservableObject {
                 dockerfile: dockerfile,
                 contextDir: operation.context,
                 tag: operation.imageReference,
-                // The service's architecture when its `platform:` names one, so a
-                // `platform: linux/amd64` service gets an image it can run (#147).
+                // The service's `platform:` when it names one, whole so a variant survives,
+                // so a `platform: linux/amd64` service gets an image it can run (#147). The
+                // architecture is kept in `arch` too, for the Builds tab.
                 arch: operation.platform.flatMap(ContainerPlatform.architecture(of:)) ?? "arm64",
                 noCache: false,
                 buildArgs: operation.arguments.isEmpty ? nil : operation.arguments,
-                target: operation.target
+                target: operation.target,
+                platform: operation.platform
             )
         )
         await buildService.wait(for: id)

@@ -323,19 +323,20 @@ struct ContainerConfigForm: View {
     /// Reads what the image offers. Debounced, since in the Run sheet's picker mode this runs
     /// on every keystroke of the reference.
     private func loadImagePlatforms() async {
+        // What the previous image offered says nothing about this one, and must not drive the
+        // Rosetta notice while the new answer is on its way.
+        imagePlatforms = nil
+        isLoadingPlatforms = false
         let reference = resolveRunImageReference(
             config.image, localReferences: imageService.images.map(\.reference)
         )
-        guard !reference.isEmpty else {
-            imagePlatforms = nil
-            return
-        }
+        guard !reference.isEmpty else { return }
         try? await Task.sleep(for: .milliseconds(400))
         guard !Task.isCancelled else { return }
         isLoadingPlatforms = true
+        defer { isLoadingPlatforms = false }
         let platforms = await imageService.platforms(for: reference)
         guard !Task.isCancelled else { return }
-        isLoadingPlatforms = false
         imagePlatforms = platforms
         // A choice the newly picked image does not offer goes back to Automatic. An edit keeps
         // the container's own platform: the image cannot change there.
