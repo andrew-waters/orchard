@@ -39,10 +39,14 @@ struct ClusterDetailView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         // A stranded cluster's note already offers Recreate, so it stands in
                         // for the stopped note rather than repeat it.
-                        if isStranded(cluster) {
+                        let stranded = isStranded(cluster)
+                        if stranded {
                             strandedBanner
-                        } else if !cluster.isRunning {
-                            stoppedBanner
+                        }
+                        if !cluster.isRunning {
+                            if !stranded {
+                                stoppedBanner
+                            }
                         } else if awaitingCNI {
                             awaitingCNIBanner
                         }
