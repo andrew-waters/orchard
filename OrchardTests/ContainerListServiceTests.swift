@@ -459,6 +459,7 @@ func loadContainersSpinnerFollowsNewestRefresh() async throws {
 @Test("recreateContainer: success force-deletes the old container and runs the new config")
 func recreateContainerSuccess() async {
     let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
     let (service, alert) = makeListService(backend)
 
     await service.recreateContainer(
@@ -474,6 +475,7 @@ func recreateContainerSuccess() async {
 @Test("recreateContainer: a delete failure alerts and does not recreate")
 func recreateContainerFailureAlerts() async {
     let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
     backend.deleteContainerError = NotConfigured()
     let (service, alert) = makeListService(backend)
 
@@ -497,6 +499,21 @@ func recreateContainerRefusesMissingPlatform() async {
     await service.recreateContainer(oldContainerId: "web", newConfig: config)
 
     #expect(backend.deletedContainers.isEmpty)   // the old container is kept
+    #expect(backend.createdSpecs.isEmpty)
+    #expect(alert.current != nil)
+}
+
+@MainActor
+@Test("recreateContainer: platforms that cannot be read keep the old container")
+func recreateContainerKeepsWhenPlatformsUnreadable() async {
+    let backend = MockContainerBackend()   // imagePlatforms throws
+    let (service, alert) = makeListService(backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.platform = "linux/arm64"
+
+    await service.recreateContainer(oldContainerId: "web", newConfig: config)
+
+    #expect(backend.deletedContainers.isEmpty)
     #expect(backend.createdSpecs.isEmpty)
     #expect(alert.current != nil)
 }

@@ -457,10 +457,20 @@ final class ContainerListService: ObservableObject {
 
     /// Why a recreate as `config` would fail at the create, found before the old container is
     /// deleted, since nothing brings it back afterwards: a platform the image no longer offers,
-    /// or one that needs a Rosetta this Mac lacks. Nil when nothing is known to be wrong,
-    /// including when the image's platforms cannot be read.
+    /// or one that needs a Rosetta this Mac lacks. Platforms that cannot be read refuse too:
+    /// unread, any platform would pass, and the delete would go ahead on a guess. That mostly
+    /// means the image has gone from the store on a runtime older than 1.6.1, where pulling it
+    /// again lets the recreate through.
     private func recreateRefusal(for config: ContainerRunConfig) async -> Error? {
-        let candidates = (try? await backend.imagePlatforms(reference: config.image)) ?? []
+        let candidates: [String]
+        do {
+            candidates = try await backend.imagePlatforms(reference: config.image)
+        } catch {
+            return OrchardError.generic(
+                "Orchard could not read which platforms \(config.image) offers "
+                    + "(\(error.localizedDescription)), so the container was kept. Pull the image and try again."
+            )
+        }
         do {
             let platform = try ContainerPlatform.resolve(requested: config.platform, candidates: candidates)
             return ContainerPlatform.rosettaRefusal(for: platform)
