@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "155-offer-to-update-the-compose-plugin-when",
+  "issue" : "andrew-waters/orchard#155",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-26T18:43:50Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Offer to update the compose plugin when it is behind",
+  "url" : "https://github.com/andrew-waters/orchard/issues/155"
+}
