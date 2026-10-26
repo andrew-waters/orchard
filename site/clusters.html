@@ -110,7 +110,7 @@
 
         <div class="callout warn">
           <h4>Clusters made before container 1.6.1</h4>
-          <p>Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, and the renamed plugin only sees nodes it labelled itself. A cluster made on 1.6.0 or earlier still shows in Orchard after you upgrade, with a note saying so, but <strong>Load Image</strong> and <strong>Write Kubeconfig</strong> are off for it because the CLI can't find it. <strong>Recreate</strong> deletes it and creates it again under the new plugin with the same settings. <strong>Delete</strong> removes its node containers directly, which leaves the old plugin's files under <code>plugins/k8s</code> in container's data directory and the cluster's context in your kubeconfig.</p>
+          <p>Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, and the renamed plugin only sees nodes it labelled itself. A cluster made on 1.6.0 or earlier still shows in Orchard after you upgrade, with a note saying so, but <strong>Load Image</strong> and <strong>Write Kubeconfig</strong> are off for it because the CLI can't find it. <strong>Recreate</strong> deletes it and creates it again under the new plugin with the same settings. <strong>Delete</strong> removes its node containers directly, which leaves the cluster's context in your kubeconfig.</p>
         </div>
 
         <div class="callout info">
