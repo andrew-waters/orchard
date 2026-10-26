@@ -27,7 +27,6 @@ enum ContainerPlatform {
         var errorDescription: String? { message }
     }
 
-    /// The architecture part of `os/arch[/variant]`, or nil when there is none.
     /// `platform` written the way the runtime writes one, which is how image platforms come
     /// back: `linux/arm64/v8` is `linux/arm64`, `linux/x86_64` is `linux/amd64`. Nil when it is
     /// not a platform at all.
@@ -35,6 +34,7 @@ enum ContainerPlatform {
         (try? ContainerizationOCI.Platform(from: platform))?.description
     }
 
+    /// The architecture part of `os/arch[/variant]`, or nil when there is none.
     static func architecture(of platform: String) -> String? {
         let parts = platform.split(separator: "/")
         return parts.count >= 2 ? String(parts[1]) : nil
