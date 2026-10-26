@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "145-detect-missing-containers-dependency-and",
+  "finishedAt" : "2026-10-26T10:21:14Z",
   "issue" : "andrew-waters/orchard#145",
   "pullRequests" : [
     "https://github.com/andrew-waters/orchard/pull/151"
