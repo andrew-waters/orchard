@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "122-a-sandbox-is-an-isolated-workload-with",
+  "issue" : "andrew-waters/orchard#122",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-26T21:45:11Z",
+  "startedBy" : "andrew-waters",
+  "title" : "A sandbox is an isolated workload, with or without a model",
+  "url" : "https://github.com/andrew-waters/orchard/issues/122"
+}
