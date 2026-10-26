@@ -512,7 +512,7 @@ final class ClusterService: ObservableObject {
     func delete(name: String) async {
         busyClusters.insert(name)
         defer { busyClusters.remove(name) }
-        if await runClusterCommand(deleteArguments(name), failureVerb: "delete cluster") {
+        if await runClusterCommand(await deleteArguments(name), failureVerb: "delete cluster") {
             setRememberedOptions(nil, for: name)
             cniGenerations[name, default: 0] += 1
             awaitingCNI.remove(name)
@@ -529,7 +529,7 @@ final class ClusterService: ObservableObject {
         busyClusters.insert(name)
         defer { busyClusters.remove(name) }
         let deleted = await runClusterCommand(
-            deleteArguments(name), failureVerb: "delete cluster", reloadOnSuccess: false)
+            await deleteArguments(name), failureVerb: "delete cluster", reloadOnSuccess: false)
         guard deleted else { return false }
         return await performCreate(
             name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
@@ -537,8 +537,10 @@ final class ClusterService: ObservableObject {
     }
 
     /// The plugin's delete, or for a stranded cluster a forced delete of each node container,
-    /// since the plugin's delete can't see them. That leaves the old plugin's state behind.
-    private func deleteArguments(_ name: String) -> [String] {
+    /// since the plugin's delete can't see them. The list is refreshed first, as for `create`:
+    /// a cached one missing the cluster would pick the plugin's delete, which refuses it.
+    private func deleteArguments(_ name: String) async -> [String] {
+        await reloadContainers()
         if let cluster = currentClusters().first(where: { $0.name == name }), isStranded(cluster) {
             return ["delete", "--force"] + cluster.nodes.map(\.id)
         }
