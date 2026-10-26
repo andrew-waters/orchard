@@ -166,6 +166,13 @@ final class ComposePluginService: ObservableObject {
     /// Called when the Compose tab is opened rather than polled: it only changes when someone
     /// installs it or an upgrade leaves it behind, and both happen between visits to this tab.
     func refresh() async {
+        // The CLI only names its plugin directories when the plugin is missing, so a working
+        // plugin would leave the /usr/local defaults in place and an update would land where a
+        // Homebrew CLI never looks. Work them out from where the binary really lives instead.
+        let binary = URL(fileURLWithPath: containerBinaryPath()).resolvingSymlinksInPath().path
+        let derived = Self.pluginDirectories(forContainerBinary: binary)
+        if !derived.isEmpty { searchPaths = derived }
+
         let result = try? await commandRunner.run(program: containerBinaryPath(), arguments: ["compose", "--version"])
         if let result, !result.failed {
             let version = result.stdout?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -241,6 +248,22 @@ final class ComposePluginService: ObservableObject {
             let path = String(trimmed.dropFirst(2))
             return path.hasSuffix("/compose") ? path : nil
         }
+    }
+
+    /// The plugin directories a CLI at `binary` searches, in its own order: the same two its
+    /// missing-plugin error lists, under the install's prefix. `binary` should have its
+    /// symlinks resolved, so Homebrew's `/opt/homebrew/bin/container` becomes the keg's
+    /// `/opt/homebrew/Cellar/container/1.6.1/bin/container`. Empty for a path that is not
+    /// `<prefix>/bin/container`, which leaves whatever was known before.
+    nonisolated static func pluginDirectories(forContainerBinary binary: String) -> [String] {
+        let url = URL(fileURLWithPath: binary)
+        let bin = url.deletingLastPathComponent()
+        guard url.lastPathComponent == "container", bin.lastPathComponent == "bin" else { return [] }
+        let libexec = bin.deletingLastPathComponent().appendingPathComponent("libexec")
+        return [
+            libexec.appendingPathComponent("container-plugins/compose").path,
+            libexec.appendingPathComponent("container/plugins/compose").path,
+        ]
     }
 
     /// True when writing `path` needs an administrator: the nearest directory that already
@@ -367,6 +390,16 @@ final class ComposePluginService: ObservableObject {
 
         try? fileManager.removeItem(at: scratch)
         await refresh()
+
+        // Every step can succeed while the CLI goes on running another copy, if the files
+        // landed somewhere it does not look first. Say so rather than ticking everything off
+        // over the old version.
+        if let target = targetVersion.flatMap(ComposePluginVersion.init),
+           let reported = installedVersion,
+           let current = ComposePluginVersion(reported),
+           current != target {
+            state = .failed("Installed \(targetVersion ?? ""), but the container CLI still runs \(reported) from another directory.")
+        }
     }
 
     /// The newest published release, and the asset built for this machine.

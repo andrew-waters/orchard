@@ -52,7 +52,14 @@ struct ComposeProjectsListView: View {
             await composePluginService.refresh()
             await composePluginService.checkForUpdate()
         }
-        .sheet(isPresented: $showingPluginInstaller) {
+        .sheet(isPresented: $showingPluginInstaller, onDismiss: {
+            // A failure is shown in the sheet. Once that is closed, go back to describing the
+            // machine, so the installed version and any offer come back rather than vanishing
+            // until the tab is next opened.
+            if composePluginService.failureMessage != nil {
+                Task { await composePluginService.refresh() }
+            }
+        }) {
             InstallComposePluginSheet(isUpdate: pluginSheetIsUpdate)
         }
         .sheet(item: $composeService.pendingPreview) { preview in

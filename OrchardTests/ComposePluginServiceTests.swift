@@ -63,6 +63,16 @@ func composePluginSearchedDirectories() {
     ])
 }
 
+@Test("Plugin directories: derived from where the CLI really lives, so an update lands where it looks")
+func composePluginDirectoriesFromBinary() {
+    #expect(ComposePluginService.pluginDirectories(forContainerBinary: "/opt/homebrew/Cellar/container/1.6.1/bin/container") == [
+        "/opt/homebrew/Cellar/container/1.6.1/libexec/container-plugins/compose",
+        "/opt/homebrew/Cellar/container/1.6.1/libexec/container/plugins/compose",
+    ])
+    #expect(ComposePluginService.pluginDirectories(forContainerBinary: "/usr/local/bin/container") == ComposePluginService.defaultSearchPaths)
+    #expect(ComposePluginService.pluginDirectories(forContainerBinary: "/Users/me/tools/container").isEmpty)
+}
+
 @Test("Privileges: a directory the user can write needs no prompt; a system one does")
 func composePluginNeedsAdministrator() throws {
     let owned = FileManager.default.temporaryDirectory
