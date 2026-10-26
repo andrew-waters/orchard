@@ -346,9 +346,17 @@ struct ContainerConfigForm: View {
     }
 
     private func updatePlatformError() {
-        if imagePlatforms != nil, config.platform.isEmpty, automaticPlatform == nil {
-            platformError = "The image offers \((imagePlatforms ?? []).joined(separator: ", ")) but not \(hostContainerPlatform). Choose one."
-            return
+        // The create resolves the same way, so a choice it would refuse is reported here
+        // first: Automatic on an image without the host's platform, or an edit keeping a
+        // platform the re-pulled image no longer offers. Recreate deletes the old container
+        // before it creates, so finding out only then would cost the container.
+        if let imagePlatforms {
+            do {
+                _ = try ContainerPlatform.resolve(requested: config.platform, candidates: imagePlatforms)
+            } catch {
+                platformError = error.localizedDescription
+                return
+            }
         }
         guard let platform = effectivePlatform, ContainerPlatform.needsRosetta(platform) else {
             platformError = nil
