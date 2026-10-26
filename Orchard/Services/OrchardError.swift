@@ -32,7 +32,7 @@ enum OrchardError: Error, LocalizedError, Equatable {
         case .binaryNotFound(let searched):
             return "The container binary could not be found. Searched: \(searched.joined(separator: ", "))."
         case .cliFailed(let command, let exitCode, let stderr):
-            let detail = stderr?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = stderr.map(Self.condensedCLIOutput)
             if let detail, !detail.isEmpty {
                 return "\(command) failed: \(detail)"
             }
@@ -66,6 +66,28 @@ enum OrchardError: Error, LocalizedError, Equatable {
 }
 
 extension OrchardError {
+    /// The most CLI output lines a failure alert shows. A SwiftUI alert can't scroll, so a
+    /// longer message runs off the screen and can take the OK button with it.
+    static let maxCLIOutputLines = 10
+
+    /// CLI output trimmed for an alert. The CLI's progress lines ("[1/4] Starting cluster [12s]")
+    /// go to stderr with everything else, one a second, so a slow failure is mostly progress:
+    /// only the last is kept, as it says how far the command got. Of what's left, the last
+    /// `maxCLIOutputLines` are kept, since the error itself comes last.
+    static func condensedCLIOutput(_ output: String) -> String {
+        let lines = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let isProgress = { (line: String) in line.range(of: #"^\[\d+/\d+\]"#, options: .regularExpression) != nil }
+        let lastProgress = lines.lastIndex(where: isProgress)
+        let kept = lines.indices.filter { !isProgress(lines[$0]) || $0 == lastProgress }.map { lines[$0] }
+        guard kept.count > maxCLIOutputLines else { return kept.joined(separator: "\n") }
+        let hidden = kept.count - maxCLIOutputLines
+        return (["(\(hidden) earlier \(hidden == 1 ? "line" : "lines") not shown)"] + kept.suffix(maxCLIOutputLines))
+            .joined(separator: "\n")
+    }
+
     /// Classify a raw error thrown while starting/bootstrapping a container. The runtime
     /// reports these as opaque messages, so this is where the message-string matching is
     /// pinned against the supported container version — one place, unit-tested.
