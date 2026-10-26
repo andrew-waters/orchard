@@ -9,9 +9,12 @@ import Foundation
 /// the app can talk to.
 ///
 /// The pkg is downloaded and its signature checked unprivileged, in a temporary directory,
-/// so the administrator password is asked for once, at the end, and only for a package
-/// Apple signed. Once it is in, the system is started with the default kernel, which a
-/// fresh install does not have yet.
+/// so a bad download fails before any password is asked for. The privileged step then
+/// copies the package somewhere only root can write and checks it again there before
+/// `installer` sees it: the first check alone would leave a window in which anything
+/// running as this user could swap the file, and `installer` takes unsigned packages.
+/// Once it is in, the system is started with the default kernel, which a fresh install does
+/// not have yet.
 @MainActor
 final class ContainerInstallService: ObservableObject {
     enum State: Equatable {
@@ -19,6 +22,9 @@ final class ContainerInstallService: ObservableObject {
         case idle
         /// Under way, at a named step, so the window can tick the steps off.
         case working(Step)
+        /// The administrator prompt was dismissed. Not a failure, but the window still opens
+        /// the manual route, since the user may simply prefer to do it themselves.
+        case declined
         /// Attempted and did not finish. Carries what to tell the user, which is never a raw
         /// networking or osascript error.
         case failed(String)
@@ -99,6 +105,8 @@ final class ContainerInstallService: ObservableObject {
         return nil
     }
 
+    var wasDeclined: Bool { state == .declined }
+
     /// Only the unprivileged steps can be abandoned. Once `installer` is running as root it
     /// finishes whatever happens to this task, and starting is the system's own lifecycle.
     var canCancel: Bool {
@@ -106,6 +114,10 @@ final class ContainerInstallService: ObservableObject {
     }
 
     /// Start an install, unless one is already running.
+    ///
+    /// Only the task clears its own handle, once it has really finished. A cancelled task
+    /// can still be waiting on `pkgutil`, and a new install started in that gap would have
+    /// its handle cleared by the old one, letting a third start alongside it.
     func beginInstall() {
         guard installTask == nil else { return }
         installTask = Task { [weak self] in
@@ -117,7 +129,6 @@ final class ContainerInstallService: ObservableObject {
     func cancelInstall() {
         guard canCancel else { return }
         installTask?.cancel()
-        installTask = nil
         state = .idle
     }
 
@@ -126,6 +137,26 @@ final class ContainerInstallService: ObservableObject {
         case untrusted
         case installerFailed
     }
+
+    /// Printed by `privilegedInstallScript` when the root-owned copy fails the check.
+    nonisolated static let untrustedMarker = "orchard: package signature not trusted"
+
+    /// The one command run as root: copy the package into a fresh root-owned directory,
+    /// check the copy's signature for the container team, and install the copy. Takes the
+    /// downloaded package as `$1`. The checks mirror `isSignedByContainerTeam`.
+    nonisolated static let privilegedInstallScript = """
+        set -e
+        dir=$(/usr/bin/mktemp -d /private/var/tmp/orchard-container-install.XXXXXX)
+        trap '/bin/rm -rf "$dir"' EXIT
+        /bin/cp "$1" "$dir/container.pkg"
+        signature=$(/usr/sbin/pkgutil --check-signature "$dir/container.pkg") || signature=""
+        if ! printf '%s\\n' "$signature" | /usr/bin/grep -q 'Status: signed by a developer certificate issued by Apple' \\
+            || ! printf '%s\\n' "$signature" | /usr/bin/grep -Eq '^[[:space:]]*1\\. Developer ID Installer: .*\\(\(signingTeamID)\\)$'; then
+            echo '\(untrustedMarker)' >&2
+            exit 3
+        fi
+        /usr/sbin/installer -pkg "$dir/container.pkg" -target /
+        """
 
     /// Download, check, install, then start.
     func install() async {
@@ -163,32 +194,37 @@ final class ContainerInstallService: ObservableObject {
             try Task.checkCancellation()
             state = .working(.installing)
             let result = try await commandRunner.runWithSudo(
-                program: "/usr/sbin/installer",
-                arguments: ["-pkg", package.path, "-target", "/"]
+                program: "/bin/sh",
+                arguments: ["-c", Self.privilegedInstallScript, "sh", package.path]
             )
             if result.failed {
                 // The password prompt was dismissed: a decision, not a failure.
                 if Self.wasAuthorisationCancelled(result) {
-                    state = .idle
+                    state = .declined
                     return false
                 }
+                if result.stderr?.contains(Self.untrustedMarker) == true { throw InstallError.untrusted }
                 throw InstallError.installerFailed
             }
             return true
-        } catch is CancellationError {
-            return false
-        } catch InstallError.untrusted {
-            state = .failed("The downloaded package is not signed by Apple, so it was not installed.")
-        } catch InstallError.installerFailed {
-            state = .failed("The installer did not finish.")
-        } catch let error as URLError where error.code == .notConnectedToInternet {
-            state = .failed("No network connection.")
-        } catch let error as URLError where error.code == .cancelled {
-            return false
         } catch {
-            state = .failed("container \(supportedContainerVersion) could not be downloaded.")
+            // Cancelled: `cancelInstall` has already put the window back, and whatever this
+            // task was waiting on when it was told is not worth reporting.
+            if Task.isCancelled { return false }
+            switch error {
+            case is CancellationError:
+                return false
+            case InstallError.untrusted:
+                state = .failed("The downloaded package is not signed by Apple, so it was not installed.")
+            case InstallError.installerFailed:
+                state = .failed("The installer did not finish.")
+            case let error as URLError where error.code == .notConnectedToInternet:
+                state = .failed("No network connection.")
+            default:
+                state = .failed("container \(supportedContainerVersion) could not be downloaded.")
+            }
+            return false
         }
-        return false
     }
 
     /// True when `pkgutil --check-signature` says the package is signed, through a chain

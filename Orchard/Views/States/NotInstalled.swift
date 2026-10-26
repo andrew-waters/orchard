@@ -47,6 +47,10 @@ struct NotInstalledView: View {
                         .font(.callout)
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if containerInstallService.wasDeclined {
+                    Text("The install was cancelled. Try again, or install it yourself below.")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
                 }
 
                 HStack(spacing: 16) {
@@ -129,10 +133,12 @@ struct NotInstalledView: View {
         }
     }
 
-    /// Opens by itself after a failure, when it is the way forward.
+    /// Opens by itself after a failure or a declined prompt, when it is the way forward.
     private var manual: some View {
         DisclosureGroup(isExpanded: Binding(
-            get: { showManual || containerInstallService.failureMessage != nil },
+            get: {
+                showManual || containerInstallService.failureMessage != nil || containerInstallService.wasDeclined
+            },
             set: { showManual = $0 }
         )) {
             VStack(alignment: .leading, spacing: 8) {

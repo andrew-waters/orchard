@@ -148,16 +148,26 @@ private func makeSystemService(
 }
 
 @MainActor
-@Test("checkSystemStatus: a missing binary is .notInstalled, without pinging the daemon")
+@Test("checkSystemStatus: no binary and no daemon is .notInstalled")
 func checkSystemStatusNotInstalled() async {
     let backend = MockContainerBackend()
+    backend.pingError = NotConfigured()
     let service = makeSystemService(backend: backend, installed: false)
 
     await service.checkSystemStatus()
 
     #expect(service.systemStatus == .notInstalled)
     #expect(service.systemStatusError == nil)
-    #expect(backend.pingCount == 0)
+}
+
+@MainActor
+@Test("checkSystemStatus: a daemon that answers is running, wherever its CLI lives")
+func checkSystemStatusRunningWithoutKnownBinary() async {
+    let service = makeSystemService(installed: false)   // ping succeeds
+
+    await service.checkSystemStatus()
+
+    #expect(service.systemStatus == .running)
 }
 
 @MainActor

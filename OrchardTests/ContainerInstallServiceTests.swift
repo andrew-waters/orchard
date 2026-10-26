@@ -51,13 +51,14 @@ private func makeInstaller(
     return (service, { started })
 }
 
-/// A runner that answers pkgutil with `signature` and installer with `installer`.
+/// A runner that answers pkgutil with `signature` and the privileged install script with
+/// `installer`.
 private func fakeRunner(signature: ProcessResult, installer: ProcessResult = ProcessResult(exitCode: 0, stdout: "", stderr: nil)) -> MockCommandRunner {
     let runner = MockCommandRunner()
     runner.runHandler = { program, _ in
         switch program {
         case "/usr/sbin/pkgutil": return signature
-        case "/usr/sbin/installer": return installer
+        case "/bin/sh": return installer
         default: return ProcessResult(exitCode: 0, stdout: "", stderr: nil)
         }
     }
@@ -81,6 +82,24 @@ func containerInstallPackageURL() {
         == "https://github.com/apple/container/releases/download/\(supportedContainerVersion)/container-\(supportedContainerVersion)-installer-signed.pkg")
 }
 
+@Test("Privileged script: a package that fails the check never reaches installer")
+func containerInstallPrivilegedScriptRejects() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ContainerInstallServiceTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let package = directory.appendingPathComponent("container.pkg")
+    try Data("not a package".utf8).write(to: package)
+
+    // Unprivileged, and safe to run for real: the script stops before `installer`.
+    let result = try await SystemCommandRunner().run(
+        program: "/bin/sh",
+        arguments: ["-c", ContainerInstallService.privilegedInstallScript, "sh", package.path])
+
+    #expect(result.exitCode == 3)
+    #expect(result.stderr?.contains(ContainerInstallService.untrustedMarker) == true)
+}
+
 @MainActor
 @Test("Install: checks the signature, runs installer as root, then starts the system")
 func containerInstallHappyPath() async {
@@ -93,7 +112,7 @@ func containerInstallHappyPath() async {
     let package = download.destination?.path
     #expect(runner.calls == [
         ["--check-signature", package ?? ""],
-        ["-pkg", package ?? "", "-target", "/"],
+        ["-c", ContainerInstallService.privilegedInstallScript, "sh", package ?? ""],
     ])
     #expect(started())
     #expect(service.state == .idle)
@@ -114,7 +133,21 @@ func containerInstallUntrusted() async {
 }
 
 @MainActor
-@Test("Install: dismissing the password prompt goes back to the offer, not an error")
+@Test("Install: a package swapped after the first check is reported, and nothing starts")
+func containerInstallUntrustedAsRoot() async {
+    let runner = fakeRunner(
+        signature: signed,
+        installer: ProcessResult(exitCode: 1, stdout: nil, stderr: "execution error: \(ContainerInstallService.untrustedMarker) (3)"))
+    let (service, started) = makeInstaller(runner: runner)
+
+    await service.install()
+
+    #expect(service.failureMessage == "The downloaded package is not signed by Apple, so it was not installed.")
+    #expect(!started())
+}
+
+@MainActor
+@Test("Install: dismissing the password prompt is declined, not an error")
 func containerInstallPromptDismissed() async {
     let runner = fakeRunner(
         signature: signed,
@@ -123,7 +156,8 @@ func containerInstallPromptDismissed() async {
 
     await service.install()
 
-    #expect(service.state == .idle)
+    #expect(service.state == .declined)
+    #expect(service.failureMessage == nil)
     #expect(!started())
 }
 

@@ -3,6 +3,7 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var containerInstallService: ContainerInstallService
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var dnsService: DNSService
@@ -79,7 +80,10 @@ struct ContentView: View {
     @ViewBuilder
     private var baseView: some View {
         Group {
-            if systemService.systemStatus == .notInstalled {
+            // Held through the whole install, not just until the binary lands: the status
+            // turns to stopped while `installer` and the first start are still running, and
+            // the Start screen would offer a start without the kernel the install fetches.
+            if systemService.systemStatus == .notInstalled || containerInstallService.currentStep != nil {
                 NotInstalledView()
             } else if systemService.systemStatus == .stopped {
                 NotRunningView()
@@ -678,6 +682,9 @@ struct ContentView: View {
         refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             Task { @MainActor in
+                // A start/stop/restart owns `systemStatus` while it's in flight, as in the
+                // menu bar's refresh.
+                guard !systemService.isSystemLoading else { return }
                 await systemService.checkSystemStatus()
                 guard systemService.systemStatus == .running else { return }
                 await containerListService.loadContainers(showLoading: false)

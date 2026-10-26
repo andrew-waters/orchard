@@ -7,6 +7,7 @@ struct MenuBarView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var builderService: BuilderService
     @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var containerInstallService: ContainerInstallService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
     @EnvironmentObject var statsService: StatsService
@@ -187,15 +188,18 @@ struct MenuBarView: View {
 
             // Surface a system control whenever the status is actionable: Install when
             // missing, Start when stopped, Stop when running.
-            if systemService.systemStatus == .notInstalled {
+            // Still "not installed" until the install has finished, so there is no Start
+            // button to race the install's own start.
+            if systemService.systemStatus == .notInstalled || containerInstallService.currentStep != nil {
                 card {
                     HStack(spacing: 8) {
                         Circle().fill(systemService.systemStatus.color).frame(width: 8, height: 8)
-                        Text("Container is not installed").font(.subheadline)
+                        Text(containerInstallService.currentStep == nil ? "Container is not installed" : "Installing container")
+                            .font(.subheadline)
                         Spacer()
                         // The install shows its steps and asks for a password, so it
                         // happens in the window rather than this panel.
-                        Button("Install") {
+                        Button(containerInstallService.currentStep == nil ? "Install" : "Show") {
                             if !MainWindows.bringToFront() {
                                 openWindow(id: "main")
                                 NSApplication.shared.activate(ignoringOtherApps: true)

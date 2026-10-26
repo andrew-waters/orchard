@@ -85,15 +85,6 @@ final class SystemService: ObservableObject {
         // while the ping is in flight, drop this stale result rather than overwrite
         // the new state.
         let generation = lifecycleGeneration
-        // Without the binary there is no daemon to ping, and "stopped" would offer a Start
-        // button that can only fail.
-        guard isContainerInstalled() else {
-            self.containerVersion = nil
-            self.parsedContainerVersion = nil
-            self.systemStatus = .notInstalled
-            self.systemStatusError = nil
-            return
-        }
         do {
             let health = try await backend.ping()
             guard lifecycleGeneration == generation else { return }
@@ -108,7 +99,19 @@ final class SystemService: ObservableObject {
             // A health check the linked client can't decode isn't an outage: the daemon
             // is up but speaking a different container release. Gate on version instead
             // of reporting "stopped" with a cryptic decode error (#37, #39, #54).
-            self.systemStatus = isContainerVersionMismatch(error) ? .unsupportedVersion : .stopped
+            if isContainerVersionMismatch(error) {
+                self.systemStatus = .unsupportedVersion
+            } else if !isContainerInstalled() {
+                // Asked only once the ping has failed: the ping needs no binary, so a
+                // daemon that answers is running even when its CLI lives somewhere Orchard
+                // does not look. With neither, "stopped" would offer a Start button that
+                // can only fail (#145).
+                self.systemStatus = .notInstalled
+                self.systemStatusError = nil
+                return
+            } else {
+                self.systemStatus = .stopped
+            }
             self.systemStatusError = "\(type(of: error)): \(String(describing: error))"
         }
     }
