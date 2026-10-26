@@ -71,6 +71,17 @@ func rosettaRule() {
     #expect(!ContainerPlatform.needsRosetta("", hostArchitecture: "arm64"))
 }
 
+@Test("Platform: a missing Rosetta can be installed; an unsupported one is said to be so")
+func rosettaRefusal() {
+    #expect(ContainerPlatform.rosettaRefusal(for: "linux/amd64", availability: .installed) == nil)
+    #expect(ContainerPlatform.rosettaRefusal(for: "linux/amd64", availability: .notInstalled)
+        == .rosettaNotInstalled(platform: "linux/amd64"))
+    #expect(ContainerPlatform.rosettaRefusal(for: "linux/amd64", availability: .notSupported)
+        == .rosettaNotSupported(platform: "linux/amd64"))
+    // A platform that runs natively never needs it, whatever Rosetta's state.
+    #expect(ContainerPlatform.rosettaRefusal(for: "linux/arm64", availability: .notSupported) == nil)
+}
+
 @Test("Platform: description leaves out arm64's v8 and keeps other variants")
 func platformDescription() {
     #expect(Platform(os: "linux", architecture: "arm64", variant: "v8").description == "linux/arm64")

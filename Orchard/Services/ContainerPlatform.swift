@@ -46,6 +46,20 @@ enum ContainerPlatform {
         hostArchitecture == "arm64" && architecture(of: platform) == "amd64"
     }
 
+    /// Why a container of this platform cannot be created here for want of Rosetta, or nil
+    /// when it can. Told apart, since only a missing Rosetta can be installed.
+    static func rosettaRefusal(
+        for platform: String,
+        availability: @autoclosure () -> RosettaAvailability = RosettaAvailability.current
+    ) -> OrchardError? {
+        guard needsRosetta(platform) else { return nil }
+        switch availability() {
+        case .installed: return nil
+        case .notInstalled: return .rosettaNotInstalled(platform: platform)
+        case .notSupported: return .rosettaNotSupported(platform: platform)
+        }
+    }
+
     /// The platform to create a container as, chosen the way `container run` chooses one from
     /// 1.6.1 (`PlatformResolver`).
     ///

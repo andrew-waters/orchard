@@ -89,6 +89,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private let lock = NSLock()
 
     private var _containers: [Container] = []
+    private var _imagePlatforms: [String]?
     private var _images: [ContainerImage] = []
     private var _networks: [ContainerNetwork] = []
     private var _listContainersError: Error?
@@ -132,6 +133,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _listContainersCount = 0
 
     // Configuration - set by tests.
+    /// What `imagePlatforms` answers for any image; nil throws, as an unreadable image does.
+    var imagePlatformsResult: [String]? {
+        get { lock.withLock { _imagePlatforms } }
+        set { lock.withLock { _imagePlatforms = newValue } }
+    }
     var containers: [Container] {
         get { lock.withLock { _containers } }
         set { lock.withLock { _containers = newValue } }
@@ -388,7 +394,10 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         lock.withLock { _deletedImageReferences.append(reference) }
     }
     func inspectImage(reference: String) async throws -> ImageInspection { throw NotConfigured() }
-    func imagePlatforms(reference: String) async throws -> [String] { throw NotConfigured() }
+    func imagePlatforms(reference: String) async throws -> [String] {
+        guard let platforms = imagePlatformsResult else { throw NotConfigured() }
+        return platforms
+    }
     func listNetworks() async throws -> [ContainerNetwork] {
         if let listNetworksError { throw listNetworksError }
         return networks

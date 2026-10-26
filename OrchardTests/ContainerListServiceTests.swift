@@ -485,6 +485,22 @@ func recreateContainerFailureAlerts() async {
     #expect(backend.createdSpecs.isEmpty)   // never reached runContainer
 }
 
+@MainActor
+@Test("recreateContainer: a platform the image no longer offers is refused before the delete")
+func recreateContainerRefusesMissingPlatform() async {
+    let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
+    let (service, alert) = makeListService(backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.platform = "linux/amd64"
+
+    await service.recreateContainer(oldContainerId: "web", newConfig: config)
+
+    #expect(backend.deletedContainers.isEmpty)   // the old container is kept
+    #expect(backend.createdSpecs.isEmpty)
+    #expect(alert.current != nil)
+}
+
 // MARK: - exportContainer
 
 @MainActor

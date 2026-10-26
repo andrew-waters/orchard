@@ -455,7 +455,25 @@ final class ContainerListService: ObservableObject {
         }.value
     }
 
+    /// Why a recreate as `config` would fail at the create, found before the old container is
+    /// deleted, since nothing brings it back afterwards: a platform the image no longer offers,
+    /// or one that needs a Rosetta this Mac lacks. Nil when nothing is known to be wrong,
+    /// including when the image's platforms cannot be read.
+    private func recreateRefusal(for config: ContainerRunConfig) async -> Error? {
+        let candidates = (try? await backend.imagePlatforms(reference: config.image)) ?? []
+        do {
+            let platform = try ContainerPlatform.resolve(requested: config.platform, candidates: candidates)
+            return ContainerPlatform.rosettaRefusal(for: platform)
+        } catch {
+            return error
+        }
+    }
+
     func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
+        if let refusal = await recreateRefusal(for: newConfig) {
+            alertCenter.error("Did not recreate \(oldContainerId): \(refusal.localizedDescription)")
+            return
+        }
         do {
             try await backend.deleteContainer(id: oldContainerId, force: true)
             await runContainer(config: newConfig)
@@ -681,6 +699,14 @@ final class ContainerListService: ObservableObject {
                 platform: oldConfig.platform.description
             )
             
+            // Checked before the delete: a container whose platform can no longer be created
+            // keeps its mount rather than being lost.
+            if let refusal = await recreateRefusal(for: runConfig) {
+                Log.containers.error("Not recreating \(containerId) without the mount: \(refusal.localizedDescription)")
+                failedCount += 1
+                continue
+            }
+
             do {
                 try await backend.deleteContainer(id: containerId, force: true)
                 let started = await runContainer(config: runConfig)

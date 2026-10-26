@@ -546,8 +546,8 @@ struct LiveContainerBackend: ContainerBackend {
             let systemConfig = try await loadContainerSystemConfig()
             let candidates = (try? await imagePlatforms(reference: spec.imageRef)) ?? []
             let platformName = try ContainerPlatform.resolve(requested: spec.platform, candidates: candidates)
-            if ContainerPlatform.needsRosetta(platformName), RosettaAvailability.current != .installed {
-                throw OrchardError.rosettaNotInstalled(platform: platformName)
+            if let refusal = ContainerPlatform.rosettaRefusal(for: platformName) {
+                throw refusal
             }
             let platform = try ContainerizationOCI.Platform(from: platformName)
             let image = try await ClientImage.fetch(

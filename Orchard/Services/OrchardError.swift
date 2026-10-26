@@ -27,6 +27,8 @@ enum OrchardError: Error, LocalizedError, Equatable {
     /// A container of another architecture was asked for and Rosetta, which runs it, is not
     /// installed. Raised before anything is fetched or created.
     case rosettaNotInstalled(platform: String)
+    /// The same, on a Mac that cannot run Rosetta at all, where installing it is no answer.
+    case rosettaNotSupported(platform: String)
     /// An error we haven't classified; carries the original message verbatim.
     case generic(String)
 
@@ -64,6 +66,8 @@ enum OrchardError: Error, LocalizedError, Equatable {
             return "Preparing the node for '\(cluster)' failed. Apple container reports the output of the last step that succeeded instead of the one that failed, so its own message names a step that worked rather than the cause."
         case .rosettaNotInstalled(let platform):
             return "Rosetta is needed to run \(platform) containers on this Mac and is not installed. Install it from the Run sheet, or with `softwareupdate --install-rosetta`."
+        case .rosettaNotSupported(let platform):
+            return "\(platform) containers need Rosetta, which this Mac cannot run."
         case .generic(let message):
             return message
         }
