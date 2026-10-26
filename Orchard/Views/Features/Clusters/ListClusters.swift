@@ -12,6 +12,7 @@ struct ClustersListView: View {
     @EnvironmentObject var clusterService: ClusterService
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var terminalLauncher: TerminalLauncher
+    @EnvironmentObject var systemService: SystemService
     @Binding var selectedCluster: String?
     @Binding var lastSelectedCluster: String?
     @Binding var searchText: String
@@ -83,7 +84,7 @@ struct ClustersListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Guardrail for installs without the k8s plugin (container releases before 1.2.2).
+    /// Guardrail for installs without the cluster plugin (container releases before 1.2.2).
     private var pluginMissingStateView: some View {
         VStack(spacing: 6) {
             SwiftUI.Image(systemName: "exclamationmark.triangle")
@@ -93,7 +94,7 @@ struct ClustersListView: View {
             Text("Kubernetes Plugin Not Installed")
                 .font(.headline)
                 .foregroundStyle(.secondary)
-            Text("Local Kubernetes clusters need the `k8s` plugin that ships with Apple container 1.2.2 or later. Update your `container` install to use clusters.")
+            Text("Local Kubernetes clusters need the cluster plugin that ships with Apple container 1.2.2 or later. Update your `container` install to use clusters.")
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -251,7 +252,8 @@ struct ClustersListView: View {
     @ViewBuilder
     private func contextMenu(for cluster: K8sCluster) -> some View {
         let busy = clusterService.busyClusters.contains(cluster.name)
-        if !cluster.isRunning {
+        let stranded = ClusterService.isStranded(cluster, containerVersion: systemService.containerVersion)
+        if !cluster.isRunning || stranded {
             Button("Recreate Cluster…") {
                 Task { recreateSettings = await clusterService.prepareRecreate(cluster) }
             }
@@ -260,6 +262,8 @@ struct ClustersListView: View {
         Button("Write Kubeconfig") {
             Task { await clusterService.writeConfig(cluster: cluster.name) }
         }
+        .disabled(stranded)
+        .help(stranded ? ClusterService.strandedHelp : "")
         Button("Copy Kubeconfig Path") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(ClusterService.kubeconfigPath, forType: .string)
@@ -313,6 +317,8 @@ struct ClustersListView: View {
         let alert = NSAlert()
         alert.messageText = "Delete Cluster"
         alert.informativeText = "Are you sure you want to delete '\(cluster.name)'? This permanently removes the cluster's node containers and any workloads running on them."
+            + (ClusterService.isStranded(cluster, containerVersion: systemService.containerVersion)
+                ? " Apple container's cluster plugin can't see this cluster, so Orchard deletes its node containers directly." : "")
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")

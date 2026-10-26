@@ -184,7 +184,7 @@ func mapContainerError(_ error: Error) -> Error {
 /// The apple/container release Orchard's client libraries are built against. Keep in
 /// sync with the container package pin in project.pbxproj, and the README's Requirements,
 /// when bumping. release.yml reads this line for the release notes' requirements.
-let supportedContainerVersion = "1.6.0"
+let supportedContainerVersion = "1.6.1"
 
 /// Whether an installed container version (`container --version`'s `1.6.0`) is at least
 /// `minimum`, compared component by component. Nil (the system is stopped) or an unparseable
@@ -418,14 +418,18 @@ struct LiveContainerBackend: ContainerBackend {
             for handle in [output.fileHandleForReading, errors.fileHandleForReading] {
                 Task { await relay.relay(handle) }
             }
-            // Nothing signals the process if this wait fails, because nothing can yet: on
-            // container 1.5.0 `ClientProcess.kill` sends its signal as a number and the
-            // server only reads a string, so every call fails (apple/container#1941), and
-            // `ContainerClient.kill` only reaches the container's own process, which would
-            // take the whole service down with the hook. A wait that fails has usually lost
-            // the connection a kill would need anyway. Once that is fixed upstream, a failed
-            // wait should kill the process.
-            let status = try await process.wait()
+            // A wait that fails leaves the process running, so it is killed. Until container
+            // 1.6.1 `ClientProcess.kill` sent its signal as a number the server doesn't read
+            // (apple/container#1941, fixed by #1778), so this needs the 1.6.1 client; the
+            // server side was already right. Best effort: a failed wait has usually lost the
+            // connection the kill needs too.
+            let status: Int32
+            do {
+                status = try await process.wait()
+            } catch {
+                try? await process.kill(SIGKILL)
+                throw error
+            }
             // A process that leaves something running in the background (`daemon &`) leaves
             // it holding the output, so the end of the stream may never come. Give it a moment
             // to drain, as `container exec` does, then move on.

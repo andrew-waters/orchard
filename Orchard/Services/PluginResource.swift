@@ -1,24 +1,25 @@
 import Foundation
 
 /// System-defined label keys for resources owned by container plugins, mirroring
-/// ResourceLabelKeys in apple/container. The k8s plugin, for example, stamps its node
-/// containers with plugin "k8s" and roles "control-plane"/"worker".
+/// ResourceLabelKeys in apple/container. The cluster plugin, for example, stamps its node
+/// containers with plugin "cluster" ("k8s" before 1.6.1) and roles "control-plane"/"worker".
 enum PluginResourceMarker {
     static let pluginLabel = "com.apple.container.plugin"
     static let roleLabel = "com.apple.container.resource.role"
 }
 
 extension Container {
-    /// The container plugin that owns this container (e.g. "k8s"), if any.
+    /// The container plugin that owns this container (e.g. "cluster"), if any.
     var owningPlugin: String? {
         configuration.labels[PluginResourceMarker.pluginLabel]
     }
 
-    /// A Kubernetes cluster node. Since container 1.5.0 there is no supported way to start
-    /// one again once stopped (`k8s start` is gone, and a plain start skips the node boot,
-    /// readiness wait and kubeconfig write it did), so Start is replaced by Recreate.
+    /// A Kubernetes cluster node, under the plugin's `cluster` label or its pre-1.6.1 `k8s`.
+    /// Since container 1.5.0 there is no supported way to start one again once stopped
+    /// (`k8s start` is gone, and a plain start skips the node boot, readiness wait and
+    /// kubeconfig write it did), so Start is replaced by Recreate.
     var isK8sNode: Bool {
-        owningPlugin == K8sCluster.pluginName
+        owningPlugin.map(K8sCluster.pluginNames.contains) ?? false
     }
 
     /// The role label verbatim, for display. May name more than one role: see `pluginRoles`.

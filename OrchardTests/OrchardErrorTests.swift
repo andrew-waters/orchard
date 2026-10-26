@@ -70,6 +70,29 @@ func cliFailedCopy() {
     #expect(noStderr.errorDescription == "builder start failed (exit 2).")
 }
 
+@Test("cliFailed: progress lines collapse to the last one, ahead of the error")
+func cliFailedDropsProgress() {
+    let ticks = (0..<150).map { "[1/4] Starting cluster [\($0)s]" }.joined(separator: "\n")
+    let stderr = "[0/4] [0s]\nWaiting for node to boot: [\"node\": k8s-legacy]\n\(ticks)\nError: timed out waiting for node"
+    let message = OrchardError.cliFailed(command: "cluster create", exitCode: 1, stderr: stderr).errorDescription
+    #expect(message == """
+        cluster create failed: Waiting for node to boot: ["node": k8s-legacy]
+        [1/4] Starting cluster [149s]
+        Error: timed out waiting for node
+        """)
+}
+
+@Test("cliFailed: long output keeps the last lines and says how many it left out")
+func cliFailedCapsLines() {
+    let stderr = (1...25).map { "line \($0)" }.joined(separator: "\n")
+    let message = OrchardError.condensedCLIOutput(stderr)
+    let lines = message.components(separatedBy: "\n")
+    #expect(lines.count == OrchardError.maxCLIOutputLines + 1)
+    #expect(lines.first == "(15 earlier lines not shown)")
+    #expect(lines.last == "line 25")
+    #expect(OrchardError.condensedCLIOutput("one\ntwo") == "one\ntwo")
+}
+
 @Test("isContainerServiceUnavailable: matches common XPC outage messages")
 func containerServiceUnavailableClassifier() {
     for message in [

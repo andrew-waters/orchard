@@ -2,8 +2,9 @@ import Foundation
 
 // MARK: - Cluster model
 
-/// A node container in a local Kubernetes cluster, as created by the `container k8s`
-/// plugin. Wraps the container snapshot with the cluster it belongs to.
+/// A node container in a local Kubernetes cluster, as created by Apple container's cluster
+/// plugin (`container cluster`, `container k8s` before 1.6.1). Wraps the container snapshot
+/// with the cluster it belongs to.
 struct K8sClusterNode: Identifiable, Equatable {
     let clusterName: String
     let container: Container
@@ -16,13 +17,18 @@ struct K8sClusterNode: Identifiable, Equatable {
     var address: String? { container.networks.first?.address }
 }
 
-/// A local Kubernetes cluster: the k8s-plugin-owned node containers grouped by cluster.
+/// A local Kubernetes cluster: the cluster-plugin-owned node containers grouped by cluster.
 /// The cluster's name is its control-plane container's id; workers are named
 /// `<cluster>-worker-N`. Grouping mirrors `K8sHelper.buildK8sRows` in apple/container.
 struct K8sCluster: Identifiable, Equatable {
-    static let pluginName = "k8s"
+    /// The plugin label on node containers: `cluster` from container 1.6.1
+    /// (apple/container#2427), `k8s` before. Either is a cluster node, so a cluster made
+    /// before an upgrade still shows.
+    static let pluginName = "cluster"
+    static let legacyPluginName = "k8s"
+    static let pluginNames: Set<String> = [pluginName, legacyPluginName]
     static let controlPlaneRole = "control-plane"
-    /// The most workers `container k8s create --workers` accepts (1.6.0).
+    /// The most workers `create --workers` accepts (1.6.0).
     static let maxWorkers = 1024
 
     let name: String
@@ -34,22 +40,25 @@ struct K8sCluster: Identifiable, Equatable {
     /// A cluster is running when its control plane is; workers can lag behind.
     var isRunning: Bool { controlPlane?.isRunning ?? false }
     var status: String { controlPlane?.container.status ?? nodes.first?.container.status ?? "unknown" }
+    /// Made by the `k8s` plugin, before container 1.6.1. From 1.6.1 the CLI only sees nodes
+    /// labelled `cluster`, so such a cluster can't be managed through it: see `ClusterService.isStranded`.
+    var isLegacy: Bool { !nodes.isEmpty && nodes.allSatisfy { $0.container.owningPlugin == Self.legacyPluginName } }
 
     /// The cluster a k8s node container belongs to: a control plane names its own
     /// cluster; a worker derives it from `<cluster>-worker-N`, falling back to the id.
-    /// Nil for containers the k8s plugin doesn't own.
+    /// Nil for containers the cluster plugin doesn't own.
     static func clusterName(for container: Container) -> String? {
-        guard container.owningPlugin == pluginName else { return nil }
+        guard container.isK8sNode else { return nil }
         let id = container.configuration.id
         if container.pluginRoles.contains(controlPlaneRole) { return id }
         let derived = id.components(separatedBy: "-worker-").dropLast().joined(separator: "-worker-")
         return derived.isEmpty ? id : derived
     }
 
-    /// Group the k8s plugin's node containers into clusters. Pure so it can be unit
-    /// tested; containers not owned by the k8s plugin are ignored.
+    /// Group the cluster plugin's node containers into clusters, under either label. Pure so
+    /// it can be unit tested; containers not owned by the plugin are ignored.
     static func group(containers: [Container]) -> [K8sCluster] {
-        let nodes = containers.filter { $0.owningPlugin == pluginName }
+        let nodes = containers.filter(\.isK8sNode)
         var controlPlanes: [Container] = []
         var workers: [Container] = []
         for node in nodes {
@@ -96,7 +105,7 @@ struct K8sCluster: Identifiable, Equatable {
 
 // MARK: - Service
 
-/// Whether the `container k8s` plugin is usable on this install.
+/// Whether the cluster plugin is usable on this install.
 enum K8sPluginAvailability: Equatable {
     /// Not probed yet (or the probe failed for reasons other than a missing plugin,
     /// e.g. the system was stopped) — probe again next time.
@@ -140,8 +149,8 @@ struct ClusterRecreateSettings: Equatable, Identifiable {
     var id: String { name }
 }
 
-/// Owns Kubernetes-cluster lifecycle, driven through the `container k8s` CLI plugin —
-/// the plugin has no XPC API. Cluster *state* is not owned here: clusters are derived
+/// Owns Kubernetes-cluster lifecycle, driven through the `container cluster` CLI plugin,
+/// since the plugin has no XPC API. Cluster *state* is not owned here: clusters are derived
 /// from the container list (the nodes are ordinary containers with plugin labels), so
 /// views group `ContainerListService.containers` via `K8sCluster.group`.
 @MainActor
@@ -157,7 +166,7 @@ final class ClusterService: ObservableObject {
     @Published var busyClusters: Set<String> = []
     /// True while a load-image is in flight.
     @Published var isLoadingImage = false
-    /// The installed plugin's default node image, from `container k8s create --help`. Nil
+    /// The installed plugin's default node image, from its `create --help`. Nil
     /// until probed, or when the help could not be read (e.g. the system is stopped).
     @Published var pluginDefaultNodeImage: String?
     /// Recent `kindest/node` versions for the Create Cluster sheet. Empty until fetched, and
@@ -197,6 +206,8 @@ final class ClusterService: ObservableObject {
     var existingContainerIDs: @MainActor () -> Set<String> = { [] }
     /// The clusters there are now, for the CNI readiness check. Set by the owner.
     var currentClusters: @MainActor () -> [K8sCluster] = { [] }
+    /// The installed container version, which decides the plugin's command. Set by the owner.
+    var containerVersion: @MainActor () -> String? = { nil }
 
     init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter, defaults: UserDefaults = .standard) {
         self.runner = runner
@@ -319,10 +330,38 @@ final class ClusterService: ObservableObject {
         isContainerVersion(containerVersion, atLeast: [1, 6])
     }
 
+    /// The plugin's subcommand: container 1.6.1 renamed `k8s` to `cluster` (apple/container#2427).
+    /// Nil (the system is stopped) or an unparseable version is `k8s`, like the other gates.
+    nonisolated static func pluginCommand(containerVersion: String?) -> String {
+        isContainerVersion(containerVersion, atLeast: [1, 6, 1]) ? K8sCluster.pluginName : K8sCluster.legacyPluginName
+    }
+
+    /// The plugin's own default cluster name, which moved with the rename: `cluster-dev`, `k8s-dev` before.
+    nonisolated static func defaultClusterName(containerVersion: String?) -> String {
+        "\(pluginCommand(containerVersion: containerVersion))-dev"
+    }
+
+    /// The plugin's subcommand on this install. Every CLI call starts with it.
+    var pluginCommand: String { Self.pluginCommand(containerVersion: containerVersion()) }
+
+    /// A cluster made by the `k8s` plugin on an install that now runs `cluster`. The CLI only
+    /// sees `cluster`-labelled nodes, so its delete, load-image and write-config can't find it:
+    /// Orchard deletes its nodes directly, and Recreate brings it back under the new label.
+    nonisolated static func isStranded(_ cluster: K8sCluster, containerVersion: String?) -> Bool {
+        cluster.isLegacy && pluginCommand(containerVersion: containerVersion) == K8sCluster.pluginName
+    }
+
+    func isStranded(_ cluster: K8sCluster) -> Bool {
+        Self.isStranded(cluster, containerVersion: containerVersion())
+    }
+
+    /// Why a stranded cluster's image and kubeconfig actions are off, wherever they are.
+    nonisolated static let strandedHelp = "Made by an older Apple container, whose cluster plugin can't see it. Recreate it to use this."
+
     /// Apple container's guide to using your own CNI, linked wherever Orchard offers one.
     nonisolated static let cniDocsURL = URL(string: "https://github.com/apple/container/blob/main/docs/kubernetes.md#custom-cni")!
 
-    /// The kubeconfig file `container k8s write-config` writes to by default.
+    /// The kubeconfig file `container cluster write-config` writes to by default.
     nonisolated static var kubeconfigPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".kube/config").path
@@ -337,31 +376,33 @@ final class ClusterService: ObservableObject {
         "kubectl config use-context \(SystemCommandRunner.shellQuote(cluster)) && exec ${SHELL:-/bin/zsh}"
     }
 
-    /// Probe whether the k8s plugin is installed by running `container k8s list`.
+    /// Probe whether the cluster plugin is installed by running its `list`.
     /// Cheap enough to re-run whenever the Clusters tab appears; only a positive
     /// "plugin not found" marks it missing, so a stopped system stays `.unknown`.
     func probePluginAvailability() async {
+        let command = pluginCommand
         do {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
-                arguments: ["k8s", "list"])
+                arguments: [command, "list"])
             if !result.failed {
                 pluginAvailability = .available
                 return
             }
-            // 1.4.1 said "Plugin 'container-k8s' not found."; 1.5.0 says "unknown command 'k8s'".
+            // 1.4.1 said "Plugin 'container-k8s' not found."; 1.5.0 says "unknown command 'k8s'",
+            // and 1.6.1 the same for `cluster`.
             // Both come from the same branch, after the plugin loader exists, so neither is
             // the stopped-system case ("Plugins are unavailable").
             let stderr = (result.stderr ?? "").lowercased()
             if (stderr.contains("plugin") && stderr.contains("not found"))
-                || stderr.contains("unknown command '\(K8sCluster.pluginName)'") {
+                || stderr.contains("unknown command '\(command)'") {
                 pluginAvailability = .missingPlugin
             } else {
                 pluginAvailability = .unknown
             }
         } catch {
             pluginAvailability = .unknown
-            Log.containers.error("k8s plugin probe could not run: \(error.localizedDescription)")
+            Log.containers.error("Cluster plugin probe could not run: \(error.localizedDescription)")
         }
     }
 
@@ -371,7 +412,7 @@ final class ClusterService: ObservableObject {
     func loadNodeImageOptions() async {
         if let help = try? await runner.run(
             program: settings.safeContainerBinaryPath(),
-            arguments: ["k8s", "create", "--help"]),
+            arguments: [pluginCommand, "create", "--help"]),
            !help.failed {
             let text = [help.stdout, help.stderr].compactMap { $0 }.joined(separator: "\n")
             pluginDefaultNodeImage = K8sNodeImageCatalog.parsePluginDefault(helpText: text)
@@ -383,7 +424,7 @@ final class ClusterService: ObservableObject {
         }
     }
 
-    /// Create and start a cluster (`container k8s create`). Slow: pulls the kindest/node
+    /// Create and start a cluster (`container cluster create`). Slow: pulls the kindest/node
     /// image on first use and bootstraps kubeadm. Returns true on success.
     ///
     /// A `.manifest` CNI is a host path applied instead of the default kindnet (1.5.0). Nothing
@@ -411,7 +452,7 @@ final class ClusterService: ObservableObject {
         name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI, workers: Int,
         rememberOptions: Bool
     ) async -> Bool {
-        var arguments = ["k8s", "create", "--name", name]
+        var arguments = [pluginCommand, "create", "--name", name]
         if let cpus { arguments += ["--cpus", String(cpus)] }
         if let memory, !memory.isEmpty { arguments += ["--memory", memory] }
         if let nodeImage, !nodeImage.isEmpty { arguments += ["--node-image", nodeImage] }
@@ -453,7 +494,7 @@ final class ClusterService: ObservableObject {
         return created
     }
 
-    /// True when a `container k8s create` failure is the node-preparation abort. Node prep is
+    /// True when a `container cluster create` failure is the node-preparation abort. Node prep is
     /// one `set -e` script, so an abort reports the accumulated output of the steps that
     /// already succeeded (`net.ipv4.ip_forward = 1`, a sysctl that worked) rather than the
     /// command that failed. Matched on the one phrase the CLI does report accurately.
@@ -471,7 +512,7 @@ final class ClusterService: ObservableObject {
     func delete(name: String) async {
         busyClusters.insert(name)
         defer { busyClusters.remove(name) }
-        if await runClusterCommand(["k8s", "delete", "--name", name], failureVerb: "delete cluster") {
+        if await runClusterCommand(await deleteArguments(name), failureVerb: "delete cluster") {
             setRememberedOptions(nil, for: name)
             cniGenerations[name, default: 0] += 1
             awaitingCNI.remove(name)
@@ -488,11 +529,22 @@ final class ClusterService: ObservableObject {
         busyClusters.insert(name)
         defer { busyClusters.remove(name) }
         let deleted = await runClusterCommand(
-            ["k8s", "delete", "--name", name], failureVerb: "delete cluster", reloadOnSuccess: false)
+            await deleteArguments(name), failureVerb: "delete cluster", reloadOnSuccess: false)
         guard deleted else { return false }
         return await performCreate(
             name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
             rememberOptions: true)
+    }
+
+    /// The plugin's delete, or for a stranded cluster a forced delete of each node container,
+    /// since the plugin's delete can't see them. The list is refreshed first, as for `create`:
+    /// a cached one missing the cluster would pick the plugin's delete, which refuses it.
+    private func deleteArguments(_ name: String) async -> [String] {
+        await reloadContainers()
+        if let cluster = currentClusters().first(where: { $0.name == name }), isStranded(cluster) {
+            return ["delete", "--force"] + cluster.nodes.map(\.id)
+        }
+        return [pluginCommand, "delete", "--name", name]
     }
 
     // MARK: - Waiting for a CNI
@@ -602,7 +654,7 @@ final class ClusterService: ObservableObject {
         }
     }
 
-    /// Load a local image into the cluster's containerd (`container k8s load-image`),
+    /// Load a local image into the cluster's containerd (`container cluster load-image`),
     /// so cluster workloads can use images built or pulled in Orchard. Empty `nodes` loads it
     /// into every node; otherwise only into those named, one `--node` each (1.6.0).
     @discardableResult
@@ -610,15 +662,15 @@ final class ClusterService: ObservableObject {
         isLoadingImage = true
         defer { isLoadingImage = false }
         return await runClusterCommand(
-            ["k8s", "load-image", "--name", cluster] + nodes.flatMap { ["--node", $0] } + [reference],
+            [pluginCommand, "load-image", "--name", cluster] + nodes.flatMap { ["--node", $0] } + [reference],
             failureVerb: "load image", reloadOnSuccess: false)
     }
 
-    /// Write/merge the cluster's context into the kubeconfig (`container k8s write-config`).
+    /// Write/merge the cluster's context into the kubeconfig (`container cluster write-config`).
     @discardableResult
     func writeConfig(cluster: String) async -> Bool {
         await runClusterCommand(
-            ["k8s", "write-config", "--name", cluster],
+            [pluginCommand, "write-config", "--name", cluster],
             failureVerb: "write kubeconfig", reloadOnSuccess: false)
     }
 
