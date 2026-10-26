@@ -634,8 +634,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/andrew-waters/compose.git";
 			requirement = {
-				kind = revision;
-				revision = 9a9a1e1e1082dfbb7c2b4ad3797cda151bd8fb85;
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.7.0;
 			};
 		};
 		C201AD592F86944400E6D0B2 /* XCRemoteSwiftPackageReference "container" */ = {

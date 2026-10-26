@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Choose the platform a container runs as: a Platform picker on Run and Edit that defaults to Automatic (host if the image has it, otherwise what the image offers, like the CLI), amd64 under Rosetta with an install prompt when it is missing, kept on recreate, recovery and compose `platform:`, and shown in the detail view when it is not the host's."
 issues: [andrew-waters/orchard#147, andrew-waters/compose#17]
 touches: [andrew-waters/orchard, andrew-waters/compose, apple/container]
@@ -84,7 +84,7 @@ Orchard creates every container as `Platform.current`, so an image published onl
 ## Tasks
 
 - [x] [andrew-waters/compose#17](https://github.com/andrew-waters/compose/issues/17) compose: `platform:` parsed, planned and honoured by the plugin; README and site (committed on its branch)
-- [ ] compose 0.7.0 released, and Orchard's pin moved to it (pinned to compose#18's head, 9a9a1e1, until then so CI can build)
+- [x] compose 0.7.0 released, and Orchard's pin moved to it
 - [x] Orchard: model, `imagePlatforms`, `ContainerPlatform.resolve`, platform-aware create with Rosetta check
 - [x] Orchard: `RosettaService`, Platform picker and Rosetta notice on Run and Edit
 - [x] Orchard: keep the platform on edit, recovery and mount-removal recreate; `mapPlatform` variant
@@ -94,7 +94,7 @@ Orchard creates every container as `Platform.current`, so an image published onl
 
 ## Open questions
 
-- Does `VZLinuxRosettaDirectoryShare.installRosetta()` work as Orchard is signed and entitled? Orchard is not sandboxed, so it should; if not, the button falls back to `softwareupdate --install-rosetta --agree-to-license` behind an administrator prompt, the way Install container does.
+- Does `VZLinuxRosettaDirectoryShare.installRosetta()` work as Orchard is signed and entitled? Orchard is not sandboxed, so it should, but it has not been tried on a Mac without Rosetta. If it does not, the button should run `softwareupdate --install-rosetta --agree-to-license` behind an administrator prompt instead, the way Install container does; today a failure shows that command to run by hand.
 
 **Decisions:**
 
