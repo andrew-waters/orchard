@@ -86,12 +86,15 @@ func mapProcessConfiguration(_ process: ProcessConfiguration) -> initProcess {
 
 func mapFilesystem(_ fs: Filesystem) -> Mount {
     let mountType: MountType
-    if fs.isTmpfs {
+    switch fs.type {
+    case .volume(let name, let format, _, _):
+        mountType = MountType(tmpfs: nil, virtiofs: nil, volume: VolumeMountType(name: name, format: format))
+    case .block(let format, _, _):
+        mountType = MountType(tmpfs: nil, virtiofs: nil, block: BlockMountType(format: format))
+    case .tmpfs:
         mountType = MountType(tmpfs: Tmpfs(), virtiofs: nil)
-    } else if fs.isVirtiofs {
+    case .virtiofs:
         mountType = MountType(tmpfs: nil, virtiofs: Virtiofs())
-    } else {
-        mountType = MountType(tmpfs: nil, virtiofs: nil)
     }
 
     return Mount(

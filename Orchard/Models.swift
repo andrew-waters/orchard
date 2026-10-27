@@ -134,10 +134,17 @@ struct Mount: Codable, Equatable {
 struct MountType: Codable, Equatable {
     let tmpfs: Tmpfs?
     let virtiofs: Virtiofs?
+    /// A named or anonymous volume. Optional keys, so a configuration stored before these
+    /// existed still decodes.
+    var volume: VolumeMountType? = nil
+    /// A block device image mounted directly, as `--mount type=block` does.
+    var block: BlockMountType? = nil
 
     enum CodingKeys: String, CodingKey {
         case tmpfs
         case virtiofs
+        case volume
+        case block
     }
 }
 
@@ -145,6 +152,15 @@ struct Tmpfs: Codable, Equatable {
 }
 
 struct Virtiofs: Codable, Equatable {
+}
+
+struct VolumeMountType: Codable, Equatable {
+    let name: String
+    let format: String
+}
+
+struct BlockMountType: Codable, Equatable {
+    let format: String
 }
 
 struct initProcess: Codable, Equatable {
@@ -641,7 +657,11 @@ struct ContainerMount: Identifiable, Equatable {
     }
 
     var mountType: String {
-        if mount.type.virtiofs != nil {
+        if let volume = mount.type.volume {
+            return "Volume (\(volume.name))"
+        } else if let block = mount.type.block {
+            return "Block (\(block.format))"
+        } else if mount.type.virtiofs != nil {
             return "VirtioFS"
         } else if mount.type.tmpfs != nil {
             return "tmpfs"
@@ -1027,10 +1047,61 @@ struct ContainerRunConfig: Equatable {
     }
 
     struct VolumeMapping: Identifiable, Equatable {
+        /// What the mount is. The form only adds bind mounts; the other kinds come from an
+        /// existing container, so a recreate mounts them as they were (#160).
+        enum Kind: Equatable, Sendable {
+            /// A host directory shared over virtiofs. `hostPath` is the directory.
+            case bind
+            /// A named or anonymous volume, looked up by name at create.
+            case volume(name: String)
+            /// A tmpfs mount. `hostPath` is unused.
+            case tmpfs
+            /// A block device image. `hostPath` is the image.
+            case block(format: String)
+        }
+
         let id = UUID()
         var hostPath: String
         var containerPath: String
         var readonly: Bool = false
+        var kind: Kind = .bind
+        /// Mount options other than `ro`, carried through a recreate unchanged. The form
+        /// doesn't edit them.
+        var otherOptions: [String] = []
+    }
+}
+
+extension ContainerRunConfig.VolumeMapping {
+    /// The row that mounts `mount` again as it is: the same kind, destination and options.
+    /// Every recreate (recovery, mount removal, Edit) builds its rows with this.
+    init(mount: Mount) {
+        let kind: Kind
+        if let volume = mount.type.volume {
+            kind = .volume(name: volume.name)
+        } else if let block = mount.type.block {
+            kind = .block(format: block.format)
+        } else if mount.type.tmpfs != nil {
+            kind = .tmpfs
+        } else {
+            kind = .bind
+        }
+        self.init(
+            hostPath: mount.source,
+            containerPath: mount.destination,
+            readonly: mount.options.contains("ro"),
+            kind: kind,
+            otherOptions: mount.options.filter { $0 != "ro" }
+        )
+    }
+
+    /// Whether the row has what its kind needs to be mounted. A tmpfs mount has no source.
+    var isComplete: Bool {
+        guard !containerPath.isEmpty else { return false }
+        switch kind {
+        case .tmpfs: return true
+        case .volume(let name): return !name.isEmpty
+        case .bind, .block: return !hostPath.isEmpty
+        }
     }
 }
 

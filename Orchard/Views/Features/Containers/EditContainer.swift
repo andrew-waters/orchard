@@ -29,14 +29,9 @@ struct EditContainerView: View {
             )
         }
 
-        let volumes = container.configuration.mounts.compactMap { mount -> ContainerRunConfig.VolumeMapping? in
-            guard mount.type.virtiofs != nil else { return nil }
-            return ContainerRunConfig.VolumeMapping(
-                hostPath: mount.source,
-                containerPath: mount.destination,
-                readonly: mount.options.contains("ro")
-            )
-        }
+        // Every mount, with its kind: the prefill used to skip all but virtiofs shares, so
+        // Save & Recreate dropped volumes and tmpfs mounts (#160).
+        let volumes = container.configuration.mounts.map(ContainerRunConfig.VolumeMapping.init(mount:))
 
         // Carry labels through the recreate - previously the prefill omitted
         // them, so an edit silently stripped every label (sandbox markers

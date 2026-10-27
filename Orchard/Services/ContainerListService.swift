@@ -530,7 +530,7 @@ final class ContainerListService: ObservableObject {
 
     // Recovery recreates an auto-removed container from its snapshot. It preserves every
     // field the create path (ContainerRunConfig → ContainerCreateSpec → createContainer)
-    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS, platform,
+    // supports: env, ports, mounts (with their kind and options), working directory, network, DNS, platform,
     // network aliases.
     // Labels, resources (cpus/memory), and hostname are NOT preserved - no field exists for
     // them anywhere in the create path (a normal `run` drops them too); adding them means
@@ -555,14 +555,8 @@ final class ContainerListService: ObservableObject {
             }
         }
 
-        var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
-        for mount in config.mounts {
-            volumeMappings.append(.init(
-                hostPath: mount.source,
-                containerPath: mount.destination,
-                readonly: mount.options.contains("ro")
-            ))
-        }
+        // Each mount as it was: a volume stays a volume, tmpfs stays tmpfs (#160).
+        let volumeMappings = config.mounts.map(ContainerRunConfig.VolumeMapping.init(mount:))
 
         let runConfig = ContainerRunConfig(
             name: id,
@@ -618,8 +612,11 @@ final class ContainerListService: ObservableObject {
         }
 
         var volumes: [ContainerCreateSpec.Volume] = []
-        for vol in config.volumeMappings where !vol.hostPath.isEmpty && !vol.containerPath.isEmpty {
-            volumes.append(.init(hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly))
+        for vol in config.volumeMappings where vol.isComplete {
+            volumes.append(.init(
+                hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly,
+                kind: vol.kind, otherOptions: vol.otherOptions
+            ))
         }
 
         var ports: [ContainerCreateSpec.Port] = []
@@ -716,11 +713,7 @@ final class ContainerListService: ObservableObject {
             }
             
             let volumeMappings = { (mounts: [Mount]) in
-                mounts.map {
-                    ContainerRunConfig.VolumeMapping(
-                        hostPath: $0.source, containerPath: $0.destination, readonly: $0.options.contains("ro")
-                    )
-                }
+                mounts.map(ContainerRunConfig.VolumeMapping.init(mount:))
             }
 
             let originalConfig = ContainerRunConfig(

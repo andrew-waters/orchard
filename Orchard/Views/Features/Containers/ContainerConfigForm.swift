@@ -898,8 +898,7 @@ struct VolumeMappingRow: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                TextField("Host Path", text: $mapping.hostPath)
-                    .textFieldStyle(.roundedBorder)
+                source
 
                 SwiftUI.Image(systemName: "arrow.right")
                     .foregroundColor(.secondary)
@@ -918,11 +917,50 @@ struct VolumeMappingRow: View {
                 Toggle("Read-only", isOn: $mapping.readonly)
                     .font(.caption)
                 Spacer()
+                if let kindLabel {
+                    Text(kindLabel)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(12)
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+    }
+
+    /// What the mount comes from. Only a bind mount's host path is editable: the other kinds
+    /// come from the container being edited and are mounted again as they were.
+    @ViewBuilder
+    private var source: some View {
+        switch mapping.kind {
+        case .bind:
+            TextField("Host Path", text: $mapping.hostPath)
+                .textFieldStyle(.roundedBorder)
+        case .volume(let name):
+            readOnlySource(name, icon: "cylinder")
+        case .tmpfs:
+            readOnlySource("tmpfs", icon: "memorychip")
+        case .block:
+            readOnlySource(mapping.hostPath, icon: "externaldrive")
+        }
+    }
+
+    private func readOnlySource(_ text: String, icon: String) -> some View {
+        Label(text, systemImage: icon)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .help(text)
+    }
+
+    private var kindLabel: String? {
+        switch mapping.kind {
+        case .bind: return nil
+        case .volume: return "Volume"
+        case .tmpfs: return "tmpfs"
+        case .block(let format): return "Block (\(format))"
+        }
     }
 }
 
