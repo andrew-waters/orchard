@@ -509,6 +509,11 @@ final class ContainerListService: ObservableObject {
             guard let originalConfig else {
                 throw OrchardError.generic("Failed to recreate container: \(error.localizedDescription)")
             }
+            // The runtime also checks at start, after the create has stored the container, so a
+            // failed attempt can leave one under the same id that would block the restore.
+            if !config.name.isEmpty {
+                try? await backend.deleteContainer(id: config.name, force: true)
+            }
             do {
                 try await createAndStartContainer(config: originalConfig)
             } catch let restoreError {

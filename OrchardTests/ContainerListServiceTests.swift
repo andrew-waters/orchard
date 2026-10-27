@@ -505,7 +505,8 @@ func recreateContainerRestoresOriginal() async {
     await #expect(throws: (any Error).self) {
         try await service.recreateContainer(oldContainerId: "web", newConfig: edited, originalConfig: original)
     }
-    #expect(backend.deletedContainers.map(\.id) == ["web"])
+    // The old container, then whatever the refused attempt left, before the original goes back.
+    #expect(backend.deletedContainers.map(\.id) == ["web", "web"])
     #expect(backend.createdSpecs.count == 1)
     #expect(backend.createdSpecs.first?.networkAliases == [])
 }
