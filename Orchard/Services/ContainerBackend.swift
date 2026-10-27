@@ -764,7 +764,12 @@ struct LiveContainerBackend: ContainerBackend {
     func systemImageReferences() async throws -> [String] {
         do {
             let config = try await loadContainerSystemConfig()
-            return [config.vminit.image, config.build.image]
+            // The store names a pulled image by its normalised reference, and a configured
+            // builder image may be short (`builder:1`), so match both. Normalising leaves the
+            // vminit reference as it is.
+            let builder = config.build.image
+            let normalizedBuilder = try? ClientImage.normalizeReference(builder, containerSystemConfig: config)
+            return [config.vminit.image, builder] + (normalizedBuilder.map { [$0] } ?? [])
         } catch { throw mapContainerError(error) }
     }
 
