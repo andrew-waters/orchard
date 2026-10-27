@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "160-recreating-a-container-turns-named",
+  "issue" : "andrew-waters/orchard#160",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-27T13:59:39Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Recreating a container turns named volumes and tmpfs mounts into virtiofs shares",
+  "url" : "https://github.com/andrew-waters/orchard/issues/160"
+}
