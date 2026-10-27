@@ -76,5 +76,5 @@ Afterwards it refreshes disk usage, and the image and container lists.
 - [x] Purge sheet and dashboard button
 - [x] Tests: rules (machines, compose, cluster, sandbox, builder and vminit are protected; volume in use by name and by path; compose volumes skipped; anonymous volumes ticked by default; cascade; re-check skips newly used items), service against the mock
 - [x] README, site and CHANGELOG
-- [x] One build and unit test pass (566 passed)
+- [x] One build and unit test pass (568 passed)
 - [ ] Manual check on 1.6.1: a pulled image no container uses is removed; a machine's image, a compose service and a cluster node are not listed; an unmounted volume is removed only when opted in; freed space matches the tile change

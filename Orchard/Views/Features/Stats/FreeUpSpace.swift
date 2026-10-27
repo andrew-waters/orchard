@@ -25,9 +25,13 @@ struct FreeUpSpaceView: View {
         .frame(width: 560, height: 560)
         .background(Color(NSColor.windowBackgroundColor))
         .task {
+            // The service outlives the sheet: forget last time's list or result before the
+            // first await, so it never shows while the new one loads.
+            diskPurgeService.reset()
             selection = DiskPurgeSelection()
-            await imageService.load()
-            await diskPurgeService.load()
+            async let images: Void = imageService.load()
+            async let candidates: Void = diskPurgeService.load()
+            _ = await (images, candidates)
         }
         .alert(confirmationTitle, isPresented: $showConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -155,7 +159,7 @@ struct FreeUpSpaceView: View {
                 let id = container.configuration.id
                 return row(.container(id: id), inventory, preview,
                            detail: container.configuration.image.reference,
-                           size: diskPurgeService.containerSizes[id].map { Int64($0) })
+                           size: diskPurgeService.containerSizes[id] ?? .measuring)
             }
         )
     }
@@ -170,7 +174,7 @@ struct FreeUpSpaceView: View {
             rows: preview.candidates.volumes.map { volume in
                 row(.volume(name: volume.name), inventory, preview,
                     detail: volume.isAnonymous ? "Anonymous" : nil,
-                    size: diskPurgeService.volumeSizes[volume.name].map { Int64($0) })
+                    size: diskPurgeService.volumeSizes[volume.name] ?? .measuring)
             }
         )
     }
@@ -201,7 +205,10 @@ struct FreeUpSpaceView: View {
                     ForEach(rows) { $0 }
                 }
             } else {
-                let known = rows.compactMap(\.size)
+                let known = rows.compactMap { row -> Int64? in
+                    if case .known(let bytes) = row.size { return bytes }
+                    return nil
+                }
                 Text("\(rows.count) not in use\(known.isEmpty ? "" : ", \(ByteFormat.string(known.reduce(0, +)))"). Turn on to choose which to remove.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
@@ -214,7 +221,7 @@ struct FreeUpSpaceView: View {
         _ inventory: DiskPurgeInventory,
         _ preview: DiskPurgePreview,
         detail: String? = nil,
-        size: Int64?
+        size: MeasuredSize
     ) -> FreeUpSpaceRow {
         let byDefault = DiskPurge.isTickedByDefault(item, in: inventory)
         return FreeUpSpaceRow(
@@ -231,20 +238,29 @@ struct FreeUpSpaceView: View {
 
     // MARK: - Sizes and wording
 
-    private func imageSize(_ reference: String) -> Int64? {
-        if case .known(let size) = imageService.imageSizes[reference] { return size }
-        return nil
+    private func imageSize(_ reference: String) -> MeasuredSize {
+        switch imageService.imageSizes[reference] {
+        case .known(let size): return .known(size)
+        case .failed: return .failed
+        case .loading, nil: return .measuring
+        }
     }
 
     /// The ticked items' known sizes. Images can share layers, so theirs is an upper bound.
     private func totalText(_ preview: DiskPurgePreview) -> String {
         let plan = preview.plan
-        let sizes = plan.imageReferences.map(imageSize)
-            + plan.containerIDs.map { diskPurgeService.containerSizes[$0].map { Int64($0) } }
-            + plan.volumeNames.map { diskPurgeService.volumeSizes[$0].map { Int64($0) } }
-        let total = ByteFormat.string(sizes.compactMap { $0 }.reduce(0, +))
         if plan.count == 0 { return "Nothing ticked" }
-        return sizes.contains(nil) ? "Up to \(total), and items still being measured" : "Up to \(total)"
+        let sizes = plan.imageReferences.map(imageSize)
+            + plan.containerIDs.map { diskPurgeService.containerSizes[$0] ?? .measuring }
+            + plan.volumeNames.map { diskPurgeService.volumeSizes[$0] ?? .measuring }
+        let known = sizes.compactMap { size -> Int64? in
+            if case .known(let bytes) = size { return bytes }
+            return nil
+        }
+        let total = "Up to \(ByteFormat.string(known.reduce(0, +)))"
+        if sizes.contains(.measuring) { return "\(total), and items still being measured" }
+        if sizes.contains(.failed) { return "\(total), and some sizes couldn't be read" }
+        return total
     }
 
     private var confirmationTitle: String {
@@ -276,7 +292,7 @@ struct FreeUpSpaceRow: View, Identifiable {
     let item: DiskPurgeItem
     let detail: String?
     let freedByContainers: Bool
-    let size: Int64?
+    let size: MeasuredSize
     @Binding var isTicked: Bool
 
     var id: DiskPurgeItem { item }
@@ -297,11 +313,20 @@ struct FreeUpSpaceRow: View, Identifiable {
                     }
                 }
                 Spacer()
-                Text(size.map { ByteFormat.string($0) } ?? "...")
+                sizeText
                     .font(.subheadline).fontDesign(.monospaced).foregroundStyle(.secondary)
             }
         }
         .toggleStyle(.checkbox)
+    }
+
+    @ViewBuilder
+    private var sizeText: some View {
+        switch size {
+        case .known(let bytes): Text(ByteFormat.string(bytes))
+        case .measuring: Text("...")
+        case .failed: Text("Unknown").help("The runtime couldn't say how big this is")
+        }
     }
 }
 
@@ -322,8 +347,11 @@ struct FreeUpSpaceResultView: View {
                 if !result.removed.isEmpty {
                     list("Removed", result.removed.map(\.name))
                 }
-                if !result.skipped.isEmpty {
-                    list("Left alone: in use since the preview", result.skipped.map(\.name))
+                ForEach(DiskPurgeResult.SkipReason.allCases, id: \.self) { reason in
+                    let names = result.skipped.filter { $0.reason == reason }.map(\.item.name)
+                    if !names.isEmpty {
+                        list(reason.title, names)
+                    }
                 }
                 if !result.failures.isEmpty {
                     list("Couldn't remove", result.failures.map { failure in

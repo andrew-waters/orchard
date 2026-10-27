@@ -196,7 +196,28 @@ func diskPurgeRechecks() async throws {
     #expect(backend.deletedImageReferences.isEmpty)
     #expect(backend.deletedVolumeNames.isEmpty)
     #expect(Set(result.skipped) == [
-        .container(id: "new"), .image(reference: "redis:7"), .image(reference: "ubuntu:24.04"), .volume(name: "cache"),
+        .init(item: .container(id: "new"), reason: .nowInUse),
+        .init(item: .image(reference: "redis:7"), reason: .nowInUse),
+        .init(item: .image(reference: "ubuntu:24.04"), reason: .nowInUse),
+        .init(item: .volume(name: "cache"), reason: .nowInUse),
+    ])
+}
+
+@Test("Disk purge: anything removed some other way since the preview is reported as already gone")
+func diskPurgeAlreadyGone() async throws {
+    let backend = MockContainerBackend()
+    backend.images = [image("redis:7")]
+
+    let plan = DiskPurgePlan(
+        containerIDs: ["old"], imageReferences: ["redis:7", "nginx:latest"], volumeNames: ["scratch"]
+    )
+    let result = try await DiskPurge.purge(plan, backend: backend)
+
+    #expect(backend.deletedImageReferences == ["redis:7"])
+    #expect(Set(result.skipped) == [
+        .init(item: .container(id: "old"), reason: .alreadyGone),
+        .init(item: .image(reference: "nginx:latest"), reason: .alreadyGone),
+        .init(item: .volume(name: "scratch"), reason: .alreadyGone),
     ])
 }
 
@@ -215,7 +236,12 @@ func diskPurgeContainerFailureKeepsWhatItUses() async throws {
     #expect(backend.deletedImageReferences.isEmpty)
     #expect(backend.deletedVolumeNames.isEmpty)
     #expect(result.failures.map(\.item) == [.container(id: "old")])
-    #expect(Set(result.skipped) == [.image(reference: "nginx:latest"), .volume(name: "tmp1")])
+    #expect(Set(result.skipped) == [
+        .init(item: .image(reference: "nginx:latest"), reason: .keptForFailedContainer),
+        .init(item: .volume(name: "tmp1"), reason: .keptForFailedContainer),
+    ])
+    // Said as kept for the container, not as newly in use.
+    #expect(DiskPurgeResult.SkipReason.keptForFailedContainer.title == "Kept: a container that couldn't be removed uses it")
 }
 
 @MainActor
@@ -232,10 +258,29 @@ func diskPurgeServiceLoadAndPurge() async throws {
 
     await service.load()
     #expect(service.phase == .ready)
-    #expect(service.containerSizes == ["old": 7])
-    #expect(service.volumeSizes == ["scratch": 9])
+    #expect(service.containerSizes == ["old": .known(7)])
+    #expect(service.volumeSizes == ["scratch": .known(9)])
 
     await service.purge(DiskPurgePlan(volumeNames: ["scratch"]))
     #expect(service.phase == .finished(DiskPurgeResult(removed: [.volume(name: "scratch")], freedBytes: 9)))
     #expect(refreshed == 1)
+
+    // Opened again, the sheet starts from loading, not from this result.
+    service.reset()
+    #expect(service.phase == .loading)
+    #expect(service.inventory == nil)
+    #expect(service.volumeSizes.isEmpty)
+}
+
+@MainActor
+@Test("Disk purge service: a size the runtime can't read is failed, not still measuring")
+func diskPurgeServiceFailedSize() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [try makeContainer(id: "old", status: "stopped")]
+    backend.volumes = [volume("scratch")]
+    let service = DiskPurgeService(backend: backend)
+
+    await service.load()
+    #expect(service.containerSizes == ["old": .failed])
+    #expect(service.volumeSizes == ["scratch": .failed])
 }

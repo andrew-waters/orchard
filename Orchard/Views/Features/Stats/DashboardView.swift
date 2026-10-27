@@ -187,6 +187,7 @@ struct DashboardView: View {
 
 struct SystemDiskUsageView: View {
     @EnvironmentObject var systemService: SystemService
+    @EnvironmentObject var diskPurgeService: DiskPurgeService
     @State private var showFreeUpSpace = false
 
     var body: some View {
@@ -197,7 +198,11 @@ struct SystemDiskUsageView: View {
                     .font(.headline)
                     .foregroundColor(.primary)
                 Spacer()
-                Button("Free Up Space...") { showFreeUpSpace = true }
+                Button("Free Up Space...") {
+                    // Before presenting, so the sheet's first frame isn't last time's list.
+                    diskPurgeService.reset()
+                    showFreeUpSpace = true
+                }
                     // No usage means the runtime isn't answering, so there's nothing to list.
                     .disabled(usage == nil)
                     .help("Remove images, stopped containers and volumes that aren't in use")

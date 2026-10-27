@@ -85,11 +85,40 @@ struct DiskPurgeResult: Equatable, Sendable {
         let message: String
     }
 
+    /// Why an item chosen in the preview was left alone.
+    enum SkipReason: CaseIterable, Sendable {
+        /// Something started using it after the preview.
+        case nowInUse
+        /// A container chosen with it failed to go, and still uses it.
+        case keptForFailedContainer
+        /// It was removed some other way after the preview.
+        case alreadyGone
+
+        var title: String {
+            switch self {
+            case .nowInUse: return "Left alone: in use since the preview"
+            case .keptForFailedContainer: return "Kept: a container that couldn't be removed uses it"
+            case .alreadyGone: return "Already removed"
+            }
+        }
+    }
+
+    struct Skip: Hashable, Sendable {
+        let item: DiskPurgeItem
+        let reason: SkipReason
+    }
+
     var removed: [DiskPurgeItem] = []
-    /// Chosen in the preview but in use by the time the purge ran, so left alone.
-    var skipped: [DiskPurgeItem] = []
+    var skipped: [Skip] = []
     var failures: [Failure] = []
     var freedBytes: UInt64 = 0
+}
+
+/// A size in the preview: still being read, read, or the runtime couldn't say.
+enum MeasuredSize: Equatable, Sendable {
+    case measuring
+    case known(Int64)
+    case failed
 }
 
 enum DiskPurge {
@@ -199,11 +228,13 @@ enum DiskPurge {
         let inventory = try await readInventory(backend)
 
         let removable = Set(candidates(in: inventory).containers.map(\.configuration.id))
+        let existingContainers = Set(inventory.containers.map(\.configuration.id))
         var removedContainers = Set<String>()
         for id in plan.containerIDs {
             let item = DiskPurgeItem.container(id: id)
             guard removable.contains(id) else {
-                result.skipped.append(item)
+                let reason: DiskPurgeResult.SkipReason = existingContainers.contains(id) ? .nowInUse : .alreadyGone
+                result.skipped.append(.init(item: item, reason: reason))
                 continue
             }
             do {
@@ -218,12 +249,24 @@ enum DiskPurge {
         }
 
         let unused = candidates(in: inventory, removingContainers: removedContainers)
+        // What would have been unused had every chosen container gone: an item in here but
+        // not in `unused` is held only by a container that failed to go.
+        let unusedHadAllGone = candidates(in: inventory, removingContainers: Set(plan.containerIDs))
+        func skipReason(exists: Bool, unusedHadAllGone: Bool) -> DiskPurgeResult.SkipReason {
+            if !exists { return .alreadyGone }
+            return unusedHadAllGone ? .keptForFailedContainer : .nowInUse
+        }
 
         let unusedImages = Set(unused.images.map(\.reference))
+        let existingImages = Set(inventory.images.map(\.reference))
+        let imagesUnusedHadAllGone = Set(unusedHadAllGone.images.map(\.reference))
         for reference in plan.imageReferences {
             let item = DiskPurgeItem.image(reference: reference)
             guard unusedImages.contains(reference) else {
-                result.skipped.append(item)
+                result.skipped.append(.init(item: item, reason: skipReason(
+                    exists: existingImages.contains(reference),
+                    unusedHadAllGone: imagesUnusedHadAllGone.contains(reference)
+                )))
                 continue
             }
             do {
@@ -242,10 +285,15 @@ enum DiskPurge {
         }
 
         let unusedVolumes = Set(unused.volumes.map(\.name))
+        let existingVolumes = Set(inventory.volumes.map(\.name))
+        let volumesUnusedHadAllGone = Set(unusedHadAllGone.volumes.map(\.name))
         for name in plan.volumeNames {
             let item = DiskPurgeItem.volume(name: name)
             guard unusedVolumes.contains(name) else {
-                result.skipped.append(item)
+                result.skipped.append(.init(item: item, reason: skipReason(
+                    exists: existingVolumes.contains(name),
+                    unusedHadAllGone: volumesUnusedHadAllGone.contains(name)
+                )))
                 continue
             }
             do {
@@ -275,10 +323,10 @@ final class DiskPurgeService: ObservableObject {
 
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var inventory: DiskPurgeInventory?
-    /// Disk usage of candidate containers and volumes, filled in as each arrives. Missing
-    /// means not known yet, or the runtime couldn't say.
-    @Published private(set) var containerSizes: [String: UInt64] = [:]
-    @Published private(set) var volumeSizes: [String: UInt64] = [:]
+    /// Disk usage of candidate containers and volumes, filled in as each arrives: `.known`, or
+    /// `.failed` when the runtime couldn't say. Missing means still being read.
+    @Published private(set) var containerSizes: [String: MeasuredSize] = [:]
+    @Published private(set) var volumeSizes: [String: MeasuredSize] = [:]
 
     private let backend: ContainerBackend
 
@@ -289,10 +337,17 @@ final class DiskPurgeService: ObservableObject {
         self.backend = backend
     }
 
-    func load() async {
+    /// Forget the last list or result, so a sheet opened again starts from loading rather than
+    /// showing what it showed last time. The service outlives the sheet.
+    func reset() {
         phase = .loading
+        inventory = nil
         containerSizes = [:]
         volumeSizes = [:]
+    }
+
+    func load() async {
+        reset()
         do {
             let inventory = try await DiskPurge.readInventory(backend)
             self.inventory = inventory
@@ -303,7 +358,6 @@ final class DiskPurgeService: ObservableObject {
                 volumes: inventory.volumes
             )
         } catch {
-            inventory = nil
             phase = .failed(error.localizedDescription)
         }
     }
@@ -319,27 +373,30 @@ final class DiskPurgeService: ObservableObject {
         await onPurged()
     }
 
+    nonisolated private static func measured(_ bytes: UInt64?) -> MeasuredSize {
+        bytes.map { .known(Int64(clamping: $0)) } ?? .failed
+    }
+
     private enum Size {
-        case container(String, UInt64)
-        case volume(String, UInt64)
+        case container(String, MeasuredSize)
+        case volume(String, MeasuredSize)
     }
 
     private func loadSizes(containers: [Container], volumes: [ContainerVolume]) async {
         let backend = backend
-        await withTaskGroup(of: Size?.self) { group in
+        await withTaskGroup(of: Size.self) { group in
             for container in containers {
                 let id = container.configuration.id
-                group.addTask { (try? await backend.containerDiskUsage(id: id)).map { .container(id, $0) } }
+                group.addTask { .container(id, Self.measured(try? await backend.containerDiskUsage(id: id))) }
             }
             for volume in volumes {
                 let name = volume.name
-                group.addTask { (try? await backend.volumeDiskUsage(name: name)).map { .volume(name, $0) } }
+                group.addTask { .volume(name, Self.measured(try? await backend.volumeDiskUsage(name: name))) }
             }
             for await size in group {
                 switch size {
-                case .container(let id, let bytes): containerSizes[id] = bytes
-                case .volume(let name, let bytes): volumeSizes[name] = bytes
-                case nil: break
+                case .container(let id, let size): containerSizes[id] = size
+                case .volume(let name, let size): volumeSizes[name] = size
                 }
             }
         }

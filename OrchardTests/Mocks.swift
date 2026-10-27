@@ -292,7 +292,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         get { lock.withLock { _machineContainers } }
         set { lock.withLock { _machineContainers = newValue } }
     }
-    /// Per-container disk usage; a container not listed uses nothing.
+    /// Per-container disk usage; reading a container not listed throws.
     var containerSizes: [String: UInt64] {
         get { lock.withLock { _containerSizes } }
         set { lock.withLock { _containerSizes = newValue } }
@@ -301,7 +301,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         get { lock.withLock { _volumes } }
         set { lock.withLock { _volumes = newValue } }
     }
-    /// Per-volume disk usage; a volume not listed uses nothing.
+    /// Per-volume disk usage; reading a volume not listed throws.
     var volumeSizes: [String: UInt64] {
         get { lock.withLock { _volumeSizes } }
         set { lock.withLock { _volumeSizes = newValue } }
@@ -347,7 +347,8 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         return containers + machineContainers
     }
     func containerDiskUsage(id: String) async throws -> UInt64 {
-        containerSizes[id] ?? 0
+        guard let size = containerSizes[id] else { throw NotConfigured() }
+        return size
     }
     func stopContainer(id: String) async throws {
         if let stopContainerError { throw stopContainerError }
@@ -474,7 +475,10 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         lock.withLock { _deletedNetworkIds.append(id) }
     }
     func listVolumes() async throws -> [ContainerVolume] { volumes }
-    func volumeDiskUsage(name: String) async throws -> UInt64 { volumeSizes[name] ?? 0 }
+    func volumeDiskUsage(name: String) async throws -> UInt64 {
+        guard let size = volumeSizes[name] else { throw NotConfigured() }
+        return size
+    }
     func deleteVolume(name: String) async throws {
         if let deleteVolumeError { throw deleteVolumeError }
         lock.withLock { _deletedVolumeNames.append(name) }
