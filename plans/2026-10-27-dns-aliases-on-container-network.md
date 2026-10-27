@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "DNS aliases on a container's network attachment on container 1.6.0+: an Aliases list in the Run and Edit form, qualified with the container's DNS domain and sent in the XPC create, with the hostname now qualified the same way, as `container run` does. Aliases show in container detail, the Networks and DNS views and Cmd+K. Edit keeps the network, DNS domain and aliases on recreate."
 issues: [andrew-waters/orchard#134]
 touches: [andrew-waters/orchard]
@@ -58,4 +58,5 @@ Display follows the data: a runtime older than 1.6.0 never stores aliases.
 - [x] Tests: helpers, spec, mapping, palette, edit prefill
 - [x] README, site and CHANGELOG
 - [x] One build and unit test pass (543 passed)
-- [ ] Manual check on 1.6.x: `api.test` and `x.gateway.test` resolve from another container, a duplicate alias shows the runtime's error, aliases show in detail and Networks
+- [x] Manual check on 1.6.1 with the domain `stack`: `api.stack` and `x.gateway.stack` resolve from another container, a duplicate alias shows the runtime's error in the sheet, aliases show in detail, Networks, DNS and Cmd+K, and Edit keeps them
+- [x] Found while checking: the Run sheet hid a failed create (its alert can't appear over a sheet), so the sheet now shows the error itself; the Containers list's context menu offered Remove for running containers, so it now offers it only for stopped ones
