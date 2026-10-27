@@ -3,7 +3,7 @@
   "branch" : "134-dns-aliases-on-container-network",
   "issue" : "andrew-waters/orchard#134",
   "pullRequests" : [
-
+    "https://github.com/andrew-waters/orchard/pull/158"
   ],
   "repos" : [
 
