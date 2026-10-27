@@ -555,15 +555,6 @@ final class ContainerListService: ObservableObject {
             }
         }
 
-        var portMappings: [ContainerRunConfig.PortMapping] = []
-        for port in config.publishedPorts {
-            portMappings.append(.init(
-                hostPort: "\(port.hostPort)",
-                containerPort: "\(port.containerPort)",
-                transportProtocol: port.transportProtocol
-            ))
-        }
-
         var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
         for mount in config.mounts {
             volumeMappings.append(.init(
@@ -578,7 +569,7 @@ final class ContainerListService: ObservableObject {
             image: config.image.reference,
             detached: true,
             environmentVariables: envVars,
-            portMappings: portMappings,
+            portMappings: config.publishedPortRows,
             volumeMappings: volumeMappings,
             workingDirectory: config.initProcess.workingDirectory,
             dnsDomain: config.dns.domain ?? "",
@@ -634,7 +625,9 @@ final class ContainerListService: ObservableObject {
         var ports: [ContainerCreateSpec.Port] = []
         for pm in config.portMappings {
             if let hp = UInt16(pm.hostPort), let cp = UInt16(pm.containerPort) {
-                ports.append(.init(hostPort: hp, containerPort: cp, transportProtocol: pm.transportProtocol))
+                ports.append(.init(
+                    hostPort: hp, containerPort: cp, transportProtocol: pm.transportProtocol, hostAddress: pm.hostAddress
+                ))
             }
         }
 
@@ -673,8 +666,8 @@ final class ContainerListService: ObservableObject {
     func deleteMounts(_ mounts: [ContainerMount]) async {
         var deletedCount = 0
         var failedCount = 0
-        /// Why a container was left alone before anything was deleted, so the alert can say
-        /// what to do about it rather than only how many failed.
+        /// Why each container failed, so the alert can say what to do about it rather than
+        /// only how many failed.
         var refusals: [String] = []
         
         var mountsToRemoveByContainer: [String: Set<String>] = [:]
@@ -722,33 +715,22 @@ final class ContainerListService: ObservableObject {
                 }
             }
             
-            var portMappings: [ContainerRunConfig.PortMapping] = []
-            for port in oldConfig.publishedPorts {
-                portMappings.append(.init(
-                    hostPort: "\(port.hostPort)",
-                    containerPort: "\(port.containerPort)",
-                    transportProtocol: port.transportProtocol
-                ))
+            let volumeMappings = { (mounts: [Mount]) in
+                mounts.map {
+                    ContainerRunConfig.VolumeMapping(
+                        hostPath: $0.source, containerPath: $0.destination, readonly: $0.options.contains("ro")
+                    )
+                }
             }
-            
-            var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
-            for m in updatedMounts {
-                let isReadonly = m.options.contains("ro")
-                volumeMappings.append(.init(
-                    hostPath: m.source,
-                    containerPath: m.destination,
-                    readonly: isReadonly
-                ))
-            }
-            
-            var runConfig = ContainerRunConfig(
+
+            let originalConfig = ContainerRunConfig(
                 name: oldConfig.id,
                 image: oldConfig.image.reference,
                 detached: true,
                 removeAfterStop: false,
                 environmentVariables: envVars,
-                portMappings: portMappings,
-                volumeMappings: volumeMappings,
+                portMappings: oldConfig.publishedPortRows,
+                volumeMappings: volumeMappings(oldConfig.mounts),
                 workingDirectory: oldConfig.initProcess.workingDirectory,
                 commandOverride: oldConfig.initProcess.arguments.joined(separator: " "),
                 dnsDomain: oldConfig.dns.domain ?? "",
@@ -759,27 +741,19 @@ final class ContainerListService: ObservableObject {
                 platform: oldConfig.platform.description,
                 networkAliases: oldConfig.primaryNetworkAliasRows
             )
-            
-            // Checked before the delete: a container whose platform can no longer be created
-            // keeps its mount rather than being lost.
+            var runConfig = originalConfig
+            runConfig.volumeMappings = volumeMappings(updatedMounts)
+
+            // The same recreate as Edit: the platform is checked before the delete, and a
+            // configuration the runtime refuses after it puts the container back with its mount.
             do {
-                runConfig.platform = try await checkedRecreatePlatform(for: runConfig)
+                try await recreateContainer(
+                    oldContainerId: containerId, newConfig: runConfig, originalConfig: originalConfig
+                )
+                deletedCount += 1
             } catch {
                 Log.containers.error("Not recreating \(containerId) without the mount: \(error.localizedDescription)")
                 refusals.append("\(containerId): \(error.localizedDescription)")
-                failedCount += 1
-                continue
-            }
-
-            do {
-                try await backend.deleteContainer(id: containerId, force: true)
-                let started = await runContainer(config: runConfig)
-                if started {
-                    deletedCount += 1
-                } else {
-                    failedCount += 1
-                }
-            } catch {
                 failedCount += 1
             }
         }

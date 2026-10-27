@@ -77,6 +77,18 @@ struct ContainerConfiguration: Codable, Equatable {
         return networkAliases.keys.sorted().flatMap { networkAliases[$0] ?? [] }
     }
 
+    /// The published ports as form rows, host address included, for a recreate to carry through.
+    var publishedPortRows: [ContainerRunConfig.PortMapping] {
+        publishedPorts.map {
+            .init(
+                hostPort: "\($0.hostPort)",
+                containerPort: "\($0.containerPort)",
+                transportProtocol: $0.transportProtocol,
+                hostAddress: $0.hostAddress ?? "0.0.0.0"
+            )
+        }
+    }
+
     /// The aliases on the first attachment, the only one Orchard creates, as form rows for a
     /// recreate to carry through.
     var primaryNetworkAliasRows: [ContainerRunConfig.NetworkAlias] {
@@ -1009,6 +1021,9 @@ struct ContainerRunConfig: Equatable {
         var hostPort: String
         var containerPort: String
         var transportProtocol: String = "tcp"
+        /// The host interface, kept when a recreate carries a stored port through so a port
+        /// published on `127.0.0.1` isn't widened. The form doesn't edit it.
+        var hostAddress: String = "0.0.0.0"
     }
 
     struct VolumeMapping: Identifiable, Equatable {

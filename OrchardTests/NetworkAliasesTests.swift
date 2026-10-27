@@ -130,3 +130,43 @@ func mountRemovalCarriesNetworkAndAliases() async throws {
     #expect(spec.networkAliases == ["api.test", ".gateway.test"])
     #expect(spec.volumes.isEmpty)
 }
+
+@MainActor
+@Test("A refused mount-removal recreate puts the container back with its mount")
+func mountRemovalRestoresWhenRefused() async throws {
+    let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
+    // The runtime refuses the container without the mount, as it might a preserved alias.
+    backend.createContainerHandler = { spec in
+        if spec.volumes.isEmpty { throw NotConfigured() }
+    }
+    let service = makeService(backend: backend)
+    let mounts = """
+    [{ "type": { "virtiofs": {} }, "source": "/Users/me/work", "options": [], "destination": "/work" }]
+    """
+    let container = try makeContainer(
+        id: "gateway", status: "stopped", mountsJSON: mounts, networkName: "default",
+        networkAliases: ["default": ["api.test"]]
+    )
+    let list = service.containerListService
+    list.containers = [container]
+
+    await list.deleteMounts(list.allMounts)
+
+    let restored = try #require(backend.createdSpecs.first)
+    #expect(restored.volumes.map(\.containerPath) == ["/work"])
+    #expect(restored.networkAliases == ["api.test"])
+    #expect(service.alertCenter.current != nil)
+}
+
+@MainActor
+@Test("Spec: a port's host address is carried through, so a recreate doesn't widen it")
+func specCarriesPortHostAddress() async {
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.portMappings = [.init(hostPort: "8080", containerPort: "80", hostAddress: "127.0.0.1")]
+    await service.containerListService.runContainer(config: config)
+
+    #expect(backend.createdSpecs.first?.publishedPorts.first?.hostAddress == "127.0.0.1")
+}

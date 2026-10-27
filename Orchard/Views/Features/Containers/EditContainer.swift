@@ -197,11 +197,14 @@ struct EditContainerView: View {
         Task {
             do {
                 // The original goes along so a configuration the runtime refuses after the old
-                // container is deleted (an alias already taken, say) puts the container back.
+                // container is deleted (an alias already taken, say) puts the container back. The
+                // form leaves ports to be re-added, but putting it back keeps the ones it had.
+                var original = Self.initialConfig(for: container)
+                original.portMappings = container.configuration.publishedPortRows
                 try await containerListService.recreateContainer(
                     oldContainerId: container.configuration.id,
                     newConfig: config,
-                    originalConfig: Self.initialConfig(for: container)
+                    originalConfig: original
                 )
             } catch {
                 // Keep the sheet open with the error, so the user can adjust the form and retry.
