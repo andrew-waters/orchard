@@ -157,10 +157,22 @@ struct Virtiofs: Codable, Equatable {
 struct VolumeMountType: Codable, Equatable {
     let name: String
     let format: String
+    var caching: MountCaching? = nil
 }
 
 struct BlockMountType: Codable, Equatable {
     let format: String
+    var caching: MountCaching? = nil
+}
+
+/// How the host caches and syncs a volume or block mount. Kept so a recreate mounts it the
+/// same way; nil (a configuration stored before this) leaves the runtime's defaults.
+struct MountCaching: Codable, Equatable, Sendable {
+    enum Cache: String, Codable, Sendable { case on, off, auto }
+    enum Sync: String, Codable, Sendable { case full, fsync, nosync }
+
+    let cache: Cache
+    let sync: Sync
 }
 
 struct initProcess: Codable, Equatable {
@@ -1068,6 +1080,8 @@ struct ContainerRunConfig: Equatable {
         /// Mount options other than `ro`, carried through a recreate unchanged. The form
         /// doesn't edit them.
         var otherOptions: [String] = []
+        /// A volume or block mount's host caching, carried through a recreate unchanged.
+        var caching: MountCaching? = nil
     }
 }
 
@@ -1104,7 +1118,8 @@ extension ContainerRunConfig.VolumeMapping {
             containerPath: mount.destination,
             readonly: mount.options.contains("ro"),
             kind: Kind(mount.type),
-            otherOptions: mount.options.filter { $0 != "ro" }
+            otherOptions: mount.options.filter { $0 != "ro" },
+            caching: mount.type.volume?.caching ?? mount.type.block?.caching
         )
     }
 

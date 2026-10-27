@@ -615,7 +615,7 @@ final class ContainerListService: ObservableObject {
         for vol in config.volumeMappings where vol.isComplete {
             volumes.append(.init(
                 hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly,
-                kind: vol.kind, otherOptions: vol.otherOptions
+                kind: vol.kind, otherOptions: vol.otherOptions, caching: vol.caching
             ))
         }
 

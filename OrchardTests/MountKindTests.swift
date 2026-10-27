@@ -12,7 +12,8 @@ private let mixedMountsJSON = """
   { "type": { "volume": { "name": "pgdata", "format": "ext4" } },
     "source": "/volumes/pgdata/volume.img", "options": ["ro"], "destination": "/var/lib/postgresql/data" },
   { "type": { "tmpfs": {} }, "source": "tmpfs", "options": ["size=64m"], "destination": "/cache" },
-  { "type": { "block": { "format": "ext4" } }, "source": "/images/disk.img", "options": [], "destination": "/disk" }
+  { "type": { "block": { "format": "ext4", "caching": { "cache": "off", "sync": "full" } } },
+    "source": "/images/disk.img", "options": [], "destination": "/disk" }
 ]
 """
 
@@ -25,7 +26,9 @@ func mountMappingVolume() {
         destination: "/data", options: ["ro"]
     )
     let mount = mapFilesystem(fs)
-    #expect(mount.type.volume == VolumeMountType(name: "pgdata", format: "ext4"))
+    #expect(mount.type.volume == VolumeMountType(
+        name: "pgdata", format: "ext4", caching: MountCaching(cache: .on, sync: .fsync)
+    ))
     #expect(mount.type.block == nil)
     #expect(mount.type.virtiofs == nil)
     #expect(mount.destination == "/data")
@@ -35,8 +38,10 @@ func mountMappingVolume() {
 
 @Test("Mount mapping: a block mount keeps its format")
 func mountMappingBlock() {
-    let mount = mapFilesystem(.block(format: "ext4", source: "/images/disk.img", destination: "/disk", options: []))
-    #expect(mount.type.block == BlockMountType(format: "ext4"))
+    let mount = mapFilesystem(.block(
+        format: "ext4", source: "/images/disk.img", destination: "/disk", options: [], cache: .off, sync: .nosync
+    ))
+    #expect(mount.type.block == BlockMountType(format: "ext4", caching: MountCaching(cache: .off, sync: .nosync)))
     #expect(mount.type.volume == nil)
     #expect(ContainerMount(mount: mount, containerIds: []).mountType == "Block (ext4)")
 }
@@ -105,6 +110,8 @@ func mountRemovalKeepsMountKinds() async throws {
     #expect(spec.volumes[0].readonly)
     #expect(spec.volumes[1].otherOptions == ["size=64m"])
     #expect(spec.volumes[2].hostPath == "/images/disk.img")
+    #expect(spec.volumes[2].caching == MountCaching(cache: .off, sync: .full))
+    #expect(spec.volumes[0].caching == nil)   // stored without caching: the runtime's defaults
 }
 
 @MainActor
