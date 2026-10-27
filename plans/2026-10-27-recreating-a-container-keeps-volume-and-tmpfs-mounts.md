@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "A container's mounts keep their type through every recreate Orchard does (recovery, mount removal, Edit): named and anonymous volumes stay volumes with the same name, tmpfs stays tmpfs, block mounts stay block mounts, bind mounts stay virtiofs shares, each with all its options. The Mounts tab names the type in place of \"Unknown\". The form preserves these mounts but still only adds bind mounts."
 issues: [andrew-waters/orchard#160]
 touches: [andrew-waters/orchard]
@@ -41,4 +41,4 @@ Orchard read every mount as either tmpfs, virtiofs or "Unknown", and created eve
 - [x] Tests: mapping for each type, spec round trip, Edit prefill
 - [x] CHANGELOG
 - [x] One build and unit test pass (557 passed)
-- [ ] Manual: remove a bind mount from a container with `pgdata`, which stays mounted
+- [x] Manual: remove a bind mount from a container with `pgdata`, which stays mounted
