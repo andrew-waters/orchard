@@ -938,16 +938,16 @@ struct VolumeMappingRow: View {
             TextField("Host Path", text: $mapping.hostPath)
                 .textFieldStyle(.roundedBorder)
         case .volume(let name):
-            readOnlySource(name, icon: "cylinder")
+            readOnlySource(name)
         case .tmpfs:
-            readOnlySource("tmpfs", icon: "memorychip")
+            readOnlySource("tmpfs")
         case .block:
-            readOnlySource(mapping.hostPath, icon: "externaldrive")
+            readOnlySource(mapping.hostPath)
         }
     }
 
-    private func readOnlySource(_ text: String, icon: String) -> some View {
-        Label(text, systemImage: icon)
+    private func readOnlySource(_ text: String) -> some View {
+        Label(text, systemImage: mapping.kind.systemImage)
             .lineLimit(1)
             .truncationMode(.middle)
             .frame(maxWidth: .infinity, alignment: .leading)

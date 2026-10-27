@@ -121,3 +121,9 @@ func runSendsTmpfsWithoutHostPath() async {
 
     #expect(backend.createdSpecs.first?.volumes.map(\.kind) == [.tmpfs])
 }
+
+@Test("Each mount kind has its own symbol")
+func mountKindSymbolsAreDistinct() {
+    let kinds: [ContainerRunConfig.VolumeMapping.Kind] = [.bind, .volume(name: "v"), .tmpfs, .block(format: "ext4")]
+    #expect(Set(kinds.map(\.systemImage)).count == kinds.count)
+}

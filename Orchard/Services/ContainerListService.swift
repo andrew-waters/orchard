@@ -530,8 +530,8 @@ final class ContainerListService: ObservableObject {
 
     // Recovery recreates an auto-removed container from its snapshot. It preserves every
     // field the create path (ContainerRunConfig → ContainerCreateSpec → createContainer)
-    // supports: env, ports, mounts (with their kind and options), working directory, network, DNS, platform,
-    // network aliases.
+    // supports: env, ports, mounts (with their kind and options), working directory, network,
+    // DNS, platform, network aliases.
     // Labels, resources (cpus/memory), and hostname are NOT preserved - no field exists for
     // them anywhere in the create path (a normal `run` drops them too); adding them means
     // extending the spec and the XPC create call. Command override is intentionally not

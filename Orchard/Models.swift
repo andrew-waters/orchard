@@ -1071,25 +1071,39 @@ struct ContainerRunConfig: Equatable {
     }
 }
 
+extension ContainerRunConfig.VolumeMapping.Kind {
+    init(_ type: MountType) {
+        if let volume = type.volume {
+            self = .volume(name: volume.name)
+        } else if let block = type.block {
+            self = .block(format: block.format)
+        } else if type.tmpfs != nil {
+            self = .tmpfs
+        } else {
+            self = .bind
+        }
+    }
+
+    /// The symbol for this kind of mount, the same in the Mounts tab and the form.
+    var systemImage: String {
+        switch self {
+        case .bind: return "folder"
+        case .volume: return "cylinder"
+        case .tmpfs: return "memorychip"
+        case .block: return "externaldrive"
+        }
+    }
+}
+
 extension ContainerRunConfig.VolumeMapping {
     /// The row that mounts `mount` again as it is: the same kind, destination and options.
     /// Every recreate (recovery, mount removal, Edit) builds its rows with this.
     init(mount: Mount) {
-        let kind: Kind
-        if let volume = mount.type.volume {
-            kind = .volume(name: volume.name)
-        } else if let block = mount.type.block {
-            kind = .block(format: block.format)
-        } else if mount.type.tmpfs != nil {
-            kind = .tmpfs
-        } else {
-            kind = .bind
-        }
         self.init(
             hostPath: mount.source,
             containerPath: mount.destination,
             readonly: mount.options.contains("ro"),
-            kind: kind,
+            kind: Kind(mount.type),
             otherOptions: mount.options.filter { $0 != "ro" }
         )
     }

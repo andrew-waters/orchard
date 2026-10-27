@@ -40,5 +40,5 @@ Orchard read every mount as either tmpfs, virtiofs or "Unknown", and created eve
 - [x] Form row and Mounts tab show the type
 - [x] Tests: mapping for each type, spec round trip, Edit prefill
 - [x] CHANGELOG
-- [x] One build and unit test pass (556 passed)
+- [x] One build and unit test pass (557 passed)
 - [ ] Manual: remove a bind mount from a container with `pgdata`, which stays mounted
