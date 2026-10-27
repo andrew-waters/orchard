@@ -86,12 +86,21 @@ func mapProcessConfiguration(_ process: ProcessConfiguration) -> initProcess {
 
 func mapFilesystem(_ fs: Filesystem) -> Mount {
     let mountType: MountType
-    if fs.isTmpfs {
+    switch fs.type {
+    case .volume(let name, let format, let cache, let sync):
+        mountType = MountType(
+            tmpfs: nil, virtiofs: nil,
+            volume: VolumeMountType(name: name, format: format, caching: mapMountCaching(cache, sync))
+        )
+    case .block(let format, let cache, let sync):
+        mountType = MountType(
+            tmpfs: nil, virtiofs: nil,
+            block: BlockMountType(format: format, caching: mapMountCaching(cache, sync))
+        )
+    case .tmpfs:
         mountType = MountType(tmpfs: Tmpfs(), virtiofs: nil)
-    } else if fs.isVirtiofs {
+    case .virtiofs:
         mountType = MountType(tmpfs: nil, virtiofs: Virtiofs())
-    } else {
-        mountType = MountType(tmpfs: nil, virtiofs: nil)
     }
 
     return Mount(
@@ -100,6 +109,22 @@ func mapFilesystem(_ fs: Filesystem) -> Mount {
         options: fs.options,
         destination: fs.destination
     )
+}
+
+func mapMountCaching(_ cache: Filesystem.CacheMode, _ sync: Filesystem.SyncMode) -> MountCaching {
+    let mappedCache: MountCaching.Cache
+    switch cache {
+    case .on: mappedCache = .on
+    case .off: mappedCache = .off
+    case .auto: mappedCache = .auto
+    }
+    let mappedSync: MountCaching.Sync
+    switch sync {
+    case .full: mappedSync = .full
+    case .fsync: mappedSync = .fsync
+    case .nosync: mappedSync = .nosync
+    }
+    return MountCaching(cache: mappedCache, sync: mappedSync)
 }
 
 // MARK: - Platform mapping

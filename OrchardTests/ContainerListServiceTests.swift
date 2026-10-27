@@ -205,6 +205,29 @@ func startContainerNotFoundRecreatesFromSnapshot() async throws {
     #expect(service.recoveryFailedContainerIDs.contains("web") == false)
 }
 
+@MainActor
+@Test("startContainer: recovery recreates a named volume and a tmpfs mount as they were (#160)")
+func startContainerRecoveryKeepsMountKinds() async throws {
+    let backend = MockContainerBackend()
+    let mounts = """
+    [{ "type": { "volume": { "name": "pgdata", "format": "ext4" } },
+       "source": "/volumes/pgdata/volume.img", "options": [], "destination": "/data" },
+     { "type": { "tmpfs": {} }, "source": "tmpfs", "options": [], "destination": "/cache" }]
+    """
+    backend.containers = [try makeContainer(id: "pg", status: "running", mountsJSON: mounts)]
+    let (service, _) = makeListService(backend)
+    await service.loadContainers()   // seed the recovery snapshot
+
+    backend.bootstrapAndStartHandler = { _ in throw makeError("container not found") }
+
+    await service.startContainer("pg", maxRetries: 3, retryDelay: 0)
+    await awaitQuiescence { !service.loadingContainers.contains("pg") }
+
+    let spec = try #require(backend.createdSpecs.first { $0.id == "pg" })
+    #expect(spec.volumes.map(\.kind) == [.volume(name: "pgdata"), .tmpfs])
+    #expect(spec.volumes.map(\.containerPath) == ["/data", "/cache"])
+}
+
 // MARK: - refresh poll loops (driven through the public stop/start wiring)
 
 @MainActor

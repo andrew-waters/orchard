@@ -1041,7 +1041,12 @@ struct MountDetailView: View {
                 .foregroundColor(.primary)
 
             VStack(alignment: .leading, spacing: 8) {
-                if mount.mount.type.virtiofs != nil {
+                if let volume = mount.mount.type.volume {
+                    InfoRow(label: "Filesystem", value: "Volume (\(volume.format))")
+                    InfoRow(label: "Volume", value: volume.name)
+                } else if let block = mount.mount.type.block {
+                    InfoRow(label: "Filesystem", value: "Block (\(block.format))")
+                } else if mount.mount.type.virtiofs != nil {
                     InfoRow(label: "Filesystem", value: "VirtioFS")
                 } else if mount.mount.type.tmpfs != nil {
                     InfoRow(label: "Filesystem", value: "tmpfs")

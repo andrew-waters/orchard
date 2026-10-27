@@ -165,7 +165,7 @@ struct MountRow: View {
     var body: some View {
         NavigationLink(value: mount.id) {
             HStack {
-                SwiftUI.Image(systemName: mount.mount.type.virtiofs != nil ? "externaldrive" : "folder")
+                SwiftUI.Image(systemName: ContainerRunConfig.VolumeMapping.Kind(mount.mount.type).systemImage)
                     .foregroundColor(isUsedByRunningContainer ? .blue : .gray)
                     .frame(width: 16, height: 16)
                     .padding(.trailing, 8)

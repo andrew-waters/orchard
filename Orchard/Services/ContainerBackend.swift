@@ -33,6 +33,11 @@ struct ContainerCreateSpec: Sendable {
         let hostPath: String
         let containerPath: String
         let readonly: Bool
+        var kind: ContainerRunConfig.VolumeMapping.Kind = .bind
+        /// Options other than `ro`, as the container had them.
+        var otherOptions: [String] = []
+        /// A volume or block mount's host caching; nil uses the runtime's defaults.
+        var caching: MountCaching? = nil
     }
     struct Port: Sendable {
         let hostPort: UInt16
@@ -512,9 +517,37 @@ struct LiveContainerBackend: ContainerBackend {
             // Translate the spec's app types into the client's configuration types.
             var mounts: [Filesystem] = []
             for vol in spec.volumes {
-                var options: [String] = []
+                var options = vol.otherOptions
                 if vol.readonly { options.append("ro") }
-                mounts.append(.virtiofs(source: vol.hostPath, destination: vol.containerPath, options: options))
+                switch vol.kind {
+                case .bind:
+                    mounts.append(.virtiofs(source: vol.hostPath, destination: vol.containerPath, options: options))
+                case .volume(let name):
+                    // The volume outlives the container, so a recreate finds it by name, as
+                    // `container run -v name:/path` does for one that already exists.
+                    let volume = try await ClientVolume.inspect(name)
+                    var mount = Filesystem.volume(
+                        name: name, format: volume.format, source: volume.source,
+                        destination: vol.containerPath, options: options
+                    )
+                    if let caching = vol.caching {
+                        mount.type = .volume(
+                            name: name, format: volume.format,
+                            cache: caching.cacheMode, sync: caching.syncMode
+                        )
+                    }
+                    mounts.append(mount)
+                case .tmpfs:
+                    mounts.append(.tmpfs(destination: vol.containerPath, options: options))
+                case .block(let format):
+                    var mount = Filesystem.block(
+                        format: format, source: vol.hostPath, destination: vol.containerPath, options: options
+                    )
+                    if let caching = vol.caching {
+                        mount.type = .block(format: format, cache: caching.cacheMode, sync: caching.syncMode)
+                    }
+                    mounts.append(mount)
+                }
             }
 
             var ports: [PublishPort] = []
@@ -786,5 +819,23 @@ struct LiveContainerBackend: ContainerBackend {
             let stats = try await ClientDiskUsage.get()
             return mapDiskUsageStats(stats)
         } catch { throw mapContainerError(error) }
+    }
+}
+
+extension MountCaching {
+    var cacheMode: Filesystem.CacheMode {
+        switch cache {
+        case .on: return .on
+        case .off: return .off
+        case .auto: return .auto
+        }
+    }
+
+    var syncMode: Filesystem.SyncMode {
+        switch sync {
+        case .full: return .full
+        case .fsync: return .fsync
+        case .nosync: return .nosync
+        }
     }
 }
