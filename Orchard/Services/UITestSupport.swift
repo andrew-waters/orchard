@@ -123,6 +123,9 @@ struct UITestBackend: ContainerBackend {
     func deleteImage(reference: String) async throws {}
     func cleanUpOrphanedBlobs() async throws -> UInt64 { 0 }
     func systemImageReferences() async throws -> [String] { [] }
+    func imageDiskUsage(activeReferences: Set<String>) async throws -> ImageDiskUsage {
+        ImageDiskUsage(total: 0, active: 0, sizeInBytes: 0, reclaimable: 0)
+    }
     func inspectImage(reference: String) async throws -> ImageInspection {
         throw OrchardError.generic("inspect unavailable in UI-test mode")
     }

@@ -191,6 +191,9 @@ protocol ContainerBackend: Sendable {
     /// The images the runtime itself needs, which no container lists as its image: the
     /// init filesystem and the builder.
     func systemImageReferences() async throws -> [String]
+    /// The image store's disk usage counting `activeReferences` as in use, with content
+    /// shared between images counted once.
+    func imageDiskUsage(activeReferences: Set<String>) async throws -> ImageDiskUsage
     func inspectImage(reference: String) async throws -> ImageInspection
     /// The platforms an image can run as, `os/arch[/variant]`, without pulling it: from the
     /// local index when the image is here, otherwise from the registry through the images
@@ -876,6 +879,18 @@ struct LiveContainerBackend: ContainerBackend {
     func deleteVolume(name: String) async throws {
         do {
             try await ClientVolume.delete(name: name)
+        } catch { throw mapContainerError(error) }
+    }
+
+    func imageDiskUsage(activeReferences: Set<String>) async throws -> ImageDiskUsage {
+        do {
+            let usage = try await ClientImage.calculateDiskUsage(activeReferences: activeReferences)
+            return ImageDiskUsage(
+                total: usage.totalCount,
+                active: usage.activeCount,
+                sizeInBytes: Int64(clamping: usage.totalSize),
+                reclaimable: Int64(clamping: usage.reclaimableSize)
+            )
         } catch { throw mapContainerError(error) }
     }
 

@@ -193,47 +193,83 @@ struct SystemDiskUsageView: View {
     var body: some View {
         let usage = systemService.systemDiskUsage
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Disk Usage")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                Spacer()
-                Button("Free Up Space...") {
-                    // Before presenting, so the sheet's first frame isn't last time's list.
-                    diskPurgeService.reset()
-                    showFreeUpSpace = true
-                }
-                    // No usage means the runtime isn't answering, so there's nothing to list.
-                    .disabled(usage == nil)
-                    .help("Remove images, stopped containers and volumes that aren't in use")
-                    .accessibilityIdentifier("free-up-space")
-            }
-            tiles(usage)
+            Text("Disk Usage")
+                .font(.headline)
+                .foregroundColor(.primary)
+            tiles(usage, systemService.diskUsageBreakdown)
         }
         .sheet(isPresented: $showFreeUpSpace) {
             FreeUpSpaceView()
         }
     }
 
-    private func tiles(_ usage: SystemDiskUsage?) -> some View {
-        HStack(spacing: 12) {
+    /// The breakdown's figures where there is one, otherwise the runtime's own, with System
+    /// and Reclaimable left blank since only the breakdown can say them.
+    private func tiles(_ usage: SystemDiskUsage?, _ breakdown: DiskUsageBreakdown?) -> some View {
+        let containers = breakdown?.containers ?? usage?.containers
+        let images = breakdown?.images ?? usage?.images
+        let volumes = breakdown?.volumes ?? usage?.volumes
+        return HStack(spacing: 12) {
             statTile(icon: "shippingbox", title: "Containers",
-                     value: usage?.containers.formattedSize ?? "--",
-                     detail: usage.map { "\($0.containers.active)/\($0.containers.total)" } ?? "--")
+                     value: containers?.formattedSize ?? "--",
+                     detail: containers.map { "\($0.active)/\($0.total)" } ?? "--")
             statTile(icon: "square.stack.3d.up", title: "Images",
-                     value: usage?.images.formattedSize ?? "--",
-                     detail: usage.map { "\($0.images.active)/\($0.images.total)" } ?? "--")
+                     value: images?.formattedSize ?? "--",
+                     detail: images.map { "\($0.active)/\($0.total)" } ?? "--")
             statTile(icon: "externaldrive", title: "Volumes",
-                     value: usage?.volumes.formattedSize ?? "--",
-                     detail: usage.map { "\($0.volumes.active)/\($0.volumes.total)" } ?? "--")
+                     value: volumes?.formattedSize ?? "--",
+                     detail: volumes.map { "\($0.active)/\($0.total)" } ?? "--")
+            statTile(icon: "gearshape", title: "System",
+                     value: breakdown.map { Self.bytes($0.systemSize) } ?? "--",
+                     detail: breakdown.map(Self.systemDetail) ?? "--")
+                .help("The image builder and the images the runtime needs to start containers. Free Up Space leaves these alone.")
             statTile(icon: "trash", title: "Reclaimable",
-                     value: usage?.formattedTotalReclaimable ?? "--",
-                     detail: "Space", valueColor: .orange)
+                     value: breakdown.map { Self.bytes($0.reclaimable) } ?? "--",
+                     valueColor: .orange) {
+                Button("Free Up Space...") {
+                    // Before presenting, so the sheet's first frame isn't last time's list.
+                    diskPurgeService.reset()
+                    showFreeUpSpace = true
+                }
+                .buttonStyle(.link)
+                // No usage means the runtime isn't answering, so there's nothing to list.
+                .disabled(usage == nil)
+                .help("Remove images, stopped containers and volumes that aren't in use")
+                .accessibilityIdentifier("free-up-space")
+            }
+                .help("What Free Up Space can remove with every section switched on. This is less than container system df reports, since that also counts the builder, system images, and stopped machines, compose services and sandboxes.")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private static func bytes(_ count: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: count, countStyle: .binary)
+    }
+
+    private static func systemDetail(_ breakdown: DiskUsageBreakdown) -> String {
+        var parts: [String] = []
+        if breakdown.systemContainers > 0 {
+            parts.append(breakdown.systemContainers == 1 ? "1 builder" : "\(breakdown.systemContainers) builders")
+        }
+        if breakdown.systemImages > 0 {
+            parts.append(breakdown.systemImages == 1 ? "1 image" : "\(breakdown.systemImages) images")
+        }
+        return parts.isEmpty ? "None" : parts.joined(separator: ", ")
+    }
+
     private func statTile(icon: String, title: String, value: String, detail: String, valueColor: Color = .primary) -> some View {
+        statTile(icon: icon, title: title, value: value, valueColor: valueColor) {
+            Text(detail).foregroundColor(.secondary)
+        }
+    }
+
+    /// Every tile has the same three lines, so they line up: a title, a figure, and a caption
+    /// line that is usually text but can be a control. Each stays on one line rather than
+    /// wrapping when the tiles are narrow.
+    private func statTile<Detail: View>(
+        icon: String, title: String, value: String, valueColor: Color = .primary,
+        @ViewBuilder detail: () -> Detail
+    ) -> some View {
         HStack(alignment: .top, spacing: 12) {
             SwiftUI.Image(systemName: icon)
                 .font(.title2)
@@ -244,9 +280,10 @@ struct SystemDiskUsageView: View {
                 Text(value)
                     .font(.subheadline).fontWeight(.semibold).fontDesign(.monospaced)
                     .foregroundColor(valueColor)
-                Text(detail).font(.caption).foregroundColor(.secondary)
+                detail().font(.caption)
             }
-            Spacer()
+            .lineLimit(1)
+            Spacer(minLength: 0)
         }
         .well()
     }

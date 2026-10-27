@@ -220,6 +220,80 @@ enum DiskPurge {
         )
     }
 
+    /// The image builder, which the runtime starts for `container build` and keeps. It counts
+    /// with the runtime's own images rather than the user's containers.
+    static func isBuilder(_ container: Container) -> Bool {
+        container.pluginRoles.contains("builder")
+    }
+
+    /// The runtime's disk usage split for the dashboard: the builder and system images taken
+    /// out into a System share, and reclaimable space counted as the most Free Up Space can
+    /// remove, with every section switched on. A size the runtime can't read counts as nothing,
+    /// so reclaimable space is never overstated.
+    static func breakdown(of usage: SystemDiskUsage, backend: ContainerBackend) async throws -> DiskUsageBreakdown {
+        let inventory = try await readInventory(backend)
+        let removable = candidates(in: inventory).containers
+        let freeable = candidates(in: inventory, removingContainers: Set(removable.map(\.configuration.id)))
+        let builders = inventory.containers.filter(isBuilder)
+        let present = Set(inventory.images.map(\.reference))
+        let systemImageReferences = present.intersection(inventory.systemImageReferences)
+
+        async let systemImages = backend.imageDiskUsage(activeReferences: systemImageReferences)
+        async let keptImages = backend.imageDiskUsage(
+            activeReferences: present.subtracting(freeable.images.map(\.reference)))
+        async let builderBytes = sumOfSizes(builders.map(\.configuration.id)) {
+            try await backend.containerDiskUsage(id: $0)
+        }
+        async let containerBytes = sumOfSizes(removable.map(\.configuration.id)) {
+            try await backend.containerDiskUsage(id: $0)
+        }
+        async let volumeBytes = sumOfSizes(freeable.volumes.map(\.name)) {
+            try await backend.volumeDiskUsage(name: $0)
+        }
+
+        let system = try await systemImages
+        let builderSize = await builderBytes
+        // The runtime counts an image as active when a container is made from it, as the
+        // builder image is.
+        let containerImages = Set(inventory.containers.map(\.configuration.image.reference))
+        let activeSystemImages = systemImageReferences.intersection(containerImages).count
+        return DiskUsageBreakdown(
+            containers: DiskUsageSection(
+                active: max(0, usage.containers.active - builders.filter { $0.status == "running" }.count),
+                reclaimable: await containerBytes,
+                sizeInBytes: max(0, usage.containers.sizeInBytes - builderSize),
+                total: max(0, usage.containers.total - builders.count)
+            ),
+            images: DiskUsageSection(
+                active: max(0, usage.images.active - activeSystemImages),
+                reclaimable: try await keptImages.reclaimable,
+                sizeInBytes: max(0, usage.images.sizeInBytes - system.activeBytes),
+                total: max(0, usage.images.total - system.active)
+            ),
+            volumes: DiskUsageSection(
+                active: usage.volumes.active,
+                reclaimable: await volumeBytes,
+                sizeInBytes: usage.volumes.sizeInBytes,
+                total: usage.volumes.total
+            ),
+            systemContainers: builders.count,
+            systemImages: system.active,
+            systemSize: builderSize + system.activeBytes
+        )
+    }
+
+    private static func sumOfSizes(
+        _ names: [String],
+        _ size: @escaping @Sendable (String) async throws -> UInt64
+    ) async -> Int64 {
+        await withTaskGroup(of: UInt64.self) { group in
+            for name in names {
+                group.addTask { (try? await size(name)) ?? 0 }
+            }
+            return await group.reduce(0) { $0 + Int64(clamping: $1) }
+        }
+    }
+
     /// Carry out a plan made from an earlier preview. Reads the runtime again first and leaves
     /// alone anything that has come into use since; then decides images and volumes only once
     /// the containers have gone, so one that failed to go keeps what it uses.

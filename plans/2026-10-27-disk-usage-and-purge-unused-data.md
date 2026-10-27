@@ -42,7 +42,7 @@ Each container and volume shows its own size from `diskUsage(id:)` and `volumeDi
 
 ## Where it lives
 
-A "Free Up Space..." button above the disk tiles on the Stats dashboard opens a sheet with:
+A "Free Up Space..." button in the Reclaimable tile on the Stats dashboard opens a sheet with:
 
 1. A loading state while it builds the candidate list (sizes are fetched at the same time).
 2. Three sections, Images, Containers and Volumes, each with a toggle, a checkbox and size for each item, and the section total. Containers and Volumes start off.
@@ -52,6 +52,14 @@ A "Free Up Space..." button above the disk tiles on the Stats dashboard opens a 
 Before removing anything, the purge reloads the container list and checks every candidate again. Anything that has come into use since the preview is skipped and reported, so a container started in between keeps its image and volumes. Images and volumes are decided again once the containers have gone, so a container that fails to go keeps what it uses.
 
 Afterwards it refreshes disk usage, and the image and container lists.
+
+## Dashboard tiles
+
+After a purge, the runtime still calls the stopped builder and the vminit image reclaimable, so the Reclaimable tile kept showing space Free Up Space will never remove. The tiles now split the runtime's figures:
+
+- A System tile holds the builder containers and the images the runtime needs (vminit and the builder image), which Containers and Images no longer count.
+- Reclaimable is the most Free Up Space can remove with every section on: removable containers, the images and volumes left unused once they go, compose volumes excluded. Image sizes come from `ClientImage.calculateDiskUsage(activeReferences:)`, so shared layers count once.
+- If the split can't be worked out, the tiles fall back to the runtime's own figures and System and Reclaimable show "--".
 
 ## Shape of the code
 
@@ -75,6 +83,7 @@ Afterwards it refreshes disk usage, and the image and container lists.
 - [x] `DiskPurgeService`: load, run and report
 - [x] Purge sheet and dashboard button
 - [x] Tests: rules (machines, compose, cluster, sandbox, builder and vminit are protected; volume in use by name and by path; compose volumes skipped; anonymous volumes ticked by default; cascade; re-check skips newly used items), service against the mock
+- [x] Dashboard tiles: System tile, and Reclaimable as what Free Up Space can remove
 - [x] README, site and CHANGELOG
 - [x] One build and unit test pass (568 passed)
 - [ ] Manual check on 1.6.1: a pulled image no container uses is removed; a machine's image, a compose service and a cluster node are not listed; an unmounted volume is removed only when opted in; freed space matches the tile change

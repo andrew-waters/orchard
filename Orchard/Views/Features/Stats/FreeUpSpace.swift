@@ -66,7 +66,7 @@ struct FreeUpSpaceView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(totalText(preview)).font(.subheadline).fontWeight(.medium)
                     Text("Image sizes overlap where images share layers, so the space freed can be less.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
@@ -188,14 +188,26 @@ struct FreeUpSpaceView: View {
         rows: [FreeUpSpaceRow]
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: isOn) {
+            HStack(spacing: 12) {
                 Label(title, systemImage: systemImage).font(.headline)
+                Spacer()
+                if isOn.wrappedValue && !rows.isEmpty {
+                    let allTicked = rows.allSatisfy(\.isTicked)
+                    Button(allTicked ? "Deselect All" : "Select All") {
+                        for row in rows { row.$isTicked.wrappedValue = !allTicked }
+                    }
+                    .buttonStyle(.link)
+                    .font(.subheadline)
+                }
+                Toggle(title, isOn: isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(rows.isEmpty)
             }
-            .toggleStyle(.switch)
-            .disabled(rows.isEmpty)
 
             Text(caption)
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if rows.isEmpty {
@@ -204,6 +216,7 @@ struct FreeUpSpaceView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(rows) { $0 }
                 }
+                .padding(.top, 4)
             } else {
                 let known = rows.compactMap { row -> Int64? in
                     if case .known(let bytes) = row.size { return bytes }
@@ -305,17 +318,18 @@ struct FreeUpSpaceRow: View, Identifiable {
                         .lineLimit(1).truncationMode(.middle)
                         .help(item.name)
                     if let detail {
-                        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text(detail).foregroundStyle(.secondary).lineLimit(1)
                     }
                     if freedByContainers {
                         Text("Used only by containers ticked for removal")
-                            .font(.caption).foregroundStyle(.orange)
+                            .foregroundStyle(.orange)
                     }
                 }
                 Spacer()
                 sizeText
-                    .font(.subheadline).fontDesign(.monospaced).foregroundStyle(.secondary)
+                    .fontDesign(.monospaced).foregroundStyle(.secondary)
             }
+            .font(.subheadline)
         }
         .toggleStyle(.checkbox)
     }

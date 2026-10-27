@@ -6,11 +6,11 @@ import ComposePlanner
 // Freeing disk space (#159): what counts as unused, what the preview ticks, and that the purge
 // leaves alone anything in use when it runs.
 
-private func image(_ reference: String) -> ContainerImage {
+private func image(_ reference: String, size: Int = 0) -> ContainerImage {
     ContainerImage(
         descriptor: ContainerImageDescriptor(
             digest: "sha256:\(reference)", mediaType: "application/vnd.oci.image.index.v1+json",
-            size: 0, annotations: nil
+            size: size, annotations: nil
         ),
         reference: reference
     )
@@ -283,4 +283,44 @@ func diskPurgeServiceFailedSize() async throws {
     await service.load()
     #expect(service.containerSizes == ["old": .failed])
     #expect(service.volumeSizes == ["scratch": .failed])
+}
+
+// MARK: - Dashboard breakdown
+
+@Test("Disk purge: the dashboard moves the builder and system images into System, and counts reclaimable as what Free Up Space can remove")
+func diskPurgeBreakdown() async throws {
+    let backend = MockContainerBackend()
+    backend.containers = [
+        try makeContainer(id: "buildkit", status: "stopped",
+                          labels: [PluginResourceMarker.pluginLabel: "builder", PluginResourceMarker.roleLabel: "builder"],
+                          imageReference: "builder:1"),
+        try makeContainer(id: "web", status: "running", imageReference: "nginx:latest"),
+        try makeContainer(id: "old", status: "stopped", imageReference: "alpine:3"),
+    ]
+    backend.containerSizes = ["buildkit": 600, "web": 10, "old": 40]
+    backend.images = [
+        image("vminit:1", size: 100), image("builder:1", size: 200), image("nginx:latest", size: 300),
+        image("redis:7", size: 400), image("alpine:3", size: 500),
+    ]
+    backend.systemImages = ["vminit:1", "builder:1"]
+    backend.volumes = [volume("cache"), volume("pgdata", labels: [ProjectIdentity.projectLabel: "shop"])]
+    backend.volumeSizes = ["cache": 50, "pgdata": 70]
+    // As the runtime reports it: every container, every image, unused meaning not made into a container.
+    let usage = SystemDiskUsage(
+        containers: DiskUsageSection(active: 1, reclaimable: 640, sizeInBytes: 650, total: 3),
+        images: DiskUsageSection(active: 3, reclaimable: 500, sizeInBytes: 1500, total: 5),
+        volumes: DiskUsageSection(active: 0, reclaimable: 120, sizeInBytes: 120, total: 2)
+    )
+
+    let breakdown = try await DiskPurge.breakdown(of: usage, backend: backend)
+
+    #expect(breakdown.systemContainers == 1)
+    #expect(breakdown.systemImages == 2)
+    #expect(breakdown.systemSize == 600 + 100 + 200)
+    #expect(breakdown.containers == DiskUsageSection(active: 1, reclaimable: 40, sizeInBytes: 50, total: 2))
+    // Removing "old" frees alpine as well as redis; vminit, builder and nginx stay.
+    #expect(breakdown.images == DiskUsageSection(active: 2, reclaimable: 900, sizeInBytes: 1200, total: 3))
+    // The compose volume isn't Free Up Space's to remove.
+    #expect(breakdown.volumes == DiskUsageSection(active: 0, reclaimable: 50, sizeInBytes: 120, total: 2))
+    #expect(breakdown.reclaimable == 40 + 900 + 50)
 }

@@ -46,6 +46,9 @@ final class SystemService: ObservableObject {
     @Published var systemProperties: [SystemProperty] = []
     @Published var isSystemPropertiesLoading = false
     @Published var systemDiskUsage: SystemDiskUsage?
+    /// The dashboard's view of `systemDiskUsage`. Nil when it couldn't be worked out, in which
+    /// case the dashboard falls back to the runtime's own figures.
+    @Published var diskUsageBreakdown: DiskUsageBreakdown?
     @Published var isSystemDiskUsageLoading = false
 
     private let backend: ContainerBackend
@@ -245,10 +248,19 @@ final class SystemService: ObservableObject {
 
         do {
             let diskUsage = try await backend.diskUsage()
+            let breakdown: DiskUsageBreakdown?
+            do {
+                breakdown = try await DiskPurge.breakdown(of: diskUsage, backend: backend)
+            } catch {
+                breakdown = nil
+                Log.containers.error("Failed to break down disk usage: \(error.localizedDescription)")
+            }
             self.systemDiskUsage = diskUsage
+            self.diskUsageBreakdown = breakdown
             self.isSystemDiskUsageLoading = false
         } catch {
             self.systemDiskUsage = nil
+            self.diskUsageBreakdown = nil
             self.isSystemDiskUsageLoading = false
             // Runs on the 1s stats poll — only a user-initiated load may alert.
             self.alertCenter.error("Failed to load system disk usage: \(error.localizedDescription)",

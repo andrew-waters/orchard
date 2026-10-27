@@ -457,6 +457,17 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         return orphanedBlobBytes
     }
     func systemImageReferences() async throws -> [String] { systemImages }
+    /// Each image's size is its descriptor's; the fixtures share no content.
+    func imageDiskUsage(activeReferences: Set<String>) async throws -> ImageDiskUsage {
+        let images = images
+        let unused = images.filter { !activeReferences.contains($0.reference) }
+        return ImageDiskUsage(
+            total: images.count,
+            active: images.count - unused.count,
+            sizeInBytes: Int64(images.reduce(0) { $0 + $1.descriptor.size }),
+            reclaimable: Int64(unused.reduce(0) { $0 + $1.descriptor.size })
+        )
+    }
     func inspectImage(reference: String) async throws -> ImageInspection { throw NotConfigured() }
     func imagePlatforms(reference: String) async throws -> [String] {
         guard let platforms = imagePlatformsResult else { throw NotConfigured() }
