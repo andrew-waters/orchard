@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Treat a sandbox as an isolated workload rather than a container wired to a model: the `com.orchard.sandbox` label alone makes one, with an optional model endpoint, an owner (`com.orchard.sandbox.owner`) and a network mode (`com.orchard.sandbox.network`). The Sandbox tab shows how each one is contained (network, mounts, CPU and memory, owner), groups them by owner, and a sandbox another app owns, such as a Gannin session, is badged and warns before it is stopped or removed from anywhere in Orchard."
 issues: [andrew-waters/orchard#122]
 touches: [andrew-waters/orchard]
