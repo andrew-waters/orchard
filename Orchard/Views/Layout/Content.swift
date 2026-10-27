@@ -61,6 +61,7 @@ struct ContentView: View {
     @State private var showAddMachineSheet: Bool = false
     @State private var showCreateClusterSheet: Bool = false
     @State private var commitTarget: CommitSheetTarget?
+    @State private var pendingOwnedConfirmation: OwnedSandboxConfirmation?
 
     @State private var refreshTimer: Timer?
     @State private var initialLoadTask: Task<Void, Never>?
@@ -441,6 +442,7 @@ struct ContentView: View {
         } message: { alert in
             Text(alert.message)
         }
+        .ownedSandboxConfirmation($pendingOwnedConfirmation)
         .background(WindowAccessor { window in
             if hostWindow !== window { hostWindow = window }
             if let window { MainWindows.register(window) }
@@ -638,7 +640,10 @@ struct ContentView: View {
         case .startContainer(let id):
             Task { await containerListService.startContainer(id) }
         case .stopContainer(let id):
-            Task { await containerListService.stopContainer(id) }
+            let targets = containerListService.containers.filter { $0.configuration.id == id }
+            OwnedSandboxConfirmation.run(.stop, containers: targets, pending: $pendingOwnedConfirmation) {
+                Task { await containerListService.stopContainer(id) }
+            }
         case .openContainerLogs(let id):
             openWindow(id: "logs", value: LogTarget.container(id))
         case .openContainerTerminal(let id):

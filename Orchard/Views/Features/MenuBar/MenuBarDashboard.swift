@@ -14,6 +14,7 @@ struct MenuBarView: View {
     @State private var refreshTimer: Timer?
     @State private var hoveringTop = false
     @State private var hoveredContainer: String?
+    @State private var pendingOwnedConfirmation: OwnedSandboxConfirmation?
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
@@ -118,6 +119,11 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Asked inline rather than in an alert: an alert from a menu bar panel can fail
+            // to show, or close the panel when it takes focus.
+            if let pending = pendingOwnedConfirmation {
+                ownedConfirmationCard(pending)
+            }
             card {
                 HStack(spacing: 16) {
                     ResourceRing(title: "CPU", center: cpuCenter, segments: cpuSegments)
@@ -312,12 +318,10 @@ struct MenuBarView: View {
                 Color.clear
             } else {
                 Button {
-                    Task { @MainActor in
-                        if row.isRunning {
-                            await containerListService.stopContainer(row.id)
-                        } else {
-                            await containerListService.startContainer(row.id)
-                        }
+                    if row.isRunning {
+                        stop(row)
+                    } else {
+                        Task { @MainActor in await containerListService.startContainer(row.id) }
                     }
                 } label: {
                     SwiftUI.Image(systemName: row.isRunning ? "stop.fill" : "play.fill")
@@ -335,13 +339,50 @@ struct MenuBarView: View {
     @ViewBuilder
     private func rowMenu(_ row: Row) -> some View {
         if row.isRunning {
-            Button("Stop") { Task { @MainActor in await containerListService.stopContainer(row.id) } }
+            Button("Stop") { stop(row) }
         } else {
             if !row.isClusterNode {
                 Button("Start") { Task { @MainActor in await containerListService.startContainer(row.id) } }
             }
-            Button("Remove") { Task { @MainActor in await containerListService.removeContainer(row.id) } }
+            Button("Remove") {
+                OwnedSandboxConfirmation.run(.remove, containers: containers(for: row), pending: $pendingOwnedConfirmation) {
+                    Task { @MainActor in await containerListService.removeContainer(row.id) }
+                }
+            }
         }
+    }
+
+    private func ownedConfirmationCard(_ pending: OwnedSandboxConfirmation) -> some View {
+        card {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(pending.title, systemImage: "exclamationmark.shield")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Text(pending.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { pendingOwnedConfirmation = nil }
+                        .keyboardShortcut(.cancelAction)
+                    Button(pending.confirmTitle, role: .destructive) {
+                        pendingOwnedConfirmation = nil
+                        pending.perform()
+                    }
+                }
+            }
+        }
+    }
+
+    private func stop(_ row: Row) {
+        OwnedSandboxConfirmation.run(.stop, containers: containers(for: row), pending: $pendingOwnedConfirmation) {
+            Task { @MainActor in await containerListService.stopContainer(row.id) }
+        }
+    }
+
+    private func containers(for row: Row) -> [Container] {
+        containerListService.containers.filter { $0.configuration.id == row.id }
     }
 
     @ViewBuilder

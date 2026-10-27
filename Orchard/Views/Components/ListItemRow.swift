@@ -16,8 +16,10 @@ struct ListItemRow: View {
     let secondaryLeftText: String?
     let secondaryRightText: String?
     let isSelected: Bool
-    /// When true, a small shield marks the row as a sandbox (wired to a local model).
+    /// When true, a small capsule marks the row as a sandbox (an isolated workload).
     let showSandboxBadge: Bool
+    /// The app managing a sandbox Orchard didn't make (e.g. "Gannin session").
+    let ownerBadge: String?
     /// Plugin + role capsule for plugin-owned containers (e.g. "k8s · control-plane").
     let pluginBadge: String?
     /// A capsule for something the row is not doing as asked, such as a compose project with
@@ -33,6 +35,7 @@ struct ListItemRow: View {
         secondaryRightText: String? = nil,
         isSelected: Bool = false,
         showSandboxBadge: Bool = false,
+        ownerBadge: String? = nil,
         pluginBadge: String? = nil,
         warningBadge: String? = nil
     ) {
@@ -43,6 +46,7 @@ struct ListItemRow: View {
         self.secondaryRightText = secondaryRightText
         self.isSelected = isSelected
         self.showSandboxBadge = showSandboxBadge
+        self.ownerBadge = ownerBadge
         self.pluginBadge = pluginBadge
         self.warningBadge = warningBadge
     }
@@ -72,7 +76,17 @@ struct ListItemRow: View {
                             .padding(.vertical, 1.5)
                             .background(Capsule().fill(Color.accentColor.opacity(0.14)))
                             .lineLimit(1)
-                            .help("Sandbox - wired to a local model")
+                            .help("Sandbox - an isolated workload")
+                    }
+                    if let ownerBadge {
+                        Text(ownerBadge)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.purple)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.purple.opacity(0.14)))
+                            .lineLimit(1)
+                            .help("Managed by another app")
                     }
                     if let pluginBadge {
                         Text(pluginBadge)

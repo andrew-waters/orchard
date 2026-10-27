@@ -52,8 +52,19 @@ Orchard wires **local MLX models** into Apple containers. Inference runs on your
 
 - Discover model servers already on your Mac (Ollama, LM Studio, MLX servers), or start and stop `mlx_lm.server` instances from the app - with process supervision, crash surfacing and logs
 - The container↔model bridge: Orchard computes the container-reachable endpoint from the network gateway and injects `OPENAI_BASE_URL` at create time, so containerised apps just use the OpenAI SDK
-- **Sandboxes**: a first-class view of containers wired to a local model - isolation badge (host-only vs internet-open), chat and terminal access, and a kill-switch. Run an agent behind a hypervisor boundary with a local endpoint instead of an API key it could leak
+- **Sandboxes**: a first-class view of isolated workloads, with or without a model - how each is contained (network mode, mounts read-only or read-write, tmpfs masks, CPU and memory), who manages it, chat when it has a model, terminal access and a kill-switch. Run an agent behind a hypervisor boundary with a local endpoint instead of an API key it could leak
 - An in-app chat tester to verify any model server without leaving the app
+
+Any app can make a sandbox Orchard shows by labelling the container:
+
+| Label | Meaning |
+|---|---|
+| `com.orchard.sandbox=true` | A sandbox: an isolated workload. The label alone is enough. |
+| `com.orchard.sandbox.owner` | The app that made it and manages its lifecycle, such as `dev.andon.gannin`. Orchard stamps `dev.andon.orchard`; absent also means Orchard's own. |
+| `com.orchard.sandbox.network` | `nat`, `host-only` or `allowlist`. What Orchard sees of the network wins: a container on a host-only network shows as host-only, and a `host-only` label on a network with internet access shows as NAT. The label decides alone only when Orchard doesn't know the network. |
+| `com.orchard.model.endpoint` | Optional: the model endpoint it's wired to. |
+
+A sandbox another app manages, such as a Gannin session, is badged with that app, and Orchard asks before stopping, removing or editing it (an edit recreates the container) from anywhere in the app. Containers with `OPENAI_BASE_URL`, `OLLAMA_HOST` or `ANTHROPIC_BASE_URL` in their environment are still detected as sandboxes.
 
 See the [Local AI guide](https://orchard.andon.dev/ai.html) for a full walkthrough and a runnable quick start.
 

@@ -269,7 +269,10 @@ struct RunModelContainerView: View {
             image: image.trimmingCharacters(in: .whitespaces),
             environmentVariables: env,
             network: networkID,
-            labels: SandboxMarker.labels(endpoint: baseURL)
+            labels: SandboxMarker.labels(
+                endpoint: baseURL,
+                networkMode: (selectedNetwork?.isHostOnly ?? false) ? .hostOnly : .nat
+            )
         )
 
         isRunning = true

@@ -17,6 +17,7 @@ struct ContainersListView: View {
     @State private var collapsedGroups: Set<String> = []
     @State private var recreateSettings: ClusterRecreateSettings?
     @State private var commitTarget: CommitSheetTarget?
+    @State private var pendingOwnedConfirmation: OwnedSandboxConfirmation?
     @FocusState var listFocusedTab: TabSelection?
 
     var body: some View {
@@ -49,6 +50,7 @@ struct ContainersListView: View {
                 .keyboardShortcut("a", modifiers: .command)
             )
             .animation(.easeInOut(duration: 0.3), value: containerListService.containers)
+            .ownedSandboxConfirmation($pendingOwnedConfirmation)
             .sheet(item: $commitTarget) { target in
                 CommitContainerView(containerId: target.id)
             }
@@ -92,6 +94,7 @@ struct ContainersListView: View {
             secondaryRightText: hostname(for: container),
             isSelected: selectedContainers.contains(container.configuration.id),
             showSandboxBadge: container.isSandbox,
+            ownerBadge: container.sandboxOwner?.badge,
             pluginBadge: container.pluginBadgeText
         )
         .contextMenu {
@@ -181,9 +184,11 @@ struct ContainersListView: View {
 
                 Button("Stop All (\(running.count))") {
                     let ids = running.map { $0.configuration.id }
-                    Task {
-                        for id in ids {
-                            await containerListService.stopContainer(id)
+                    OwnedSandboxConfirmation.run(.stop, containers: running, pending: $pendingOwnedConfirmation) {
+                        Task {
+                            for id in ids {
+                                await containerListService.stopContainer(id)
+                            }
                         }
                     }
                 }
@@ -212,29 +217,32 @@ struct ContainersListView: View {
         }()
         let multiple = targetIds.count > 1
         let targetContainers = containerListService.containers.filter { targetIds.contains($0.configuration.id) }
-        let anyRunning = targetContainers.contains { $0.status.lowercased() == "running" }
+        let runningContainers = targetContainers.filter { $0.status.lowercased() == "running" }
+        let anyRunning = !runningContainers.isEmpty
         let anyStopped = targetContainers.contains { $0.status.lowercased() != "running" }
 
         if anyRunning {
             Button(multiple ? "Stop \(targetIds.count) Containers" : "Stop Container") {
-                Task {
-                    for id in targetIds {
-                        await containerListService.stopContainer(id)
+                OwnedSandboxConfirmation.run(.stop, containers: runningContainers, pending: $pendingOwnedConfirmation) {
+                    Task {
+                        for id in targetIds {
+                            await containerListService.stopContainer(id)
+                        }
                     }
                 }
             }
             Button(multiple ? "Force Stop \(targetIds.count) Containers" : "Force Stop", role: .destructive) {
-                Task {
-                    for id in targetIds {
-                        await containerListService.forceStopContainer(id)
+                OwnedSandboxConfirmation.run(.forceStop, containers: runningContainers, pending: $pendingOwnedConfirmation) {
+                    Task {
+                        for id in targetIds {
+                            await containerListService.forceStopContainer(id)
+                        }
                     }
                 }
             }
             // Only running containers can be trimmed, so a mixed selection reclaims
             // just the running ones.
-            let runningIds = targetContainers
-                .filter { $0.status.lowercased() == "running" }
-                .map { $0.configuration.id }
+            let runningIds = runningContainers.map { $0.configuration.id }
             Button(runningIds.count > 1 ? "Reclaim Disk Space on \(runningIds.count) Containers" : "Reclaim Disk Space") {
                 Task {
                     await containerListService.cleanContainers(runningIds)
@@ -281,8 +289,10 @@ struct ContainersListView: View {
         Divider()
 
         Button(multiple ? "Remove \(targetIds.count) Containers" : "Remove Container", role: .destructive) {
-            Task {
-                await containerListService.removeContainers(targetIds)
+            OwnedSandboxConfirmation.run(.remove, containers: targetContainers, pending: $pendingOwnedConfirmation) {
+                Task {
+                    await containerListService.removeContainers(targetIds)
+                }
             }
         }
     }

@@ -98,7 +98,8 @@ struct ContainerDetailView: View {
                 if container.isSandbox {
                     membershipBanner(
                         icon: "shield.lefthalf.filled",
-                        text: "This container is an agent sandbox wired to a local model.",
+                        text: container.sandboxOwner.map { "This container is a sandbox \($0.name) manages." }
+                            ?? "This container is a sandbox, an isolated workload.",
                         linkTitle: "Show Sandbox"
                     ) {
                         selectedTabBinding = .sandboxes

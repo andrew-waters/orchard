@@ -437,28 +437,36 @@ func fixtureImageJSON(_ reference: String, digest: String = "sha256:abc") -> Str
 func makeContainer(
     id: String, status: String, labels: [String: String] = [:],
     imageReference: String = "nginx:latest", imageDigest: String = "sha256:abc",
-    cpus: Int = 1, memoryInBytes: Int = 1024
+    cpus: Int = 1, memoryInBytes: Int = 1024,
+    environment: [String] = [], mountsJSON: String = "[]", networkName: String? = nil
 ) throws -> Container {
     let labelsJSON = labels.isEmpty
         ? "{}"
         : String(data: try JSONEncoder().encode(labels), encoding: .utf8)!
+    let initProcessJSON = environment.isEmpty
+        ? fixtureInitProcessJSON
+        : fixtureInitProcessJSON.replacingOccurrences(
+            of: #""environment": []"#,
+            with: #""environment": "# + String(data: try JSONEncoder().encode(environment), encoding: .utf8)!
+        )
+    let networkNameJSON = networkName.map { #""networkName": "\#($0)","# } ?? ""
     let json = """
     {
       "status": "\(status)",
       "networks": [],
       "configuration": {
-        "id": "\(id)",
+        "id": "\(id)",\(networkNameJSON)
         "runtimeHandler": "vz",
         "rosetta": false,
         "labels": \(labelsJSON),
         "sysctls": {},
         "publishedPorts": [],
-        "mounts": [],
+        "mounts": \(mountsJSON),
         "platform": \(fixturePlatformJSON),
         "image": \(fixtureImageJSON(imageReference, digest: imageDigest)),
         "dns": \(fixtureDNSJSON),
         "resources": { "cpus": \(cpus), "memoryInBytes": \(memoryInBytes) },
-        "initProcess": \(fixtureInitProcessJSON)
+        "initProcess": \(initProcessJSON)
       }
     }
     """
