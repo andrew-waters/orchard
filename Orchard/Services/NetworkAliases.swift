@@ -43,10 +43,11 @@ enum NetworkAliases {
         alias.hasPrefix(".") ? "*\(alias)" : alias
     }
 
-    /// The names a search should find a container by: each alias, and for a subtree alias the
-    /// name it sits below, so `gateway.test` finds the container that answers below it.
+    /// The names a search should find a container by: each alias as it is shown, and for a
+    /// subtree alias the name it sits below too, so `*.gateway.test` and `gateway.test` both
+    /// find the container that answers below it.
     static func searchTerms(_ aliases: [String]) -> [String] {
-        aliases.map { $0.hasPrefix(".") ? String($0.dropFirst()) : $0 }
+        aliases.flatMap { $0.hasPrefix(".") ? [display($0), String($0.dropFirst())] : [$0] }
     }
 
     /// Whether an alias falls under a DNS domain: the domain itself or a name below it.

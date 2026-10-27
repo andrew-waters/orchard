@@ -334,7 +334,11 @@ struct ContainersListView: View {
                 container.configuration.id.localizedCaseInsensitiveContains(searchText)
                     || container.status.localizedCaseInsensitiveContains(searchText)
                     || (hostname(for: container)?.localizedCaseInsensitiveContains(searchText) ?? false)
-                    || container.configuration.allNetworkAliases.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                    // As shown, so `*.gateway.test` finds a subtree alias; that form also
+                    // contains the stored `.gateway.test` and the base `gateway.test`.
+                    || container.configuration.allNetworkAliases.contains {
+                        NetworkAliases.display($0).localizedCaseInsensitiveContains(searchText)
+                    }
             }
         }
 

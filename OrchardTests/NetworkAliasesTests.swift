@@ -44,7 +44,7 @@ func aliasRows() {
 func aliasDisplayAndSearch() {
     #expect(NetworkAliases.display(".gateway.test") == "*.gateway.test")
     #expect(NetworkAliases.display("api.test") == "api.test")
-    #expect(NetworkAliases.searchTerms(["api.test", ".gateway.test"]) == ["api.test", "gateway.test"])
+    #expect(NetworkAliases.searchTerms(["api.test", ".gateway.test"]) == ["api.test", "*.gateway.test", "gateway.test"])
 }
 
 @Test("An alias is in a domain when it is the domain or below it, by label")
