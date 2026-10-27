@@ -15,6 +15,9 @@ struct ContainerTable: View {
     }
 
     let containers: [Container]
+    /// The network the table is about, so each row shows that attachment's address, hostname
+    /// and aliases. Nil shows the first attachment.
+    var network: String? = nil
     var placeholders: [Placeholder] = []
     /// What the status column says for a row. By default the container's own state; a caller
     /// with something more immediate to report, such as a compose plan mid-run, says that
@@ -35,7 +38,10 @@ struct ContainerTable: View {
 
                 // Container rows
                 ForEach(containers, id: \.configuration.id) { container in
-                    let containerNetwork = container.networks.first
+                    let containerNetwork = network.flatMap { id in container.networks.first { $0.network == id } }
+                        ?? container.networks.first
+                    let aliases = (network ?? containerNetwork?.network ?? container.configuration.networkName)
+                        .flatMap { container.configuration.networkAliases?[$0] } ?? []
                     let displayAddress = {
                         guard let address = containerNetwork?.address else { return "N/A" }
                         return address.strippingCIDRSuffix
@@ -87,10 +93,18 @@ struct ContainerTable: View {
                                 }
                             }
                         }) {
-                            Text(displayHostname)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(displayHostname != "N/A" ? .blue : .secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(displayHostname)
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(displayHostname != "N/A" ? .blue : .secondary)
+                                if !aliases.isEmpty {
+                                    Text(aliases.map(NetworkAliases.display).joined(separator: ", "))
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .help("DNS aliases")
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.plain)
                         .disabled(displayHostname == "N/A")

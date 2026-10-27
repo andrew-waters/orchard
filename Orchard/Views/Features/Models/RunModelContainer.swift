@@ -23,6 +23,9 @@ struct RunModelContainerView: View {
     /// Empty means the runtime default network.
     @State private var networkID: String = ""
     @State private var isRunning = false
+    /// Why the last create failed, shown above the buttons: the app's alert can't appear over
+    /// a sheet.
+    @State private var runError: String?
 
     init(preselectedID: String? = nil) {
         self.preselectedID = preselectedID
@@ -221,6 +224,21 @@ struct RunModelContainerView: View {
     }
 
     private var footer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let runError {
+                Label(runError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            footerButtons
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private var footerButtons: some View {
         HStack {
             if isRunning {
                 ProgressView().scaleEffect(0.8)
@@ -234,8 +252,6 @@ struct RunModelContainerView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canRun)
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
     }
 
     // MARK: - Helpers
@@ -276,14 +292,18 @@ struct RunModelContainerView: View {
         )
 
         isRunning = true
+        runError = nil
         Task {
-            let ok = await containerListService.runContainer(config: config)
-            await MainActor.run {
+            do {
+                try await containerListService.createAndStartContainer(config: config)
+            } catch {
+                // Keep the sheet open with the error, so the user can retry.
+                runError = "Failed to run container: \(error.localizedDescription)"
                 isRunning = false
-                // runContainer surfaces its own error; keep the sheet open on failure so the
-                // user can retry.
-                if ok { dismiss() }
+                return
             }
+            isRunning = false
+            dismiss()
         }
     }
 }

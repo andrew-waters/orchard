@@ -68,6 +68,9 @@ struct ContainerCreateSpec: Sendable {
     /// `os/arch[/variant]` to run as, or nil for Automatic: the host's platform when the image
     /// has it, otherwise the one it offers (`ContainerPlatform.resolve`).
     var platform: String? = nil
+    /// Extra DNS names for the attachment, as entered: `api`, `.gateway` or fully qualified.
+    /// The create adds `dnsDomain` to a name without a dot, as `container run` does.
+    var networkAliases: [String] = []
 }
 
 /// Combine an image's entrypoint and cmd with a user command override into the final
@@ -599,12 +602,20 @@ struct LiveContainerBackend: ContainerBackend {
             containerConfig.rosetta = ContainerPlatform.needsRosetta(platformName)
             containerConfig.runtimeHandler = "container-runtime-\(platform.os)"
 
+            // The hostname and aliases are qualified with the container's DNS domain, the way
+            // `container run` qualifies them with the default domain. A subtree alias such as
+            // `.gateway.test` must sit below the hostname, so the hostname needs the domain too.
             let builtinNetworkId = try await NetworkClient().builtin?.id
             let networkId = spec.networkName.isEmpty ? (builtinNetworkId ?? NetworkClient.defaultNetworkName) : spec.networkName
             containerConfig.networks = [
                 AttachmentConfiguration(
                     network: networkId,
-                    options: AttachmentOptions(hostname: spec.id, macAddress: nil, mtu: 1280)
+                    options: AttachmentOptions(
+                        hostname: NetworkAliases.hostname(id: spec.id, domain: spec.dnsDomain),
+                        macAddress: nil,
+                        mtu: 1280,
+                        aliases: NetworkAliases.qualify(spec.networkAliases, domain: spec.dnsDomain)
+                    )
                 )
             ]
 

@@ -48,6 +48,7 @@ struct NetworkDetailView: View {
 
                             ContainerTable(
                                 containers: connectedContainers,
+                                network: network.id,
                                 selectedTab: $selectedTab,
                                 selectedContainer: $selectedContainer,
                                 emptyStateMessage: "No containers are connected to this network"

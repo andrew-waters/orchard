@@ -9,11 +9,17 @@ struct EditContainerView: View {
     @State private var config: ContainerRunConfig
     @State private var isUpdating = false
     @State private var platformError: String?
+    /// Why the last recreate failed, shown above the buttons: the app's alert can't appear
+    /// over a sheet.
+    @State private var updateError: String?
 
     init(container: Container) {
         self.container = container
+        _config = State(initialValue: Self.initialConfig(for: container))
+    }
 
-        // Extract current configuration from the container.
+    /// The form's starting point: the container's current configuration.
+    static func initialConfig(for container: Container) -> ContainerRunConfig {
         let envVars = container.configuration.initProcess.environment.compactMap { envStr -> ContainerRunConfig.EnvironmentVariable? in
             let components = envStr.split(separator: "=", maxSplits: 1)
             guard components.count == 2 else { return nil }
@@ -47,7 +53,7 @@ struct EditContainerView: View {
             .sorted { $0.key < $1.key }
             .map { ContainerRunConfig.LabelPair(key: $0.key, value: $0.value) }
 
-        _config = State(initialValue: ContainerRunConfig(
+        return ContainerRunConfig(
             name: container.configuration.id,
             image: container.configuration.image.reference,
             detached: true,
@@ -61,14 +67,19 @@ struct EditContainerView: View {
             commandOverride: joinCommandLine(
                 [container.configuration.initProcess.executable] + container.configuration.initProcess.arguments
             ),
+            // The form doesn't show these when editing, so recreating keeps them as they are.
+            // The aliases depend on both: their domain, and the network they are declared on.
+            dnsDomain: container.configuration.dns.domain ?? "",
+            network: container.configuration.networkName ?? "",
             labels: hiddenLabels,
             labelPairs: editableLabelPairs,
             cpus: container.configuration.resources.cpus,
             // Exact bytes: a non-integral allocation only changes if the user edits it.
             memoryBytes: UInt64(clamping: container.configuration.resources.memoryInBytes),
             // Recreating keeps the platform the container was created as (#147).
-            platform: container.configuration.platform.description
-        ))
+            platform: container.configuration.platform.description,
+            networkAliases: container.configuration.primaryNetworkAliasRows
+        )
     }
 
     var body: some View {
@@ -140,6 +151,21 @@ struct EditContainerView: View {
     }
 
     private var footerView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let updateError {
+                Label(updateError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            footerButtons
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private var footerButtons: some View {
         HStack {
             if isUpdating {
                 ProgressView()
@@ -163,18 +189,31 @@ struct EditContainerView: View {
             .keyboardShortcut(.defaultAction)
             .disabled(config.name.isEmpty || isUpdating || platformError != nil)
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
     }
 
     private func updateContainer() {
         isUpdating = true
+        updateError = nil
         Task {
-            await containerListService.recreateContainer(oldContainerId: container.configuration.id, newConfig: config)
-            await MainActor.run {
+            do {
+                // The original goes along so a configuration the runtime refuses after the old
+                // container is deleted (an alias already taken, say) puts the container back. The
+                // form leaves ports to be re-added, but putting it back keeps the ones it had.
+                var original = Self.initialConfig(for: container)
+                original.portMappings = container.configuration.publishedPortRows
+                try await containerListService.recreateContainer(
+                    oldContainerId: container.configuration.id,
+                    newConfig: config,
+                    originalConfig: original
+                )
+            } catch {
+                // Keep the sheet open with the error, so the user can adjust the form and retry.
+                updateError = error.localizedDescription
                 isUpdating = false
-                dismiss()
+                return
             }
+            isUpdating = false
+            dismiss()
         }
     }
 }

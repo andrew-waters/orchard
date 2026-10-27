@@ -33,11 +33,22 @@ func mapContainerConfiguration(_ config: ContainerResource.ContainerConfiguratio
         publishedSockets: config.publishedSockets.map { $0.containerPath.string },
         ssh: config.ssh,
         virtualization: config.virtualization,
-        sysctls: config.sysctls
+        sysctls: config.sysctls,
+        networkAliases: mapNetworkAliases(config.networks)
     )
 }
 
 // MARK: - Network mapping
+
+/// Each attachment's aliases by network id, leaving out attachments without any; nil when none
+/// has any.
+func mapNetworkAliases(_ attachments: [AttachmentConfiguration]) -> [String: [String]]? {
+    var aliases: [String: [String]] = [:]
+    for attachment in attachments where !attachment.options.aliases.isEmpty {
+        aliases[attachment.network, default: []].append(contentsOf: attachment.options.aliases)
+    }
+    return aliases.isEmpty ? nil : aliases
+}
 
 func mapAttachment(_ attachment: Attachment) -> Network {
     Network(

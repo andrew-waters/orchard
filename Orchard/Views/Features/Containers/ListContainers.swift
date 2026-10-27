@@ -286,12 +286,18 @@ struct ContainersListView: View {
             }
         }
 
-        Divider()
+        // Only stopped containers can be removed, as everywhere else, so a mixed selection
+        // removes just the stopped ones and a running container offers no Remove.
+        let stoppedContainers = targetContainers.filter { $0.status.lowercased() != "running" }
+        if !stoppedContainers.isEmpty {
+            let stoppedIds = stoppedContainers.map { $0.configuration.id }
+            Divider()
 
-        Button(multiple ? "Remove \(targetIds.count) Containers" : "Remove Container", role: .destructive) {
-            OwnedSandboxConfirmation.run(.remove, containers: targetContainers, pending: $pendingOwnedConfirmation) {
-                Task {
-                    await containerListService.removeContainers(targetIds)
+            Button(stoppedIds.count > 1 ? "Remove \(stoppedIds.count) Containers" : "Remove Container", role: .destructive) {
+                OwnedSandboxConfirmation.run(.remove, containers: stoppedContainers, pending: $pendingOwnedConfirmation) {
+                    Task {
+                        await containerListService.removeContainers(stoppedIds)
+                    }
                 }
             }
         }
@@ -328,6 +334,11 @@ struct ContainersListView: View {
                 container.configuration.id.localizedCaseInsensitiveContains(searchText)
                     || container.status.localizedCaseInsensitiveContains(searchText)
                     || (hostname(for: container)?.localizedCaseInsensitiveContains(searchText) ?? false)
+                    // As shown, so `*.gateway.test` finds a subtree alias; that form also
+                    // contains the stored `.gateway.test` and the base `gateway.test`.
+                    || container.configuration.allNetworkAliases.contains {
+                        NetworkAliases.display($0).localizedCaseInsensitiveContains(searchText)
+                    }
             }
         }
 

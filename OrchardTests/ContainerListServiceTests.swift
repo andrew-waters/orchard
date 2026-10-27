@@ -457,12 +457,12 @@ func loadContainersSpinnerFollowsNewestRefresh() async throws {
 
 @MainActor
 @Test("recreateContainer: success force-deletes the old container and runs the new config")
-func recreateContainerSuccess() async {
+func recreateContainerSuccess() async throws {
     let backend = MockContainerBackend()
     backend.imagePlatformsResult = ["linux/arm64"]
     let (service, alert) = makeListService(backend)
 
-    await service.recreateContainer(
+    try await service.recreateContainer(
         oldContainerId: "old", newConfig: ContainerRunConfig(name: "new", image: "nginx")
     )
 
@@ -472,19 +472,43 @@ func recreateContainerSuccess() async {
 }
 
 @MainActor
-@Test("recreateContainer: a delete failure alerts and does not recreate")
-func recreateContainerFailureAlerts() async {
+@Test("recreateContainer: a delete failure throws and does not recreate")
+func recreateContainerFailureThrows() async {
     let backend = MockContainerBackend()
     backend.imagePlatformsResult = ["linux/arm64"]
     backend.deleteContainerError = NotConfigured()
-    let (service, alert) = makeListService(backend)
+    let (service, _) = makeListService(backend)
 
-    await service.recreateContainer(
-        oldContainerId: "old", newConfig: ContainerRunConfig(name: "new", image: "nginx")
-    )
+    await #expect(throws: (any Error).self) {
+        try await service.recreateContainer(
+            oldContainerId: "old", newConfig: ContainerRunConfig(name: "new", image: "nginx")
+        )
+    }
+    #expect(backend.createdSpecs.isEmpty)   // never reached the create
+}
 
-    #expect(alert.current != nil)
-    #expect(backend.createdSpecs.isEmpty)   // never reached runContainer
+@MainActor
+@Test("recreateContainer: a configuration refused after the delete puts the original back and still throws")
+func recreateContainerRestoresOriginal() async {
+    let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
+    // The runtime refuses the new alias, as it does one another container already has.
+    backend.createContainerHandler = { spec in
+        if spec.networkAliases.contains("api.test") { throw NotConfigured() }
+    }
+    let (service, _) = makeListService(backend)
+    var original = ContainerRunConfig(name: "web", image: "nginx")
+    original.platform = "linux/arm64"
+    var edited = original
+    edited.networkAliases = [.init(name: "api.test")]
+
+    await #expect(throws: (any Error).self) {
+        try await service.recreateContainer(oldContainerId: "web", newConfig: edited, originalConfig: original)
+    }
+    // The old container, then whatever the refused attempt left, before the original goes back.
+    #expect(backend.deletedContainers.map(\.id) == ["web", "web"])
+    #expect(backend.createdSpecs.count == 1)
+    #expect(backend.createdSpecs.first?.networkAliases == [])
 }
 
 @MainActor
@@ -492,42 +516,44 @@ func recreateContainerFailureAlerts() async {
 func recreateContainerRefusesMissingPlatform() async {
     let backend = MockContainerBackend()
     backend.imagePlatformsResult = ["linux/arm64"]
-    let (service, alert) = makeListService(backend)
+    let (service, _) = makeListService(backend)
     var config = ContainerRunConfig(name: "web", image: "nginx")
     config.platform = "linux/amd64"
 
-    await service.recreateContainer(oldContainerId: "web", newConfig: config)
+    await #expect(throws: (any Error).self) {
+        try await service.recreateContainer(oldContainerId: "web", newConfig: config)
+    }
 
     #expect(backend.deletedContainers.isEmpty)   // the old container is kept
     #expect(backend.createdSpecs.isEmpty)
-    #expect(alert.current != nil)
 }
 
 @MainActor
 @Test("recreateContainer: platforms that cannot be read keep the old container")
 func recreateContainerKeepsWhenPlatformsUnreadable() async {
     let backend = MockContainerBackend()   // imagePlatforms throws
-    let (service, alert) = makeListService(backend)
+    let (service, _) = makeListService(backend)
     var config = ContainerRunConfig(name: "web", image: "nginx")
     config.platform = "linux/arm64"
 
-    await service.recreateContainer(oldContainerId: "web", newConfig: config)
+    await #expect(throws: (any Error).self) {
+        try await service.recreateContainer(oldContainerId: "web", newConfig: config)
+    }
 
     #expect(backend.deletedContainers.isEmpty)
     #expect(backend.createdSpecs.isEmpty)
-    #expect(alert.current != nil)
 }
 
 @MainActor
 @Test("recreateContainer: Automatic is pinned to the platform checked before the delete")
-func recreateContainerPinsCheckedPlatform() async {
+func recreateContainerPinsCheckedPlatform() async throws {
     let backend = MockContainerBackend()
     // One platform, not the host's. arm/v7 rather than amd64, so the Rosetta check does not
     // make this depend on what the machine running the tests has installed.
     backend.imagePlatformsResult = ["linux/arm/v7"]
     let (service, _) = makeListService(backend)
 
-    await service.recreateContainer(
+    try await service.recreateContainer(
         oldContainerId: "web", newConfig: ContainerRunConfig(name: "web", image: "nginx")
     )
 

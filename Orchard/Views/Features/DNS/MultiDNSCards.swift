@@ -83,12 +83,7 @@ private struct DNSSummaryCard: View {
     let onOpen: () -> Void
 
     private var containerCountText: String {
-        let count = containerListService.containers.filter { container in
-            if let containerDomain = container.configuration.dns.domain {
-                return containerDomain == domain.domain
-            }
-            return container.configuration.dns.searchDomains.contains(domain.domain)
-        }.count
+        let count = containerListService.containers.filter { $0.usesDNSDomain(domain.domain) }.count
         return count == 0 ? "No containers" : "\(count) container\(count == 1 ? "" : "s")"
     }
 

@@ -482,25 +482,56 @@ final class ContainerListService: ObservableObject {
         return platform
     }
 
-    func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
+    /// Recreates `oldContainerId` as `newConfig`, throwing what went wrong for the Edit sheet to
+    /// show: the app's alert can't appear over a sheet.
+    ///
+    /// The runtime can refuse the new configuration only once the old container is gone, for
+    /// example an alias another container already has. Given `originalConfig`, the container is
+    /// then created again as it was, so a refused edit doesn't lose it, and the refusal is still
+    /// thrown.
+    func recreateContainer(
+        oldContainerId: String, newConfig: ContainerRunConfig, originalConfig: ContainerRunConfig? = nil
+    ) async throws {
         var config = newConfig
         do {
             config.platform = try await checkedRecreatePlatform(for: newConfig)
         } catch {
-            alertCenter.error("Did not recreate \(oldContainerId): \(error.localizedDescription)")
-            return
+            throw OrchardError.generic("Did not recreate \(oldContainerId): \(error.localizedDescription)")
         }
         do {
             try await backend.deleteContainer(id: oldContainerId, force: true)
-            await runContainer(config: config)
         } catch {
-            self.alertCenter.error("Failed to recreate container: \(error.localizedDescription)")
+            throw OrchardError.generic("Failed to recreate container: \(error.localizedDescription)")
+        }
+        do {
+            try await createAndStartContainer(config: config)
+        } catch {
+            guard let originalConfig else {
+                throw OrchardError.generic("Failed to recreate container: \(error.localizedDescription)")
+            }
+            // The runtime also checks at start, after the create has stored the container, so a
+            // failed attempt can leave one under the same id that would block the restore.
+            if !config.name.isEmpty {
+                try? await backend.deleteContainer(id: config.name, force: true)
+            }
+            do {
+                try await createAndStartContainer(config: originalConfig)
+            } catch let restoreError {
+                throw OrchardError.generic(
+                    "Failed to recreate container: \(error.localizedDescription)\n\n"
+                        + "Putting \(oldContainerId) back as it was failed too: \(restoreError.localizedDescription)"
+                )
+            }
+            throw OrchardError.generic(
+                "\(error.localizedDescription)\n\n\(oldContainerId) was put back as it was."
+            )
         }
     }
 
     // Recovery recreates an auto-removed container from its snapshot. It preserves every
     // field the create path (ContainerRunConfig → ContainerCreateSpec → createContainer)
-    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS, platform.
+    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS, platform,
+    // network aliases.
     // Labels, resources (cpus/memory), and hostname are NOT preserved - no field exists for
     // them anywhere in the create path (a normal `run` drops them too); adding them means
     // extending the spec and the XPC create call. Command override is intentionally not
@@ -524,15 +555,6 @@ final class ContainerListService: ObservableObject {
             }
         }
 
-        var portMappings: [ContainerRunConfig.PortMapping] = []
-        for port in config.publishedPorts {
-            portMappings.append(.init(
-                hostPort: "\(port.hostPort)",
-                containerPort: "\(port.containerPort)",
-                transportProtocol: port.transportProtocol
-            ))
-        }
-
         var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
         for mount in config.mounts {
             volumeMappings.append(.init(
@@ -547,11 +569,12 @@ final class ContainerListService: ObservableObject {
             image: config.image.reference,
             detached: true,
             environmentVariables: envVars,
-            portMappings: portMappings,
+            portMappings: config.publishedPortRows,
             volumeMappings: volumeMappings,
             workingDirectory: config.initProcess.workingDirectory,
             dnsDomain: config.dns.domain ?? "",
-            network: snapshot.networks.first?.network ?? "",
+            // The configured network, not the live attachment, which a stopped container lacks.
+            network: config.networkName ?? "",
             // Recovery recreates the container; without these it would strip
             // every label (sandbox markers included).
             labels: config.labels,
@@ -559,7 +582,8 @@ final class ContainerListService: ObservableObject {
             // Exact bytes, not a GB round-trip: recovery must never resize a container.
             memoryBytes: UInt64(clamping: config.resources.memoryInBytes),
             // An amd64 container comes back as amd64, not as the host's variant of its image.
-            platform: config.platform.description
+            platform: config.platform.description,
+            networkAliases: config.primaryNetworkAliasRows
         )
 
         let started = await runContainer(config: runConfig)
@@ -575,54 +599,7 @@ final class ContainerListService: ObservableObject {
     @discardableResult
     func runContainer(config: ContainerRunConfig) async -> Bool {
         do {
-            let id = config.name.isEmpty ? UUID().uuidString.lowercased().prefix(12).description : config.name
-
-            var envStrings: [String] = []
-            for envVar in config.environmentVariables where !envVar.key.isEmpty {
-                envStrings.append("\(envVar.key)=\(envVar.value)")
-            }
-
-            var volumes: [ContainerCreateSpec.Volume] = []
-            for vol in config.volumeMappings where !vol.hostPath.isEmpty && !vol.containerPath.isEmpty {
-                volumes.append(.init(hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly))
-            }
-
-            var ports: [ContainerCreateSpec.Port] = []
-            for pm in config.portMappings {
-                if let hp = UInt16(pm.hostPort), let cp = UInt16(pm.containerPort) {
-                    ports.append(.init(hostPort: hp, containerPort: cp, transportProtocol: pm.transportProtocol))
-                }
-            }
-
-            var commandArgs: [String] = []
-            if !config.commandOverride.isEmpty {
-                // Quote-aware split so `sh -c "echo hi"` stays three arguments (#42).
-                commandArgs = splitCommandLine(config.commandOverride)
-            }
-
-            let spec = ContainerCreateSpec(
-                id: id,
-                imageRef: config.image,
-                environment: envStrings,
-                workingDirectory: config.workingDirectory,
-                commandOverride: commandArgs,
-                volumes: volumes,
-                publishedPorts: ports,
-                dnsDomain: config.dnsDomain,
-                networkName: config.network,
-                autoRemove: config.removeAfterStop,
-                // Clamped here so no caller can trap the backend's UInt64 math with a
-                // negative or zero allocation. Upper bounds are deliberately not
-                // enforced: the runtime accepts overcommitted VMs.
-                cpus: max(1, config.cpus),
-                memoryBytes: max(1_048_576, config.memoryBytes),
-                labels: config.effectiveLabels,
-                platform: config.platform.isEmpty ? nil : config.platform
-            )
-            try await backend.createContainer(spec)
-
-            recoveryFailedContainerIDs.remove(id)
-            Task { await self.loadContainers() }
+            try await createAndStartContainer(config: config)
             return true
         } catch {
             self.alertCenter.error("Failed to run container: \(error.localizedDescription)")
@@ -630,11 +607,67 @@ final class ContainerListService: ObservableObject {
         }
     }
 
+    /// Creates and starts `config`, throwing what went wrong rather than alerting. For a sheet,
+    /// which has to show the error itself: the app's alert can't appear over a sheet.
+    func createAndStartContainer(config: ContainerRunConfig) async throws {
+        let id = config.name.isEmpty ? UUID().uuidString.lowercased().prefix(12).description : config.name
+
+        var envStrings: [String] = []
+        for envVar in config.environmentVariables where !envVar.key.isEmpty {
+            envStrings.append("\(envVar.key)=\(envVar.value)")
+        }
+
+        var volumes: [ContainerCreateSpec.Volume] = []
+        for vol in config.volumeMappings where !vol.hostPath.isEmpty && !vol.containerPath.isEmpty {
+            volumes.append(.init(hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly))
+        }
+
+        var ports: [ContainerCreateSpec.Port] = []
+        for pm in config.portMappings {
+            if let hp = UInt16(pm.hostPort), let cp = UInt16(pm.containerPort) {
+                ports.append(.init(
+                    hostPort: hp, containerPort: cp, transportProtocol: pm.transportProtocol, hostAddress: pm.hostAddress
+                ))
+            }
+        }
+
+        var commandArgs: [String] = []
+        if !config.commandOverride.isEmpty {
+            // Quote-aware split so `sh -c "echo hi"` stays three arguments (#42).
+            commandArgs = splitCommandLine(config.commandOverride)
+        }
+
+        let spec = ContainerCreateSpec(
+            id: id,
+            imageRef: config.image,
+            environment: envStrings,
+            workingDirectory: config.workingDirectory,
+            commandOverride: commandArgs,
+            volumes: volumes,
+            publishedPorts: ports,
+            dnsDomain: config.dnsDomain,
+            networkName: config.network,
+            autoRemove: config.removeAfterStop,
+            // Clamped here so no caller can trap the backend's UInt64 math with a
+            // negative or zero allocation. Upper bounds are deliberately not
+            // enforced: the runtime accepts overcommitted VMs.
+            cpus: max(1, config.cpus),
+            memoryBytes: max(1_048_576, config.memoryBytes),
+            labels: config.effectiveLabels,
+            platform: config.platform.isEmpty ? nil : config.platform,
+            networkAliases: config.effectiveNetworkAliases
+        )
+        try await backend.createContainer(spec)
+
+        recoveryFailedContainerIDs.remove(id)
+        Task { await self.loadContainers() }
+    }
+
     func deleteMounts(_ mounts: [ContainerMount]) async {
         var deletedCount = 0
         var failedCount = 0
-        /// Why a container was left alone before anything was deleted, so the alert can say
-        /// what to do about it rather than only how many failed.
+        /// Why each container failed, so the alert can say what to do about it rather than
+        /// only how many failed.
         var refusals: [String] = []
         
         var mountsToRemoveByContainer: [String: Set<String>] = [:]
@@ -682,62 +715,45 @@ final class ContainerListService: ObservableObject {
                 }
             }
             
-            var portMappings: [ContainerRunConfig.PortMapping] = []
-            for port in oldConfig.publishedPorts {
-                portMappings.append(.init(
-                    hostPort: "\(port.hostPort)",
-                    containerPort: "\(port.containerPort)",
-                    transportProtocol: port.transportProtocol
-                ))
+            let volumeMappings = { (mounts: [Mount]) in
+                mounts.map {
+                    ContainerRunConfig.VolumeMapping(
+                        hostPath: $0.source, containerPath: $0.destination, readonly: $0.options.contains("ro")
+                    )
+                }
             }
-            
-            var volumeMappings: [ContainerRunConfig.VolumeMapping] = []
-            for m in updatedMounts {
-                let isReadonly = m.options.contains("ro")
-                volumeMappings.append(.init(
-                    hostPath: m.source,
-                    containerPath: m.destination,
-                    readonly: isReadonly
-                ))
-            }
-            
-            var runConfig = ContainerRunConfig(
+
+            let originalConfig = ContainerRunConfig(
                 name: oldConfig.id,
                 image: oldConfig.image.reference,
                 detached: true,
                 removeAfterStop: false,
                 environmentVariables: envVars,
-                portMappings: portMappings,
-                volumeMappings: volumeMappings,
+                portMappings: oldConfig.publishedPortRows,
+                volumeMappings: volumeMappings(oldConfig.mounts),
                 workingDirectory: oldConfig.initProcess.workingDirectory,
                 commandOverride: oldConfig.initProcess.arguments.joined(separator: " "),
                 dnsDomain: oldConfig.dns.domain ?? "",
-                network: container.networks.first?.network ?? "",
+                // The configured network, not the live attachment, which a stopped container lacks.
+                network: oldConfig.networkName ?? "",
                 // The mount-removal recreate must carry labels through too.
                 labels: oldConfig.labels,
-                platform: oldConfig.platform.description
+                platform: oldConfig.platform.description,
+                networkAliases: oldConfig.primaryNetworkAliasRows
             )
-            
-            // Checked before the delete: a container whose platform can no longer be created
-            // keeps its mount rather than being lost.
+            var runConfig = originalConfig
+            runConfig.volumeMappings = volumeMappings(updatedMounts)
+
+            // The same recreate as Edit: the platform is checked before the delete, and a
+            // configuration the runtime refuses after it puts the container back with its mount.
             do {
-                runConfig.platform = try await checkedRecreatePlatform(for: runConfig)
+                try await recreateContainer(
+                    oldContainerId: containerId, newConfig: runConfig, originalConfig: originalConfig
+                )
+                deletedCount += 1
             } catch {
                 Log.containers.error("Not recreating \(containerId) without the mount: \(error.localizedDescription)")
                 refusals.append("\(containerId): \(error.localizedDescription)")
-                failedCount += 1
-                continue
-            }
-
-            do {
-                try await backend.deleteContainer(id: containerId, force: true)
-                let started = await runContainer(config: runConfig)
-                if started {
-                    deletedCount += 1
-                } else {
-                    failedCount += 1
-                }
-            } catch {
                 failedCount += 1
             }
         }

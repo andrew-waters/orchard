@@ -137,12 +137,7 @@ struct DNSListView: View {
     }
 
     private func containerCount(for dnsDomain: DNSDomain) -> String {
-        let count = containerListService.containers.filter { container in
-            if let containerDomain = container.configuration.dns.domain {
-                return containerDomain == dnsDomain.domain
-            }
-            return container.configuration.dns.searchDomains.contains(dnsDomain.domain)
-        }.count
+        let count = containerListService.containers.filter { $0.usesDNSDomain(dnsDomain.domain) }.count
 
         return count == 0 ? "No containers" : "\(count) container\(count == 1 ? "" : "s")"
     }

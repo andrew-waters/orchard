@@ -13,6 +13,9 @@ struct RunContainerView: View {
     @State private var isRunning = false
     @State private var nameValidationError: String?
     @State private var platformError: String?
+    /// Why the last run failed, from the runtime as it said it, shown above the buttons: the
+    /// app's alert can't appear over a sheet.
+    @State private var runError: String?
 
     init(imageName: String) {
         self.imageName = imageName
@@ -104,6 +107,21 @@ struct RunContainerView: View {
     }
 
     private var footerView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let runError {
+                Label(runError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            footerButtons
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private var footerButtons: some View {
         HStack {
             if isRunning {
                 ProgressView()
@@ -127,8 +145,6 @@ struct RunContainerView: View {
             .keyboardShortcut(.defaultAction)
             .disabled(config.name.isEmpty || config.image.isEmpty || isRunning || nameValidationError != nil || platformError != nil)
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
     }
 
     private var filteredImages: [ContainerImage] {
@@ -235,23 +251,26 @@ struct RunContainerView: View {
         guard nameValidationError == nil, platformError == nil, !imageReference.isEmpty else { return }
 
         isRunning = true
+        runError = nil
         Task {
             var runConfig = config
             runConfig.image = imageReference
-            let started = await containerListService.runContainer(config: runConfig)
-            await MainActor.run {
+            do {
+                try await containerListService.createAndStartContainer(config: runConfig)
+            } catch {
+                // Keep the sheet open with the error, so the user can adjust the form and retry.
+                runError = "Failed to run container: \(error.localizedDescription)"
                 isRunning = false
-                // runContainer surfaces its own error; keep the sheet open on failure so
-                // the user can adjust the form and retry (matches RunModelContainer).
-                guard started else { return }
-                dismiss()
-                // Non-detached run: open the user's preferred terminal attached to the
-                // container. The service uses config.name as the container id (the Run
-                // button is disabled while the name is empty), and the container is
-                // already started by the time runContainer returns (#43).
-                if !config.detached {
-                    terminalLauncher.openTerminal(for: config.name)
-                }
+                return
+            }
+            isRunning = false
+            dismiss()
+            // Non-detached run: open the user's preferred terminal attached to the
+            // container. The service uses config.name as the container id (the Run
+            // button is disabled while the name is empty), and the container is
+            // already started by the time createAndStartContainer returns (#43).
+            if !config.detached {
+                terminalLauncher.openTerminal(for: config.name)
             }
         }
     }
