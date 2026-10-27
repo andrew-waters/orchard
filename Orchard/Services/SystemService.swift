@@ -63,6 +63,9 @@ final class SystemService: ObservableObject {
     /// pinged before the bump completes after it; its stale `.running` result would
     /// otherwise overwrite the new `.stopped` state.
     private var lifecycleGeneration: UInt64 = 0
+    /// Bumped on every disk usage load. Loads overlap (the dashboard's timer, a refresh after
+    /// Free Up Space), and only the latest may publish, so a slow earlier one can't overwrite it.
+    private var diskUsageGeneration: UInt64 = 0
 
     /// Refresh the container list after the system starts. Set by the owner.
     var onSystemStarted: () async -> Void = {}
@@ -242,6 +245,8 @@ final class SystemService: ObservableObject {
     // MARK: - Disk usage
 
     func loadSystemDiskUsage(showLoading: Bool = true) async {
+        diskUsageGeneration &+= 1
+        let generation = diskUsageGeneration
         if showLoading {
             isSystemDiskUsageLoading = true
         }
@@ -255,10 +260,12 @@ final class SystemService: ObservableObject {
                 breakdown = nil
                 Log.containers.error("Failed to break down disk usage: \(error.localizedDescription)")
             }
+            guard diskUsageGeneration == generation else { return }
             self.systemDiskUsage = diskUsage
             self.diskUsageBreakdown = breakdown
             self.isSystemDiskUsageLoading = false
         } catch {
+            guard diskUsageGeneration == generation else { return }
             self.systemDiskUsage = nil
             self.diskUsageBreakdown = nil
             self.isSystemDiskUsageLoading = false
