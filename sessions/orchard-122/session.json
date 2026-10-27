@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "122-a-sandbox-is-an-isolated-workload-with",
+  "finishedAt" : "2026-10-27T09:22:45Z",
   "issue" : "andrew-waters/orchard#122",
   "pullRequests" : [
     "https://github.com/andrew-waters/orchard/pull/157"
