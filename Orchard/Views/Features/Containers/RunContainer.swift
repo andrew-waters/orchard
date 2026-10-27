@@ -255,26 +255,22 @@ struct RunContainerView: View {
         Task {
             var runConfig = config
             runConfig.image = imageReference
-            var started = false
             do {
-                try await containerListService.startContainer(config: runConfig)
-                started = true
+                try await containerListService.createAndStartContainer(config: runConfig)
             } catch {
+                // Keep the sheet open with the error, so the user can adjust the form and retry.
                 runError = "Failed to run container: \(error.localizedDescription)"
-            }
-            await MainActor.run {
                 isRunning = false
-                // Keep the sheet open on failure, with the error, so the user can adjust the
-                // form and retry.
-                guard started else { return }
-                dismiss()
-                // Non-detached run: open the user's preferred terminal attached to the
-                // container. The service uses config.name as the container id (the Run
-                // button is disabled while the name is empty), and the container is
-                // already started by the time runContainer returns (#43).
-                if !config.detached {
-                    terminalLauncher.openTerminal(for: config.name)
-                }
+                return
+            }
+            isRunning = false
+            dismiss()
+            // Non-detached run: open the user's preferred terminal attached to the
+            // container. The service uses config.name as the container id (the Run
+            // button is disabled while the name is empty), and the container is
+            // already started by the time createAndStartContainer returns (#43).
+            if !config.detached {
+                terminalLauncher.openTerminal(for: config.name)
             }
         }
     }

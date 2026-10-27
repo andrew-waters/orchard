@@ -110,6 +110,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _createNetworkError: Error?
     private var _deleteNetworkError: Error?
     private var _createContainerError: Error?
+    private var _createContainerHandler: (@Sendable (ContainerCreateSpec) throws -> Void)?
     private var _stopContainerError: Error?
     private var _killContainerError: Error?
     private var _deleteContainerError: Error?
@@ -220,6 +221,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var createContainerError: Error? {
         get { lock.withLock { _createContainerError } }
         set { lock.withLock { _createContainerError = newValue } }
+    }
+    /// Decides per spec whether a create fails, for a test where only some creates should.
+    var createContainerHandler: (@Sendable (ContainerCreateSpec) throws -> Void)? {
+        get { lock.withLock { _createContainerHandler } }
+        set { lock.withLock { _createContainerHandler = newValue } }
     }
     var stopContainerError: Error? {
         get { lock.withLock { _stopContainerError } }
@@ -376,6 +382,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     }
     func createContainer(_ spec: ContainerCreateSpec) async throws {
         if let error = createContainerError { throw error }
+        try createContainerHandler?(spec)
         lock.withLock { _createdSpecs.append(spec) }
     }
     func listImages() async throws -> [ContainerImage] {

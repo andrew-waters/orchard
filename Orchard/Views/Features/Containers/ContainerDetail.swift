@@ -183,7 +183,7 @@ struct ContainerDetailView: View {
                         : container.configuration.platform.description
                 )
                 if let hostname = container.configuration.hostname {
-                    InfoRow(label: "Hostname", value: hostname)
+                    InfoRow(label: "Hostname", value: hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname)
                 }
                 let aliases = container.configuration.allNetworkAliases
                 if !aliases.isEmpty {

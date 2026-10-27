@@ -56,3 +56,18 @@ enum NetworkAliases {
         return name == domain || name.hasSuffix(".\(domain)")
     }
 }
+
+extension Container {
+    /// Whether the container is in a DNS domain: its own domain, else one of its search domains,
+    /// or an alias under the domain. The DNS list, its cards and the domain's detail all count
+    /// by this.
+    func usesDNSDomain(_ domain: String) -> Bool {
+        if configuration.allNetworkAliases.contains(where: { NetworkAliases.alias($0, isIn: domain) }) {
+            return true
+        }
+        if let containerDomain = configuration.dns.domain {
+            return containerDomain == domain
+        }
+        return configuration.dns.searchDomains.contains(domain)
+    }
+}

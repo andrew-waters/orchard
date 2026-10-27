@@ -482,19 +482,44 @@ final class ContainerListService: ObservableObject {
         return platform
     }
 
-    func recreateContainer(oldContainerId: String, newConfig: ContainerRunConfig) async {
+    /// Recreates `oldContainerId` as `newConfig`, throwing what went wrong for the Edit sheet to
+    /// show: the app's alert can't appear over a sheet.
+    ///
+    /// The runtime can refuse the new configuration only once the old container is gone, for
+    /// example an alias another container already has. Given `originalConfig`, the container is
+    /// then created again as it was, so a refused edit doesn't lose it, and the refusal is still
+    /// thrown.
+    func recreateContainer(
+        oldContainerId: String, newConfig: ContainerRunConfig, originalConfig: ContainerRunConfig? = nil
+    ) async throws {
         var config = newConfig
         do {
             config.platform = try await checkedRecreatePlatform(for: newConfig)
         } catch {
-            alertCenter.error("Did not recreate \(oldContainerId): \(error.localizedDescription)")
-            return
+            throw OrchardError.generic("Did not recreate \(oldContainerId): \(error.localizedDescription)")
         }
         do {
             try await backend.deleteContainer(id: oldContainerId, force: true)
-            await runContainer(config: config)
         } catch {
-            self.alertCenter.error("Failed to recreate container: \(error.localizedDescription)")
+            throw OrchardError.generic("Failed to recreate container: \(error.localizedDescription)")
+        }
+        do {
+            try await createAndStartContainer(config: config)
+        } catch {
+            guard let originalConfig else {
+                throw OrchardError.generic("Failed to recreate container: \(error.localizedDescription)")
+            }
+            do {
+                try await createAndStartContainer(config: originalConfig)
+            } catch let restoreError {
+                throw OrchardError.generic(
+                    "Failed to recreate container: \(error.localizedDescription)\n\n"
+                        + "Putting \(oldContainerId) back as it was failed too: \(restoreError.localizedDescription)"
+                )
+            }
+            throw OrchardError.generic(
+                "\(error.localizedDescription)\n\n\(oldContainerId) was put back as it was."
+            )
         }
     }
 
@@ -552,7 +577,8 @@ final class ContainerListService: ObservableObject {
             volumeMappings: volumeMappings,
             workingDirectory: config.initProcess.workingDirectory,
             dnsDomain: config.dns.domain ?? "",
-            network: snapshot.networks.first?.network ?? "",
+            // The configured network, not the live attachment, which a stopped container lacks.
+            network: config.networkName ?? "",
             // Recovery recreates the container; without these it would strip
             // every label (sandbox markers included).
             labels: config.labels,
@@ -577,7 +603,7 @@ final class ContainerListService: ObservableObject {
     @discardableResult
     func runContainer(config: ContainerRunConfig) async -> Bool {
         do {
-            try await startContainer(config: config)
+            try await createAndStartContainer(config: config)
             return true
         } catch {
             self.alertCenter.error("Failed to run container: \(error.localizedDescription)")
@@ -587,7 +613,7 @@ final class ContainerListService: ObservableObject {
 
     /// Creates and starts `config`, throwing what went wrong rather than alerting. For a sheet,
     /// which has to show the error itself: the app's alert can't appear over a sheet.
-    func startContainer(config: ContainerRunConfig) async throws {
+    func createAndStartContainer(config: ContainerRunConfig) async throws {
         let id = config.name.isEmpty ? UUID().uuidString.lowercased().prefix(12).description : config.name
 
         var envStrings: [String] = []
@@ -721,7 +747,8 @@ final class ContainerListService: ObservableObject {
                 workingDirectory: oldConfig.initProcess.workingDirectory,
                 commandOverride: oldConfig.initProcess.arguments.joined(separator: " "),
                 dnsDomain: oldConfig.dns.domain ?? "",
-                network: container.networks.first?.network ?? "",
+                // The configured network, not the live attachment, which a stopped container lacks.
+                network: oldConfig.networkName ?? "",
                 // The mount-removal recreate must carry labels through too.
                 labels: oldConfig.labels,
                 platform: oldConfig.platform.description,

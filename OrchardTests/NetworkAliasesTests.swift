@@ -105,3 +105,28 @@ func editPrefillsNetworkAndAliases() throws {
     #expect(config.network == "backend")
     #expect(config.effectiveNetworkAliases == ["api.test"])
 }
+
+@MainActor
+@Test("Removing a mount from a stopped container recreates it on its own network with its aliases")
+func mountRemovalCarriesNetworkAndAliases() async throws {
+    let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
+    let service = makeService(backend: backend)
+    let mounts = """
+    [{ "type": { "virtiofs": {} }, "source": "/Users/me/work", "options": [], "destination": "/work" }]
+    """
+    // Stopped, so it has no live attachment: the network has to come from its configuration.
+    let container = try makeContainer(
+        id: "gateway", status: "stopped", mountsJSON: mounts, networkName: "backend",
+        networkAliases: ["backend": ["api.test", ".gateway.test"]]
+    )
+    let list = service.containerListService
+    list.containers = [container]
+
+    await list.deleteMounts(list.allMounts)
+
+    let spec = try #require(backend.createdSpecs.first)
+    #expect(spec.networkName == "backend")
+    #expect(spec.networkAliases == ["api.test", ".gateway.test"])
+    #expect(spec.volumes.isEmpty)
+}

@@ -19,19 +19,8 @@ struct DNSDetailView: View {
                             Text("Containers using this domain")
                                 .font(.headline)
 
-                            let containersUsingDomain = containerListService.containers.filter { container in
-                                // A container with an alias under the domain answers in it too.
-                                if container.configuration.allNetworkAliases.contains(where: {
-                                    NetworkAliases.alias($0, isIn: dnsDomain.domain)
-                                }) {
-                                    return true
-                                }
-                                // Check if container's DNS domain matches
-                                if let containerDomain = container.configuration.dns.domain {
-                                    return containerDomain == dnsDomain.domain
-                                }
-                                // Also check search domains as fallback
-                                return container.configuration.dns.searchDomains.contains(dnsDomain.domain)
+                            let containersUsingDomain = containerListService.containers.filter {
+                                $0.usesDNSDomain(dnsDomain.domain)
                             }
 
                             ContainerTable(

@@ -9,6 +9,9 @@ struct EditContainerView: View {
     @State private var config: ContainerRunConfig
     @State private var isUpdating = false
     @State private var platformError: String?
+    /// Why the last recreate failed, shown above the buttons: the app's alert can't appear
+    /// over a sheet.
+    @State private var updateError: String?
 
     init(container: Container) {
         self.container = container
@@ -148,6 +151,21 @@ struct EditContainerView: View {
     }
 
     private var footerView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let updateError {
+                Label(updateError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            footerButtons
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private var footerButtons: some View {
         HStack {
             if isUpdating {
                 ProgressView()
@@ -171,18 +189,28 @@ struct EditContainerView: View {
             .keyboardShortcut(.defaultAction)
             .disabled(config.name.isEmpty || isUpdating || platformError != nil)
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
     }
 
     private func updateContainer() {
         isUpdating = true
+        updateError = nil
         Task {
-            await containerListService.recreateContainer(oldContainerId: container.configuration.id, newConfig: config)
-            await MainActor.run {
+            do {
+                // The original goes along so a configuration the runtime refuses after the old
+                // container is deleted (an alias already taken, say) puts the container back.
+                try await containerListService.recreateContainer(
+                    oldContainerId: container.configuration.id,
+                    newConfig: config,
+                    originalConfig: Self.initialConfig(for: container)
+                )
+            } catch {
+                // Keep the sheet open with the error, so the user can adjust the form and retry.
+                updateError = error.localizedDescription
                 isUpdating = false
-                dismiss()
+                return
             }
+            isUpdating = false
+            dismiss()
         }
     }
 }
