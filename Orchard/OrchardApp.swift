@@ -90,6 +90,7 @@ extension View {
             .environmentObject(s.statsService)
             .environmentObject(s.dnsService)
             .environmentObject(s.systemService)
+            .environmentObject(s.diskPurgeService)
             .environmentObject(s.containerListService)
             .environmentObject(s.machineService)
             .environmentObject(s.clusterService)

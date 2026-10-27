@@ -21,6 +21,7 @@ final class AppServices: ObservableObject {
     let statsService: StatsService
     let dnsService: DNSService
     let systemService: SystemService
+    let diskPurgeService: DiskPurgeService
     let containerListService: ContainerListService
     let machineService: MachineService
     let clusterService: ClusterService
@@ -86,6 +87,8 @@ final class AppServices: ObservableObject {
         self.dnsService = dnsService
         let systemService = SystemService(backend: backend, runner: runner, settings: settings, alertCenter: alertCenter, isContainerInstalled: isContainerInstalled)
         self.systemService = systemService
+        let diskPurgeService = DiskPurgeService(backend: backend)
+        self.diskPurgeService = diskPurgeService
         // ContainerListService is built before StatsService, which depends on it.
         let containerListService = ContainerListService(backend: backend, alertCenter: alertCenter)
         self.containerListService = containerListService
@@ -115,6 +118,12 @@ final class AppServices: ObservableObject {
         // Reclaiming a container's free blocks changes what the daemon reports as used.
         containerListService.reloadDiskUsage = { [weak systemService] in
             await systemService?.loadSystemDiskUsage(showLoading: false)
+        }
+        // A purge removes containers, images and volumes, and frees what the tiles report.
+        diskPurgeService.onPurged = { [weak systemService, weak imageService, weak containerListService] in
+            await systemService?.loadSystemDiskUsage(showLoading: false)
+            await imageService?.load()
+            await containerListService?.loadContainers(showLoading: false)
         }
         // A compose run creates and removes containers; refresh the list projects derive from.
         composeService.reloadContainers = { [weak containerListService] in

@@ -187,9 +187,30 @@ struct DashboardView: View {
 
 struct SystemDiskUsageView: View {
     @EnvironmentObject var systemService: SystemService
+    @State private var showFreeUpSpace = false
 
     var body: some View {
         let usage = systemService.systemDiskUsage
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Disk Usage")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Spacer()
+                Button("Free Up Space...") { showFreeUpSpace = true }
+                    // No usage means the runtime isn't answering, so there's nothing to list.
+                    .disabled(usage == nil)
+                    .help("Remove images, stopped containers and volumes that aren't in use")
+                    .accessibilityIdentifier("free-up-space")
+            }
+            tiles(usage)
+        }
+        .sheet(isPresented: $showFreeUpSpace) {
+            FreeUpSpaceView()
+        }
+    }
+
+    private func tiles(_ usage: SystemDiskUsage?) -> some View {
         HStack(spacing: 12) {
             statTile(icon: "shippingbox", title: "Containers",
                      value: usage?.containers.formattedSize ?? "--",

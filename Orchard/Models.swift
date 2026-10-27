@@ -1250,6 +1250,33 @@ struct DiskUsageSection: Codable, Equatable {
     }
 }
 
+// MARK: - Volume Models
+
+/// A named or anonymous volume in the runtime's volume store (`container volume ls`).
+struct ContainerVolume: Equatable, Identifiable, Sendable {
+    /// The label the runtime puts on a volume it created for an anonymous mount. Mirrors
+    /// upstream `VolumeConfiguration.anonymousLabel`.
+    static let anonymousLabel = "com.apple.container.resource.anonymous"
+
+    let name: String
+    let format: String
+    /// The volume's disk image on the host, `<volumes>/<name>/volume.img`.
+    let source: String
+    let creationDate: Date
+    let labels: [String: String]
+    /// The size the volume was created with, when one was given. Not its usage on disk.
+    let capacityBytes: UInt64?
+
+    var id: String { name }
+
+    var isAnonymous: Bool { labels[Self.anonymousLabel] != nil }
+
+    /// The directory holding the volume's files, or nil when the runtime gave no source.
+    var storageDirectory: String? {
+        source.isEmpty ? nil : (source as NSString).deletingLastPathComponent
+    }
+}
+
 extension String {
     /// A network address with any CIDR suffix removed, e.g. "10.0.0.2/24" → "10.0.0.2".
     /// Generic over the prefix length - the previous hard-coded "/24" strip left "/16", "/8",

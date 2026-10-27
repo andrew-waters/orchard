@@ -42,24 +42,24 @@ Each container and volume shows its own size from `diskUsage(id:)` and `volumeDi
 
 ## Where it lives
 
-A "Free Up Space…" button beside the disk tiles on the Stats dashboard opens a sheet with:
+A "Free Up Space..." button above the disk tiles on the Stats dashboard opens a sheet with:
 
 1. A loading state while it builds the candidate list (sizes are fetched at the same time).
 2. Three sections, Images, Containers and Volumes, each with a toggle, a checkbox and size for each item, and the section total. Containers and Volumes start off.
-3. A footer with the total to free and a "Remove N Items…" button, which opens a confirmation listing the counts.
+3. A footer with the total to free and a "Remove N Items..." button, which opens a confirmation listing the counts.
 4. A progress state, then a result: items removed, space freed, and any items that failed with their errors. The sheet stays open for these, since an alert can't appear over a sheet.
 
-Before removing anything, the purge reloads the container list and checks every candidate again. Anything that has come into use since the preview is skipped and reported, so a container started in between keeps its image and volumes.
+Before removing anything, the purge reloads the container list and checks every candidate again. Anything that has come into use since the preview is skipped and reported, so a container started in between keeps its image and volumes. Images and volumes are decided again once the containers have gone, so a container that fails to go keeps what it uses.
 
 Afterwards it refreshes disk usage, and the image and container lists.
 
 ## Shape of the code
 
-- `ContainerBackend`: `listAllContainers()` (machines included), `listVolumes()`, `volumeDiskUsage(name:)`, `containerDiskUsage(id:)`, `deleteVolume(name:)`, `cleanUpOrphanedBlobs() -> UInt64`, and `deleteImage(reference:garbageCollect:)` (or a purge-specific delete that skips GC). The mock implements them all.
+- `ContainerBackend`: `listAllContainers()` (machines included), `listVolumes()`, `volumeDiskUsage(name:)`, `containerDiskUsage(id:)`, `deleteVolume(name:)`, `cleanUpOrphanedBlobs() -> UInt64` and `systemImageReferences()` (vminit and builder). The existing `deleteImage` already skips GC, as the CLI's prune does, so the cleanup afterwards does it once; it also reclaims what earlier Orchard deletes left behind. The mock implements them all.
 - An app-owned `ContainerVolume` model (name, size, format, created, labels, storage path, anonymous or not), shaped for #161's Volumes tab to reuse. The in-use rule ("which containers use this volume") is a function #161 can call too.
 - #161's "Prune Volumes" should open this sheet with only volumes shown, so there is one set of rules for what is unused. I'll note this on #161.
 - `Services/DiskPurge.swift`: pure functions that take containers, images and volumes and return the candidates, including the cascade when containers are selected. This is where the safety rules live, and it is unit tested. It also holds a `DiskPurgeService` that loads the plan, re-checks it and runs it.
-- `Views/Features/Stats/PurgeSheet.swift`: the sheet.
+- `Views/Features/Stats/FreeUpSpace.swift`: the sheet.
 - Not in the command palette: `CommandPaletteCatalog` keeps destructive operations out on purpose.
 
 ## Out of scope
@@ -70,11 +70,11 @@ Afterwards it refreshes disk usage, and the image and container lists.
 
 ## Tasks
 
-- [ ] Backend: volume list, sizes and delete; container size; image delete without GC; orphaned blob cleanup; full container list; mock
-- [ ] `DiskPurge` candidate rules, with the cascade and the re-check before removal
-- [ ] `DiskPurgeService`: load, run and report
-- [ ] Purge sheet and dashboard button
-- [ ] Tests: rules (machines, compose, cluster, sandbox, builder and vminit are protected; volume in use by name and by path; compose volumes skipped; anonymous volumes ticked by default; cascade; re-check skips newly used items), service against the mock
-- [ ] README, site and CHANGELOG
-- [ ] One build and unit test pass
+- [x] Backend: volume list, sizes and delete; container size; image delete without GC; orphaned blob cleanup; full container list; mock
+- [x] `DiskPurge` candidate rules, with the cascade and the re-check before removal
+- [x] `DiskPurgeService`: load, run and report
+- [x] Purge sheet and dashboard button
+- [x] Tests: rules (machines, compose, cluster, sandbox, builder and vminit are protected; volume in use by name and by path; compose volumes skipped; anonymous volumes ticked by default; cascade; re-check skips newly used items), service against the mock
+- [x] README, site and CHANGELOG
+- [x] One build and unit test pass (566 passed)
 - [ ] Manual check on 1.6.1: a pulled image no container uses is removed; a machine's image, a compose service and a cluster node are not listed; an unmounted volume is removed only when opted in; freed space matches the tile change

@@ -138,6 +138,11 @@ enum MachineBackingContainer {
 /// conforming to this need no client-package imports.
 protocol ContainerBackend: Sendable {
     func listContainers() async throws -> [Container]
+    /// Every container, machine backing containers included, for deciding what is in use:
+    /// a machine's image and volumes are in use although `listContainers` hides the machine.
+    func listAllContainers() async throws -> [Container]
+    /// The space a container's own storage takes on disk, as `container prune` counts it.
+    func containerDiskUsage(id: String) async throws -> UInt64
     func stopContainer(id: String) async throws
     func killContainer(id: String, signal: Int32) async throws
     func deleteContainer(id: String, force: Bool) async throws
@@ -178,6 +183,14 @@ protocol ContainerBackend: Sendable {
     func listImages() async throws -> [ContainerImage]
     func pullImage(reference: String, onProgress: (@Sendable (ImagePullMetrics) -> Void)?) async throws
     func deleteImage(reference: String) async throws
+    /// Remove the content and unpacked snapshots no image refers to any more, as
+    /// `container image prune` does after deleting images.
+    ///
+    /// - Returns: the bytes freed.
+    func cleanUpOrphanedBlobs() async throws -> UInt64
+    /// The images the runtime itself needs, which no container lists as its image: the
+    /// init filesystem and the builder.
+    func systemImageReferences() async throws -> [String]
     func inspectImage(reference: String) async throws -> ImageInspection
     /// The platforms an image can run as, `os/arch[/variant]`, without pulling it: from the
     /// local index when the image is here, otherwise from the registry through the images
@@ -187,6 +200,10 @@ protocol ContainerBackend: Sendable {
     func listNetworks() async throws -> [ContainerNetwork]
     func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws
     func deleteNetwork(id: String) async throws
+    func listVolumes() async throws -> [ContainerVolume]
+    /// The space a volume takes on disk, which is less than its capacity until it fills.
+    func volumeDiskUsage(name: String) async throws -> UInt64
+    func deleteVolume(name: String) async throws
     func ping() async throws -> SystemHealthInfo
     func diskUsage() async throws -> SystemDiskUsage
 }
@@ -251,6 +268,18 @@ struct LiveContainerBackend: ContainerBackend {
             return snapshots
                 .filter { !MachineBackingContainer.isMachine(labels: $0.configuration.labels) }
                 .map { mapContainer($0) }
+        } catch { throw mapContainerError(error) }
+    }
+
+    func listAllContainers() async throws -> [Container] {
+        do {
+            return try await ContainerClient().list().map { mapContainer($0) }
+        } catch { throw mapContainerError(error) }
+    }
+
+    func containerDiskUsage(id: String) async throws -> UInt64 {
+        do {
+            return try await ContainerClient().diskUsage(id: id)
         } catch { throw mapContainerError(error) }
     }
 
@@ -726,6 +755,19 @@ struct LiveContainerBackend: ContainerBackend {
         } catch { throw mapContainerError(error) }
     }
 
+    func cleanUpOrphanedBlobs() async throws -> UInt64 {
+        do {
+            return try await ClientImage.cleanUpOrphanedBlobs().1
+        } catch { throw mapContainerError(error) }
+    }
+
+    func systemImageReferences() async throws -> [String] {
+        do {
+            let config = try await loadContainerSystemConfig()
+            return [config.vminit.image, config.build.image]
+        } catch { throw mapContainerError(error) }
+    }
+
     func inspectImage(reference: String) async throws -> ImageInspection {
         do {
             // container 1.1.0 removed ClientImage.details(); rebuild the inspection from the
@@ -811,6 +853,24 @@ struct LiveContainerBackend: ContainerBackend {
         do {
             let health = try await ClientHealthCheck.ping()
             return SystemHealthInfo(apiServerVersion: health.apiServerVersion)
+        } catch { throw mapContainerError(error) }
+    }
+
+    func listVolumes() async throws -> [ContainerVolume] {
+        do {
+            return try await ClientVolume.list().map { mapVolumeConfiguration($0) }
+        } catch { throw mapContainerError(error) }
+    }
+
+    func volumeDiskUsage(name: String) async throws -> UInt64 {
+        do {
+            return try await ClientVolume.volumeDiskUsage(name: name)
+        } catch { throw mapContainerError(error) }
+    }
+
+    func deleteVolume(name: String) async throws {
+        do {
+            try await ClientVolume.delete(name: name)
         } catch { throw mapContainerError(error) }
     }
 
