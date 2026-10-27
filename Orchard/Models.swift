@@ -66,11 +66,28 @@ struct ContainerConfiguration: Codable, Equatable {
     let ssh: Bool?
     let virtualization: Bool?
     let sysctls: [String: String]
+    /// The DNS aliases on each network attachment, keyed by network id, in the runtime's
+    /// normalised form (`api.test`, `.gateway.test` for a subtree). From the stored
+    /// configuration, so a stopped container keeps them. Nil or empty without any.
+    var networkAliases: [String: [String]]? = nil
+
+    /// Every alias on every attachment, by network id and then in the order they were given.
+    var allNetworkAliases: [String] {
+        guard let networkAliases else { return [] }
+        return networkAliases.keys.sorted().flatMap { networkAliases[$0] ?? [] }
+    }
+
+    /// The aliases on the first attachment, the only one Orchard creates, as form rows for a
+    /// recreate to carry through.
+    var primaryNetworkAliasRows: [ContainerRunConfig.NetworkAlias] {
+        (networkName.flatMap { networkAliases?[$0] } ?? []).map { .init(name: $0) }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
         case hostname
         case networkName
+        case networkAliases
         case runtimeHandler
         case initProcess
         case mounts
@@ -927,6 +944,19 @@ struct ContainerRunConfig: Equatable {
     /// The platform to run as, `os/arch[/variant]`. Empty is Automatic: the host's when the
     /// image has it, otherwise what the image offers (`ContainerPlatform.resolve`).
     var platform: String = ""
+    /// Extra DNS names for the network attachment, one per row, as entered (`api`,
+    /// `.gateway`). See `effectiveNetworkAliases`.
+    var networkAliases: [NetworkAlias] = []
+
+    struct NetworkAlias: Identifiable, Equatable {
+        let id = UUID()
+        var name: String
+    }
+
+    /// The alias rows with whitespace trimmed and empty rows dropped.
+    var effectiveNetworkAliases: [String] {
+        NetworkAliases.entered(networkAliases.map(\.name))
+    }
 
     static let bytesPerGiB: UInt64 = 1_073_741_824
     /// What a container gets when nothing asks for anything: the runtime's own defaults.

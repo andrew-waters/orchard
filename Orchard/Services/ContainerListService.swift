@@ -500,7 +500,8 @@ final class ContainerListService: ObservableObject {
 
     // Recovery recreates an auto-removed container from its snapshot. It preserves every
     // field the create path (ContainerRunConfig → ContainerCreateSpec → createContainer)
-    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS, platform.
+    // supports: env, ports, volumes (incl. readonly), working directory, network, DNS, platform,
+    // network aliases.
     // Labels, resources (cpus/memory), and hostname are NOT preserved - no field exists for
     // them anywhere in the create path (a normal `run` drops them too); adding them means
     // extending the spec and the XPC create call. Command override is intentionally not
@@ -559,7 +560,8 @@ final class ContainerListService: ObservableObject {
             // Exact bytes, not a GB round-trip: recovery must never resize a container.
             memoryBytes: UInt64(clamping: config.resources.memoryInBytes),
             // An amd64 container comes back as amd64, not as the host's variant of its image.
-            platform: config.platform.description
+            platform: config.platform.description,
+            networkAliases: config.primaryNetworkAliasRows
         )
 
         let started = await runContainer(config: runConfig)
@@ -617,7 +619,8 @@ final class ContainerListService: ObservableObject {
                 cpus: max(1, config.cpus),
                 memoryBytes: max(1_048_576, config.memoryBytes),
                 labels: config.effectiveLabels,
-                platform: config.platform.isEmpty ? nil : config.platform
+                platform: config.platform.isEmpty ? nil : config.platform,
+                networkAliases: config.effectiveNetworkAliases
             )
             try await backend.createContainer(spec)
 
@@ -715,7 +718,8 @@ final class ContainerListService: ObservableObject {
                 network: container.networks.first?.network ?? "",
                 // The mount-removal recreate must carry labels through too.
                 labels: oldConfig.labels,
-                platform: oldConfig.platform.description
+                platform: oldConfig.platform.description,
+                networkAliases: oldConfig.primaryNetworkAliasRows
             )
             
             // Checked before the delete: a container whose platform can no longer be created

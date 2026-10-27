@@ -438,7 +438,8 @@ func makeContainer(
     id: String, status: String, labels: [String: String] = [:],
     imageReference: String = "nginx:latest", imageDigest: String = "sha256:abc",
     cpus: Int = 1, memoryInBytes: Int = 1024,
-    environment: [String] = [], mountsJSON: String = "[]", networkName: String? = nil
+    environment: [String] = [], mountsJSON: String = "[]", networkName: String? = nil,
+    networkAliases: [String: [String]]? = nil
 ) throws -> Container {
     let labelsJSON = labels.isEmpty
         ? "{}"
@@ -450,12 +451,15 @@ func makeContainer(
             with: #""environment": "# + String(data: try JSONEncoder().encode(environment), encoding: .utf8)!
         )
     let networkNameJSON = networkName.map { #""networkName": "\#($0)","# } ?? ""
+    let networkAliasesJSON = try networkAliases.map {
+        #""networkAliases": "# + String(data: try JSONEncoder().encode($0), encoding: .utf8)! + ","
+    } ?? ""
     let json = """
     {
       "status": "\(status)",
       "networks": [],
       "configuration": {
-        "id": "\(id)",\(networkNameJSON)
+        "id": "\(id)",\(networkNameJSON)\(networkAliasesJSON)
         "runtimeHandler": "vz",
         "rosetta": false,
         "labels": \(labelsJSON),

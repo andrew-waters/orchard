@@ -185,6 +185,10 @@ struct ContainerDetailView: View {
                 if let hostname = container.configuration.hostname {
                     InfoRow(label: "Hostname", value: hostname)
                 }
+                let aliases = container.configuration.allNetworkAliases
+                if !aliases.isEmpty {
+                    InfoRow(label: "Aliases", value: aliases.map(NetworkAliases.display).joined(separator: ", "))
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -236,6 +240,10 @@ struct ContainerDetailView: View {
                 ForEach(container.networks, id: \.hostname) { network in
                     let cleanHostname = network.hostname.hasSuffix(".") ? String(network.hostname.dropLast()) : network.hostname
                     CopyableInfoRow(label: "Hostname", value: cleanHostname, copyValue: cleanHostname)
+                    let aliases = container.configuration.networkAliases?[network.network] ?? []
+                    if !aliases.isEmpty {
+                        InfoRow(label: "Aliases", value: aliases.map(NetworkAliases.display).joined(separator: ", "))
+                    }
                     CopyableInfoRow(
                         label: "Address",
                         value: network.address,

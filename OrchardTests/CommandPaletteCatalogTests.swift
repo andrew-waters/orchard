@@ -44,6 +44,19 @@ struct CommandPaletteCatalogTests {
         #expect(!all.contains("container:db:console"))
     }
 
+    @Test("A container is found by its DNS aliases, and by the name a subtree alias sits below")
+    func containerFoundByAlias() throws {
+        let entries = catalog(containers: [
+            try makeContainer(
+                id: "gateway", status: "running", networkName: "default",
+                networkAliases: ["default": ["api.test", ".edge.test"]]
+            ),
+            try makeContainer(id: "web", status: "running"),
+        ])
+        #expect(CommandPaletteCatalog.rank(entries, query: "api.test").first?.id == "container:gateway")
+        #expect(CommandPaletteCatalog.rank(entries, query: "edge.test").first?.id == "container:gateway")
+    }
+
     @Test("Commit is offered for running and stopped containers, only when supported, and \"commit web\" finds it")
     func commitVerb() throws {
         let containers = [

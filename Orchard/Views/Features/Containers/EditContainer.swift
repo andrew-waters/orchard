@@ -12,8 +12,11 @@ struct EditContainerView: View {
 
     init(container: Container) {
         self.container = container
+        _config = State(initialValue: Self.initialConfig(for: container))
+    }
 
-        // Extract current configuration from the container.
+    /// The form's starting point: the container's current configuration.
+    static func initialConfig(for container: Container) -> ContainerRunConfig {
         let envVars = container.configuration.initProcess.environment.compactMap { envStr -> ContainerRunConfig.EnvironmentVariable? in
             let components = envStr.split(separator: "=", maxSplits: 1)
             guard components.count == 2 else { return nil }
@@ -47,7 +50,7 @@ struct EditContainerView: View {
             .sorted { $0.key < $1.key }
             .map { ContainerRunConfig.LabelPair(key: $0.key, value: $0.value) }
 
-        _config = State(initialValue: ContainerRunConfig(
+        return ContainerRunConfig(
             name: container.configuration.id,
             image: container.configuration.image.reference,
             detached: true,
@@ -61,14 +64,19 @@ struct EditContainerView: View {
             commandOverride: joinCommandLine(
                 [container.configuration.initProcess.executable] + container.configuration.initProcess.arguments
             ),
+            // The form doesn't show these when editing, so recreating keeps them as they are.
+            // The aliases depend on both: their domain, and the network they are declared on.
+            dnsDomain: container.configuration.dns.domain ?? "",
+            network: container.configuration.networkName ?? "",
             labels: hiddenLabels,
             labelPairs: editableLabelPairs,
             cpus: container.configuration.resources.cpus,
             // Exact bytes: a non-integral allocation only changes if the user edits it.
             memoryBytes: UInt64(clamping: container.configuration.resources.memoryInBytes),
             // Recreating keeps the platform the container was created as (#147).
-            platform: container.configuration.platform.description
-        ))
+            platform: container.configuration.platform.description,
+            networkAliases: container.configuration.primaryNetworkAliasRows
+        )
     }
 
     var body: some View {

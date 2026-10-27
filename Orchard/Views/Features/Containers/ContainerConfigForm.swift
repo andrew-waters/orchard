@@ -26,6 +26,7 @@ struct ContainerConfigForm: View {
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var rosettaService: RosettaService
+    @EnvironmentObject var systemService: SystemService
 
     @State private var selectedTab: ConfigTab = .basic
     /// The detected model provider the user chose to bridge into this container, by
@@ -199,6 +200,10 @@ struct ContainerConfigForm: View {
                 }
             }
 
+            if supportsNetworkAliases(containerVersion: systemService.containerVersion) {
+                networkAliasesSection
+            }
+
             platformSection
 
             VStack(alignment: .leading, spacing: 8) {
@@ -223,6 +228,65 @@ struct ContainerConfigForm: View {
 
             Spacer()
         }
+    }
+
+    // MARK: - Network aliases (#134)
+
+    /// Extra DNS names for the network attachment. Only empty rows are caught here; the
+    /// runtime checks the rest and its error comes back in the sheet.
+    private var networkAliasesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("DNS Aliases")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                Button(action: addNetworkAlias) {
+                    HStack(spacing: 4) {
+                        SwiftUI.Image(systemName: "plus.circle.fill")
+                        Text("Add Alias")
+                    }
+                    .font(.subheadline)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Text(networkAliasesCaption)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach($config.networkAliases) { $alias in
+                HStack(spacing: 12) {
+                    TextField("api or .gateway", text: $alias.name)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+
+                    Button(action: { deleteNetworkAlias(alias) }) {
+                        SwiftUI.Image(systemName: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// What the aliases will resolve as, or how to write them when there are none yet.
+    private var networkAliasesCaption: String {
+        let names = NetworkAliases.qualify(config.effectiveNetworkAliases, domain: config.dnsDomain)
+        if !names.isEmpty {
+            return "Also answers to " + names.map(NetworkAliases.display).joined(separator: ", ")
+        }
+        guard !config.dnsDomain.isEmpty else {
+            return "Other names this container answers to on its network. With no DNS domain, "
+                + "give each one in full, such as api.example.test."
+        }
+        let name = config.name.isEmpty ? "web" : config.name
+        return "Other names this container answers to on its network. api becomes "
+            + "api.\(config.dnsDomain), and .\(name) answers for every name below \(name).\(config.dnsDomain)."
     }
 
     // MARK: - Platform (#147)
@@ -745,6 +809,14 @@ struct ContainerConfigForm: View {
 
     private func deleteEnvironmentVariable(_ envVar: ContainerRunConfig.EnvironmentVariable) {
         config.environmentVariables.removeAll { $0.id == envVar.id }
+    }
+
+    private func addNetworkAlias() {
+        config.networkAliases.append(ContainerRunConfig.NetworkAlias(name: ""))
+    }
+
+    private func deleteNetworkAlias(_ alias: ContainerRunConfig.NetworkAlias) {
+        config.networkAliases.removeAll { $0.id == alias.id }
     }
 
     private func addLabelPair() {

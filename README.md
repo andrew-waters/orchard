@@ -151,7 +151,7 @@ Two limitations are worth stating up front: without health reporting in the runt
 - Image management: pull with live byte/blob progress, delete, search Docker Hub
 - Image builds: build from any Dockerfile with a streamed BuildKit log, tracked in a Builds tab whose records survive restarts and cross-link to their images and containers
 - Deep links: `orchard://` URLs jump to any tab or resource
-- Network and DNS domain management
+- Network and DNS domain management, with DNS aliases on a container's network (`api.test`, or `*.gateway.test` for every name below one) on container 1.6.0 or later
 - Real-time container stats with sortable columns
 - Sortable container and image lists with persistent preferences
 - Multi-container log viewer with split panes, filtering, and per-container colour coding
@@ -198,6 +198,8 @@ Stream logs from multiple containers side by side. Split panes, filter by text, 
 ![networks and DNS](site/assets/screens/networks.png)
 
 Manage networks and DNS domains without touching the CLI - see every container's IP address and hostname at a glance, set the default DNS domain, and create or remove domains and networks. A domain can also point at your Mac's localhost, so containers reach services running on the host by name.
+
+With Apple container 1.6.0 or later, a container can answer to more names than its own. Add DNS aliases when running or editing it: with the DNS domain `test`, `api` makes it answer to `api.test`, and `.gateway` to every name below `gateway.test`. The container's hostname takes the domain too (`gateway.test`), as `container run` gives it. Aliases show next to the hostname in the container's detail and in the Networks view, and Cmd+K finds a container by them. Exact aliases are unique across all containers, and a subtree alias must sit below the container's own name or one of its aliases; the runtime checks these, and Orchard shows what it says.
 
 ![menu bar](site/assets/screens/menubar.png)
 

@@ -420,7 +420,9 @@ enum CommandPaletteCatalog {
                 icon: TabSelection.containers.icon,
                 title: id,
                 subtitle: "\(container.configuration.image.reference) · \(container.status)",
-                keywords: "container \(container.status) \(container.configuration.hostname ?? "")",
+                keywords: (["container", container.status, container.configuration.hostname ?? ""]
+                    + NetworkAliases.searchTerms(container.configuration.allNetworkAliases))
+                    .joined(separator: " "),
                 action: .selectContainer(id)),
         ]
         if running {

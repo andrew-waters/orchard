@@ -328,6 +328,7 @@ struct ContainersListView: View {
                 container.configuration.id.localizedCaseInsensitiveContains(searchText)
                     || container.status.localizedCaseInsensitiveContains(searchText)
                     || (hostname(for: container)?.localizedCaseInsensitiveContains(searchText) ?? false)
+                    || container.configuration.allNetworkAliases.contains { $0.localizedCaseInsensitiveContains(searchText) }
             }
         }
 
