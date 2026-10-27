@@ -577,60 +577,66 @@ final class ContainerListService: ObservableObject {
     @discardableResult
     func runContainer(config: ContainerRunConfig) async -> Bool {
         do {
-            let id = config.name.isEmpty ? UUID().uuidString.lowercased().prefix(12).description : config.name
-
-            var envStrings: [String] = []
-            for envVar in config.environmentVariables where !envVar.key.isEmpty {
-                envStrings.append("\(envVar.key)=\(envVar.value)")
-            }
-
-            var volumes: [ContainerCreateSpec.Volume] = []
-            for vol in config.volumeMappings where !vol.hostPath.isEmpty && !vol.containerPath.isEmpty {
-                volumes.append(.init(hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly))
-            }
-
-            var ports: [ContainerCreateSpec.Port] = []
-            for pm in config.portMappings {
-                if let hp = UInt16(pm.hostPort), let cp = UInt16(pm.containerPort) {
-                    ports.append(.init(hostPort: hp, containerPort: cp, transportProtocol: pm.transportProtocol))
-                }
-            }
-
-            var commandArgs: [String] = []
-            if !config.commandOverride.isEmpty {
-                // Quote-aware split so `sh -c "echo hi"` stays three arguments (#42).
-                commandArgs = splitCommandLine(config.commandOverride)
-            }
-
-            let spec = ContainerCreateSpec(
-                id: id,
-                imageRef: config.image,
-                environment: envStrings,
-                workingDirectory: config.workingDirectory,
-                commandOverride: commandArgs,
-                volumes: volumes,
-                publishedPorts: ports,
-                dnsDomain: config.dnsDomain,
-                networkName: config.network,
-                autoRemove: config.removeAfterStop,
-                // Clamped here so no caller can trap the backend's UInt64 math with a
-                // negative or zero allocation. Upper bounds are deliberately not
-                // enforced: the runtime accepts overcommitted VMs.
-                cpus: max(1, config.cpus),
-                memoryBytes: max(1_048_576, config.memoryBytes),
-                labels: config.effectiveLabels,
-                platform: config.platform.isEmpty ? nil : config.platform,
-                networkAliases: config.effectiveNetworkAliases
-            )
-            try await backend.createContainer(spec)
-
-            recoveryFailedContainerIDs.remove(id)
-            Task { await self.loadContainers() }
+            try await startContainer(config: config)
             return true
         } catch {
             self.alertCenter.error("Failed to run container: \(error.localizedDescription)")
             return false
         }
+    }
+
+    /// Creates and starts `config`, throwing what went wrong rather than alerting. For a sheet,
+    /// which has to show the error itself: the app's alert can't appear over a sheet.
+    func startContainer(config: ContainerRunConfig) async throws {
+        let id = config.name.isEmpty ? UUID().uuidString.lowercased().prefix(12).description : config.name
+
+        var envStrings: [String] = []
+        for envVar in config.environmentVariables where !envVar.key.isEmpty {
+            envStrings.append("\(envVar.key)=\(envVar.value)")
+        }
+
+        var volumes: [ContainerCreateSpec.Volume] = []
+        for vol in config.volumeMappings where !vol.hostPath.isEmpty && !vol.containerPath.isEmpty {
+            volumes.append(.init(hostPath: vol.hostPath, containerPath: vol.containerPath, readonly: vol.readonly))
+        }
+
+        var ports: [ContainerCreateSpec.Port] = []
+        for pm in config.portMappings {
+            if let hp = UInt16(pm.hostPort), let cp = UInt16(pm.containerPort) {
+                ports.append(.init(hostPort: hp, containerPort: cp, transportProtocol: pm.transportProtocol))
+            }
+        }
+
+        var commandArgs: [String] = []
+        if !config.commandOverride.isEmpty {
+            // Quote-aware split so `sh -c "echo hi"` stays three arguments (#42).
+            commandArgs = splitCommandLine(config.commandOverride)
+        }
+
+        let spec = ContainerCreateSpec(
+            id: id,
+            imageRef: config.image,
+            environment: envStrings,
+            workingDirectory: config.workingDirectory,
+            commandOverride: commandArgs,
+            volumes: volumes,
+            publishedPorts: ports,
+            dnsDomain: config.dnsDomain,
+            networkName: config.network,
+            autoRemove: config.removeAfterStop,
+            // Clamped here so no caller can trap the backend's UInt64 math with a
+            // negative or zero allocation. Upper bounds are deliberately not
+            // enforced: the runtime accepts overcommitted VMs.
+            cpus: max(1, config.cpus),
+            memoryBytes: max(1_048_576, config.memoryBytes),
+            labels: config.effectiveLabels,
+            platform: config.platform.isEmpty ? nil : config.platform,
+            networkAliases: config.effectiveNetworkAliases
+        )
+        try await backend.createContainer(spec)
+
+        recoveryFailedContainerIDs.remove(id)
+        Task { await self.loadContainers() }
     }
 
     func deleteMounts(_ mounts: [ContainerMount]) async {
