@@ -1,6 +1,6 @@
 ---
 type: plan
-status: agreed
+status: done
 summary: "Free Up Space from the Stats dashboard: a sheet that lists unused images (not used by any container, machines included), and opt-in stopped plain containers and unreferenced volumes, each with its size. It previews the total, asks for confirmation, then removes the chosen items and reports what it freed. In-use data is never listed."
 issues: [andrew-waters/orchard#159]
 touches: [andrew-waters/orchard]
@@ -86,4 +86,4 @@ After a purge, the runtime still calls the stopped builder and the vminit image 
 - [x] Dashboard tiles: System tile, and Reclaimable as what Free Up Space can remove
 - [x] README, site and CHANGELOG
 - [x] One build and unit test pass (568 passed)
-- [ ] Manual check on 1.6.1: a pulled image no container uses is removed; a machine's image, a compose service and a cluster node are not listed; an unmounted volume is removed only when opted in; freed space matches the tile change
+- [x] Manual check on 1.6.1: a pulled image no container uses is removed; a machine's image, a compose service and a cluster node are not listed; an unmounted volume is removed only when opted in; freed space matches the tile change
