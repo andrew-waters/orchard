@@ -1,15 +1,17 @@
 import Testing
 import Foundation
+import ComposePlanner
 @testable import Orchard
 
 // Managing named volumes (#161): input rules, which containers hold a volume, the service
 // against the mock, Prune Volumes' plan, image VOLUME declarations, and Cmd+K.
 
-private func volume(_ name: String, anonymous: Bool = false) -> ContainerVolume {
-    ContainerVolume(
+private func volume(_ name: String, anonymous: Bool = false, labels: [String: String] = [:]) -> ContainerVolume {
+    var labels = labels
+    if anonymous { labels[ContainerVolume.anonymousLabel] = "" }
+    return ContainerVolume(
         name: name, format: "ext4", source: "/vols/\(name)/volume.img",
-        creationDate: Date(timeIntervalSince1970: 0),
-        labels: anonymous ? [ContainerVolume.anonymousLabel: ""] : [:], capacityBytes: nil
+        creationDate: Date(timeIntervalSince1970: 0), labels: labels, capacityBytes: nil
     )
 }
 
@@ -75,6 +77,37 @@ func volumeUsers() throws {
     let blocker = try #require(VolumeUsage.deleteBlocker([volume("logs"), volume("pgdata")], containers: containers))
     #expect(blocker.contains("pgdata is mounted by pg"))
     #expect(!blocker.contains("logs"))
+}
+
+@Test("Volume usage: unused means what Prune Volumes offers, so a compose volume isn't")
+func volumeUnusedMatchesPrune() throws {
+    let containers = [
+        try makeContainer(id: "pg", status: "stopped", mountsJSON: volumeMountJSON("pgdata")),
+        try makeContainer(id: "api", status: "running", mountsJSON: volumeMountJSON("pgdata")),
+    ]
+    let shopDB = volume("shop_db", labels: [ProjectIdentity.projectLabel: "shop"])
+    #expect(!VolumeUsage.isUnused(volume("pgdata"), in: containers))
+    #expect(!VolumeUsage.isUnused(shopDB, in: containers))
+    #expect(VolumeUsage.isUnused(volume("scratch", anonymous: true), in: containers))
+    #expect(VolumeUsage.composeProject(of: shopDB) == "shop")
+    #expect(VolumeUsage.composeProject(of: volume("pgdata")) == nil)
+    #expect(VolumeUsage.holders(of: [volume("pgdata"), volume("scratch")], in: containers) == ["pg", "api"])
+}
+
+@MainActor
+@Test("Volume service: a background load can leave the container list alone")
+func volumeServiceLoadWithoutContainers() async throws {
+    let backend = MockContainerBackend()
+    backend.volumes = [volume("pgdata")]
+    let (service, _) = makeVolumeService(backend)
+    await service.load()
+
+    backend.containers = [try makeContainer(id: "pg", status: "running", mountsJSON: volumeMountJSON("pgdata"))]
+    await service.load(showLoading: false, readsContainers: false)
+    #expect(service.containers.isEmpty)
+
+    await service.load(showLoading: false)
+    #expect(service.containers.map(\.configuration.id) == ["pg"])
 }
 
 @MainActor

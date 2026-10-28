@@ -1,4 +1,5 @@
 import Foundation
+import ComposePlanner
 
 /// Which containers hold a volume (#161). "In use" is `DiskPurge`'s rule, so the Volumes tab
 /// and Free Up Space agree on it.
@@ -6,6 +7,24 @@ enum VolumeUsage {
     /// The containers that mount `volume`, by name or by a path inside its storage.
     static func users(of volume: ContainerVolume, in containers: [Container]) -> [Container] {
         containers.filter { DiskPurge.volume(volume, isMountedBy: $0) }
+    }
+
+    /// Whether Prune Volumes would offer the volume: nothing mounts it, and it isn't a compose
+    /// project's, which is kept while the project is down.
+    static func isUnused(_ volume: ContainerVolume, in containers: [Container]) -> Bool {
+        !DiskPurge.isComposeVolume(volume) && users(of: volume, in: containers).isEmpty
+    }
+
+    /// The compose project a volume belongs to, if any.
+    static func composeProject(of volume: ContainerVolume) -> String? {
+        volume.labels[ProjectIdentity.projectLabel].flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// The containers mounting any of `volumes`, by id, each once.
+    static func holders(of volumes: [ContainerVolume], in containers: [Container]) -> [String] {
+        var seen = Set<String>()
+        return volumes.flatMap { users(of: $0, in: containers).map(\.configuration.id) }
+            .filter { seen.insert($0).inserted }
     }
 
     /// Why `volumes` can't be deleted: each one a container mounts, and what mounts it. Nil
@@ -52,19 +71,26 @@ final class VolumeService: ObservableObject {
         VolumeUsage.users(of: volume, in: containers)
     }
 
+    func isUnused(_ volume: ContainerVolume) -> Bool {
+        VolumeUsage.isUnused(volume, in: containers)
+    }
+
     /// Volumes listed, sorted by name. Measures the size of any volume not measured yet;
-    /// `refreshSizes` reads them all again.
-    func load(showLoading: Bool = true) async {
+    /// `refreshSizes` reads them all again. `readsContainers` also reads which containers
+    /// mount them, which only the Volumes tab and a delete need, so a background refresh
+    /// elsewhere, or a form listing volumes to pick from, leaves it off.
+    func load(showLoading: Bool = true, readsContainers: Bool = true) async {
         if showLoading {
             isLoading = true
         }
         do {
             async let listedVolumes = backend.listVolumes()
-            async let listedContainers = backend.listAllContainers()
+            async let listedContainers: [Container]? = readsContainers ? backend.listAllContainers() : nil
             let volumes = try await listedVolumes.sorted { $0.name < $1.name }
-            let containers = try await listedContainers
             if volumes != self.volumes { self.volumes = volumes }
-            if containers != self.containers { self.containers = containers }
+            if let containers = try await listedContainers, containers != self.containers {
+                self.containers = containers
+            }
             let names = Set(volumes.map(\.name))
             if !selection.isSubset(of: names) { selection.formIntersection(names) }
             sizes = sizes.filter { names.contains($0.key) }

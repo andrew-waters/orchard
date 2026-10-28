@@ -729,7 +729,7 @@ struct ContentView: View {
                 await builderService.loadBuilders()
                 await dnsService.load(showLoading: false)
                 await networkService.load(showLoading: false)
-                await volumeService.load(showLoading: false)
+                await volumeService.load(showLoading: false, readsContainers: selectedTab == .volumes)
                 await machineService.load(showLoading: false)
                 await modelService.refreshTick()
             }

@@ -77,7 +77,7 @@ struct ContainerConfigForm: View {
         }
         .task {
             // Both modes: a mount row picks from the volumes there are.
-            await volumeService.load(showLoading: false)
+            await volumeService.load(showLoading: false, readsContainers: false)
         }
         .task(id: config.image) {
             await loadImagePlatforms()
@@ -1050,13 +1050,21 @@ struct VolumeMappingRow: View {
             .help(text)
     }
 
-    /// What the row still needs, or what a block mount is. An incomplete row isn't mounted.
+    /// What the row still needs, or what a block mount is. An incomplete row isn't mounted
+    /// (`isComplete`), which a row from a volume's Run Container... starts as.
     private var hint: String? {
-        switch mapping.kind {
-        case .volume(let name) where name.isEmpty: return "Choose a volume, or this mount is skipped"
-        case .block(let format): return "Block (\(format))"
-        default: return nil
+        guard !mapping.isComplete else {
+            if case .block(let format) = mapping.kind { return "Block (\(format))" }
+            return nil
         }
+        var missing: [String] = []
+        switch mapping.kind {
+        case .volume(let name) where name.isEmpty: missing.append("a volume")
+        case .bind where mapping.hostPath.isEmpty: missing.append("a host path")
+        default: break
+        }
+        if mapping.containerPath.isEmpty { missing.append("where it mounts in the container") }
+        return "Choose \(missing.joined(separator: " and ")), or this mount is skipped"
     }
 }
 

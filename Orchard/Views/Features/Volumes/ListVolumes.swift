@@ -13,7 +13,12 @@ struct VolumesListView: View {
             contentView
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task { await volumeService.refreshSizes() }
+        .task {
+            // The background refresh reads which containers mount volumes only while this
+            // tab shows, so read them now, and every size again.
+            await volumeService.load(showLoading: false)
+            await volumeService.refreshSizes()
+        }
         .sheet(isPresented: $volumeService.presentsCreateSheet) {
             AddVolumeView { volume in volumeService.selection = [volume.name] }
         }
@@ -53,7 +58,7 @@ struct VolumesListView: View {
                 .foregroundStyle(.secondary)
             Text(volumeService.volumes.isEmpty
                  ? "Create a volume, or run a container with one"
-                 : volumeService.showOnlyUnused ? "Every volume is mounted by a container" : "Nothing matches the search")
+                 : volumeService.showOnlyUnused ? "Every volume is mounted, or kept for a compose project" : "Nothing matches the search")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -73,7 +78,14 @@ struct VolumesListView: View {
                     isSelected: volumeService.selection.contains(volume.name)
                 )
                 .contextMenu {
-                    VolumeDeleteButton(volumes: targets)
+                    // A menu item shows no tooltip, so a mounted volume says who holds it here.
+                    let holders = VolumeUsage.holders(of: targets, in: volumeService.containers)
+                    if holders.isEmpty {
+                        VolumeDeleteButton(volumes: targets)
+                    } else {
+                        Button("Can't Delete: In Use by \(ListFormatter.localizedString(byJoining: holders))") {}
+                            .disabled(true)
+                    }
                 }
                 .tag(volume.name)
             }
@@ -87,7 +99,7 @@ struct VolumesListView: View {
     private var filteredVolumes: [ContainerVolume] {
         volumeService.volumes.filter { volume in
             (searchText.isEmpty || volume.name.localizedCaseInsensitiveContains(searchText))
-                && (!volumeService.showOnlyUnused || volumeService.users(of: volume).isEmpty)
+                && (!volumeService.showOnlyUnused || volumeService.isUnused(volume))
         }
     }
 }
@@ -103,11 +115,33 @@ private struct VolumeRowView: View {
             icon: TabSelection.volumes.icon,
             iconColor: userCount > 0 ? .green : .secondary,
             primaryText: volume.name,
-            secondaryLeftText: "\(VolumeFormat.size(size)) · \(volume.format)",
-            secondaryRightText: userCount == 0 ? "Unused" : "\(userCount) container\(userCount == 1 ? "" : "s")",
+            secondaryLeftText: details,
+            secondaryRightText: usage,
             isSelected: isSelected,
-            pluginBadge: volume.isAnonymous ? "anonymous" : nil
+            pluginBadge: VolumeUsage.composeProject(of: volume).map { "compose · \($0)" }
+                ?? (volume.isAnonymous ? "anonymous" : nil)
         )
+        .help(labelsHelp)
+    }
+
+    private var details: String {
+        var parts = [VolumeFormat.size(size), volume.format,
+                     volume.creationDate.formatted(.relative(presentation: .named))]
+        if !volume.labels.isEmpty {
+            parts.append("\(volume.labels.count) label\(volume.labels.count == 1 ? "" : "s")")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// A compose volume nothing mounts isn't unused: Prune Volumes keeps it while the project
+    /// is down.
+    private var usage: String {
+        if userCount > 0 { return "\(userCount) container\(userCount == 1 ? "" : "s")" }
+        return VolumeUsage.composeProject(of: volume) == nil ? "Unused" : "Kept for compose"
+    }
+
+    private var labelsHelp: String {
+        volume.labels.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: "\n")
     }
 }
 

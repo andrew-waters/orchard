@@ -196,7 +196,7 @@ struct FreeUpSpaceView: View {
             caption: "Volumes no container mounts. What's in a volume can't be got back once it's removed. Anonymous volumes start ticked and named ones don't. A compose project's volumes aren't listed: they're kept while the project is down.",
             isOn: $selection.includeVolumes,
             showsToggle: scope == .everything,
-            empty: "Every volume is mounted by a container.",
+            empty: "Every volume is mounted by a container, or kept for a compose project.",
             rows: preview.candidates.volumes.map { volume in
                 row(.volume(name: volume.name), inventory, preview,
                     detail: volume.isAnonymous ? "Anonymous" : nil,
