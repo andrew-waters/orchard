@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "162-create-and-mount-compose-named-and",
+  "issue" : "andrew-waters/orchard#162",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-10-28T09:38:10Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Create and mount compose named and anonymous volumes",
+  "url" : "https://github.com/andrew-waters/orchard/issues/162"
+}
