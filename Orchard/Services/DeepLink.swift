@@ -9,7 +9,7 @@ import Foundation
 /// - `orchard://image/<reference>` — the reference may itself contain slashes
 ///   (`orchard://image/docker.io/library/nginx:latest`)
 /// - `orchard://machine/<id>`, `orchard://mount/<id>`, `orchard://network/<id>`,
-///   `orchard://dns/<domain>`
+///   `orchard://dns/<domain>`, `orchard://volume/<name>`
 enum DeepLink: Equatable {
     case tab(TabSelection)
     case container(String)
@@ -18,6 +18,7 @@ enum DeepLink: Equatable {
     case machine(String)
     case dnsDomain(String)
     case network(String)
+    case volume(String)
 
     static func parse(_ url: URL) -> DeepLink? {
         guard url.scheme?.lowercased() == "orchard", let host = url.host else { return nil }
@@ -40,6 +41,8 @@ enum DeepLink: Equatable {
             return identifier.isEmpty ? .tab(.dns) : .dnsDomain(identifier)
         case "network":
             return identifier.isEmpty ? .tab(.networks) : .network(identifier)
+        case "volume":
+            return identifier.isEmpty ? .tab(.volumes) : .volume(identifier)
         default:
             // A bare tab link: orchard://images, orchard://dashboard, … URL
             // hosts are case-insensitive (and Foundation may lowercase them),

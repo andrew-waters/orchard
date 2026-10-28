@@ -1,5 +1,6 @@
 import Foundation
 import ContainerAPIClient
+import ContainerImagesServiceClient
 import ContainerResource
 import ContainerizationOCI
 import ContainerizationExtras
@@ -204,6 +205,9 @@ protocol ContainerBackend: Sendable {
     func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws
     func deleteNetwork(id: String) async throws
     func listVolumes() async throws -> [ContainerVolume]
+    /// Create a named volume, as `container volume create` does. `size` is in the CLI's form
+    /// (`512M`, `10G`); nil leaves the runtime's default capacity.
+    func createVolume(name: String, size: String?, labels: [String: String]) async throws -> ContainerVolume
     /// The space a volume takes on disk, which is less than its capacity until it fills.
     func volumeDiskUsage(name: String) async throws -> UInt64
     func deleteVolume(name: String) async throws
@@ -793,8 +797,10 @@ struct LiveContainerBackend: ContainerBackend {
                 // config blob plus compressed layers. Manifest blobs for non-local
                 // architectures may be absent; those variants keep the descriptor size.
                 var size = manifestDescriptor.size
+                var volumes: [String]?
                 if let manifest = try? await image.manifest(for: platform) {
                     size += manifest.config.size + manifest.layers.reduce(0) { $0 + $1.size }
+                    volumes = try? await declaredVolumes(configDigest: manifest.config.digest)
                 }
                 variants.append(ImageInspection.Variant(
                     platform: "\(platform.os)/\(platform.architecture)",
@@ -805,7 +811,7 @@ struct LiveContainerBackend: ContainerBackend {
                     workingDir: config?.workingDir,
                     user: config?.user,
                     exposedPorts: nil,
-                    volumes: nil
+                    volumes: volumes
                 ))
             }
 
@@ -818,6 +824,13 @@ struct LiveContainerBackend: ContainerBackend {
                 variants: variants
             )
         } catch { throw mapContainerError(error) }
+    }
+
+    /// The `VOLUME` paths in an image's config blob. Upstream's `ImageConfig` doesn't decode
+    /// them, so this reads the blob itself.
+    private func declaredVolumes(configDigest: String) async throws -> [String]? {
+        guard let content = try await RemoteContentStoreClient().get(digest: configDigest) else { return nil }
+        return try imageConfigVolumes(from: content.data())
     }
 
     func imagePlatforms(reference: String) async throws -> [String] {
@@ -867,6 +880,15 @@ struct LiveContainerBackend: ContainerBackend {
     func listVolumes() async throws -> [ContainerVolume] {
         do {
             return try await ClientVolume.list().map { mapVolumeConfiguration($0) }
+        } catch { throw mapContainerError(error) }
+    }
+
+    func createVolume(name: String, size: String?, labels: [String: String]) async throws -> ContainerVolume {
+        do {
+            // The CLI's `-s` goes to the driver options; the runtime parses and checks it.
+            let driverOpts = size.map { ["size": $0] } ?? [:]
+            let volume = try await ClientVolume.create(name: name, driverOpts: driverOpts, labels: labels)
+            return mapVolumeConfiguration(volume)
         } catch { throw mapContainerError(error) }
     }
 

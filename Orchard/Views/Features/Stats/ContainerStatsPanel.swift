@@ -49,15 +49,28 @@ struct ContainerStatsPanel: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Mounts").font(.subheadline).fontWeight(.medium).foregroundColor(.primary)
                 ForEach(Array(mounts.enumerated()), id: \.offset) { _, mount in
-                    Button {
-                        // Navigate to the mount detail view (ContainerMount.id is source->dest).
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("NavigateToMount"),
-                            object: "\(mount.source)->\(mount.destination)")
-                    } label: {
-                        Text(mount.destination).font(.subheadline).fontDesign(.monospaced)
+                    if let volume = mount.type.volume {
+                        // A volume outlives the container, so it links to the Volumes tab.
+                        Button {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("NavigateToVolume"), object: volume.name)
+                        } label: {
+                            Label("\(volume.name) → \(mount.destination)", systemImage: TabSelection.volumes.icon)
+                                .font(.subheadline).fontDesign(.monospaced)
+                        }
+                        .buttonStyle(.link)
+                        .help("Show the \(volume.name) volume")
+                    } else {
+                        Button {
+                            // Navigate to the mount detail view (ContainerMount.id is source->dest).
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("NavigateToMount"),
+                                object: "\(mount.source)->\(mount.destination)")
+                        } label: {
+                            Text(mount.destination).font(.subheadline).fontDesign(.monospaced)
+                        }
+                        .buttonStyle(.link)
                     }
-                    .buttonStyle(.link)
                 }
             }
         }

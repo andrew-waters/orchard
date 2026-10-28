@@ -8,6 +8,8 @@ struct ThreeColumnLayout: View {
     @EnvironmentObject var imageBuildService: ImageBuildService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var volumeService: VolumeService
+    @EnvironmentObject var diskPurgeService: DiskPurgeService
     @EnvironmentObject var machineService: MachineService
     @EnvironmentObject var clusterService: ClusterService
     @AppStorage("containerSortBy") private var containerSortBy: ContainerSortOption = .name
@@ -69,7 +71,7 @@ struct ThreeColumnLayout: View {
 
     private var needsMiddleColumn: Bool {
         switch selectedTab {
-        case .containers, .compose, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+        case .containers, .compose, .images, .builds, .mounts, .volumes, .machines, .clusters, .models, .sandboxes, .dns, .networks:
             return true
         case .registries, .systemLogs, .dashboard:
             return false
@@ -151,6 +153,14 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Show only mounts in use")
+                                } else if selectedTab == .volumes {
+                                    Button(action: { volumeService.showOnlyUnused.toggle() }) {
+                                        SwiftUI.Image(systemName: volumeService.showOnlyUnused ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                            .foregroundColor(volumeService.showOnlyUnused ? .accentColor : .secondary)
+                                            .font(.system(size: 14))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Show only volumes no container mounts")
                                 }
 
                                 // Sort menu
@@ -306,6 +316,26 @@ struct ThreeColumnLayout: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Add Network")
+                                } else if selectedTab == .volumes {
+                                    Button(action: {
+                                        // Before presenting, so the sheet's first frame isn't last time's list.
+                                        diskPurgeService.reset()
+                                        volumeService.presentsPruneSheet = true
+                                    }) {
+                                        SwiftUI.Image(systemName: "trash")
+                                            .foregroundColor(.primary)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Prune Volumes...")
+
+                                    Button(action: { volumeService.presentsCreateSheet = true }) {
+                                        SwiftUI.Image(systemName: "plus")
+                                            .foregroundColor(.primary)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Create Volume")
                                 } else if selectedTab == .machines {
                                     Button(action: { showAddMachineSheet = true }) {
                                         SwiftUI.Image(systemName: "plus")
@@ -491,6 +521,7 @@ struct TabColumnView: View {
     @EnvironmentObject var imageBuildService: ImageBuildService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var volumeService: VolumeService
     @EnvironmentObject var machineService: MachineService
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var modelServerService: ModelServerService
@@ -524,7 +555,7 @@ struct TabColumnView: View {
         .onAppear {
             // Set initial focus when view appears
             switch selectedTab {
-            case .containers, .compose, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+            case .containers, .compose, .images, .builds, .mounts, .volumes, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 DispatchQueue.main.async {
                     listFocusedTab = selectedTab
                 }
@@ -568,6 +599,7 @@ struct TabColumnView: View {
                sidebarRow(for: .images)
                sidebarRow(for: .builds)
                sidebarRow(for: .mounts)
+               sidebarRow(for: .volumes)
            } header: {
                HStack {
                    Text("Resources")
@@ -655,6 +687,10 @@ struct TabColumnView: View {
             if selectedMount == nil && !containerListService.allMounts.isEmpty {
                 selectedMount = containerListService.allMounts.first?.id
             }
+        case .volumes:
+            if volumeService.selection.isEmpty, let first = volumeService.volumes.first {
+                volumeService.selection = [first.name]
+            }
         case .machines:
             if selectedMachine == nil && !machineService.machines.isEmpty {
                 selectedMachine = machineService.machines.first?.id
@@ -704,7 +740,7 @@ struct TabColumnView: View {
         listFocusedTab = nil
         DispatchQueue.main.async {
             switch tab {
-            case .containers, .compose, .images, .builds, .mounts, .machines, .clusters, .models, .sandboxes, .dns, .networks:
+            case .containers, .compose, .images, .builds, .mounts, .volumes, .machines, .clusters, .models, .sandboxes, .dns, .networks:
                 self.listFocusedTab = tab
             case .registries, .systemLogs, .dashboard:
                 self.listFocusedTab = nil
@@ -745,6 +781,8 @@ struct TabColumnView: View {
             return imageBuildService.builds.count
         case .mounts:
             return containerListService.allMounts.count
+        case .volumes:
+            return volumeService.volumes.count
         case .machines:
             return machineService.machines.count
         case .clusters:
@@ -849,6 +887,11 @@ struct ListColumnView: View {
                     lastSelectedMount: .constant(lastSelectedMount),
                     searchText: $searchText,
                     showOnlyMountsInUse: $showOnlyMountsInUse,
+                    listFocusedTab: _listFocusedTab
+                )
+            case .volumes:
+                VolumesListView(
+                    searchText: $searchText,
                     listFocusedTab: _listFocusedTab
                 )
             case .machines:

@@ -85,6 +85,7 @@ extension View {
             .environmentObject(s.terminalLauncher)
             .environmentObject(s.builderService)
             .environmentObject(s.networkService)
+            .environmentObject(s.volumeService)
             .environmentObject(s.imageService)
             .environmentObject(s.imageBuildService)
             .environmentObject(s.statsService)

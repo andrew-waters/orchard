@@ -149,6 +149,7 @@ Two limitations are worth stating up front: without health reporting in the runt
 - Container management: create, start, stop, force stop, delete, export as tar, commit to an image (container 1.6.0+), reclaim disk space (pending a container release that can trim a container's root filesystem), label at launch, group by label
 - Platforms: run an image as any platform it offers, so a `linux/amd64`-only image runs on Apple silicon under Rosetta. Automatic picks the Mac's own platform when the image has it, as `container run` does; the choice survives edits and recreates, a compose service's `platform:` is honoured, and Orchard offers to install Rosetta when it is missing
 - Image management: pull with live byte/blob progress, delete, search Docker Hub
+- Volumes: a Volumes tab lists every named and anonymous volume with its size, format, labels and the containers that mount it. Create one with an optional size and labels, delete the ones nothing mounts, or **Prune Volumes** to choose unused ones to remove. Run and Edit mount a host folder, a volume (picked, or created on the spot) or a tmpfs in each mount row
 - Disk space: usage by containers, images, volumes and the runtime's own system data on the dashboard, and **Free Up Space** to remove images no container uses, and (when turned on) stopped containers and unmounted volumes, with sizes shown and a confirmation before anything goes. Machines, cluster nodes, compose services, sandboxes and compose volumes are never listed
 - Image builds: build from any Dockerfile with a streamed BuildKit log, tracked in a Builds tab whose records survive restarts and cross-link to their images and containers
 - Deep links: `orchard://` URLs jump to any tab or resource
@@ -162,7 +163,7 @@ Two limitations are worth stating up front: without health reporting in the runt
 
 ![Command palette - fuzzy search across every resource, with keyboard-reachable actions](site/assets/screens/palette.png)
 
-Press Cmd+K anywhere and type: results rank with real fuzzy matching across containers, images, mounts, machines, k8s clusters, AI models, sandboxes, DNS domains and networks. Verbs work too - "stop db" stops the container, "logs api" opens the log viewer, "console web" drops you into a shell - and the actions section covers running containers, pulling images, and starting or stopping the container system itself.
+Press Cmd+K anywhere and type: results rank with real fuzzy matching across containers, images, mounts, volumes, machines, k8s clusters, AI models, sandboxes, DNS domains and networks. Verbs work too - "stop db" stops the container, "logs api" opens the log viewer, "console web" drops you into a shell - and the actions section covers running containers, pulling images, and starting or stopping the container system itself.
 
 ![Orchard container detail - CPU, memory, network, and disk over time](site/assets/screens/containers.png)
 
@@ -189,6 +190,7 @@ Orchard registers the `orchard://` URL scheme, so scripts, docs, and other tools
 | `orchard://mount/<id>` | A mount |
 | `orchard://dns/<domain>` | A DNS domain |
 | `orchard://network/<id>` | A network |
+| `orchard://volume/<name>` | A volume |
 
 A resource link whose target is still loading selects it as soon as it appears, and a noun without an identifier (`orchard://container`) falls back to its tab. Try it: `open orchard://builds`.
 
