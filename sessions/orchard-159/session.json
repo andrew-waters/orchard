@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "159-add-a-disk-usage-view-and-a-way-to-purge",
+  "finishedAt" : "2026-10-28T08:54:32Z",
   "issue" : "andrew-waters/orchard#159",
   "pullRequests" : [
     "https://github.com/andrew-waters/orchard/pull/164"
