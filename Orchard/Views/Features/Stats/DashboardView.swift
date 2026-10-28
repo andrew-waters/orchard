@@ -103,7 +103,7 @@ struct DashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // System Disk Usage Section
-                    SystemDiskUsageView()
+                    SystemDiskUsageView(selectedTab: $selectedTab)
 
                     // System-wide resource charts (aggregate of all containers)
                     SystemStatsDashboard()
@@ -188,6 +188,8 @@ struct DashboardView: View {
 struct SystemDiskUsageView: View {
     @EnvironmentObject var systemService: SystemService
     @EnvironmentObject var diskPurgeService: DiskPurgeService
+    /// The Volumes tile opens the Volumes tab.
+    @Binding var selectedTab: TabSelection
     @State private var showFreeUpSpace = false
 
     var body: some View {
@@ -216,9 +218,15 @@ struct SystemDiskUsageView: View {
             statTile(icon: "square.stack.3d.up", title: "Images",
                      value: images?.formattedSize ?? "--",
                      detail: images.map { "\($0.active)/\($0.total)" } ?? "--")
-            statTile(icon: "externaldrive", title: "Volumes",
-                     value: volumes?.formattedSize ?? "--",
-                     detail: volumes.map { "\($0.active)/\($0.total)" } ?? "--")
+            Button { selectedTab = .volumes } label: {
+                statTile(icon: TabSelection.volumes.icon, title: "Volumes",
+                         value: volumes?.formattedSize ?? "--",
+                         detail: volumes.map { "\($0.active)/\($0.total)" } ?? "--")
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Show volumes")
+            .accessibilityIdentifier("dashboard-volumes")
             statTile(icon: "gearshape", title: "System",
                      value: breakdown.map { Self.bytes($0.systemSize) } ?? "--",
                      detail: breakdown.map(Self.systemDetail) ?? "--")

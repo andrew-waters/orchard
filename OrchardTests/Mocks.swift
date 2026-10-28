@@ -138,6 +138,8 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _volumeSizes: [String: UInt64] = [:]
     private var _deleteVolumeError: Error?
     private var _deletedVolumeNames: [String] = []
+    private var _createVolumeError: Error?
+    private var _createdVolumes: [(name: String, size: String?, labels: [String: String])] = []
     private var _orphanedBlobBytes: UInt64 = 0
     private var _cleanUpCount = 0
     private var _systemImages: [String] = []
@@ -310,6 +312,10 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         get { lock.withLock { _deleteVolumeError } }
         set { lock.withLock { _deleteVolumeError = newValue } }
     }
+    var createVolumeError: Error? {
+        get { lock.withLock { _createVolumeError } }
+        set { lock.withLock { _createVolumeError = newValue } }
+    }
     /// What `cleanUpOrphanedBlobs` reports freeing.
     var orphanedBlobBytes: UInt64 {
         get { lock.withLock { _orphanedBlobBytes } }
@@ -322,6 +328,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
 
     // Recorded calls - read by tests.
     var deletedVolumeNames: [String] { lock.withLock { _deletedVolumeNames } }
+    var createdVolumes: [(name: String, size: String?, labels: [String: String])] { lock.withLock { _createdVolumes } }
     var cleanUpCount: Int { lock.withLock { _cleanUpCount } }
     var pulledReferences: [String] { lock.withLock { _pulledReferences } }
     var deletedImageReferences: [String] { lock.withLock { _deletedImageReferences } }
@@ -486,6 +493,19 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         lock.withLock { _deletedNetworkIds.append(id) }
     }
     func listVolumes() async throws -> [ContainerVolume] { volumes }
+    /// Records the call and adds the volume to `volumes`, so a reload lists it.
+    func createVolume(name: String, size: String?, labels: [String: String]) async throws -> ContainerVolume {
+        if let createVolumeError { throw createVolumeError }
+        let volume = ContainerVolume(
+            name: name, format: "ext4", source: "/volumes/\(name)/volume.img",
+            creationDate: Date(timeIntervalSince1970: 0), labels: labels, capacityBytes: nil
+        )
+        lock.withLock {
+            _createdVolumes.append((name: name, size: size, labels: labels))
+            _volumes.append(volume)
+        }
+        return volume
+    }
     func volumeDiskUsage(name: String) async throws -> UInt64 {
         guard let size = volumeSizes[name] else { throw NotConfigured() }
         return size

@@ -8,6 +8,7 @@ struct CommandPaletteCatalogTests {
     private func catalog(
         containers: [Container] = [],
         machines: [Machine] = [],
+        volumes: [ContainerVolume] = [],
         systemRunning: Bool = true,
         supportsCommit: Bool = true
     ) -> [PaletteEntry] {
@@ -21,11 +22,26 @@ struct CommandPaletteCatalogTests {
             sandboxes: [],
             dnsDomains: [DNSDomain(domain: "test.local", isDefault: true)],
             networks: [makeNetwork(id: "default")],
+            volumes: volumes,
             systemRunning: systemRunning,
             supportsCommit: supportsCommit)
     }
 
     private func ids(_ entries: [PaletteEntry]) -> [String] { entries.map(\.id) }
+
+    @Test("Each volume is an entry found by name, and Create and Prune Volumes are actions")
+    func volumeEntries() {
+        let entries = catalog(volumes: [
+            ContainerVolume(name: "pgdata", format: "ext4", source: "", creationDate: Date(),
+                            labels: [:], capacityBytes: nil),
+        ])
+        let volume = entries.first { $0.id == "volume:pgdata" }
+        #expect(volume?.action == .selectVolume("pgdata"))
+        #expect(entries.first { $0.id == "action:createVolume" }?.action == .showCreateVolumeSheet)
+        #expect(entries.first { $0.id == "action:pruneVolumes" }?.action == .showPruneVolumes)
+        #expect(CommandPaletteCatalog.rank(entries, query: "pgdata").first?.id == "volume:pgdata")
+        #expect(CommandPaletteCatalog.rank(entries, query: "prune volumes").first?.id == "action:pruneVolumes")
+    }
 
     @Test("A running container gets stop/console/logs verbs; a stopped one gets start/logs")
     func containerVerbsAreStateAware() throws {

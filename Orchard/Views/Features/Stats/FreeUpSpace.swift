@@ -4,6 +4,23 @@ import SwiftUI
 /// once they confirm. Images start ticked; stopped containers and volumes are sections to turn
 /// on, since what they hold can't be got back. What counts as unused is `DiskPurge`'s.
 struct FreeUpSpaceView: View {
+    /// What the sheet offers: everything, or only volumes, as Prune Volumes opens it (#161).
+    enum Scope {
+        case everything
+        case volumes
+
+        var initialSelection: DiskPurgeSelection {
+            var selection = DiskPurgeSelection()
+            if self == .volumes {
+                selection.includeImages = false
+                selection.includeVolumes = true
+            }
+            return selection
+        }
+    }
+
+    var scope: Scope = .everything
+
     @EnvironmentObject var diskPurgeService: DiskPurgeService
     @EnvironmentObject var imageService: ImageService
     @Environment(\.dismiss) private var dismiss
@@ -28,10 +45,14 @@ struct FreeUpSpaceView: View {
             // The service outlives the sheet: forget last time's list or result before the
             // first await, so it never shows while the new one loads.
             diskPurgeService.reset()
-            selection = DiskPurgeSelection()
-            async let images: Void = imageService.load()
-            async let candidates: Void = diskPurgeService.load()
-            _ = await (images, candidates)
+            selection = scope.initialSelection
+            if scope == .volumes {
+                await diskPurgeService.load()
+            } else {
+                async let images: Void = imageService.load()
+                async let candidates: Void = diskPurgeService.load()
+                _ = await (images, candidates)
+            }
         }
         .alert(confirmationTitle, isPresented: $showConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -48,7 +69,7 @@ struct FreeUpSpaceView: View {
 
     private var header: some View {
         HStack {
-            Text("Free Up Space").font(.title2).fontWeight(.semibold)
+            Text(scope == .volumes ? "Prune Volumes" : "Free Up Space").font(.title2).fontWeight(.semibold)
             Spacer()
             Button(isFinished ? "Done" : "Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
@@ -65,9 +86,11 @@ struct FreeUpSpaceView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(totalText(preview)).font(.subheadline).fontWeight(.medium)
-                    Text("Image sizes overlap where images share layers, so the space freed can be less.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if scope == .everything {
+                        Text("Image sizes overlap where images share layers, so the space freed can be less.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 Spacer()
                 Button(preview.plan.count == 1 ? "Remove 1 Item..." : "Remove \(preview.plan.count) Items...") {
@@ -115,8 +138,10 @@ struct FreeUpSpaceView: View {
             if let preview, let inventory = diskPurgeService.inventory {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        imagesSection(preview, inventory)
-                        containersSection(preview, inventory)
+                        if scope == .everything {
+                            imagesSection(preview, inventory)
+                            containersSection(preview, inventory)
+                        }
                         volumesSection(preview, inventory)
                     }
                     .padding()
@@ -170,7 +195,8 @@ struct FreeUpSpaceView: View {
             systemImage: "cylinder",
             caption: "Volumes no container mounts. What's in a volume can't be got back once it's removed. Anonymous volumes start ticked and named ones don't. A compose project's volumes aren't listed: they're kept while the project is down.",
             isOn: $selection.includeVolumes,
-            empty: "Every volume is mounted by a container.",
+            showsToggle: scope == .everything,
+            empty: "Every volume is mounted by a container, or kept for a compose project.",
             rows: preview.candidates.volumes.map { volume in
                 row(.volume(name: volume.name), inventory, preview,
                     detail: volume.isAnonymous ? "Anonymous" : nil,
@@ -184,6 +210,7 @@ struct FreeUpSpaceView: View {
         systemImage: String,
         caption: String,
         isOn: Binding<Bool>,
+        showsToggle: Bool = true,
         empty: String,
         rows: [FreeUpSpaceRow]
     ) -> some View {
@@ -199,11 +226,13 @@ struct FreeUpSpaceView: View {
                     .buttonStyle(.link)
                     .font(.subheadline)
                 }
-                Toggle(title, isOn: isOn)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(rows.isEmpty)
+                if showsToggle {
+                    Toggle(title, isOn: isOn)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .disabled(rows.isEmpty)
+                }
             }
 
             Text(caption)

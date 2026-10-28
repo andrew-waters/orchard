@@ -1044,6 +1044,12 @@ struct MountDetailView: View {
                 if let volume = mount.mount.type.volume {
                     InfoRow(label: "Filesystem", value: "Volume (\(volume.format))")
                     InfoRow(label: "Volume", value: volume.name)
+                    Button("Show in Volumes") {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("NavigateToVolume"), object: volume.name)
+                    }
+                    .buttonStyle(.link)
+                    .font(.subheadline)
                 } else if let block = mount.mount.type.block {
                     InfoRow(label: "Filesystem", value: "Block (\(block.format))")
                 } else if mount.mount.type.virtiofs != nil {

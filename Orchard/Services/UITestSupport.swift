@@ -140,6 +140,9 @@ struct UITestBackend: ContainerBackend {
     func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {}
     func deleteNetwork(id: String) async throws {}
     func listVolumes() async throws -> [ContainerVolume] { [] }
+    func createVolume(name: String, size: String?, labels: [String: String]) async throws -> ContainerVolume {
+        ContainerVolume(name: name, format: "ext4", source: "", creationDate: Date(), labels: labels, capacityBytes: nil)
+    }
     func volumeDiskUsage(name: String) async throws -> UInt64 { 0 }
     func deleteVolume(name: String) async throws {}
     func ping() async throws -> SystemHealthInfo { SystemHealthInfo(apiServerVersion: "1.0.0") }

@@ -4,6 +4,7 @@ struct MainInterfaceView: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var clusterService: ClusterService
+    @EnvironmentObject var volumeService: VolumeService
     @EnvironmentObject var systemService: SystemService
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
@@ -83,6 +84,8 @@ struct MainInterfaceView: View {
                 return selectedNetwork
             }
             return isConfigurationMode ? "Configuration" : ""
+        case .volumes:
+            return volumeService.selectedVolume ?? ""
         case .machines:
             return selectedMachine ?? ""
         case .compose:

@@ -36,6 +36,14 @@ struct RunContainerView: View {
         _config = State(initialValue: ContainerRunConfig(name: "", image: ""))
     }
 
+    /// Picker mode with `volume` already in a mount row, from a volume's detail.
+    init(volume: String) {
+        self.init()
+        var config = ContainerRunConfig(name: "", image: "")
+        config.volumeMappings = [.init(hostPath: "", containerPath: "", kind: .volume(name: volume))]
+        _config = State(initialValue: config)
+    }
+
     private static func derivedName(from imageRef: String) -> String {
         let trimmed = imageRef.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "container" }

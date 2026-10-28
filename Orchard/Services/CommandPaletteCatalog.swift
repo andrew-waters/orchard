@@ -9,6 +9,7 @@ enum PaletteSection: Int, CaseIterable {
     case containers
     case images
     case mounts
+    case volumes
     case machines
     case clusters
     case models
@@ -23,6 +24,7 @@ enum PaletteSection: Int, CaseIterable {
         case .containers: return TabSelection.containers.title
         case .images: return TabSelection.images.title
         case .mounts: return TabSelection.mounts.title
+        case .volumes: return TabSelection.volumes.title
         case .machines: return TabSelection.machines.title
         case .clusters: return TabSelection.clusters.title
         case .models: return TabSelection.models.title
@@ -42,6 +44,7 @@ enum PaletteAction: Equatable {
     case selectContainer(String)
     case selectImage(String)
     case selectMount(String)
+    case selectVolume(String)
     case selectMachine(String)
     case selectCluster(String)
     case selectModel(String)
@@ -54,6 +57,8 @@ enum PaletteAction: Equatable {
     case showBuildImage
     case showAddDNSDomainSheet
     case showAddNetworkSheet
+    case showCreateVolumeSheet
+    case showPruneVolumes
     case showAddMachineSheet
     case showCreateClusterSheet
 
@@ -128,6 +133,7 @@ enum CommandPaletteCatalog {
         sandboxes: [Sandbox],
         dnsDomains: [DNSDomain],
         networks: [ContainerNetwork],
+        volumes: [ContainerVolume],
         systemRunning: Bool,
         supportsCommit: Bool
     ) -> [PaletteEntry] {
@@ -167,6 +173,18 @@ enum CommandPaletteCatalog {
                 keywords: "mount volume",
                 showsWhenEmpty: false,
                 action: .selectMount(mount.id)))
+        }
+
+        for volume in volumes.sorted(by: { $0.name < $1.name }) {
+            entries.append(PaletteEntry(
+                id: "volume:\(volume.name)",
+                section: .volumes,
+                icon: TabSelection.volumes.icon,
+                title: volume.name,
+                subtitle: volume.isAnonymous ? "anonymous" : nil,
+                keywords: "volume storage disk",
+                showsWhenEmpty: false,
+                action: .selectVolume(volume.name)))
         }
 
         for machine in machines.sorted(by: { $0.id < $1.id }) {
@@ -311,6 +329,22 @@ enum CommandPaletteCatalog {
                 title: "Add Network...",
                 keywords: "network create add subnet",
                 action: .showAddNetworkSheet),
+            PaletteEntry(
+                id: "action:createVolume",
+                section: .actions,
+                icon: TabSelection.volumes.icon,
+                title: "Create Volume...",
+                keywords: "volume create add new storage disk",
+                action: .showCreateVolumeSheet),
+            PaletteEntry(
+                id: "action:pruneVolumes",
+                section: .actions,
+                icon: "trash",
+                title: "Prune Volumes...",
+                subtitle: "Choose unused volumes to remove",
+                keywords: "volume prune remove delete unused clean free space anonymous",
+                showsWhenEmpty: false,
+                action: .showPruneVolumes),
             PaletteEntry(
                 id: "action:createMachine",
                 section: .actions,

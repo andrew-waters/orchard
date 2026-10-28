@@ -8,6 +8,8 @@ struct ContentView: View {
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var volumeService: VolumeService
+    @EnvironmentObject var diskPurgeService: DiskPurgeService
     @EnvironmentObject var builderService: BuilderService
     @EnvironmentObject var statsService: StatsService
     @EnvironmentObject var machineService: MachineService
@@ -413,6 +415,22 @@ struct ContentView: View {
                     }
                 }
             }
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToVolume"))
+            ) { notification in
+                if let name = notification.object as? String {
+                    selectedTab = .volumes
+                    listFocusedTab = .volumes
+                    Task {
+                        // A volume not listed yet (a link followed at launch, one just made)
+                        // is selected once a load lists it.
+                        if !volumeService.volumes.contains(where: { $0.name == name }) {
+                            await volumeService.load(showLoading: false)
+                        }
+                        volumeService.selection = [name]
+                    }
+                }
+            }
     }
 
     var body: some View {
@@ -485,6 +503,8 @@ struct ContentView: View {
                 NotificationCenter.default.post(name: NSNotification.Name("NavigateToDNSDomain"), object: domain)
             case .network(let id):
                 NotificationCenter.default.post(name: NSNotification.Name("NavigateToNetwork"), object: id)
+            case .volume(let name):
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToVolume"), object: name)
             }
         }
         .onAppear {
@@ -554,6 +574,7 @@ struct ContentView: View {
                 networks: networkService.networks),
             dnsDomains: dnsService.dnsDomains,
             networks: networkService.networks,
+            volumes: volumeService.volumes,
             systemRunning: systemService.systemStatus == .running,
             supportsCommit: supportsContainerCommit(containerVersion: systemService.containerVersion))
     }
@@ -595,6 +616,8 @@ struct ContentView: View {
             NotificationCenter.default.post(name: NSNotification.Name("NavigateToDNSDomain"), object: domain)
         case .selectNetwork(let id):
             NotificationCenter.default.post(name: NSNotification.Name("NavigateToNetwork"), object: id)
+        case .selectVolume(let name):
+            NotificationCenter.default.post(name: NSNotification.Name("NavigateToVolume"), object: name)
 
         // Creation sheets are attached inside each tab's list view, so land on the tab
         // first - the sheet then presents as the list mounts.
@@ -613,6 +636,14 @@ struct ContentView: View {
         case .showAddNetworkSheet:
             selectedTab = .networks
             showAddNetworkSheet = true
+        case .showCreateVolumeSheet:
+            selectedTab = .volumes
+            volumeService.presentsCreateSheet = true
+        case .showPruneVolumes:
+            selectedTab = .volumes
+            // Before presenting, so the sheet's first frame isn't last time's list.
+            diskPurgeService.reset()
+            volumeService.presentsPruneSheet = true
         case .showAddMachineSheet:
             selectedTab = .machines
             showAddMachineSheet = true
@@ -678,6 +709,7 @@ struct ContentView: View {
 
         await dnsService.load(showLoading: true)
         await networkService.load(showLoading: true)
+        await volumeService.load(showLoading: true)
         await machineService.load(showLoading: true)
         await clusterService.probePluginAvailability()
         await modelService.load(showLoading: true)
@@ -697,6 +729,7 @@ struct ContentView: View {
                 await builderService.loadBuilders()
                 await dnsService.load(showLoading: false)
                 await networkService.load(showLoading: false)
+                await volumeService.load(showLoading: false, readsContainers: selectedTab == .volumes)
                 await machineService.load(showLoading: false)
                 await modelService.refreshTick()
             }

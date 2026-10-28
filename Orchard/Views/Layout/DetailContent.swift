@@ -48,6 +48,11 @@ struct DetailContentView: View {
             )
         case .mounts:
             mountDetailView
+        case .volumes:
+            VolumeDetailContent(
+                selectedTab: $selectedTabBinding,
+                selectedContainer: $selectedContainerBinding
+            )
         case .machines:
             if let selectedMachine = selectedMachine {
                 MachineDetailView(machineId: selectedMachine)

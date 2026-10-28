@@ -23,6 +23,7 @@ struct ContainerConfigForm: View {
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var dnsService: DNSService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var volumeService: VolumeService
     @EnvironmentObject var modelService: ModelService
     @EnvironmentObject var imageService: ImageService
     @EnvironmentObject var rosettaService: RosettaService
@@ -73,6 +74,10 @@ struct ContainerConfigForm: View {
                let defaultDomain = dnsService.dnsDomains.first(where: { $0.isDefault }) {
                 config.dnsDomain = defaultDomain.domain
             }
+        }
+        .task {
+            // Both modes: a mount row picks from the volumes there are.
+            await volumeService.load(showLoading: false, readsContainers: false)
         }
         .task(id: config.image) {
             await loadImagePlatforms()
@@ -520,7 +525,7 @@ struct ContainerConfigForm: View {
     private var volumesConfigView: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Volume Mounts")
+                Text("Mounts")
                     .font(.headline)
 
                 Spacer()
@@ -528,7 +533,7 @@ struct ContainerConfigForm: View {
                 Button(action: addVolumeMapping) {
                     HStack(spacing: 4) {
                         SwiftUI.Image(systemName: "plus.circle.fill")
-                        Text("Add Volume")
+                        Text("Add Mount")
                     }
                     .font(.subheadline)
                 }
@@ -538,8 +543,8 @@ struct ContainerConfigForm: View {
             if config.volumeMappings.isEmpty {
                 emptyStateView(
                     icon: "externaldrive",
-                    title: "No volume mounts",
-                    message: "Add volume mounts to persist data or share files with the container"
+                    title: "No mounts",
+                    message: "Mount a host folder, a volume or a tmpfs to share files with the container or keep its data"
                 )
             } else {
                 ForEach($config.volumeMappings) { $mapping in
@@ -895,10 +900,36 @@ struct VolumeMappingRow: View {
     @Binding var mapping: ContainerRunConfig.VolumeMapping
     let onDelete: () -> Void
 
+    @EnvironmentObject var volumeService: VolumeService
+    @State private var showCreateVolume = false
+
+    /// The kinds the form can make (#161). A block mount only comes from the container being
+    /// edited, and keeps its kind.
+    enum Choice: Hashable {
+        case bind, volume, tmpfs
+    }
+
+    /// The volume picker's tag for "New Volume...", which no volume can be named: names start
+    /// with a letter or digit.
+    private static let newVolumeTag = "-new"
+
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                source
+                if case .block = mapping.kind {
+                    readOnlySource(mapping.hostPath)
+                } else {
+                    Picker("Kind", selection: choice) {
+                        Text("Bind Mount").tag(Choice.bind)
+                        Text("Volume").tag(Choice.volume)
+                        Text("tmpfs").tag(Choice.tmpfs)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .help("A bind mount shares a folder on this Mac; a volume keeps data apart from any container; tmpfs is memory that's gone when the container stops")
+
+                    source
+                }
 
                 SwiftUI.Image(systemName: "arrow.right")
                     .foregroundColor(.secondary)
@@ -917,8 +948,8 @@ struct VolumeMappingRow: View {
                 Toggle("Read-only", isOn: $mapping.readonly)
                     .font(.caption)
                 Spacer()
-                if let kindLabel {
-                    Text(kindLabel)
+                if let hint {
+                    Text(hint)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -927,10 +958,38 @@ struct VolumeMappingRow: View {
         .padding(12)
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+        .sheet(isPresented: $showCreateVolume) {
+            AddVolumeView { volume in mapping.kind = .volume(name: volume.name) }
+        }
     }
 
-    /// What the mount comes from. Only a bind mount's host path is editable: the other kinds
-    /// come from the container being edited and are mounted again as they were.
+    /// Switching kind starts the row afresh, keeping only where it mounts: a host path, or the
+    /// options of the mount it came from, mean nothing to another kind.
+    private var choice: Binding<Choice> {
+        Binding(
+            get: { currentChoice },
+            set: { newChoice in
+                guard newChoice != currentChoice else { return }
+                mapping.hostPath = ""
+                mapping.otherOptions = []
+                mapping.caching = nil
+                switch newChoice {
+                case .bind: mapping.kind = .bind
+                case .volume: mapping.kind = .volume(name: "")
+                case .tmpfs: mapping.kind = .tmpfs
+                }
+            }
+        )
+    }
+
+    private var currentChoice: Choice {
+        switch mapping.kind {
+        case .volume: return .volume
+        case .tmpfs: return .tmpfs
+        case .bind, .block: return .bind
+        }
+    }
+
     @ViewBuilder
     private var source: some View {
         switch mapping.kind {
@@ -938,12 +997,49 @@ struct VolumeMappingRow: View {
             TextField("Host Path", text: $mapping.hostPath)
                 .textFieldStyle(.roundedBorder)
         case .volume(let name):
-            readOnlySource(name)
+            volumePicker(name)
         case .tmpfs:
-            readOnlySource("tmpfs")
+            readOnlySource("In memory")
         case .block:
             readOnlySource(mapping.hostPath)
         }
+    }
+
+    /// Named volumes first, then anonymous ones, then "New Volume...". A volume the row names
+    /// that isn't listed (not loaded yet, or deleted since) stays as an option, so the row
+    /// keeps it.
+    private func volumePicker(_ name: String) -> some View {
+        let named = volumeService.volumes.filter { !$0.isAnonymous }.map(\.name)
+        let anonymous = volumeService.volumes.filter(\.isAnonymous).map(\.name)
+        let unlisted = !name.isEmpty && !named.contains(name) && !anonymous.contains(name)
+        return Picker("Volume", selection: Binding(
+            get: { name },
+            set: { picked in
+                if picked == Self.newVolumeTag {
+                    showCreateVolume = true
+                } else {
+                    mapping.kind = .volume(name: picked)
+                }
+            }
+        )) {
+            Text("Choose a Volume").tag("")
+            if unlisted {
+                Text(name).tag(name)
+            }
+            if !named.isEmpty {
+                Divider()
+                ForEach(named, id: \.self) { Text($0).tag($0) }
+            }
+            if !anonymous.isEmpty {
+                Section("Anonymous") {
+                    ForEach(anonymous, id: \.self) { Text($0).tag($0) }
+                }
+            }
+            Divider()
+            Text("New Volume...").tag(Self.newVolumeTag)
+        }
+        .labelsHidden()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func readOnlySource(_ text: String) -> some View {
@@ -954,13 +1050,21 @@ struct VolumeMappingRow: View {
             .help(text)
     }
 
-    private var kindLabel: String? {
-        switch mapping.kind {
-        case .bind: return nil
-        case .volume: return "Volume"
-        case .tmpfs: return "tmpfs"
-        case .block(let format): return "Block (\(format))"
+    /// What the row still needs, or what a block mount is. An incomplete row isn't mounted
+    /// (`isComplete`), which a row from a volume's Run Container... starts as.
+    private var hint: String? {
+        guard !mapping.isComplete else {
+            if case .block(let format) = mapping.kind { return "Block (\(format))" }
+            return nil
         }
+        var missing: [String] = []
+        switch mapping.kind {
+        case .volume(let name) where name.isEmpty: missing.append("a volume")
+        case .bind where mapping.hostPath.isEmpty: missing.append("a host path")
+        default: break
+        }
+        if mapping.containerPath.isEmpty { missing.append("where it mounts in the container") }
+        return "Choose \(missing.joined(separator: " and ")), or this mount is skipped"
     }
 }
 

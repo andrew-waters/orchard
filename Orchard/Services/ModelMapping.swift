@@ -246,6 +246,23 @@ func mapVolumeConfiguration(_ volume: VolumeConfiguration) -> ContainerVolume {
     )
 }
 
+// MARK: - Image config
+
+/// The `VOLUME` paths an image's config blob declares (`config.Volumes`, a map of path to an
+/// empty object), sorted. Empty when it declares none.
+func imageConfigVolumes(from configBlob: Data) throws -> [String] {
+    struct Blob: Decodable {
+        struct Config: Decodable {
+            struct Empty: Decodable {}
+            let volumes: [String: Empty]?
+            enum CodingKeys: String, CodingKey { case volumes = "Volumes" }
+        }
+        let config: Config?
+    }
+    let blob = try JSONDecoder().decode(Blob.self, from: configBlob)
+    return (blob.config?.volumes?.keys).map { $0.sorted() } ?? []
+}
+
 // MARK: - Network resource mapping
 
 // As of container 1.1.0 the network API replaced the created/running `NetworkState`

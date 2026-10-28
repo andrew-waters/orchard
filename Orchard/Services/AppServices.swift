@@ -16,6 +16,7 @@ final class AppServices: ObservableObject {
     let terminalLauncher: TerminalLauncher
     let builderService: BuilderService
     let networkService: NetworkService
+    let volumeService: VolumeService
     let imageService: ImageService
     let imageBuildService: ImageBuildService
     let statsService: StatsService
@@ -77,6 +78,8 @@ final class AppServices: ObservableObject {
         self.clusterService = clusterService
         let networkService = NetworkService(backend: backend, alertCenter: alertCenter)
         self.networkService = networkService
+        let volumeService = VolumeService(backend: backend, alertCenter: alertCenter)
+        self.volumeService = volumeService
         let imageService = ImageService(backend: backend, alertCenter: alertCenter)
         self.imageService = imageService
         let imageBuildService = ImageBuildService(runner: runner, settings: settings)
@@ -120,10 +123,11 @@ final class AppServices: ObservableObject {
             await systemService?.loadSystemDiskUsage(showLoading: false)
         }
         // A purge removes containers, images and volumes, and frees what the tiles report.
-        diskPurgeService.onPurged = { [weak systemService, weak imageService, weak containerListService] in
+        diskPurgeService.onPurged = { [weak systemService, weak imageService, weak containerListService, weak volumeService] in
             await systemService?.loadSystemDiskUsage(showLoading: false)
             await imageService?.load()
             await containerListService?.loadContainers(showLoading: false)
+            await volumeService?.load(showLoading: false)
         }
         // A compose run creates and removes containers; refresh the list projects derive from.
         composeService.reloadContainers = { [weak containerListService] in
