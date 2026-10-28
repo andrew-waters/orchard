@@ -71,6 +71,8 @@ struct UITestBackend: ContainerBackend {
         [container(id: UITestSeed.containerID, status: "running"),
          container(id: UITestSeed.stoppedContainerID, status: "stopped")]
     }
+    func listAllContainers() async throws -> [Container] { try await listContainers() }
+    func containerDiskUsage(id: String) async throws -> UInt64 { 0 }
     func stopContainer(id: String) async throws {
         if ProcessInfo.processInfo.arguments.contains(uiTestFailStopArgument) {
             throw OrchardError.generic("simulated stop failure")
@@ -119,6 +121,11 @@ struct UITestBackend: ContainerBackend {
     }
     func pullImage(reference: String, onProgress: (@Sendable (ImagePullMetrics) -> Void)?) async throws {}
     func deleteImage(reference: String) async throws {}
+    func cleanUpOrphanedBlobs() async throws -> UInt64 { 0 }
+    func systemImageReferences() async throws -> [String] { [] }
+    func imageDiskUsage(activeReferences: Set<String>) async throws -> ImageDiskUsage {
+        ImageDiskUsage(total: 0, active: 0, sizeInBytes: 0, reclaimable: 0)
+    }
     func inspectImage(reference: String) async throws -> ImageInspection {
         throw OrchardError.generic("inspect unavailable in UI-test mode")
     }
@@ -132,6 +139,9 @@ struct UITestBackend: ContainerBackend {
     }
     func createNetwork(name: String, subnet: String?, labels: [String: String]) async throws {}
     func deleteNetwork(id: String) async throws {}
+    func listVolumes() async throws -> [ContainerVolume] { [] }
+    func volumeDiskUsage(name: String) async throws -> UInt64 { 0 }
+    func deleteVolume(name: String) async throws {}
     func ping() async throws -> SystemHealthInfo { SystemHealthInfo(apiServerVersion: "1.0.0") }
     func diskUsage() async throws -> SystemDiskUsage {
         let empty = DiskUsageSection(active: 0, reclaimable: 0, sizeInBytes: 0, total: 0)

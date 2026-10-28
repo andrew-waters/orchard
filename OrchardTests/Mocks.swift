@@ -132,6 +132,15 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _stoppedContainers: [String] = []
     private var _bootstrapAndStartCount = 0
     private var _listContainersCount = 0
+    private var _machineContainers: [Container] = []
+    private var _containerSizes: [String: UInt64] = [:]
+    private var _volumes: [ContainerVolume] = []
+    private var _volumeSizes: [String: UInt64] = [:]
+    private var _deleteVolumeError: Error?
+    private var _deletedVolumeNames: [String] = []
+    private var _orphanedBlobBytes: UInt64 = 0
+    private var _cleanUpCount = 0
+    private var _systemImages: [String] = []
 
     // Configuration - set by tests.
     /// What `imagePlatforms` answers for any image; nil throws, as an unreadable image does.
@@ -278,7 +287,42 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         set { lock.withLock { _listContainersHandler = newValue } }
     }
 
+    /// Machine backing containers: returned by `listAllContainers` only, as the live backend does.
+    var machineContainers: [Container] {
+        get { lock.withLock { _machineContainers } }
+        set { lock.withLock { _machineContainers = newValue } }
+    }
+    /// Per-container disk usage; reading a container not listed throws.
+    var containerSizes: [String: UInt64] {
+        get { lock.withLock { _containerSizes } }
+        set { lock.withLock { _containerSizes = newValue } }
+    }
+    var volumes: [ContainerVolume] {
+        get { lock.withLock { _volumes } }
+        set { lock.withLock { _volumes = newValue } }
+    }
+    /// Per-volume disk usage; reading a volume not listed throws.
+    var volumeSizes: [String: UInt64] {
+        get { lock.withLock { _volumeSizes } }
+        set { lock.withLock { _volumeSizes = newValue } }
+    }
+    var deleteVolumeError: Error? {
+        get { lock.withLock { _deleteVolumeError } }
+        set { lock.withLock { _deleteVolumeError = newValue } }
+    }
+    /// What `cleanUpOrphanedBlobs` reports freeing.
+    var orphanedBlobBytes: UInt64 {
+        get { lock.withLock { _orphanedBlobBytes } }
+        set { lock.withLock { _orphanedBlobBytes = newValue } }
+    }
+    var systemImages: [String] {
+        get { lock.withLock { _systemImages } }
+        set { lock.withLock { _systemImages = newValue } }
+    }
+
     // Recorded calls - read by tests.
+    var deletedVolumeNames: [String] { lock.withLock { _deletedVolumeNames } }
+    var cleanUpCount: Int { lock.withLock { _cleanUpCount } }
     var pulledReferences: [String] { lock.withLock { _pulledReferences } }
     var deletedImageReferences: [String] { lock.withLock { _deletedImageReferences } }
     var createdNetworks: [(name: String, subnet: String?, labels: [String: String])] { lock.withLock { _createdNetworks } }
@@ -297,6 +341,14 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         }
         if let error = listContainersError { throw error }
         return snapshot
+    }
+    func listAllContainers() async throws -> [Container] {
+        if let error = listContainersError { throw error }
+        return containers + machineContainers
+    }
+    func containerDiskUsage(id: String) async throws -> UInt64 {
+        guard let size = containerSizes[id] else { throw NotConfigured() }
+        return size
     }
     func stopContainer(id: String) async throws {
         if let stopContainerError { throw stopContainerError }
@@ -400,6 +452,22 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
         if let deleteImageError { throw deleteImageError }
         lock.withLock { _deletedImageReferences.append(reference) }
     }
+    func cleanUpOrphanedBlobs() async throws -> UInt64 {
+        lock.withLock { _cleanUpCount += 1 }
+        return orphanedBlobBytes
+    }
+    func systemImageReferences() async throws -> [String] { systemImages }
+    /// Each image's size is its descriptor's; the fixtures share no content.
+    func imageDiskUsage(activeReferences: Set<String>) async throws -> ImageDiskUsage {
+        let images = images
+        let unused = images.filter { !activeReferences.contains($0.reference) }
+        return ImageDiskUsage(
+            total: images.count,
+            active: images.count - unused.count,
+            sizeInBytes: Int64(images.reduce(0) { $0 + $1.descriptor.size }),
+            reclaimable: Int64(unused.reduce(0) { $0 + $1.descriptor.size })
+        )
+    }
     func inspectImage(reference: String) async throws -> ImageInspection { throw NotConfigured() }
     func imagePlatforms(reference: String) async throws -> [String] {
         guard let platforms = imagePlatformsResult else { throw NotConfigured() }
@@ -416,6 +484,15 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     func deleteNetwork(id: String) async throws {
         if let deleteNetworkError { throw deleteNetworkError }
         lock.withLock { _deletedNetworkIds.append(id) }
+    }
+    func listVolumes() async throws -> [ContainerVolume] { volumes }
+    func volumeDiskUsage(name: String) async throws -> UInt64 {
+        guard let size = volumeSizes[name] else { throw NotConfigured() }
+        return size
+    }
+    func deleteVolume(name: String) async throws {
+        if let deleteVolumeError { throw deleteVolumeError }
+        lock.withLock { _deletedVolumeNames.append(name) }
     }
     func ping() async throws -> SystemHealthInfo {
         lock.withLock { _pingCount += 1 }

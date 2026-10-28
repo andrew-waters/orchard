@@ -149,6 +149,7 @@ Two limitations are worth stating up front: without health reporting in the runt
 - Container management: create, start, stop, force stop, delete, export as tar, commit to an image (container 1.6.0+), reclaim disk space (pending a container release that can trim a container's root filesystem), label at launch, group by label
 - Platforms: run an image as any platform it offers, so a `linux/amd64`-only image runs on Apple silicon under Rosetta. Automatic picks the Mac's own platform when the image has it, as `container run` does; the choice survives edits and recreates, a compose service's `platform:` is honoured, and Orchard offers to install Rosetta when it is missing
 - Image management: pull with live byte/blob progress, delete, search Docker Hub
+- Disk space: usage by containers, images, volumes and the runtime's own system data on the dashboard, and **Free Up Space** to remove images no container uses, and (when turned on) stopped containers and unmounted volumes, with sizes shown and a confirmation before anything goes. Machines, cluster nodes, compose services, sandboxes and compose volumes are never listed
 - Image builds: build from any Dockerfile with a streamed BuildKit log, tracked in a Builds tab whose records survive restarts and cross-link to their images and containers
 - Deep links: `orchard://` URLs jump to any tab or resource
 - Network and DNS domain management, with DNS aliases on a container's network (`api.test`, or `*.gateway.test` for every name below one) on container 1.6.0 or later

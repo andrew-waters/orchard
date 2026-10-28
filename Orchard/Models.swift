@@ -1208,7 +1208,7 @@ struct ContainerStats: Codable, Equatable, Identifiable {
 
 // MARK: - System Disk Usage Models
 
-struct SystemDiskUsage: Codable, Equatable {
+struct SystemDiskUsage: Codable, Equatable, Sendable {
     let containers: DiskUsageSection
     let images: DiskUsageSection
     let volumes: DiskUsageSection
@@ -1230,7 +1230,7 @@ struct SystemDiskUsage: Codable, Equatable {
     }
 }
 
-struct DiskUsageSection: Codable, Equatable {
+struct DiskUsageSection: Codable, Equatable, Sendable {
     let active: Int
     let reclaimable: Int64
     let sizeInBytes: Int64
@@ -1247,6 +1247,59 @@ struct DiskUsageSection: Codable, Equatable {
     var reclaimablePercent: Double {
         guard sizeInBytes > 0 else { return 0.0 }
         return Double(reclaimable) / Double(sizeInBytes) * 100.0
+    }
+}
+
+/// The image store's disk usage with a chosen set of images counted as in use, worked out the
+/// way `container system df` does for images. Content images share is counted once.
+struct ImageDiskUsage: Equatable, Sendable {
+    let total: Int
+    let active: Int
+    let sizeInBytes: Int64
+    let reclaimable: Int64
+
+    /// The space the images counted as in use take.
+    var activeBytes: Int64 { max(0, sizeInBytes - reclaimable) }
+}
+
+/// Disk usage as the dashboard shows it. The builder and the images the runtime needs move
+/// out of Containers and Images into a System share, and each section's reclaimable space is
+/// what Free Up Space can remove, rather than everything the runtime calls unused.
+struct DiskUsageBreakdown: Equatable, Sendable {
+    let containers: DiskUsageSection
+    let images: DiskUsageSection
+    let volumes: DiskUsageSection
+    let systemContainers: Int
+    let systemImages: Int
+    let systemSize: Int64
+
+    var reclaimable: Int64 { containers.reclaimable + images.reclaimable + volumes.reclaimable }
+}
+
+// MARK: - Volume Models
+
+/// A named or anonymous volume in the runtime's volume store (`container volume ls`).
+struct ContainerVolume: Equatable, Identifiable, Sendable {
+    /// The label the runtime puts on a volume it created for an anonymous mount. Mirrors
+    /// upstream `VolumeConfiguration.anonymousLabel`.
+    static let anonymousLabel = "com.apple.container.resource.anonymous"
+
+    let name: String
+    let format: String
+    /// The volume's disk image on the host, `<volumes>/<name>/volume.img`.
+    let source: String
+    let creationDate: Date
+    let labels: [String: String]
+    /// The size the volume was created with, when one was given. Not its usage on disk.
+    let capacityBytes: UInt64?
+
+    var id: String { name }
+
+    var isAnonymous: Bool { labels[Self.anonymousLabel] != nil }
+
+    /// The directory holding the volume's files, or nil when the runtime gave no source.
+    var storageDirectory: String? {
+        source.isEmpty ? nil : (source as NSString).deletingLastPathComponent
     }
 }
 

@@ -46,6 +46,9 @@ final class SystemService: ObservableObject {
     @Published var systemProperties: [SystemProperty] = []
     @Published var isSystemPropertiesLoading = false
     @Published var systemDiskUsage: SystemDiskUsage?
+    /// The dashboard's view of `systemDiskUsage`. Nil when it couldn't be worked out, in which
+    /// case the dashboard falls back to the runtime's own figures.
+    @Published var diskUsageBreakdown: DiskUsageBreakdown?
     @Published var isSystemDiskUsageLoading = false
 
     private let backend: ContainerBackend
@@ -60,6 +63,9 @@ final class SystemService: ObservableObject {
     /// pinged before the bump completes after it; its stale `.running` result would
     /// otherwise overwrite the new `.stopped` state.
     private var lifecycleGeneration: UInt64 = 0
+    /// Bumped on every disk usage load. Loads overlap (the dashboard's timer, a refresh after
+    /// Free Up Space), and only the latest may publish, so a slow earlier one can't overwrite it.
+    private var diskUsageGeneration: UInt64 = 0
 
     /// Refresh the container list after the system starts. Set by the owner.
     var onSystemStarted: () async -> Void = {}
@@ -239,16 +245,29 @@ final class SystemService: ObservableObject {
     // MARK: - Disk usage
 
     func loadSystemDiskUsage(showLoading: Bool = true) async {
+        diskUsageGeneration &+= 1
+        let generation = diskUsageGeneration
         if showLoading {
             isSystemDiskUsageLoading = true
         }
 
         do {
             let diskUsage = try await backend.diskUsage()
+            let breakdown: DiskUsageBreakdown?
+            do {
+                breakdown = try await DiskPurge.breakdown(of: diskUsage, backend: backend)
+            } catch {
+                breakdown = nil
+                Log.containers.error("Failed to break down disk usage: \(error.localizedDescription)")
+            }
+            guard diskUsageGeneration == generation else { return }
             self.systemDiskUsage = diskUsage
+            self.diskUsageBreakdown = breakdown
             self.isSystemDiskUsageLoading = false
         } catch {
+            guard diskUsageGeneration == generation else { return }
             self.systemDiskUsage = nil
+            self.diskUsageBreakdown = nil
             self.isSystemDiskUsageLoading = false
             // Runs on the 1s stats poll — only a user-initiated load may alert.
             self.alertCenter.error("Failed to load system disk usage: \(error.localizedDescription)",

@@ -233,6 +233,19 @@ func mapResourceUsage(_ usage: ResourceUsage) -> DiskUsageSection {
     )
 }
 
+// MARK: - Volume mapping
+
+func mapVolumeConfiguration(_ volume: VolumeConfiguration) -> ContainerVolume {
+    ContainerVolume(
+        name: volume.name,
+        format: volume.format,
+        source: volume.source,
+        creationDate: volume.creationDate,
+        labels: volume.labels,
+        capacityBytes: volume.sizeInBytes
+    )
+}
+
 // MARK: - Network resource mapping
 
 // As of container 1.1.0 the network API replaced the created/running `NetworkState`
