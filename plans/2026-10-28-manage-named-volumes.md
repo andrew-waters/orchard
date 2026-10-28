@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "A Volumes tab lists every volume with its size, format, creation date, labels and the containers that mount it, marks anonymous ones and filters for unused ones, creates volumes (name, size, labels) and deletes them, naming the containers that hold one in use. Prune Volumes opens Free Up Space with only its Volumes section. Each mount row in the run and edit forms picks bind mount, named volume or tmpfs, and a volume can be picked or created in place. Container detail links volume mounts to the volume, and image inspect lists the image's VOLUME declarations."
 issues: [andrew-waters/orchard#161]
 touches: [andrew-waters/orchard]
@@ -76,4 +76,4 @@ agreed_at: 2026-10-28
 - [x] Tests: size parsing, users of a volume (by name, by path, machines), delete blocked while in use, scoped purge plan has no images, form rows to spec, image volumes decoding, palette entries
 - [x] README, site and CHANGELOG
 - [x] One build and unit test pass (584 passed)
-- [ ] Manual check on 1.6.1: create a sized, labelled volume; run a container with it; Delete is off while it is mounted, naming the container; prune removes an anonymous volume only
+- [x] Manual check on 1.6.1: create a sized, labelled volume; run a container with it; Delete is off while it is mounted, naming the container; prune removes an anonymous volume only
