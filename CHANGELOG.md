@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-11-02
+
 ### Added
 - Compose projects create and mount their named and anonymous volumes ([#162](https://github.com/andrew-waters/orchard/issues/162)), with compose 0.8.0. A volume declared under `volumes:` is created as `<project>_<key>`, or under its `name:`, and labelled with the project; an `external: true` volume has to exist already. An anonymous volume (`- /data`) gets a name made from the project, service and path, so a recreated container finds its data. The project's detail lists its volumes with their kind, size and whether a container mounts them, each linking to the Volumes tab. **Down** on a project with volumes asks whether to keep them, which is the default, or remove them with their data. A service that mounts a volume is recreated once on its first **Up** after updating, which is what attaches the volume. The compose plugin offers the matching 0.8.0 update, whose `down -v` removes the volumes too.
 - A compose project's detail has **Show in Finder** and **Copy Path** for its compose file beside **Up** and **Down**, in place of the path it used to show ([#162](https://github.com/andrew-waters/orchard/issues/162)).
