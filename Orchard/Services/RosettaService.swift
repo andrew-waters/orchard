@@ -11,13 +11,33 @@ enum RosettaAvailability: Equatable, Sendable {
 
     /// What the Virtualization framework reports right now. Cheap: it reads local state.
     static var current: RosettaAvailability {
+        #if arch(arm64)
         switch VZLinuxRosettaDirectoryShare.availability {
         case .installed: return .installed
         case .notInstalled: return .notInstalled
         case .notSupported: return .notSupported
         @unknown default: return .notSupported
         }
+        #else
+        // The framework's Rosetta API only exists on Apple silicon, and an Intel Mac has no
+        // Rosetta to install, so the Intel half of the universal build says so directly.
+        return .notSupported
+        #endif
     }
+
+    /// Install Rosetta through the Virtualization framework. An Intel Mac can't, as above.
+    static func install() async throws {
+        #if arch(arm64)
+        try await VZLinuxRosettaDirectoryShare.installRosetta()
+        #else
+        throw RosettaNotSupported()
+        #endif
+    }
+}
+
+/// Rosetta asked for on a Mac that can't run it.
+struct RosettaNotSupported: LocalizedError {
+    var errorDescription: String? { "Rosetta only runs on Apple silicon." }
 }
 
 /// Reports and installs Rosetta for the Run and Edit sheets (#147), so choosing an amd64
@@ -35,7 +55,7 @@ final class RosettaService: ObservableObject {
 
     init(
         probe: @escaping @Sendable () -> RosettaAvailability = { RosettaAvailability.current },
-        installer: @escaping @Sendable () async throws -> Void = { try await VZLinuxRosettaDirectoryShare.installRosetta() }
+        installer: @escaping @Sendable () async throws -> Void = { try await RosettaAvailability.install() }
     ) {
         self.probe = probe
         self.installer = installer
