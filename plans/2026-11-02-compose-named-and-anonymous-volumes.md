@@ -1,6 +1,6 @@
 ---
 type: plan
-status: agreed
+status: done
 summary: "Compose projects create and mount their named and anonymous volumes (andrew-waters/orchard#162), on compose 0.8.0: the plan's volume operations run through ContainerBackend, mounts map onto volume mounts, the project detail lists its volumes, and Down offers to remove them, defaulting to keep."
 issues: [andrew-waters/orchard#162]
 touches: [andrew-waters/orchard]
@@ -52,5 +52,6 @@ A compose file's named and anonymous volumes are created and mounted when Orchar
 - [x] Down confirmation in the detail and the context menu
 - [x] Tests: mount mapping, volume step rows, bind-only sources, container volume names, down options
 - [x] README and CHANGELOG (compose 0.8.0, the one-off recreate)
-- [x] One build and unit test pass (592 passed)
-- [ ] Manual check: a `postgres` service on a named volume keeps its data across Down (Keep Volumes) and Up, and loses it with Remove Volumes
+- [x] One build and unit test pass (592 passed), and the compose suites again after Up re-reads the file
+- [x] Up and Down re-read the compose file first; Show in Finder and Copy Path in the project header (asked for during the manual check)
+- [x] Manual check: a `postgres` service on a named volume keeps its data across Down (Keep Volumes) and Up, and loses it with Remove Volumes
