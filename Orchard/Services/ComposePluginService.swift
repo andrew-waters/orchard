@@ -82,7 +82,7 @@ final class ComposePluginService: ObservableObject {
     /// The compose package Orchard is built against, which is the behaviour the Compose tab
     /// shows. The package does not report its own version at runtime, so this is kept by hand
     /// and a test holds it to the pin in `Package.resolved`.
-    static let linkedVersion = "0.7.0"
+    static let linkedVersion = "0.8.0"
 
     /// Why the installed plugin is worth replacing.
     enum Update: Equatable {

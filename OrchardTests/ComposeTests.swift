@@ -14,7 +14,8 @@ private func composeContainer(
     hash: String = "a-hash",
     status: String = "running",
     hostPorts: [Int] = [],
-    network: String? = "shop_default"
+    network: String? = "shop_default",
+    mountsJSON: String = "[]"
 ) throws -> Container {
     let labels: [String: String] = [
         ProjectIdentity.projectLabel: project,
@@ -38,7 +39,7 @@ private func composeContainer(
         "labels": \(labelsJSON),
         "sysctls": {},
         "publishedPorts": [\(portsJSON)],
-        "mounts": [],
+        "mounts": \(mountsJSON),
         "platform": \(fixturePlatformJSON),
         "image": \(fixtureImageJSON("nginx:latest")),
         "dns": \(fixtureDNSJSON),
@@ -142,6 +143,23 @@ struct ComposeSnapshotTests {
         #expect(state.serviceHash == "abc")
     }
 
+    @Test("A container's volume mounts reach the planner by name, and its binds don't")
+    func containerVolumes() throws {
+        let container = try composeContainer(
+            id: "shop-db", project: "shop", service: "db",
+            mountsJSON: """
+            [
+              { "type": { "volume": { "name": "shop_pgdata", "format": "ext4" } },
+                "source": "/volumes/shop_pgdata/volume.img", "options": [],
+                "destination": "/var/lib/postgresql/data" },
+              { "type": { "virtiofs": {} }, "source": "/project/conf", "options": ["ro"],
+                "destination": "/etc/postgresql" }
+            ]
+            """
+        )
+        #expect(ComposeService.containerState(of: container).volumes == ["shop_pgdata"])
+    }
+
     @Test("A stopped container still says which network it belongs to")
     func stoppedContainerKeepsItsNetwork() throws {
         // The runtime reports no live attachments for a stopped container, so this has to come
@@ -219,6 +237,30 @@ struct ComposeCreateSpecTests {
         #expect(spec.labels[ProjectIdentity.hashLabel]?.count == 64)
         #expect(spec.networkName == "shop_default")
         #expect(spec.autoRemove == false)
+    }
+
+    @Test("Bind mounts stay binds; named and anonymous volumes mount by the planner's name")
+    func mountKinds() throws {
+        let operation = try plan(
+            """
+            services:
+              db:
+                image: postgres
+                volumes:
+                  - ./conf:/etc/postgresql:ro
+                  - pgdata:/var/lib/postgresql/data
+                  - /cache
+            volumes:
+              pgdata:
+            """
+        )
+        let volumes = ComposeService.createSpec(from: operation).volumes
+            .sorted { $0.containerPath < $1.containerPath }
+        let anonymous = ProjectIdentity(name: "shop").anonymousVolumeName(service: "db", target: "/cache")
+        #expect(volumes.map(\.containerPath) == ["/cache", "/etc/postgresql", "/var/lib/postgresql/data"])
+        #expect(volumes.map(\.kind) == [.volume(name: anonymous), .bind, .volume(name: "shop_pgdata")])
+        #expect(volumes.map(\.readonly) == [false, true, false])
+        #expect(volumes[1].hostPath == "/project/conf")
     }
 
     @Test("A port published to one interface is not widened on the way through")
@@ -317,8 +359,8 @@ struct ComposeBindSourceTests {
 
         let created = try ComposeService.ensureBindSources(
             of: operation(mounts: [
-                .init(hostPath: present, containerPath: "/etc/mono", readOnly: true),
-                .init(hostPath: missing, containerPath: "/data", readOnly: false),
+                .init(source: .bind(present), containerPath: "/etc/mono", readOnly: true),
+                .init(source: .bind(missing), containerPath: "/data", readOnly: false),
             ])
         )
         // Only the missing one is reported, and intermediate directories come with it.
@@ -333,9 +375,21 @@ struct ComposeBindSourceTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let created = try ComposeService.ensureBindSources(
-            of: operation(mounts: [.init(hostPath: root.path, containerPath: "/data", readOnly: false)])
+            of: operation(mounts: [.init(source: .bind(root.path), containerPath: "/data", readOnly: false)])
         )
         #expect(created.isEmpty)
+    }
+
+    @Test("A volume mount is not a path to create")
+    func volumesAreNotBindSources() throws {
+        let created = try ComposeService.ensureBindSources(
+            of: operation(mounts: [
+                .init(source: .namedVolume("shop_pgdata"), containerPath: "/var/lib/postgresql/data", readOnly: false),
+                .init(source: .anonymousVolume("shop_web_0123456789ab"), containerPath: "/cache", readOnly: false),
+            ])
+        )
+        #expect(created.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: "shop_pgdata"))
     }
 }
 
@@ -509,7 +563,7 @@ struct ComposeHookTests {
     /// A service, its saved list and its file in a scratch directory, so `up` and `down` run
     /// the real planner against the mock backend.
     @MainActor
-    private struct Harness {
+    fileprivate struct Harness {
         let root: URL
         let backend = MockContainerBackend()
         let alertCenter = AlertCenter()
@@ -687,5 +741,182 @@ struct ComposeHookTests {
         #expect(harness.backend.ranProcesses.map(\.command) == [["sh", "-c", "drain"]])
         #expect(harness.backend.stoppedContainers == [harness.containerName])
         #expect(harness.backend.deletedContainers.map(\.id) == [harness.containerName])
+    }
+}
+
+@Suite("Compose volumes")
+@MainActor
+struct ComposeVolumeTests {
+    private typealias Harness = ComposeHookTests.Harness
+
+    private static let file = """
+    name: shop
+    services:
+      web:
+        image: postgres
+        volumes:
+          - pgdata:/var/lib/postgresql/data
+          - /cache
+    volumes:
+      pgdata:
+      shared:
+        external: true
+    """
+
+    private func volume(_ name: String, labels: [String: String]) -> ContainerVolume {
+        ContainerVolume(
+            name: name, format: "ext4", source: "/volumes/\(name)/volume.img",
+            creationDate: Date(timeIntervalSince1970: 0), labels: labels, capacityBytes: nil
+        )
+    }
+
+    @Test("A project lists its declared and anonymous volumes by the planner's names")
+    func wantedVolumes() throws {
+        let parsed = try ComposeFileParser.parse(
+            yaml: Self.file,
+            options: ParseOptions(projectDirectory: "/project", environment: [:], dotEnvPath: nil)
+        )
+        let identity = ProjectIdentity(name: "shop")
+        let anonymous = identity.anonymousVolumeName(service: "web", target: "/cache")
+        #expect(ComposeProjectVolume.wanted(by: parsed.file, project: identity) == [
+            ComposeProjectVolume(name: "shared", kind: .external),
+            ComposeProjectVolume(name: "shop_pgdata", kind: .named),
+            ComposeProjectVolume(name: anonymous, kind: .anonymous),
+        ].sorted { $0.name < $1.name })
+    }
+
+    @Test("Only volumes carrying the project's label are the project's")
+    func labelledVolumes() {
+        let volumes = [
+            volume("shop_pgdata", labels: [ProjectIdentity.projectLabel: "shop"]),
+            volume("other_pgdata", labels: [ProjectIdentity.projectLabel: "other"]),
+            volume("shared", labels: [:]),
+        ]
+        #expect(ComposeProjectVolume.labelled("shop", in: volumes).map(\.name) == ["shop_pgdata"])
+    }
+
+    @Test("A volume step names its volume, not a service")
+    func volumeSteps() {
+        let create = ComposeService.step(for: .createVolume(VolumeOperation(name: "shop_pgdata")))
+        #expect(create.activity == "Creating")
+        #expect(create.volume == "shop_pgdata")
+        #expect(create.service == nil)
+        #expect(create.network == nil)
+        let remove = ComposeService.step(for: .removeVolume(VolumeOperation(name: "shop_pgdata")))
+        #expect(remove.activity == "Removing")
+        #expect(remove.volume == "shop_pgdata")
+    }
+
+    @Test("Up creates the missing volumes with the planner's labels, then mounts them")
+    func upCreatesAndMounts() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.volumes = [volume("shared", labels: [:])]
+
+        await harness.service.up(project: harness.project)
+
+        #expect(harness.service.run?.phase == .succeeded)
+        let anonymous = harness.preview.identity.anonymousVolumeName(service: "web", target: "/cache")
+        let created = harness.backend.createdVolumes
+        #expect(created.map(\.name) == ["shop_pgdata", anonymous])
+        #expect(created.allSatisfy { $0.size == nil && $0.labels[ProjectIdentity.projectLabel] == "shop" })
+        #expect(created[1].labels[ProjectIdentity.anonymousVolumeLabel] != nil)
+        let spec = try #require(harness.backend.createdSpecs.first)
+        let kinds = spec.volumes.sorted { $0.containerPath < $1.containerPath }.map(\.kind)
+        #expect(kinds == [.volume(name: anonymous), .volume(name: "shop_pgdata")])
+    }
+
+    @Test("Down keeps the project's volumes unless asked, and then removes only those")
+    func downKeepsOrRemoves() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.volumes = [
+            volume("shop_pgdata", labels: [ProjectIdentity.projectLabel: "shop"]),
+            volume("shared", labels: [:]),
+        ]
+
+        await harness.service.down(project: harness.project)
+        #expect(harness.backend.deletedVolumeNames.isEmpty)
+
+        await harness.service.down(project: harness.project, options: DownOptions(removeVolumes: true))
+        #expect(harness.backend.deletedVolumeNames == ["shop_pgdata"])
+    }
+
+    @Test("A project with no containers left can still have the volumes it kept removed")
+    func downAfterKeepingVolumes() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        let kept = [volume("shop_pgdata", labels: [ProjectIdentity.projectLabel: "shop"])]
+        harness.backend.volumes = kept + [volume("shared", labels: [:])]
+        #expect(harness.project.containers.isEmpty)
+        #expect(ComposeDown.isAvailable(for: harness.project, volumes: harness.backend.volumes))
+        #expect(!ComposeDown.isAvailable(for: harness.project, volumes: [volume("shared", labels: [:])]))
+
+        await harness.service.down(project: harness.project, options: DownOptions(removeVolumes: true))
+
+        // Nothing to stop or remove but the volume: the plan is that one step.
+        #expect(harness.service.run?.steps.map(\.summary) == ["remove volume shop_pgdata"])
+        #expect(harness.service.run?.phase == .succeeded)
+        #expect(harness.backend.deletedVolumeNames == ["shop_pgdata"])
+    }
+}
+
+@Suite("Up reads the file as it is now")
+@MainActor
+struct ComposeFreshFileTests {
+    private typealias Harness = ComposeHookTests.Harness
+
+    private static let file = """
+    name: shop
+    services:
+      web:
+        image: nginx
+    """
+
+    /// Rewrite the file, stamped a minute on so the change is seen whatever the clock's
+    /// resolution.
+    private func edit(_ harness: Harness, to text: String) throws {
+        try text.write(to: harness.preview.fileURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(60)],
+            ofItemAtPath: harness.preview.fileURL.path
+        )
+    }
+
+    @Test("A file edited since it was last read is planned as edited")
+    func upRereadsTheFile() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        try edit(harness, to: Self.file + "\n    environment:\n      MODE: edited\n")
+
+        await harness.service.up(project: harness.project)
+
+        let spec = try #require(harness.backend.createdSpecs.first)
+        #expect(spec.environment == ["MODE=edited"])
+    }
+
+    @Test("A file that now asks for something nobody has reviewed is not run")
+    func upStopsForNewFindings() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        try edit(harness, to: Self.file + "\n    tmpfs: /run\n")
+
+        await harness.service.up(project: harness.project)
+
+        #expect(harness.backend.createdSpecs.isEmpty)
+        #expect(!harness.service.unacknowledgedFindings(for: "shop").isEmpty)
+    }
+
+    @Test("A file that no longer parses says why, and runs nothing")
+    func upReportsParseErrors() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        try edit(harness, to: "services: [")
+
+        await harness.service.up(project: harness.project)
+
+        #expect(harness.backend.createdSpecs.isEmpty)
+        let message = try #require(harness.alertCenter.current?.message)
+        #expect(message.hasPrefix("compose.yaml:"))
     }
 }

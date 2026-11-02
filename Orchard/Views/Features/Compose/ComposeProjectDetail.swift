@@ -7,6 +7,7 @@ struct ComposeProjectDetailView: View {
     @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var networkService: NetworkService
+    @EnvironmentObject var volumeService: VolumeService
     let projectName: String
     @Binding var selectedTab: TabSelection
     @Binding var selectedContainer: String?
@@ -28,6 +29,8 @@ struct ComposeProjectDetailView: View {
     }
 
     @State private var tab: ProjectTab = .running
+    /// Set while Down asks what to do with the project's volumes.
+    @State private var pendingDown: ComposeProject?
 
     private var isBusy: Bool { composeService.busyProjects.contains(projectName) }
 
@@ -57,6 +60,7 @@ struct ComposeProjectDetailView: View {
                 }
             }
             .id(projectName)
+            .composeDownConfirmation($pendingDown)
             .onAppear { composeService.refreshParses() }
         } else {
             Text("Project not found")
@@ -78,12 +82,7 @@ struct ComposeProjectDetailView: View {
                         .font(.caption)
                         .foregroundStyle(project.isRunning ? .green : .secondary)
                 }
-                if let url = project.fileURL {
-                    Text(url.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                } else {
+                if !project.hasFile {
                     Text("Found by label. Add its compose file to bring it up from here.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -98,6 +97,23 @@ struct ComposeProjectDetailView: View {
     @ViewBuilder
     private func actions(_ project: ComposeProject) -> some View {
         HStack(spacing: 8) {
+            // The path is long and rarely read, so the header offers it rather than showing it.
+            if let url = project.fileURL {
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                }
+                .disabled(composeService.fileIsMissing(for: project))
+                .help(url.path)
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(url.path, forType: .string)
+                } label: {
+                    Label("Copy Path", systemImage: "doc.on.doc")
+                }
+                .help("Copy the compose file's path")
+            }
             if project.hasFile {
                 Button {
                     Task { await composeService.up(project: project) }
@@ -114,12 +130,21 @@ struct ComposeProjectDetailView: View {
                 }
             }
             Button {
-                Task { await composeService.down(project: project) }
+                ComposeDown.request(
+                    project,
+                    composeService: composeService,
+                    volumeService: volumeService,
+                    pending: $pendingDown
+                )
             } label: {
                 Label("Down", systemImage: "stop.fill")
             }
-            .disabled(isBusy || project.containers.isEmpty)
-            .help("Stop and remove this project's containers")
+            .disabled(isBusy || !ComposeDown.isAvailable(for: project, volumes: volumeService.volumes))
+            .help(
+                project.containers.isEmpty
+                    ? "Remove the volumes this project kept"
+                    : "Stop and remove this project's containers"
+            )
         }
     }
 
@@ -332,6 +357,7 @@ struct ComposeProjectDetailView: View {
                     : "This project has no containers."
             )
             networksSection(project)
+            volumesSection(project)
         }
     }
 
@@ -439,6 +465,65 @@ struct ComposeProjectDetailView: View {
               let step = run.steps.last(where: { $0.network == name && $0.state == .running })
         else { return nil }
         return ResourceTable.Note("\(step.activity)…")
+    }
+
+    // MARK: - Volumes
+
+    /// The volumes the stack wants and the ones it made, beside its networks: the same plan
+    /// creates them, and Down is where they are kept or removed (#162).
+    @ViewBuilder
+    private func volumesSection(_ project: ComposeProject) -> some View {
+        let rows = volumeRows(project)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Volumes")
+                    .font(.headline)
+                VolumeTable(rows: rows, emptyStateMessage: "This project uses no volumes.")
+            }
+        }
+    }
+
+    /// What the file asks for, and anything else carrying the project's label, such as an
+    /// anonymous volume from a mount the file has since dropped.
+    private func volumeRows(_ project: ComposeProject) -> [VolumeTable.Row] {
+        var wanted: [String: ComposeProjectVolume.Kind] = [:]
+        if let parse = composeService.parses[project.name] {
+            for volume in ComposeProjectVolume.wanted(by: parse.file, project: parse.identity) {
+                wanted[volume.name] = volume.kind
+            }
+        }
+        for volume in ComposeProjectVolume.labelled(project.name, in: volumeService.volumes) where wanted[volume.name] == nil {
+            wanted[volume.name] = volume.isAnonymous ? .anonymous : .named
+        }
+        let existing = Dictionary(volumeService.volumes.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        let mounted = Set(project.containers.flatMap { $0.configuration.mounts.compactMap { $0.type.volume?.name } })
+        return wanted.keys.sorted().map { name in
+            let kind = wanted[name] ?? .named
+            let exists = existing[name] != nil
+            let fallback: ResourceTable.Note
+            if !exists {
+                fallback = kind == .external
+                    ? ResourceTable.Note("Missing", isError: true)
+                    : ResourceTable.Note("Not created")
+            } else {
+                fallback = ResourceTable.Note(mounted.contains(name) ? "Mounted" : "Not mounted")
+            }
+            return VolumeTable.Row(
+                name: name,
+                kind: kind,
+                exists: exists,
+                size: volumeService.sizes[name],
+                note: volumeNote(name) ?? fallback
+            )
+        }
+    }
+
+    /// What the run in progress is doing to a volume, if anything.
+    private func volumeNote(_ name: String) -> ResourceTable.Note? {
+        guard let run,
+              let step = run.steps.last(where: { $0.volume == name && $0.state == .running })
+        else { return nil }
+        return ResourceTable.Note("\(step.activity)...")
     }
 
     // MARK: - Banner

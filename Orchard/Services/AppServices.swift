@@ -136,6 +136,9 @@ final class AppServices: ObservableObject {
         composeService.reloadNetworks = { [weak networkService] in
             await networkService?.load(showLoading: false)
         }
+        composeService.reloadVolumes = { [weak volumeService] in
+            await volumeService?.load(showLoading: false)
+        }
         // Cluster lifecycle actions change node containers; refresh the list they derive from.
         clusterService.reloadContainers = { [weak containerListService] in await containerListService?.loadContainers(showLoading: false) }
         clusterService.existingContainerIDs = { [weak containerListService] in
