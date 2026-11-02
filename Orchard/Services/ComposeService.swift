@@ -61,6 +61,9 @@ final class ComposeService: ObservableObject {
     /// Refresh the network list after a run: `up` and `down` create and remove networks, and
     /// the Networks tab would otherwise show a count that is no longer true. Set by the owner.
     var reloadNetworks: () async -> Void = {}
+    /// Refresh the volume list after a run, which can create and remove a project's volumes.
+    /// Set by the owner.
+    var reloadVolumes: () async -> Void = {}
 
     init(
         backend: ContainerBackend,
@@ -219,13 +222,39 @@ final class ComposeService: ObservableObject {
     // MARK: - Running plans
 
     func up(project: ComposeProject, options: UpOptions = UpOptions()) async {
+        // The file is only re-read when the tab appears, so one edited since would otherwise
+        // be planned as it was, and a changed service started unchanged.
+        refreshParses()
         guard let preview = parses[project.name] else {
-            alertCenter.error("Orchard has no compose file for `\(project.name)`.")
+            alertCenter.error(unreadableFileMessage(for: project))
+            return
+        }
+        // Re-reading can turn up something the file now asks for that isn't honoured, which the
+        // user has to see before anything runs, as when the file was added.
+        guard unacknowledgedFindings(for: project.name).isEmpty else {
+            alertCenter.error(
+                "The compose file for `\(project.name)` has changed and asks for things nobody has "
+                    + "looked at yet. Review them on the project's Problems tab, then bring it up."
+            )
             return
         }
         await runPlan(project: project.name, verb: "up") { state in
             try Planner.up(file: preview.file, project: preview.identity, state: state, options: options)
         }
+    }
+
+    /// Why a project has no parse to bring up: the parser's own error, with the file and line,
+    /// when there is a file that no longer reads.
+    private func unreadableFileMessage(for project: ComposeProject) -> String {
+        guard let url = project.fileURL else { return "Orchard has no compose file for `\(project.name)`." }
+        do {
+            _ = try preview(fileURL: url)
+        } catch let error as ParseError {
+            return "\(url.lastPathComponent):\(error.description)"
+        } catch {
+            return "Could not read \(url.lastPathComponent): \(error.localizedDescription)"
+        }
+        return "Orchard has no compose file for `\(project.name)`."
     }
 
     /// Take a project down, with or without a file.
@@ -234,6 +263,7 @@ final class ComposeService: ObservableObject {
     /// read back off the containers. Stopping in the wrong order is a worse outcome than
     /// refusing, so a known file is used when there is one.
     func down(project: ComposeProject, options: DownOptions = DownOptions()) async {
+        refreshParses()
         let file = parses[project.name]?.file ?? Self.fileFromLabels(project)
         let identity = parses[project.name]?.identity ?? ProjectIdentity(name: project.name)
         await runPlan(project: project.name, verb: "down") { state in
@@ -291,6 +321,7 @@ final class ComposeService: ObservableObject {
         await execute(plan, project: project, verb: verb)
         await reloadContainers()
         await reloadNetworks()
+        await reloadVolumes()
     }
 
     /// Everything the planner needs to know, read fresh rather than from the polled list: a
@@ -299,10 +330,12 @@ final class ComposeService: ObservableObject {
         async let containers = backend.listContainers()
         async let networks = backend.listNetworks()
         async let images = backend.listImages()
+        async let volumes = backend.listVolumes()
         return CurrentState(
             containers: try await containers.map(Self.containerState(of:)),
             networks: try await networks.map { NetworkState(name: $0.id, labels: $0.config.labels) },
-            images: try await images.map(\.reference)
+            images: try await images.map(\.reference),
+            volumes: try await volumes.map { VolumeState(name: $0.name, labels: $0.labels) }
         )
     }
 
@@ -315,7 +348,9 @@ final class ComposeService: ObservableObject {
             publishedHostPorts: container.configuration.publishedPorts.compactMap {
                 UInt16(exactly: $0.hostPort)
             },
-            networkName: container.configuration.networkName
+            networkName: container.configuration.networkName,
+            // The planner keeps a volume another container holds out of `up` and `down -v`.
+            volumes: container.configuration.mounts.compactMap { $0.type.volume?.name }
         )
     }
 
@@ -374,6 +409,7 @@ final class ComposeService: ObservableObject {
                 alertCenter.error(alert)
                 await reloadContainers()
                 await reloadNetworks()
+                await reloadVolumes()
                 return
             }
         }
@@ -386,6 +422,7 @@ final class ComposeService: ObservableObject {
     nonisolated static func step(for operation: ComposePlanner.Operation) -> ComposeRun.Step {
         let activity: String
         var network: String?
+        var volume: String?
         switch operation {
         case .createNetwork(let value):
             activity = "Creating"
@@ -393,6 +430,12 @@ final class ComposeService: ObservableObject {
         case .removeNetwork(let value):
             activity = "Removing"
             network = value.name
+        case .createVolume(let value):
+            activity = "Creating"
+            volume = value.name
+        case .removeVolume(let value):
+            activity = "Removing"
+            volume = value.name
         case .buildImage:
             activity = "Building"
         case .pullImage:
@@ -414,7 +457,8 @@ final class ComposeService: ObservableObject {
             summary: operation.summary,
             activity: activity,
             service: operation.service,
-            network: network
+            network: network,
+            volume: volume
         )
     }
 
@@ -428,6 +472,10 @@ final class ComposeService: ObservableObject {
             try await backend.createNetwork(name: network.name, subnet: nil, labels: network.labels)
         case .removeNetwork(let network):
             try await backend.deleteNetwork(id: network.name)
+        case .createVolume(let volume):
+            _ = try await backend.createVolume(name: volume.name, size: nil, labels: volume.labels)
+        case .removeVolume(let volume):
+            try await backend.deleteVolume(name: volume.name)
         case .pullImage(let pull):
             try await backend.pullImage(reference: pull.imageReference) { [weak self] metrics in
                 Task { @MainActor [weak self] in
@@ -544,23 +592,28 @@ final class ComposeService: ObservableObject {
     /// arrives much later and much less clearly, as a container that will not bootstrap with
     /// `errno 2`.
     ///
+    /// Volumes are left out: the plan creates those itself, before the container.
+    ///
     /// - Returns: the paths that had to be created, so the step can say so.
     @discardableResult
     nonisolated static func ensureBindSources(of operation: CreateOperation) throws -> [String] {
         var created: [String] = []
-        for mount in operation.mounts where !FileManager.default.fileExists(atPath: mount.hostPath) {
+        for mount in operation.mounts {
+            guard case .bind(let hostPath) = mount.source, !FileManager.default.fileExists(atPath: hostPath) else {
+                continue
+            }
             do {
                 try FileManager.default.createDirectory(
-                    atPath: mount.hostPath,
+                    atPath: hostPath,
                     withIntermediateDirectories: true
                 )
             } catch {
                 throw ComposeRunError(
-                    "`\(mount.hostPath)` is mounted at `\(mount.containerPath)` and could not "
+                    "`\(hostPath)` is mounted at `\(mount.containerPath)` and could not "
                         + "be created: \(error.localizedDescription)"
                 )
             }
-            created.append(mount.hostPath)
+            created.append(hostPath)
         }
         return created
     }
@@ -573,9 +626,7 @@ final class ComposeService: ObservableObject {
             environment: operation.environment,
             workingDirectory: operation.workingDirectory ?? "",
             commandOverride: operation.command,
-            volumes: operation.mounts.map {
-                .init(hostPath: $0.hostPath, containerPath: $0.containerPath, readonly: $0.readOnly)
-            },
+            volumes: operation.mounts.map(volume(for:)),
             publishedPorts: operation.ports.map {
                 .init(
                     hostPort: $0.hostPort,
@@ -597,6 +648,17 @@ final class ComposeService: ObservableObject {
             labels: operation.labels,
             platform: operation.platform
         )
+    }
+
+    /// A compose mount as a create-spec mount. Named and anonymous volumes are both volumes by
+    /// name here; the plan has already created any that were missing.
+    nonisolated static func volume(for mount: CreateOperation.Mount) -> ContainerCreateSpec.Volume {
+        switch mount.source {
+        case .bind(let hostPath):
+            return .init(hostPath: hostPath, containerPath: mount.containerPath, readonly: mount.readOnly)
+        case .namedVolume(let name), .anonymousVolume(let name):
+            return .init(hostPath: "", containerPath: mount.containerPath, readonly: mount.readOnly, kind: .volume(name: name))
+        }
     }
 }
 

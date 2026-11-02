@@ -110,6 +110,7 @@ Orchard runs **compose projects** on Apple's container runtime: point it at a `c
 - Projects are found by the labels on their containers, not by a file Orchard keeps, so a stack you brought up in the terminal appears in the app without being imported
 - A second `up` compares each service against a hash stamped on the container it produced, then creates, starts, leaves alone, recreates or removes each one accordingly, listing every step as it happens
 - Each service shows its container, IP address and hostname, alongside the networks the project created
+- Named and anonymous volumes are created and mounted, and listed with the project. **Down** keeps them for the next `up` unless you choose **Remove Volumes**, so a database keeps its data
 - A service that builds goes through the same path as the Images tab, so its BuildKit log turns up under Builds like any other build
 
 ![The Problems tab of a compose project, listing unhandled keys grouped by whether the runtime makes them impossible or they are not built yet](site/assets/screens/compose-problems.png)

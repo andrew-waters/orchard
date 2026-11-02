@@ -67,6 +67,44 @@ struct ComposeProject: Identifiable, Equatable {
     }
 }
 
+/// A volume a compose project uses, as its detail lists it (#162).
+struct ComposeProjectVolume: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case named
+        case anonymous
+        /// Declared `external: true`: somebody else's, which the project only mounts.
+        case external
+    }
+
+    let name: String
+    let kind: Kind
+
+    var id: String { name }
+
+    /// The volumes a file asks for, by the names the planner gives them: each one declared
+    /// under `volumes:`, and each anonymous one a service mounts. Sorted by name. The planner
+    /// owns the naming, so this asks it rather than working the names out again.
+    static func wanted(by file: ComposeFile, project: ProjectIdentity) -> [ComposeProjectVolume] {
+        var volumes: [String: ComposeProjectVolume] = [:]
+        for spec in file.volumes.values {
+            let name = spec.resolvedName(projectName: project.name)
+            volumes[name] = ComposeProjectVolume(name: name, kind: spec.isExternal ? .external : .named)
+        }
+        for service in file.services.values {
+            for mount in service.mounts where mount.source == .anonymous {
+                let name = project.anonymousVolumeName(service: service.name, target: mount.target)
+                volumes[name] = ComposeProjectVolume(name: name, kind: .anonymous)
+            }
+        }
+        return volumes.values.sorted { $0.name < $1.name }
+    }
+
+    /// The volumes carrying a project's label: what `down -v` would remove.
+    static func labelled(_ project: String, in volumes: [ContainerVolume]) -> [ContainerVolume] {
+        volumes.filter { VolumeUsage.composeProject(of: $0) == project }
+    }
+}
+
 extension Container {
     /// The compose project this container belongs to, read off the label a compose front end
     /// stamped on it at create time. `nil` for a container nothing compose-shaped created.
@@ -191,6 +229,8 @@ struct ComposeRun: Identifiable, Equatable {
         let service: String?
         /// The network this step acts on, for the steps that act on one rather than a service.
         let network: String?
+        /// The volume this step acts on, likewise.
+        let volume: String?
         var state: State = .pending
         /// Live detail for a step that has something to say while it runs, such as a pull.
         var detail: String?
@@ -200,6 +240,7 @@ struct ComposeRun: Identifiable, Equatable {
             activity: String,
             service: String? = nil,
             network: String? = nil,
+            volume: String? = nil,
             state: State = .pending,
             detail: String? = nil
         ) {
@@ -207,6 +248,7 @@ struct ComposeRun: Identifiable, Equatable {
             self.activity = activity
             self.service = service
             self.network = network
+            self.volume = volume
             self.state = state
             self.detail = detail
         }

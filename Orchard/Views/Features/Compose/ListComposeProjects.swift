@@ -6,12 +6,15 @@ struct ComposeProjectsListView: View {
     @EnvironmentObject var composeService: ComposeService
     @EnvironmentObject var containerListService: ContainerListService
     @EnvironmentObject var composePluginService: ComposePluginService
+    @EnvironmentObject var volumeService: VolumeService
     @Binding var searchText: String
     @FocusState var listFocusedTab: TabSelection?
     @State private var showingPluginInstaller = false
     /// Whether the sheet is replacing an installed plugin. Fixed when the button is pressed,
     /// because the offer itself goes away as soon as the install starts.
     @State private var pluginSheetIsUpdate = false
+    /// A project whose Down is asking what to do with its volumes.
+    @State private var pendingDown: ComposeProject?
 
     private var projects: [ComposeProject] {
         ComposeProject.group(
@@ -43,6 +46,7 @@ struct ComposeProjectsListView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .composeDownConfirmation($pendingDown)
         .onAppear { composeService.refreshParses() }
         .task {
             // Looked for when the tab is opened rather than polled: it only changes when
@@ -211,8 +215,15 @@ struct ComposeProjectsListView: View {
             Button("Up") { Task { await composeService.up(project: project) } }
                 .disabled(busy)
         }
-        Button("Down") { Task { await composeService.down(project: project) } }
-            .disabled(busy || project.containers.isEmpty)
+        Button("Down") {
+            ComposeDown.request(
+                project,
+                composeService: composeService,
+                volumeService: volumeService,
+                pending: $pendingDown
+            )
+        }
+            .disabled(busy || !ComposeDown.isAvailable(for: project, volumes: volumeService.volumes))
         if let url = project.fileURL {
             Divider()
             Button("Reveal Compose File") {
