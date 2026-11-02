@@ -44,13 +44,13 @@ A compose file's named and anonymous volumes are created and mounted when Orchar
 
 ## Tasks
 
-- [ ] Pin compose 0.8.0 and `linkedVersion`
-- [ ] Snapshot volumes and each container's volume mounts
-- [ ] Volume operations, rows and `reloadVolumes`
-- [ ] Mount kinds in `createSpec`; bind-only `ensureBindSources`
-- [ ] Project detail Volumes table
-- [ ] Down confirmation in the detail and the context menu
-- [ ] Tests: mount mapping, volume step rows, bind-only sources, container volume names, down options
-- [ ] README and CHANGELOG (compose 0.8.0, the one-off recreate)
-- [ ] One build and unit test pass
+- [x] Pin compose 0.8.0 and `linkedVersion`
+- [x] Snapshot volumes and each container's volume mounts
+- [x] Volume operations, rows and `reloadVolumes`
+- [x] Mount kinds in `createSpec`; bind-only `ensureBindSources`
+- [x] Project detail Volumes table
+- [x] Down confirmation in the detail and the context menu
+- [x] Tests: mount mapping, volume step rows, bind-only sources, container volume names, down options
+- [x] README and CHANGELOG (compose 0.8.0, the one-off recreate)
+- [x] One build and unit test pass (592 passed)
 - [ ] Manual check: a `postgres` service on a named volume keeps its data across Down (Keep Volumes) and Up, and loses it with Remove Volumes
