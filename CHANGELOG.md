@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - In full screen the list and detail headers (search, filters, sort and the add buttons) are no longer hidden behind the toolbar ([#167](https://github.com/andrew-waters/orchard/issues/167)). They sit just below it while the window is full screen, and the windowed layout is unchanged.
 
+### Security
+- Orchard now builds with swift-nio 2.105.0, swift-nio-extras 1.35.2 and swift-nio-http2 1.46.0, up from 2.97.1, 1.33.0 and 1.42.0, to pick up the SwiftNIO security fixes for unbounded HTTP/1 headers, a `ByteBuffer` overflow, CRLF injection in request URIs, a decompression ratio bypass and HTTP/2 request smuggling ([#170](https://github.com/andrew-waters/orchard/issues/170)). These libraries come in through Apple container and its dependencies; nothing Orchard calls changed.
+
 ## [2.6.1] - 2026-11-02
 
 ### Added
