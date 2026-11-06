@@ -30,4 +30,4 @@ The logs window lays its header out inside the safe area already, so it needs no
 - [x] Traffic-light inset only outside full screen.
 - [x] CHANGELOG entry under Unreleased > Fixed.
 - [x] Debug build.
-- [ ] Try it by hand: enter and leave full screen on a three-column tab and a two-column tab, with the sidebar shown and hidden, and check the windowed layout is unchanged.
+- [x] Try it by hand: enter and leave full screen on a three-column tab and a two-column tab, with the sidebar shown and hidden, and check the windowed layout is unchanged.
