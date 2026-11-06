@@ -40,5 +40,18 @@ private struct WindowFullScreenTracker: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { note in
                 if let window, note.object as? NSWindow === window { isFullScreen = false }
             }
+            // A transition can still fail after its "will" notification. Then the window stays
+            // as it was, so read its state back rather than leave the flag on the wrong side.
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didFailToEnterFullScreenNotification)) { note in
+                resync(from: note)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didFailToExitFullScreenNotification)) { note in
+                resync(from: note)
+            }
+    }
+
+    private func resync(from note: Notification) {
+        guard let window, note.object as? NSWindow === window else { return }
+        isFullScreen = window.styleMask.contains(.fullScreen)
     }
 }

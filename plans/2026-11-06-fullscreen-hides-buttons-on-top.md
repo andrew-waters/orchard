@@ -15,7 +15,7 @@ The main window uses a unified toolbar with no title and a hidden toolbar backgr
 
 ## Design
 
-**Know when the window is full screen.** A small `WindowFullScreenObserver` view modifier on `ContentView` follows its host window (already resolved by `WindowAccessor`) through `NSWindow.didEnterFullScreenNotification` and `didExitFullScreenNotification`, and puts the state in the environment as `isWindowFullScreen`.
+**Know when the window is full screen.** A `tracksWindowFullScreen()` view modifier on `ContentView` follows its host window (resolved with `WindowAccessor`) and puts the state in the environment as `isWindowFullScreen`. It switches on `NSWindow.willEnterFullScreenNotification` and `willExitFullScreenNotification`, so the layout changes with the transition rather than after it, and reads the window's `styleMask` back on `didFailToEnterFullScreenNotification` and `didFailToExitFullScreenNotification` so a failed transition doesn't leave it wrong. A window restored straight into full screen is read from its `styleMask` when it resolves.
 
 **Respect the safe area in full screen.** In `ThreeColumnLayout`, each column's `.ignoresSafeArea(.container, edges: .top)` becomes `edges: isWindowFullScreen ? [] : .top`, so in full screen the headers sit just below the toolbar strip. The windowed layout is unchanged.
 
