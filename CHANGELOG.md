@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Orchard now uses compose 0.9.0, and takes the rules for a failed `post_start` or `pre_stop` hook from it rather than keeping its own copy ([#130](https://github.com/andrew-waters/orchard/issues/130)): whether the run stops or carries on, what a failure reports and how much of a hook's output is kept. Hooks behave and read exactly as before. The Compose tab offers the matching 0.9.0 plugin update.
+- The foot of the Compose tab shows the installed `container compose` version on its own, and links to its release on GitHub. A development build shows as the release it came after, marked (dev), and links to the commit it was built from.
+
 ### Fixed
 - In full screen the list and detail headers (search, filters, sort and the add buttons) are no longer hidden behind the toolbar ([#167](https://github.com/andrew-waters/orchard/issues/167)). They sit just below it while the window is full screen, and the windowed layout is unchanged.
+- Containers in a Compose project can reach each other by name ([#130](https://github.com/andrew-waters/orchard/issues/130)). Compose containers were created with a bare hostname, which container's DNS never matches, so a service could not find another as `<container>.<domain>`. They are now created under Orchard's default DNS domain (Settings > General > DNS Domain, else container's own default), as containers from the Run form are, with the same nameservers as before. The foot of the Compose tab shows it as **Default domain**, which opens Settings to change it, and says when `container compose` in a terminal would use another, since that reads only container's default from `config.toml`. Containers already running pick it up when they are next recreated.
 
 ### Security
 - Orchard now builds with swift-nio 2.105.0, swift-nio-extras 1.35.2 and swift-nio-http2 1.46.0, up from 2.97.1, 1.33.0 and 1.42.0, to pick up the SwiftNIO security fixes for unbounded HTTP/1 headers, a `ByteBuffer` overflow, CRLF injection in request URIs, a decompression ratio bypass and HTTP/2 request smuggling ([#170](https://github.com/andrew-waters/orchard/issues/170)). These libraries come in through Apple container and its dependencies; nothing Orchard calls changed.

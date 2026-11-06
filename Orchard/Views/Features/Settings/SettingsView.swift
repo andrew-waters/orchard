@@ -150,7 +150,7 @@ struct GeneralSettingsView: View {
                     }
                 }
             } footer: {
-                Text("The local DNS domain new containers created in Orchard get by default, so they resolve as name.domain.")
+                Text("The local DNS domain new containers created in Orchard get by default, so they resolve as name.domain. Compose projects brought up in Orchard use it too; `container compose` in a terminal uses container's default.")
                     .foregroundColor(.secondary)
             }
 

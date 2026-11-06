@@ -146,16 +146,15 @@ struct ComposeProjectsListView: View {
     }
 
     /// The installed plugin's version, quietly, so it can be checked at a glance without a
-    /// terminal. Shown whether or not an update is known, including offline.
+    /// terminal. Shown whether or not an update is known, including offline. Below it, the DNS
+    /// domain compose containers get, which can differ from the terminal plugin's.
     private var pluginFooter: some View {
         VStack(spacing: 0) {
             Divider()
-            Text(composePluginService.installedVersion.map { "container compose \($0)" } ?? "container compose")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+            ComposeFooter(installedVersion: composePluginService.installedVersion)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
         }
     }
 

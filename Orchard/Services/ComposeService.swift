@@ -64,6 +64,10 @@ final class ComposeService: ObservableObject {
     /// Refresh the volume list after a run, which can create and remove a project's volumes.
     /// Set by the owner.
     var reloadVolumes: () async -> Void = {}
+    /// The DNS domain chosen in Orchard's Settings, if any. Compose containers are created
+    /// under it, so services reach each other as `<container>.<domain>`; without one they
+    /// take the daemon's, read when each container is created (`dnsDomain()`). Set by the owner.
+    var chosenDNSDomain: @MainActor () -> String? = { nil }
 
     init(
         backend: ContainerBackend,
@@ -378,7 +382,7 @@ final class ComposeService: ObservableObject {
                 let message: String
                 let alert: String
                 if case .runHook(let hook) = operation {
-                    switch ComposeHooks.outcome(
+                    switch ComposeHooks.report(
                         of: hook,
                         failingWith: error,
                         later: live.steps.count - index - 1
@@ -489,7 +493,7 @@ final class ComposeService: ObservableObject {
             if !created.isEmpty {
                 updateDetail(at: stepIndex, to: "created \(created.joined(separator: ", "))")
             }
-            try await backend.createContainer(Self.createSpec(from: create))
+            try await backend.createContainer(Self.createSpec(from: create, dnsDomain: try await dnsDomain()))
             alreadyStarted.insert(create.containerName)
         case .startContainer(let reference):
             guard !alreadyStarted.contains(reference.containerName) else { return }
@@ -504,13 +508,13 @@ final class ComposeService: ObservableObject {
     }
 
     /// Run a `post_start` or `pre_stop` hook in its container, showing each line of output on
-    /// the step as it arrives. A non-zero exit throws `ComposeHooks.Failure`; `execute` decides
+    /// the step as it arrives. A non-zero exit throws `HookFailure`; `execute` decides
     /// from the hook whether that stops the plan.
     private func runHook(_ hook: HookOperation, stepIndex: Int) async throws {
         guard !hook.command.isEmpty else {
             throw ComposeRunError("it has no command")
         }
-        let transcript = ComposeHooks.Transcript()
+        let transcript = HookTranscript(keeping: ComposeHooks.keptLines)
         let status = try await backend.runProcess(
             in: hook.containerName,
             command: hook.command,
@@ -527,7 +531,20 @@ final class ComposeService: ObservableObject {
         }
         updateDetail(at: stepIndex, to: transcript.latest)
         guard status == 0 else {
-            throw ComposeHooks.Failure(hook: hook, status: status, lastLines: transcript.lastLines)
+            throw HookFailure(hook: hook, reason: .exited(status), lastLines: transcript.lastLines)
+        }
+    }
+
+    /// The domain a compose container is created under: the one chosen in Orchard, else the
+    /// daemon's, read from container's configuration now rather than from the property list
+    /// the window polls, which is empty until its first load. A failed read fails the create:
+    /// carrying on would give the container a bare hostname that nothing can resolve.
+    private func dnsDomain() async throws -> String? {
+        if let chosen = chosenDNSDomain(), !chosen.isEmpty { return chosen }
+        do {
+            return try await backend.daemonDNSDomain()
+        } catch {
+            throw ComposeRunError("could not read container's default DNS domain: \(error.localizedDescription)")
         }
     }
 
@@ -619,8 +636,11 @@ final class ComposeService: ObservableObject {
     }
 
     /// A create operation in the shape Orchard's own create call takes.
-    nonisolated static func createSpec(from operation: CreateOperation) -> ContainerCreateSpec {
-        ContainerCreateSpec(
+    ///
+    /// - Parameter dnsDomain: the domain the container is created under. It is a fallback, not
+    ///   the spec's own domain, so the nameservers stay what the file asks for or the network's.
+    nonisolated static func createSpec(from operation: CreateOperation, dnsDomain: String? = nil) -> ContainerCreateSpec {
+        var spec = ContainerCreateSpec(
             id: operation.containerName,
             imageRef: operation.imageReference,
             environment: operation.environment,
@@ -648,6 +668,8 @@ final class ComposeService: ObservableObject {
             labels: operation.labels,
             platform: operation.platform
         )
+        spec.fallbackDNSDomain = dnsDomain.flatMap { $0.isEmpty ? nil : $0 }
+        return spec
     }
 
     /// A compose mount as a create-spec mount. Named and anonymous volumes are both volumes by

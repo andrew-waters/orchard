@@ -1,18 +1,19 @@
 import ComposePlanner
 import Foundation
 
-/// What a `post_start` or `pre_stop` hook that went wrong means for a run, and how it reads.
+/// How a `post_start` or `pre_stop` hook that went wrong reads in Orchard.
 ///
-/// Ported from the compose plugin (`Runtime.outcome`, `HookFailure`, `HookTranscript` in
-/// andrew-waters/compose) so a file behaves the same in Orchard as on the command line. Those
-/// live in the plugin's executable target, which nothing can import; when the package exposes
-/// them from a library (andrew-waters/orchard#130), this is replaced by the package's.
+/// The rules are compose's, shared with the plugin: `HookOperation.outcome(laterSteps:)` says
+/// whether the plan carries on, `HookFailure` carries what happened and `HookTranscript` keeps
+/// the end of the output. Only the wording is Orchard's, written for a run row and an alert
+/// rather than a terminal.
 enum ComposeHooks {
-    /// How many of a hook's last output lines a failure message carries.
+    /// How many of a hook's last output lines a failure message carries. Fewer than the
+    /// plugin's twenty: the message is shown on a row and in an alert.
     static let keptLines = 5
 
-    /// What a hook that went wrong means for the rest of the plan.
-    enum Outcome: Equatable {
+    /// How a hook that went wrong is reported.
+    enum Report: Equatable {
         /// Say so and go on to the next step.
         case carryOn(warning: String)
         /// Stop the plan with this message.
@@ -28,68 +29,36 @@ enum ComposeHooks {
     /// decided up front whether it matters.
     ///
     /// - Parameter later: how many steps come after this one, for saying what was not done.
-    static func outcome(of hook: HookOperation, failingWith error: any Error, later: Int) -> Outcome {
-        let text = (error as? Failure)?.description
-            ?? "\(name(of: hook)) could not run: \(error.localizedDescription)"
-        guard hook.failureIsFatal else {
-            // The container is being stopped either way, so a failed `pre_stop` is worth
-            // saying and not worth leaving the container up for.
+    static func report(of hook: HookOperation, failingWith error: any Error, later: Int) -> Report {
+        let failure = error as? HookFailure ?? HookFailure(hook: hook, reason: .couldNotStart(error))
+        let text = describe(failure)
+        switch hook.outcome(laterSteps: later) {
+        case .carryOn:
             return .carryOn(warning: text + "\nCarrying on with the stop.")
+        case .stop(let laterSteps, let container):
+            return .stop(
+                message: text
+                    + "\n`\(container)` was left in place"
+                    + (laterSteps > 0 ? "; \(laterSteps) later step(s) were not attempted." : ".")
+                    + "\nUp keeps a running container, so it will not run this hook again. "
+                    + "Take the project down and bring it up once it is fixed."
+            )
         }
-        // The container is kept and its hash has not changed, so another up would leave it
-        // alone and the hook would not run again.
-        return .stop(
-            message: text
-                + "\n`\(hook.containerName)` was left in place"
-                + (later > 0 ? "; \(later) later step(s) were not attempted." : ".")
-                + "\nUp keeps a running container, so it will not run this hook again. "
-                + "Take the project down and bring it up once it is fixed."
-        )
     }
 
-    /// A hook that ran and exited non-zero. Whether that stops the plan is the plan's
-    /// decision, carried on the operation, so this only says what happened.
-    struct Failure: LocalizedError, CustomStringConvertible {
-        let hook: HookOperation
-        let status: Int32
-        let lastLines: [String]
-
-        var description: String {
-            var text = "\(ComposeHooks.name(of: hook)) exited \(status)"
-            if !lastLines.isEmpty {
+    /// The failure in Orchard's words: the hook, then its exit status and last output, or why
+    /// it could not run.
+    static func describe(_ failure: HookFailure) -> String {
+        switch failure.reason {
+        case .couldNotStart(let error):
+            return "\(name(of: failure.hook)) could not run: \(error.localizedDescription)"
+        case .exited(let status):
+            var text = "\(name(of: failure.hook)) exited \(status)"
+            if !failure.lastLines.isEmpty {
                 text += "\nIts last output was:"
-                for line in lastLines { text += "\n    \(line)" }
+                for line in failure.lastLines { text += "\n    \(line)" }
             }
             return text
-        }
-
-        var errorDescription: String? { description }
-    }
-
-    /// Keeps the end of a hook's output for the message if it fails. Lines arrive from the
-    /// backend's output readers, off the main actor.
-    final class Transcript: @unchecked Sendable {
-        private let lock = NSLock()
-        private var lines: [String] = []
-        private var _latest: String?
-
-        var lastLines: [String] {
-            lock.withLock { lines }
-        }
-
-        /// The most recent line with something on it, for the step's live detail.
-        var latest: String? {
-            lock.withLock { _latest }
-        }
-
-        func append(_ line: String) {
-            lock.withLock {
-                if !line.trimmingCharacters(in: .whitespaces).isEmpty { _latest = line }
-                lines.append(line)
-                if lines.count > ComposeHooks.keptLines {
-                    lines.removeFirst(lines.count - ComposeHooks.keptLines)
-                }
-            }
         }
     }
 }

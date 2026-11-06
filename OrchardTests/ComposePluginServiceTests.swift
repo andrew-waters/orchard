@@ -136,6 +136,22 @@ func composePluginUpdateUnparseable() {
     #expect(ComposePluginService.updateOffer(installed: "unknown", latest: nil, linked: "0.7.0") == nil)
 }
 
+@Test("Displayed version: a release as it is, a development build as the release it came after")
+func composePluginDisplayedVersion() {
+    #expect(ComposePluginVersion.displayed("0.9.0") == "0.9.0")
+    #expect(ComposePluginVersion.displayed("0.5.0-5-g660a1ea") == "0.5.0 (dev)")
+    #expect(ComposePluginVersion.displayed("0.0.0-dev") == "dev build")
+    #expect(ComposePluginVersion.displayed("something else") == "something else")
+}
+
+@Test("Version page: a release's page, a development build's commit, else the list of releases")
+func composePluginVersionPage() {
+    let repository = "https://github.com/andrew-waters/compose"
+    #expect(ComposePluginVersion.pageURL(for: "0.9.0").absoluteString == "\(repository)/releases/tag/0.9.0")
+    #expect(ComposePluginVersion.pageURL(for: "0.5.0-5-g660a1ea").absoluteString == "\(repository)/commit/660a1ea")
+    #expect(ComposePluginVersion.pageURL(for: "0.0.0-dev").absoluteString == "\(repository)/releases")
+}
+
 @Test("Linked version: matches the compose pin in Package.resolved")
 func composePluginLinkedVersionMatchesPin() throws {
     let resolved = URL(fileURLWithPath: #filePath)

@@ -77,6 +77,17 @@ struct ContainerCreateSpec: Sendable {
     /// Extra DNS names for the attachment, as entered: `api`, `.gateway` or fully qualified.
     /// The create adds `dnsDomain` to a name without a dot, as `container run` does.
     var networkAliases: [String] = []
+    /// The domain used when `dnsDomain` is empty, for the hostname, the aliases and the
+    /// resolver's domain: Orchard's default domain, for a compose service whose file has no say
+    /// in it. Unlike `dnsDomain` it does not bring the default nameservers, so the container
+    /// keeps the network's own unless the file names others.
+    var fallbackDNSDomain: String? = nil
+
+    /// The domain the container is created under: its own, else the fallback, else none.
+    var effectiveDNSDomain: String {
+        if !dnsDomain.isEmpty { return dnsDomain }
+        return fallbackDNSDomain ?? ""
+    }
 }
 
 /// Combine an image's entrypoint and cmd with a user command override into the final
@@ -163,6 +174,10 @@ protocol ContainerBackend: Sendable {
         onOutput: @escaping @Sendable (String) -> Void
     ) async throws -> Int32
     func containerLogs(id: String) async throws -> [FileHandle]
+    /// The daemon's default DNS domain (`dns.domain` in container's `config.toml`), read from
+    /// the system configuration now rather than from a cache, or nil when none is set. What
+    /// `container run` and the compose plugin qualify hostnames with.
+    func daemonDNSDomain() async throws -> String?
     /// Export the container's filesystem as a tar archive at `destination`,
     /// replacing any existing file there.
     func exportContainer(id: String, to destination: URL) async throws
@@ -267,6 +282,13 @@ struct LiveContainerBackend: ContainerBackend {
     /// `container` CLI reads, so pulls resolve identically to the command line.
     private func loadContainerSystemConfig() async throws -> ContainerSystemConfig {
         try await ConfigurationLoader.load()
+    }
+
+    func daemonDNSDomain() async throws -> String? {
+        do {
+            let domain = try await loadContainerSystemConfig().dns.domain
+            return domain.flatMap { $0.isEmpty ? nil : $0 }
+        } catch { throw mapContainerError(error) }
     }
 
     func listContainers() async throws -> [Container] {
@@ -605,9 +627,10 @@ struct LiveContainerBackend: ContainerBackend {
             let nameservers = spec.dnsNameservers.isEmpty && !spec.dnsDomain.isEmpty
                 ? ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers
                 : spec.dnsNameservers
+            let domain = spec.effectiveDNSDomain
             let dns = ContainerResource.ContainerConfiguration.DNSConfiguration(
                 nameservers: nameservers,
-                domain: spec.dnsDomain.isEmpty ? nil : spec.dnsDomain,
+                domain: domain.isEmpty ? nil : domain,
                 searchDomains: spec.dnsSearchDomains,
                 options: spec.dnsOptions
             )
@@ -680,10 +703,10 @@ struct LiveContainerBackend: ContainerBackend {
                 AttachmentConfiguration(
                     network: networkId,
                     options: AttachmentOptions(
-                        hostname: NetworkAliases.hostname(id: spec.id, domain: spec.dnsDomain),
+                        hostname: NetworkAliases.hostname(id: spec.id, domain: domain),
                         macAddress: nil,
                         mtu: 1280,
-                        aliases: NetworkAliases.qualify(spec.networkAliases, domain: spec.dnsDomain)
+                        aliases: NetworkAliases.qualify(spec.networkAliases, domain: domain)
                     )
                 )
             ]

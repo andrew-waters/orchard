@@ -920,3 +920,130 @@ struct ComposeFreshFileTests {
         #expect(message.hasPrefix("compose.yaml:"))
     }
 }
+
+@Suite("Compose DNS domain")
+@MainActor
+struct ComposeDNSDomainTests {
+    private typealias Harness = ComposeHookTests.Harness
+
+    private static let file = """
+    name: shop
+    services:
+      web:
+        image: nginx
+    """
+
+    /// The create a plain one-service file plans.
+    private static func create() throws -> CreateOperation {
+        let parsed = try ComposeFileParser.parse(
+            yaml: file,
+            options: ParseOptions(projectDirectory: "/project", environment: [:], dotEnvPath: nil)
+        )
+        let plan = try Planner.up(file: parsed.file, project: ProjectIdentity(name: "shop"), state: CurrentState())
+        let creates = plan.operations.compactMap { operation -> CreateOperation? in
+            guard case .createContainer(let create) = operation else { return nil }
+            return create
+        }
+        return try #require(creates.first)
+    }
+
+    @Test("A compose container is created under the domain it is given, as a fallback that brings no nameservers")
+    func createSpecFallback() throws {
+        let operation = try Self.create()
+        let spec = ComposeService.createSpec(from: operation, dnsDomain: "test")
+        // Its own domain stays empty: that is what sends the default nameservers.
+        #expect(spec.dnsDomain.isEmpty)
+        #expect(spec.dnsNameservers.isEmpty)
+        #expect(spec.fallbackDNSDomain == "test")
+        #expect(spec.effectiveDNSDomain == "test")
+        #expect(NetworkAliases.hostname(id: spec.id, domain: spec.effectiveDNSDomain) == "shop-web.test.")
+    }
+
+    @Test("With no domain, or an empty one, a compose container keeps the bare name")
+    func createSpecNoDomain() throws {
+        let operation = try Self.create()
+        for domain in [nil, ""] as [String?] {
+            let spec = ComposeService.createSpec(from: operation, dnsDomain: domain)
+            #expect(spec.fallbackDNSDomain == nil)
+            #expect(spec.effectiveDNSDomain == "")
+            #expect(NetworkAliases.hostname(id: spec.id, domain: spec.effectiveDNSDomain) == "shop-web")
+        }
+    }
+
+    @Test("A container's own domain wins over the fallback")
+    func ownDomainWins() {
+        var spec = ContainerCreateSpec(
+            id: "web", imageRef: "nginx", environment: [], workingDirectory: "",
+            commandOverride: [], volumes: [], publishedPorts: [], dnsDomain: "local",
+            networkName: "", autoRemove: false, cpus: 1, memoryBytes: 1 << 30
+        )
+        #expect(spec.effectiveDNSDomain == "local")
+        spec.fallbackDNSDomain = "test"
+        #expect(spec.effectiveDNSDomain == "local")
+    }
+
+    @Test("Up creates containers under the domain chosen in Orchard, without asking the daemon")
+    func upUsesChosenDomain() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.service.chosenDNSDomain = { "test" }
+        harness.backend.daemonDNSDomainHandler = { throw OrchardError.generic("not asked") }
+
+        await harness.service.up(project: harness.project)
+
+        let created = try #require(harness.backend.createdSpecs.first)
+        #expect(created.fallbackDNSDomain == "test")
+        #expect(created.dnsDomain.isEmpty)
+    }
+
+    @Test("With no domain chosen, Up reads the daemon's when it creates the container")
+    func upReadsDaemonDomain() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.daemonDNSDomainHandler = { "stack" }
+
+        await harness.service.up(project: harness.project)
+
+        let created = try #require(harness.backend.createdSpecs.first)
+        #expect(created.fallbackDNSDomain == "stack")
+        #expect(created.dnsDomain.isEmpty)
+    }
+
+    @Test("A daemon domain that can't be read fails the create rather than leaving the name bare")
+    func upFailsWhenDaemonDomainUnreadable() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.daemonDNSDomainHandler = { throw OrchardError.generic("config.toml unreadable") }
+
+        await harness.service.up(project: harness.project)
+
+        let run = try #require(harness.service.run)
+        guard case .failed(let message) = run.phase else {
+            Issue.record("the run should have failed")
+            return
+        }
+        #expect(message.contains("could not read container's default DNS domain"))
+        #expect(harness.backend.createdSpecs.isEmpty)
+    }
+
+    @Test("The Compose tab names the domain, and says when the terminal plugin would use another")
+    func wording() {
+        let same = ComposeDNSDomainWording(orchard: "test", daemon: "test")
+        #expect(same.label == "Default domain: test")
+        #expect(same.hasDomain)
+        #expect(same.terminalDifference == nil)
+        #expect(same.explanation.hasPrefix("Services resolve as <container>.test."))
+
+        let differs = ComposeDNSDomainWording(orchard: "local", daemon: "test")
+        #expect(differs.terminalDifference == "In a terminal: test")
+
+        let onlyOrchard = ComposeDNSDomainWording(orchard: "local", daemon: nil)
+        #expect(onlyOrchard.terminalDifference == "In a terminal: no domain")
+
+        let none = ComposeDNSDomainWording(orchard: nil, daemon: "")
+        #expect(none.label == "No default domain")
+        #expect(!none.hasDomain)
+        #expect(none.terminalDifference == nil)
+        #expect(none.explanation.hasPrefix("With no DNS domain, services can't reach each other by name."))
+    }
+}
