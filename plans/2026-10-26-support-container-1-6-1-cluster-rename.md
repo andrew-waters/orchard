@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Container 1.6.1 renamed the k8s plugin to cluster. Pick the subcommand from the installed version in one place, treat nodes labelled either cluster or k8s as cluster nodes, and keep clusters made before the upgrade listable, deletable and recreatable by deleting their nodes directly, with load image and write config disabled for them. Also builds against and installs 1.6.1 (#152)."
 issues: [andrew-waters/orchard#146, andrew-waters/orchard#152]
 touches: [andrew-waters/orchard]

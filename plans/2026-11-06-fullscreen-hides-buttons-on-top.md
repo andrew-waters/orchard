@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "In full screen the main window's toolbar strip is drawn over the top of the content, hiding the list and detail headers (search, filters, sort and the add buttons) that sit in the title bar row. Track whether the window is full screen and, while it is, lay the columns out below the toolbar instead of under it, dropping the traffic-light inset that full screen doesn't need."
 issues: [andrew-waters/orchard#167]
 touches: [andrew-waters/orchard]

@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Replace the Hide Dock icon toggle with a Show Dock Icon choice: Always, While a Window Is Open (regular app while any Orchard window is open, menu-bar accessory once the last closes) or Never (the old accessory behaviour). A toggle left on migrates to While a Window Is Open. Add Settings and Quit to the menu bar panel so they're always reachable."
 issues: [andrew-waters/orchard#142]
 touches: [andrew-waters/orchard]

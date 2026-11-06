@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Offer a three-way CNI choice when creating a cluster (kindnet, a manifest, or none via --cni NONE on container 1.6.0+), remember it for recreate, and show a cluster created with no CNI as waiting for one until a check inside the control plane sees every node Ready."
 issues: [andrew-waters/orchard#135]
 touches: [andrew-waters/orchard]

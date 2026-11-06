@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Let Create Machine set the machine's account (user, UID, GID and Linux home) on container 1.6.0+, sent through Flags.MachineUser only for the fields the user changed; show the account and its home in the machine detail. Create-only, since the runtime has no way to change it later."
 issues: [andrew-waters/orchard#136]
 touches: [andrew-waters/orchard]

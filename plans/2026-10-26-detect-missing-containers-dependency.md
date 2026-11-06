@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Notice when Apple container is not installed, say so on a screen of its own instead of 'not running', and offer to install the pinned signed pkg behind one admin prompt, then start the system with the default kernel. Declining or a failed install leaves manual instructions on screen."
 issues: [andrew-waters/orchard#145]
 touches: [andrew-waters/orchard]
