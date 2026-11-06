@@ -982,17 +982,48 @@ struct ComposeDNSDomainTests {
         #expect(spec.effectiveDNSDomain == "local")
     }
 
-    @Test("Up creates containers under Orchard's default domain")
-    func upUsesDefaultDomain() async throws {
+    @Test("Up creates containers under the domain chosen in Orchard, without asking the daemon")
+    func upUsesChosenDomain() async throws {
         let harness = try Harness(file: Self.file)
         defer { harness.cleanUp() }
-        harness.service.defaultDNSDomain = { "test" }
+        harness.service.chosenDNSDomain = { "test" }
+        harness.backend.daemonDNSDomainHandler = { throw OrchardError.generic("not asked") }
 
         await harness.service.up(project: harness.project)
 
         let created = try #require(harness.backend.createdSpecs.first)
         #expect(created.fallbackDNSDomain == "test")
         #expect(created.dnsDomain.isEmpty)
+    }
+
+    @Test("With no domain chosen, Up reads the daemon's when it creates the container")
+    func upReadsDaemonDomain() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.daemonDNSDomainHandler = { "stack" }
+
+        await harness.service.up(project: harness.project)
+
+        let created = try #require(harness.backend.createdSpecs.first)
+        #expect(created.fallbackDNSDomain == "stack")
+        #expect(created.dnsDomain.isEmpty)
+    }
+
+    @Test("A daemon domain that can't be read fails the create rather than leaving the name bare")
+    func upFailsWhenDaemonDomainUnreadable() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.backend.daemonDNSDomainHandler = { throw OrchardError.generic("config.toml unreadable") }
+
+        await harness.service.up(project: harness.project)
+
+        let run = try #require(harness.service.run)
+        guard case .failed(let message) = run.phase else {
+            Issue.record("the run should have failed")
+            return
+        }
+        #expect(message.contains("could not read container's default DNS domain"))
+        #expect(harness.backend.createdSpecs.isEmpty)
     }
 
     @Test("The Compose tab names the domain, and says when the terminal plugin would use another")

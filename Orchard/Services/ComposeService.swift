@@ -64,10 +64,10 @@ final class ComposeService: ObservableObject {
     /// Refresh the volume list after a run, which can create and remove a project's volumes.
     /// Set by the owner.
     var reloadVolumes: () async -> Void = {}
-    /// The domain compose containers are created under, so services reach each other as
-    /// `<container>.<domain>`: Orchard's default domain, which falls back to the daemon's.
-    /// `container compose` in a terminal reads only the daemon's. Set by the owner.
-    var defaultDNSDomain: @MainActor () -> String? = { nil }
+    /// The DNS domain chosen in Orchard's Settings, if any. Compose containers are created
+    /// under it, so services reach each other as `<container>.<domain>`; without one they
+    /// take the daemon's, read when each container is created (`dnsDomain()`). Set by the owner.
+    var chosenDNSDomain: @MainActor () -> String? = { nil }
 
     init(
         backend: ContainerBackend,
@@ -493,7 +493,7 @@ final class ComposeService: ObservableObject {
             if !created.isEmpty {
                 updateDetail(at: stepIndex, to: "created \(created.joined(separator: ", "))")
             }
-            try await backend.createContainer(Self.createSpec(from: create, dnsDomain: defaultDNSDomain()))
+            try await backend.createContainer(Self.createSpec(from: create, dnsDomain: try await dnsDomain()))
             alreadyStarted.insert(create.containerName)
         case .startContainer(let reference):
             guard !alreadyStarted.contains(reference.containerName) else { return }
@@ -532,6 +532,19 @@ final class ComposeService: ObservableObject {
         updateDetail(at: stepIndex, to: transcript.latest)
         guard status == 0 else {
             throw HookFailure(hook: hook, reason: .exited(status), lastLines: transcript.lastLines)
+        }
+    }
+
+    /// The domain a compose container is created under: the one chosen in Orchard, else the
+    /// daemon's, read from container's configuration now rather than from the property list
+    /// the window polls, which is empty until its first load. A failed read fails the create:
+    /// carrying on would give the container a bare hostname that nothing can resolve.
+    private func dnsDomain() async throws -> String? {
+        if let chosen = chosenDNSDomain(), !chosen.isEmpty { return chosen }
+        do {
+            return try await backend.daemonDNSDomain()
+        } catch {
+            throw ComposeRunError("could not read container's default DNS domain: \(error.localizedDescription)")
         }
     }
 

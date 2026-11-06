@@ -174,6 +174,10 @@ protocol ContainerBackend: Sendable {
         onOutput: @escaping @Sendable (String) -> Void
     ) async throws -> Int32
     func containerLogs(id: String) async throws -> [FileHandle]
+    /// The daemon's default DNS domain (`dns.domain` in container's `config.toml`), read from
+    /// the system configuration now rather than from a cache, or nil when none is set. What
+    /// `container run` and the compose plugin qualify hostnames with.
+    func daemonDNSDomain() async throws -> String?
     /// Export the container's filesystem as a tar archive at `destination`,
     /// replacing any existing file there.
     func exportContainer(id: String, to destination: URL) async throws
@@ -278,6 +282,13 @@ struct LiveContainerBackend: ContainerBackend {
     /// `container` CLI reads, so pulls resolve identically to the command line.
     private func loadContainerSystemConfig() async throws -> ContainerSystemConfig {
         try await ConfigurationLoader.load()
+    }
+
+    func daemonDNSDomain() async throws -> String? {
+        do {
+            let domain = try await loadContainerSystemConfig().dns.domain
+            return domain.flatMap { $0.isEmpty ? nil : $0 }
+        } catch { throw mapContainerError(error) }
     }
 
     func listContainers() async throws -> [Container] {
