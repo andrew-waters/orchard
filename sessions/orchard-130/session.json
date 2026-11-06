@@ -3,7 +3,7 @@
   "branch" : "130-expose-hook-outcome-and-failure-message",
   "issue" : "andrew-waters/orchard#130",
   "pullRequests" : [
-
+    "https://github.com/andrew-waters/compose/pull/23"
   ],
   "repos" : [
 
