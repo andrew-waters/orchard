@@ -135,7 +135,7 @@ In full in [requirements/expose-hook-outcome-and-failure-message.md](../requirem
 
 ## Release notes for compose 0.9.0
 
-Drafted for the maintainer to paste when tagging (R6); compose keeps no changelog, so they also go in the compose pull request's body.
+Drafted for the release (R6); compose keeps no changelog, so they also went in the compose pull request's body. Released as compose [0.9.0](https://github.com/andrew-waters/compose/releases/tag/0.9.0) on 6 Nov 2026: the tag message names the types, and the release body was edited, with the owner's approval, to carry these notes above GitHub's generated pull request and compare links.
 
 > **Hook rules in ComposePlanner**
 >
