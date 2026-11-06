@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Re-resolve swift-nio, swift-nio-extras and swift-nio-http2 to their latest compatible releases (at least 2.100.0, 1.34.1 and 1.44.0) to clear Dependabot alerts #1 to #5. Package.resolved only; no project or code changes expected."
 issues: [andrew-waters/orchard#170]
 touches: [andrew-waters/orchard]
