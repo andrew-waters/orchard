@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "130-expose-hook-outcome-and-failure-message",
+  "issue" : "andrew-waters/orchard#130",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-11-06T08:06:19Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Expose hook outcome and failure message from a compose library",
+  "url" : "https://github.com/andrew-waters/orchard/issues/130"
+}
