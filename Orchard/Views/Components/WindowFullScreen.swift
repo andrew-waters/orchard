@@ -40,12 +40,13 @@ private struct WindowFullScreenTracker: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { note in
                 if let window, note.object as? NSWindow === window { isFullScreen = false }
             }
-            // A transition can still fail after its "will" notification. Then the window stays
-            // as it was, so read its state back rather than leave the flag on the wrong side.
-            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didFailToEnterFullScreenNotification)) { note in
+            // Once a transition ends, read the window's state back rather than trust the "will"
+            // notification alone. AppKit reports a failed transition only to the window's
+            // delegate, which SwiftUI owns, so there is no notification for that case.
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
                 resync(from: note)
             }
-            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didFailToExitFullScreenNotification)) { note in
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { note in
                 resync(from: note)
             }
     }
