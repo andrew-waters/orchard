@@ -1,0 +1,15 @@
+{
+  "box" : "Andrew’s MacBook Air",
+  "branch" : "170-bump-swiftnio-packages-to-clear",
+  "issue" : "andrew-waters/orchard#170",
+  "pullRequests" : [
+
+  ],
+  "repos" : [
+
+  ],
+  "startedAt" : "2026-11-06T09:02:26Z",
+  "startedBy" : "andrew-waters",
+  "title" : "Bump SwiftNIO packages to clear Dependabot security alerts",
+  "url" : "https://github.com/andrew-waters/orchard/issues/170"
+}
