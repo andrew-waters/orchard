@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Orchard now uses compose 0.9.0, and takes the rules for a failed `post_start` or `pre_stop` hook from it rather than keeping its own copy ([#130](https://github.com/andrew-waters/orchard/issues/130)): whether the run stops or carries on, what a failure reports and how much of a hook's output is kept. Hooks behave and read exactly as before.
+- Orchard now uses compose 0.9.0, and takes the rules for a failed `post_start` or `pre_stop` hook from it rather than keeping its own copy ([#130](https://github.com/andrew-waters/orchard/issues/130)): whether the run stops or carries on, what a failure reports and how much of a hook's output is kept. Hooks behave and read exactly as before. The Compose tab offers the matching 0.9.0 plugin update.
 
 ### Fixed
 - In full screen the list and detail headers (search, filters, sort and the add buttons) are no longer hidden behind the toolbar ([#167](https://github.com/andrew-waters/orchard/issues/167)). They sit just below it while the window is full screen, and the windowed layout is unchanged.
