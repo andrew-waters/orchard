@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "130-expose-hook-outcome-and-failure-message",
+  "finishedAt" : "2026-11-06T13:19:24Z",
   "issue" : "andrew-waters/orchard#130",
   "pullRequests" : [
     "https://github.com/andrew-waters/compose/pull/23",
