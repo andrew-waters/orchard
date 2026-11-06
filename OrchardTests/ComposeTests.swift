@@ -998,17 +998,21 @@ struct ComposeDNSDomainTests {
     @Test("The Compose tab names the domain, and says when the terminal plugin would use another")
     func wording() {
         let same = ComposeDNSDomainWording(orchard: "test", daemon: "test")
-        #expect(same.summary == "Services resolve as <container>.test")
+        #expect(same.label == "Default domain: test")
+        #expect(same.hasDomain)
         #expect(same.terminalDifference == nil)
+        #expect(same.explanation.hasPrefix("Services resolve as <container>.test."))
 
         let differs = ComposeDNSDomainWording(orchard: "local", daemon: "test")
-        #expect(differs.terminalDifference == "`container compose` in a terminal uses test instead")
+        #expect(differs.terminalDifference == "In a terminal: test")
 
         let onlyOrchard = ComposeDNSDomainWording(orchard: "local", daemon: nil)
-        #expect(onlyOrchard.terminalDifference == "`container compose` in a terminal uses no domain")
+        #expect(onlyOrchard.terminalDifference == "In a terminal: no domain")
 
         let none = ComposeDNSDomainWording(orchard: nil, daemon: "")
-        #expect(none.summary == "No DNS domain, so services can't reach each other by name")
+        #expect(none.label == "No default domain")
+        #expect(!none.hasDomain)
         #expect(none.terminalDifference == nil)
+        #expect(none.explanation.hasPrefix("With no DNS domain, services can't reach each other by name."))
     }
 }

@@ -151,12 +151,7 @@ struct ComposeProjectsListView: View {
     private var pluginFooter: some View {
         VStack(spacing: 0) {
             Divider()
-            VStack(alignment: .leading, spacing: 4) {
-                Text(composePluginService.installedVersion.map { "container compose \($0)" } ?? "container compose")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ComposeDNSDomainNote()
-            }
+            ComposeFooter(installedVersion: composePluginService.installedVersion)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)

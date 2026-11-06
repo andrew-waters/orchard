@@ -540,6 +540,36 @@ struct ComposePluginVersion: Comparable {
         self.components = components
     }
 
+    /// A version as the Compose tab shows it. A release reads as it is. A development build
+    /// reads as the release it came after, marked `(dev)`: `git describe` output such as
+    /// `0.5.0-5-g660a1ea` (five commits after 0.5.0, then the commit) is `0.5.0 (dev)`, and a
+    /// working copy's `0.0.0-dev` is `dev build`. Anything else is shown as it is.
+    static func displayed(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ComposePluginVersion(trimmed) != nil { return trimmed }
+        guard let dash = trimmed.firstIndex(of: "-") else { return trimmed }
+        let base = String(trimmed[..<dash])
+        guard let version = ComposePluginVersion(base) else { return trimmed }
+        return version.components.allSatisfy { $0 == 0 } ? "dev build" : "\(base) (dev)"
+    }
+
+    /// Where a version's changes can be read: a release's page, the commit a `git describe`
+    /// development build was made from, or the list of releases for anything else.
+    static func pageURL(for text: String) -> URL {
+        let repository = "https://github.com/andrew-waters/compose"
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ComposePluginVersion(trimmed) != nil {
+            return URL(string: "\(repository)/releases/tag/\(trimmed)")!
+        }
+        // `<release>-<commits since>-g<commit>`
+        let parts = trimmed.split(separator: "-")
+        if parts.count == 3, ComposePluginVersion(String(parts[0])) != nil, Int(parts[1]) != nil,
+           parts[2].first == "g", parts[2].count > 1, parts[2].dropFirst().allSatisfy(\.isHexDigit) {
+            return URL(string: "\(repository)/commit/\(parts[2].dropFirst())")!
+        }
+        return URL(string: "\(repository)/releases")!
+    }
+
     /// Missing components count as zero, so 0.7 and 0.7.0 are the same release.
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.padded(to: rhs.components.count) == rhs.padded(to: lhs.components.count)
