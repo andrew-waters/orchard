@@ -129,6 +129,8 @@ final class AppServices: ObservableObject {
             await containerListService?.loadContainers(showLoading: false)
             await volumeService?.load(showLoading: false)
         }
+        // Compose containers are created under the same default domain as the Run form's.
+        composeService.defaultDNSDomain = { [weak dnsService] in dnsService?.defaultDomain }
         // A compose run creates and removes containers; refresh the list projects derive from.
         composeService.reloadContainers = { [weak containerListService] in
             await containerListService?.loadContainers(showLoading: false)

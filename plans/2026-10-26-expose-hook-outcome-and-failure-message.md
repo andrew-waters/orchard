@@ -77,9 +77,9 @@ In full in [requirements/expose-hook-outcome-and-failure-message.md](../requirem
 - `HookFailure: Error`: the hook, a reason (`.exited(Int32)` or `.couldNotStart(any Error)`), and `lastLines` (R2). No `description` wording; phase, index, service and container come from the public `HookOperation`.
 - `HookTranscript`: thread-safe, `init(keeping: Int)`, `append(_:)`, `lastLines`, `latest` (most recent non-blank line) (R3).
 - The plugin's `Runtime` keeps its wording, `friendly()`, and the pipe relay and 3s drain, built on the library transcript (keeping 20). Its existing hook tests keep passing; outcome and bounding cases move to `ComposePlannerTests` (R5).
-- Release as 0.7.0 (new public API) with notes naming the types (R6).
+- Release as 0.9.0 (new public API; 0.7.0 and 0.8.0 went to `platform:` and volumes in the meantime) with notes naming the types (R6).
 
-**2. Orchard: bump to 0.7.0 and swap.** Pin `upToNextMinor` from 0.7.0. `ComposeHooks` shrinks to Orchard's wording: it renders the library's `HookOutcome` and `HookFailure` into today's exact messages and uses `HookTranscript(keeping: 5)`. `ComposeService.execute` and `runHook` switch to the library types; behaviour and text unchanged, pinned by the existing `ComposeTests` (R7, R8). Changelog entry (R9).
+**2. Orchard: bump to 0.9.0 and swap.** Pin `upToNextMinor` from 0.9.0. `ComposeHooks` shrinks to Orchard's wording: it renders the library's `HookOutcome` and `HookFailure` into today's exact messages and uses `HookTranscript(keeping: 5)`. `ComposeService.execute` and `runHook` switch to the library types; behaviour and text unchanged, pinned by the existing `ComposeTests` (R7, R8). Changelog entry (R9).
 
 **3. Orchard: hostnames as `container run` builds them.** In `ContainerBackend.createContainer`, work out the domain once: `spec.dnsDomain` when set, else the daemon's `dns.domain` from the system config it already loads, as `container run` and the plugin do; compose containers need it since `ComposeService` passes an empty domain. That domain goes into both the resolver configuration and the hostname. Whether the default-nameserver rule (today keyed on `spec.dnsDomain`) should key on the effective domain is checked against `container run` in the task. A small pure `hostname(name:domain:)` (dot in name: `name.`; domain: `name.domain.`; else bare) feeds `AttachmentOptions`, unit-tested (R10). Manual check: a two-service compose project where one `wget`s or `nslookup`s the other by name (R11). Changelog line that existing containers pick it up when recreated (R9).
 
@@ -113,11 +113,15 @@ In full in [requirements/expose-hook-outcome-and-failure-message.md](../requirem
 - Does R9's DNS clause hold? **Reopened: 0.6.0 only changes the plugin runtime, so the bump brings no DNS change to Orchard.**
 - When a container spec has no DNS domain, which domain should its hostname and resolver use? **The daemon's dns.domain from config.toml, applied in ContainerBackend for every container, as container run and the compose plugin do.**
 - Is the design right? **Approved: hook rules in ComposePlanner/Hooks.swift released as compose 0.7.0; Orchard bumps and keeps only its wording; hostnames built as container run builds them, with the daemon's dns.domain as fallback.**
+- compose 0.7.0 and 0.8.0 shipped other work before this landed. Which version carries the hook rules? **0.9.0, the next minor; Orchard pins `upToNextMinor` from it.**
+- When a compose container has no DNS domain, which domain should it fall back to: the daemon's (as the CLI plugin) or Orchard's default (Orchard's choice, else the daemon's)? **Orchard's default, as the Run form gives. The Compose tab shows the domain, says when `container compose` in a terminal would use another and why, and links to Settings to change it. Supersedes the daemon-only answer above. The fallback applies to compose containers only; a Run-form container with its domain cleared stays bare, as chosen.**
+- Should default nameservers follow the effective domain? **No. `container run` never adds them (it sends `--dns` as given and the runtime fills in the network's), so they stay keyed on a container's own `dnsDomain`; the fallback domain changes only the hostname, aliases and resolver domain.**
+- How far does this session take the compose release? **Draft pull requests only; the maintainer merges compose and tags 0.9.0, then Orchard's `Package.resolved` is updated to it.**
 
 ## Tasks
 
 1. [andrew-waters/orchard#148](https://github.com/andrew-waters/orchard/issues/148) Expose hook outcome, failure facts and a bounded transcript from ComposePlanner (satisfies R1, R2, R3, R4, R5, R6)
-2. [andrew-waters/orchard#149](https://github.com/andrew-waters/orchard/issues/149) Take compose 0.7.0 and use its hook rules in place of the ported copy (satisfies R7, R8, R9)
+2. [andrew-waters/orchard#149](https://github.com/andrew-waters/orchard/issues/149) Take compose 0.9.0 and use its hook rules in place of the ported copy (satisfies R7, R8, R9)
 3. [andrew-waters/orchard#150](https://github.com/andrew-waters/orchard/issues/150) Attach containers with a hostname container's DNS can find (satisfies R9, R10, R11)
 
 **Decisions:**

@@ -77,6 +77,17 @@ struct ContainerCreateSpec: Sendable {
     /// Extra DNS names for the attachment, as entered: `api`, `.gateway` or fully qualified.
     /// The create adds `dnsDomain` to a name without a dot, as `container run` does.
     var networkAliases: [String] = []
+    /// The domain used when `dnsDomain` is empty, for the hostname, the aliases and the
+    /// resolver's domain: Orchard's default domain, for a compose service whose file has no say
+    /// in it. Unlike `dnsDomain` it does not bring the default nameservers, so the container
+    /// keeps the network's own unless the file names others.
+    var fallbackDNSDomain: String? = nil
+
+    /// The domain the container is created under: its own, else the fallback, else none.
+    var effectiveDNSDomain: String {
+        if !dnsDomain.isEmpty { return dnsDomain }
+        return fallbackDNSDomain ?? ""
+    }
 }
 
 /// Combine an image's entrypoint and cmd with a user command override into the final
@@ -605,9 +616,10 @@ struct LiveContainerBackend: ContainerBackend {
             let nameservers = spec.dnsNameservers.isEmpty && !spec.dnsDomain.isEmpty
                 ? ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers
                 : spec.dnsNameservers
+            let domain = spec.effectiveDNSDomain
             let dns = ContainerResource.ContainerConfiguration.DNSConfiguration(
                 nameservers: nameservers,
-                domain: spec.dnsDomain.isEmpty ? nil : spec.dnsDomain,
+                domain: domain.isEmpty ? nil : domain,
                 searchDomains: spec.dnsSearchDomains,
                 options: spec.dnsOptions
             )
@@ -680,10 +692,10 @@ struct LiveContainerBackend: ContainerBackend {
                 AttachmentConfiguration(
                     network: networkId,
                     options: AttachmentOptions(
-                        hostname: NetworkAliases.hostname(id: spec.id, domain: spec.dnsDomain),
+                        hostname: NetworkAliases.hostname(id: spec.id, domain: domain),
                         macAddress: nil,
                         mtu: 1280,
-                        aliases: NetworkAliases.qualify(spec.networkAliases, domain: spec.dnsDomain)
+                        aliases: NetworkAliases.qualify(spec.networkAliases, domain: domain)
                     )
                 )
             ]

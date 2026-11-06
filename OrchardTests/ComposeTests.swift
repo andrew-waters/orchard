@@ -920,3 +920,95 @@ struct ComposeFreshFileTests {
         #expect(message.hasPrefix("compose.yaml:"))
     }
 }
+
+@Suite("Compose DNS domain")
+@MainActor
+struct ComposeDNSDomainTests {
+    private typealias Harness = ComposeHookTests.Harness
+
+    private static let file = """
+    name: shop
+    services:
+      web:
+        image: nginx
+    """
+
+    /// The create a plain one-service file plans.
+    private static func create() throws -> CreateOperation {
+        let parsed = try ComposeFileParser.parse(
+            yaml: file,
+            options: ParseOptions(projectDirectory: "/project", environment: [:], dotEnvPath: nil)
+        )
+        let plan = try Planner.up(file: parsed.file, project: ProjectIdentity(name: "shop"), state: CurrentState())
+        let creates = plan.operations.compactMap { operation -> CreateOperation? in
+            guard case .createContainer(let create) = operation else { return nil }
+            return create
+        }
+        return try #require(creates.first)
+    }
+
+    @Test("A compose container is created under the domain it is given, as a fallback that brings no nameservers")
+    func createSpecFallback() throws {
+        let operation = try Self.create()
+        let spec = ComposeService.createSpec(from: operation, dnsDomain: "test")
+        // Its own domain stays empty: that is what sends the default nameservers.
+        #expect(spec.dnsDomain.isEmpty)
+        #expect(spec.dnsNameservers.isEmpty)
+        #expect(spec.fallbackDNSDomain == "test")
+        #expect(spec.effectiveDNSDomain == "test")
+        #expect(NetworkAliases.hostname(id: spec.id, domain: spec.effectiveDNSDomain) == "shop-web.test.")
+    }
+
+    @Test("With no domain, or an empty one, a compose container keeps the bare name")
+    func createSpecNoDomain() throws {
+        let operation = try Self.create()
+        for domain in [nil, ""] as [String?] {
+            let spec = ComposeService.createSpec(from: operation, dnsDomain: domain)
+            #expect(spec.fallbackDNSDomain == nil)
+            #expect(spec.effectiveDNSDomain == "")
+            #expect(NetworkAliases.hostname(id: spec.id, domain: spec.effectiveDNSDomain) == "shop-web")
+        }
+    }
+
+    @Test("A container's own domain wins over the fallback")
+    func ownDomainWins() {
+        var spec = ContainerCreateSpec(
+            id: "web", imageRef: "nginx", environment: [], workingDirectory: "",
+            commandOverride: [], volumes: [], publishedPorts: [], dnsDomain: "local",
+            networkName: "", autoRemove: false, cpus: 1, memoryBytes: 1 << 30
+        )
+        #expect(spec.effectiveDNSDomain == "local")
+        spec.fallbackDNSDomain = "test"
+        #expect(spec.effectiveDNSDomain == "local")
+    }
+
+    @Test("Up creates containers under Orchard's default domain")
+    func upUsesDefaultDomain() async throws {
+        let harness = try Harness(file: Self.file)
+        defer { harness.cleanUp() }
+        harness.service.defaultDNSDomain = { "test" }
+
+        await harness.service.up(project: harness.project)
+
+        let created = try #require(harness.backend.createdSpecs.first)
+        #expect(created.fallbackDNSDomain == "test")
+        #expect(created.dnsDomain.isEmpty)
+    }
+
+    @Test("The Compose tab names the domain, and says when the terminal plugin would use another")
+    func wording() {
+        let same = ComposeDNSDomainWording(orchard: "test", daemon: "test")
+        #expect(same.summary == "Services resolve as <container>.test")
+        #expect(same.terminalDifference == nil)
+
+        let differs = ComposeDNSDomainWording(orchard: "local", daemon: "test")
+        #expect(differs.terminalDifference == "`container compose` in a terminal uses test instead")
+
+        let onlyOrchard = ComposeDNSDomainWording(orchard: "local", daemon: nil)
+        #expect(onlyOrchard.terminalDifference == "`container compose` in a terminal uses no domain")
+
+        let none = ComposeDNSDomainWording(orchard: nil, daemon: "")
+        #expect(none.summary == "No DNS domain, so services can't reach each other by name")
+        #expect(none.terminalDifference == nil)
+    }
+}
