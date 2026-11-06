@@ -18,10 +18,12 @@ extension View {
     }
 }
 
+/// Holds one window's full screen state for `tracksWindowFullScreen()`.
 private struct WindowFullScreenTracker: ViewModifier {
     @State private var window: NSWindow?
     @State private var isFullScreen = false
 
+    /// Publishes the flag to `content` and keeps it in step with the hosting window.
     func body(content: Content) -> some View {
         content
             .environment(\.isWindowFullScreen, isFullScreen)
@@ -51,6 +53,7 @@ private struct WindowFullScreenTracker: ViewModifier {
             }
     }
 
+    /// Sets the flag from the window's style mask, for a notification about this window only.
     private func resync(from note: Notification) {
         guard let window, note.object as? NSWindow === window else { return }
         isFullScreen = window.styleMask.contains(.fullScreen)
