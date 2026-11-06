@@ -19,6 +19,7 @@ struct ThreeColumnLayout: View {
     @AppStorage("imageSortBy") private var imageSortBy: ImageSortOption = .name
     @AppStorage("imageSortAscending") private var imageSortAscending: Bool = true
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
+    @Environment(\.isWindowFullScreen) private var isWindowFullScreen
 
     /// Label keys offered by "Group by Label": every key on a listed container
     /// except the internal namespaces (runtime bookkeeping and Orchard's own
@@ -80,6 +81,19 @@ struct ThreeColumnLayout: View {
 
     private var sidebarCollapsed: Bool {
         splitVisibility == .doubleColumn || splitVisibility == .detailOnly
+    }
+
+    /// The columns' headers share the title bar row, which is transparent in a window. In full
+    /// screen the title bar and toolbar are drawn as a strip over that row, so the columns keep
+    /// to the safe area there and the headers sit below it (#167).
+    private var underTitleBar: Edge.Set {
+        isWindowFullScreen ? [] : .top
+    }
+
+    /// With the sidebar hidden the leftmost column's header moves down past the traffic lights
+    /// (#88). Full screen has no traffic lights in that row, so it needs no room for them.
+    private var clearsTrafficLights: Bool {
+        sidebarCollapsed && !isWindowFullScreen
     }
 
     var body: some View {
@@ -366,7 +380,7 @@ struct ThreeColumnLayout: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, sidebarCollapsed ? 52 : 20)
+                    .padding(.top, clearsTrafficLights ? 52 : 20)
                     .padding(.bottom, 12)
 
                     ListColumnView(
@@ -406,7 +420,7 @@ struct ThreeColumnLayout: View {
                         listFocusedTab: _listFocusedTab
                     )
                 }
-                .ignoresSafeArea(.container, edges: .top)
+                .ignoresSafeArea(.container, edges: underTitleBar)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 500)
                 .sheet(isPresented: $showRunContainerSheet) {
                     RunContainerView()
@@ -442,7 +456,7 @@ struct ThreeColumnLayout: View {
                     selectedSandboxBinding: $selectedSandbox,
                     selectedBuildBinding: $selectedBuild
                 )
-                .ignoresSafeArea(.container, edges: .top)
+                .ignoresSafeArea(.container, edges: underTitleBar)
             }
         } else {
             NavigationSplitView(columnVisibility: $splitVisibility) {
@@ -501,8 +515,8 @@ struct ThreeColumnLayout: View {
                 // lights float over it; inset below them, like the middle column's
                 // header does (#88). The middle-column layout never puts the detail
                 // leftmost, so only this arm needs it.
-                .padding(.top, sidebarCollapsed ? 52 : 0)
-                .ignoresSafeArea(.container, edges: .top)
+                .padding(.top, clearsTrafficLights ? 52 : 0)
+                .ignoresSafeArea(.container, edges: underTitleBar)
             }
         }
 

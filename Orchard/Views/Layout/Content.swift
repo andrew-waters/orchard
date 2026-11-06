@@ -461,6 +461,7 @@ struct ContentView: View {
             Text(alert.message)
         }
         .ownedSandboxConfirmation($pendingOwnedConfirmation)
+        .tracksWindowFullScreen()
         .background(WindowAccessor { window in
             if hostWindow !== window { hostWindow = window }
             if let window { MainWindows.register(window) }
