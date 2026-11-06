@@ -35,5 +35,5 @@ Taking the latest releases rather than the exact minimum fixed versions avoids h
 - [x] Re-resolve the three NIO pins: swift-nio 2.105.0, swift-nio-extras 1.35.2, swift-nio-http2 1.46.0
 - [x] Note any other pins that moved: swift-http-types 1.5.1 to 1.8.0 and swift-http-structured-headers 1.6.0 to 1.7.0, both required by the new NIO releases
 - [x] App builds (Debug); OrchardTests pass (596 tests)
-- [ ] Launch the app and check containers list, logs and image pulls still work (the paths that use NIO via container and containerization)
+- [x] Launch the app and check containers list, logs and image pulls still work (the paths that use NIO via container and containerization)
 - [ ] After merge, Dependabot alerts #1 to #5 close
