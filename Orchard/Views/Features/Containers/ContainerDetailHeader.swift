@@ -260,7 +260,9 @@ struct ContainerDetailHeader: View {
                     }
                     .buttonStyle(BorderedProminentButtonStyle())
                     .tint(.orange)
-                    .disabled(isStopping)
+                    // A cluster node stops with its cluster.
+                    .disabled(isStopping || container.isK8sNode)
+                    .help(container.clusterNodeActionHelp ?? "")
 
                     // Terminal buttons - only when running and not stopping
                     if !isStopping {

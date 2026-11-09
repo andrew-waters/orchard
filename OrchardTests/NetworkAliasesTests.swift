@@ -11,6 +11,7 @@ import ContainerResource
 func networkAliasesVersionGate() {
     #expect(supportsNetworkAliases(containerVersion: "1.6.0"))
     #expect(supportsNetworkAliases(containerVersion: "1.6.1"))
+    #expect(supportsNetworkAliases(containerVersion: "1.7.1"))
     #expect(!supportsNetworkAliases(containerVersion: "1.5.0"))
     #expect(!supportsNetworkAliases(containerVersion: nil))
 }

@@ -86,7 +86,7 @@ func machineAccountRejectsBadHomes() {
 
 @Test("Machine account fields are offered from container 1.6.0, and not when the version is unknown")
 func supportsUserAccountByVersion() {
-    for version in ["1.6.0", "1.6.1", "2.0.0"] {
+    for version in ["1.6.0", "1.6.1", "1.7.1", "2.0.0"] {
         #expect(MachineService.supportsUserAccount(containerVersion: version), "\(version)")
     }
     for version in ["1.5.0", "1.5.10", "", "unknown"] {

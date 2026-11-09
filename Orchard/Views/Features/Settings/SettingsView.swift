@@ -144,13 +144,15 @@ struct GeneralSettingsView: View {
                     get: { settings.defaultDNSDomain ?? "" },
                     set: { dnsService.setDefault($0.isEmpty ? nil : $0) }
                 )) {
-                    Text(dnsService.daemonDefaultDomain().map { "container default (\($0))" } ?? "None").tag("")
+                    Text(dnsService.unsetDomainFallback.map { "container default (\($0))" } ?? "None").tag("")
                     ForEach(dnsService.dnsDomains, id: \.domain) { domain in
                         Text(domain.domain).tag(domain.domain)
                     }
                 }
+                containerDNSDefaultRows
             } footer: {
-                Text("The local DNS domain new containers created in Orchard get by default, so they resolve as name.domain. Compose projects brought up in Orchard use it too; `container compose` in a terminal uses container's default.")
+                // A key rather than a string, so the backticks render as code as they did before.
+                Text(LocalizedStringKey(dnsFooter))
                     .foregroundColor(.secondary)
             }
 
@@ -169,6 +171,36 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear { containerShell = settings.containerShell }
+    }
+
+    /// `[container.dns]` from `config.toml` (container 1.7.1), read only: every container gets
+    /// these for the DNS fields it leaves empty, as with `container run`. Hidden when none are set.
+    @ViewBuilder
+    private var containerDNSDefaultRows: some View {
+        let defaults = dnsService.containerDNSDefaults
+        if let domain = dnsService.containerDefaultDomain {
+            LabeledContent("Default Domain", value: domain)
+        }
+        if !defaults.nameservers.isEmpty {
+            LabeledContent("Default Nameservers", value: defaults.nameservers.joined(separator: ", "))
+        }
+        if !defaults.searchDomains.isEmpty {
+            LabeledContent("Default Search Domains", value: defaults.searchDomains.joined(separator: ", "))
+        }
+        if !defaults.options.isEmpty {
+            LabeledContent("Default DNS Options", value: defaults.options.joined(separator: ", "))
+        }
+    }
+
+    private var dnsFooter: String {
+        var text = "The local DNS domain new containers created in Orchard get by default, so they resolve as name.domain. Compose projects brought up in Orchard use it too; `container compose` in a terminal uses container's default."
+        if !dnsService.containerDNSDefaults.isEmpty {
+            text += " The defaults above are set under `[container.dns]` in `~/.config/container/config.toml`, and apply to every container that doesn't set its own, as they do for `container run`. Edit that file to change them."
+        }
+        if let domain = dnsService.containerDefaultDomain {
+            text += " Its domain, \(domain), comes before the one chosen here."
+        }
+        return text
     }
 
     private var dockIconFooter: String {

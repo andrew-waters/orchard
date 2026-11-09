@@ -135,7 +135,19 @@ final class ContainerListService: ObservableObject {
         }
     }
 
+    /// The backstop for Stop, Force Stop and Delete on a cluster node, whatever view asked: the
+    /// views leave them out, and this refuses any path that gets through, saying why. Start has
+    /// its own, which points at Recreate.
+    private func refuseClusterNode(_ id: String) -> Bool {
+        guard let help = containers.first(where: { $0.configuration.id == id })?.clusterNodeActionHelp else {
+            return false
+        }
+        alertCenter.error(help)
+        return true
+    }
+
     func forceStopContainer(_ id: String) async {
+        if refuseClusterNode(id) { return }
         loadingContainers.insert(id)
         self.alertCenter.dismiss()
 
@@ -152,6 +164,7 @@ final class ContainerListService: ObservableObject {
     }
 
     func stopContainer(_ id: String) async {
+        if refuseClusterNode(id) { return }
         loadingContainers.insert(id)
         self.alertCenter.dismiss()
 
@@ -318,6 +331,7 @@ final class ContainerListService: ObservableObject {
     }
 
     func removeContainer(_ id: String) async {
+        if refuseClusterNode(id) { return }
         loadingContainers.insert(id)
         self.alertCenter.dismiss()
 
@@ -338,8 +352,11 @@ final class ContainerListService: ObservableObject {
         }
     }
 
+    /// Remove each of `ids`, skipping cluster nodes: a bulk remove leaves them to their cluster
+    /// without an alert per node.
     func removeContainers(_ ids: [String]) async {
-        for id in ids {
+        let nodes = Set(containers.filter(\.isK8sNode).map(\.configuration.id))
+        for id in ids where !nodes.contains(id) {
             await removeContainer(id)
         }
     }

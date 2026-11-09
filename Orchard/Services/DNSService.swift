@@ -19,10 +19,30 @@ final class DNSService: ObservableObject {
     var refreshSystemProperties: () async -> Void = {}
     /// The daemon's `dns.domain`, from `config.toml`. Set by the owner.
     var daemonDefaultDomain: @MainActor () -> String? = { nil }
+    /// The `[container.dns]` defaults from `config.toml` (container 1.7.1). Set by the owner.
+    var readContainerDNSDefaults: () async throws -> ContainerDNSDefaults = { ContainerDNSDefaults() }
 
-    /// The domain new containers get by default: the one chosen in Orchard, else the daemon's.
+    /// The `[container.dns]` defaults every container gets for the DNS fields it leaves empty,
+    /// as of the last load. Empty when `config.toml` sets none, or it couldn't be read.
+    @Published var containerDNSDefaults = ContainerDNSDefaults()
+
+    /// `[container.dns].domain`, when set.
+    var containerDefaultDomain: String? {
+        containerDNSDefaults.domain.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// The domain new containers get by default: `config.toml`'s `[container.dns].domain`, else
+    /// the one chosen in Orchard, else the daemon's `[dns].domain`. The same order the create
+    /// applies to a container that names no domain of its own.
     var defaultDomain: String? {
-        settings.defaultDNSDomain ?? daemonDefaultDomain()
+        containerDefaultDomain ?? settings.defaultDNSDomain ?? daemonDefaultDomain()
+    }
+
+    /// What a container created with no domain of its own gets: `[container.dns].domain`, else
+    /// the daemon's `[dns].domain`. Orchard's chosen default reaches a container through the
+    /// form, which starts on it, so it isn't part of this.
+    var unsetDomainFallback: String? {
+        containerDefaultDomain ?? daemonDefaultDomain()
     }
 
     init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter) {
@@ -42,6 +62,10 @@ final class DNSService: ObservableObject {
         // user-initiated loads; background polls reuse the already-cached value.
         if showLoading {
             await refreshSystemProperties()
+        }
+        // A file read, cheap enough for every load. One that fails keeps what was read before.
+        if let defaults = try? await readContainerDNSDefaults() {
+            containerDNSDefaults = defaults
         }
 
         do {

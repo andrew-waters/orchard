@@ -93,7 +93,8 @@ Orchard manages **local Kubernetes clusters** built on Apple container's cluster
 
 - Node containers are grouped into named clusters, with per-node role, status, IP, CPUs, memory and published ports. Expand a cluster in the list to see its nodes and open any of them
 - Create clusters from the app, choosing the Kubernetes version, resource overrides, worker nodes (container 1.6.0+) and the CNI: kindnet, your own manifest, or none at all (container 1.6.0+) for installing Cilium, Calico or similar yourself. A cluster with no CNI shows as waiting for one until its nodes are Ready
-- Load any local image into the cluster's containerd, on every node or only the ones you pick, so pods can use it without a registry
+- On container 1.7.1, create a cluster with **Use local images** (on by default) so its nodes pull from the Mac's image store, and pods run images built or pulled in Orchard without a registry. On container 1.6.x, load any local image into the cluster's containerd instead, on every node or only the ones you pick
+- Cluster nodes are stopped and deleted with their cluster, never on their own, since acting on one node breaks the cluster
 - Write or merge the cluster's context into your kubeconfig, copy its path, or open a terminal with the kubectl context already selected
 - Cluster nodes are badged in the containers list ("cluster · control-plane"), and container and cluster views cross-link both ways
 - Clusters made before container 1.6.1 renamed the plugin still show after upgrading, and can be deleted or recreated under the new plugin
@@ -145,7 +146,7 @@ Two limitations are worth stating up front: without health reporting in the runt
 - Command palette: press Cmd+K to fuzzy-search everything Orchard manages, jump to any resource, or run actions from the keyboard - "stop db", "logs api", "console web", "commit web"
 - Local AI: discover or run MLX model servers, bridge containers to them, and manage agent sandboxes with isolation badges and a kill-switch
 - Container machines: create, configure, run and monitor persistent Linux VMs over native XPC
-- Kubernetes clusters: create and manage local k8s clusters (container's cluster plugin), load images into them, and get one-click kubectl access
+- Kubernetes clusters: create and manage local k8s clusters (container's cluster plugin), run local images in them, and get one-click kubectl access
 - Compose projects: bring a set of services up and down from a compose file, in dependency order, with a second `up` working out what changed from the containers themselves. Anything the file asks for that cannot be honoured is listed before the first run, with the line it sits on, and stays listed on the project afterwards, all of it planned by the open-source [compose](https://compose.andon.dev) package that also backs the `container compose` CLI plugin
 - Container management: create, start, stop, force stop, delete, export as tar, commit to an image (container 1.6.0+), reclaim disk space (pending a container release that can trim a container's root filesystem), label at launch, group by label
 - Platforms: run an image as any platform it offers, so a `linux/amd64`-only image runs on Apple silicon under Rosetta. Automatic picks the Mac's own platform when the image has it, as `container run` does; the choice survives edits and recreates, a compose service's `platform:` is honoured, and Orchard offers to install Rosetta when it is missing
@@ -154,7 +155,7 @@ Two limitations are worth stating up front: without health reporting in the runt
 - Disk space: usage by containers, images, volumes and the runtime's own system data on the dashboard, and **Free Up Space** to remove images no container uses, and (when turned on) stopped containers and unmounted volumes, with sizes shown and a confirmation before anything goes. Machines, cluster nodes, compose services, sandboxes and compose volumes are never listed
 - Image builds: build from any Dockerfile with a streamed BuildKit log, tracked in a Builds tab whose records survive restarts and cross-link to their images and containers
 - Deep links: `orchard://` URLs jump to any tab or resource
-- Network and DNS domain management, with DNS aliases on a container's network (`api.test`, or `*.gateway.test` for every name below one) on container 1.6.0 or later
+- Network and DNS domain management, with DNS aliases on a container's network (`api.test`, or `*.gateway.test` for every name below one) on container 1.6.0 or later. Containers follow the `[container.dns]` defaults in container's `config.toml` as `container run` does, and Settings shows them
 - Real-time container stats with sortable columns
 - Sortable container and image lists with persistent preferences
 - Multi-container log viewer with split panes, filtering, and per-container colour coding
@@ -280,7 +281,7 @@ Different trade-offs, honestly stated: OrbStack and Docker Desktop win on Docker
 
 - macOS 26 (Tahoe)
 - Xcode 26 / Swift 6.2 (for building from source)
-- [Apple container](https://github.com/apple/container) 1.6.1 installed - [follow the instructions here](https://github.com/apple/container?tab=readme-ov-file#install-or-upgrade). If it is missing, Orchard says so and offers to install it for you: it downloads Apple's signed 1.6.1 package, checks the signature, installs it behind an administrator prompt and starts the system with the default kernel
+- [Apple container](https://github.com/apple/container) 1.7.1 installed - [follow the instructions here](https://github.com/apple/container?tab=readme-ov-file#install-or-upgrade). If it is missing, Orchard says so and offers to install it for you: it downloads Apple's signed 1.7.1 package, checks the signature, installs it behind an administrator prompt and starts the system with the default kernel
 
 ## Architecture
 

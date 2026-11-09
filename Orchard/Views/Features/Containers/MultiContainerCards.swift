@@ -26,17 +26,20 @@ struct MultiContainerCardsView: View {
             .sorted { $0.configuration.id < $1.configuration.id }
     }
 
+    /// Running containers the bulk Stop acts on. Cluster nodes stop with their cluster, so they
+    /// are left out of every bulk action and its count.
     private var runningIds: [String] {
-        containers.filter { $0.status.lowercased() == "running" }.map { $0.configuration.id }
+        containers.excludingClusterNodes.filter { $0.status.lowercased() == "running" }.map { $0.configuration.id }
     }
 
+    /// Stopped containers the bulk Remove acts on, cluster nodes aside.
     private var stoppedIds: [String] {
-        containers.filter { $0.status.lowercased() != "running" }.map { $0.configuration.id }
+        containers.excludingClusterNodes.filter { $0.status.lowercased() != "running" }.map { $0.configuration.id }
     }
 
     /// Stopped containers that can be started: cluster nodes are recreated from Clusters.
     private var startableIds: [String] {
-        containers.filter { $0.status.lowercased() != "running" && !$0.isK8sNode }.map { $0.configuration.id }
+        stoppedIds
     }
 
     var body: some View {
@@ -223,6 +226,9 @@ private struct ContainerSummaryCard: View {
                             Task { await containerListService.stopContainer(id) }
                         }
                     }
+                    // A cluster node stops and goes with its cluster.
+                    .disabled(container.isK8sNode)
+                    .help(container.clusterNodeActionHelp ?? "")
                 } else if !container.isK8sNode {
                     Button("Start") {
                         let id = container.configuration.id
@@ -237,6 +243,8 @@ private struct ContainerSummaryCard: View {
                     }
                 }
                 .foregroundColor(.red)
+                .disabled(container.isK8sNode)
+                .help(container.clusterNodeActionHelp ?? "")
 
                 Button("Open") {
                     onOpen()

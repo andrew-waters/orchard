@@ -120,6 +120,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _bootstrapAndStartHandler: (@Sendable (Int) throws -> Void)?
     private var _runProcessHandler: (@Sendable (MockProcessRun, (String) -> Void) throws -> Int32)?
     private var _daemonDNSDomainHandler: (@Sendable () throws -> String?)?
+    private var _containerDNSDefaults = ContainerDNSDefaults()
     private var _ranProcesses: [MockProcessRun] = []
     private var _statsHandler: (@Sendable (String) throws -> Orchard.ContainerStats)?
     private var _listContainersHandler: (@Sendable () async -> Void)?
@@ -131,6 +132,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     private var _createdSpecs: [ContainerCreateSpec] = []
     private var _deletedContainers: [(id: String, force: Bool)] = []
     private var _stoppedContainers: [String] = []
+    private var _killedContainers: [String] = []
     private var _bootstrapAndStartCount = 0
     private var _listContainersCount = 0
     private var _machineContainers: [Container] = []
@@ -271,6 +273,11 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     /// Called for each `runProcess` with the call and a way to emit output lines; returns the
     /// exit status, or throws to simulate a process that could not start. Unset, every
     /// process exits 0 without output.
+    /// What `containerDNSDefaults()` returns; none set by default.
+    var containerDNSDefaultsValue: ContainerDNSDefaults {
+        get { lock.withLock { _containerDNSDefaults } }
+        set { lock.withLock { _containerDNSDefaults = newValue } }
+    }
     /// What `daemonDNSDomain()` returns or throws; no domain when unset.
     var daemonDNSDomainHandler: (@Sendable () throws -> String?)? {
         get { lock.withLock { _daemonDNSDomainHandler } }
@@ -343,6 +350,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     var createdSpecs: [ContainerCreateSpec] { lock.withLock { _createdSpecs } }
     var deletedContainers: [(id: String, force: Bool)] { lock.withLock { _deletedContainers } }
     var stoppedContainers: [String] { lock.withLock { _stoppedContainers } }
+    var killedContainers: [String] { lock.withLock { _killedContainers } }
     var bootstrapAndStartCount: Int { lock.withLock { _bootstrapAndStartCount } }
     var listContainersCount: Int { lock.withLock { _listContainersCount } }
 
@@ -369,6 +377,7 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     }
     func killContainer(id: String, signal: Int32) async throws {
         if let killContainerError { throw killContainerError }
+        lock.withLock { _killedContainers.append(id) }
     }
     func deleteContainer(id: String, force: Bool) async throws {
         if let deleteContainerError { throw deleteContainerError }
@@ -401,6 +410,9 @@ final class MockContainerBackend: ContainerBackend, @unchecked Sendable {
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
     func daemonDNSDomain() async throws -> String? {
         try daemonDNSDomainHandler?() ?? nil
+    }
+    func containerDNSDefaults() async throws -> ContainerDNSDefaults {
+        lock.withLock { _containerDNSDefaults }
     }
     func exportContainer(id: String, to destination: URL) async throws {
         if let exportContainerError { throw exportContainerError }

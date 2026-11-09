@@ -127,6 +127,83 @@ func startContainerRefusesClusterNode() async throws {
     #expect(alert.current?.message.contains("Recreate") == true)
 }
 
+@MainActor
+@Test("Stop, force stop and remove refuse a cluster node, on either label, and say to use the cluster")
+func lifecycleRefusesClusterNode() async throws {
+    let backend = MockContainerBackend()
+    let (service, alert) = makeListService(backend)
+    service.containers = [
+        try makeContainer(id: "cluster-dev", status: "running",
+                          labels: ["com.apple.container.plugin": "cluster", "com.apple.container.resource.role": "control-plane"]),
+        try makeContainer(id: "k8s-dev", status: "stopped", labels: ["com.apple.container.plugin": "k8s"]),
+    ]
+
+    await service.stopContainer("cluster-dev")
+    #expect(alert.current?.message.contains("Clusters") == true)
+    await alert.dismiss().value
+    await service.forceStopContainer("cluster-dev")
+    #expect(alert.current?.message.contains("Clusters") == true)
+    await alert.dismiss().value
+    await service.removeContainer("k8s-dev")
+    #expect(alert.current?.message.contains("Clusters") == true)
+
+    #expect(backend.stoppedContainers.isEmpty)
+    #expect(backend.killedContainers.isEmpty)
+    #expect(backend.deletedContainers.isEmpty)
+    #expect(service.loadingContainers.isEmpty)
+    #expect(service.containers.count == 2)
+}
+
+@MainActor
+@Test("Stop and force stop still act on an ordinary container")
+func lifecycleActsOnOrdinaryContainer() async throws {
+    let backend = MockContainerBackend()
+    let (service, _) = makeListService(backend)
+    service.containers = [try makeContainer(id: "web", status: "running")]
+
+    await service.stopContainer("web")
+    await service.forceStopContainer("web")
+
+    #expect(backend.stoppedContainers == ["web"])
+    #expect(backend.killedContainers == ["web"])
+}
+
+@MainActor
+@Test("removeContainers: a bulk remove skips cluster nodes without an alert")
+func removeContainersSkipsClusterNodes() async throws {
+    let backend = MockContainerBackend()
+    let (service, alert) = makeListService(backend)
+    service.containers = [
+        try makeContainer(id: "old", status: "stopped"),
+        try makeContainer(id: "cluster-dev-worker-1", status: "stopped",
+                          labels: ["com.apple.container.plugin": "cluster", "com.apple.container.resource.role": "worker"]),
+    ]
+
+    await service.removeContainers(["old", "cluster-dev-worker-1"])
+
+    #expect(backend.deletedContainers.map(\.id) == ["old"])
+    #expect(alert.current == nil)
+}
+
+@Test("Bulk actions leave cluster nodes out, under either label, and only nodes get the help text")
+func bulkFilterExcludesClusterNodes() throws {
+    let containers = [
+        try makeContainer(id: "web", status: "running"),
+        try makeContainer(id: "cluster-dev", status: "running",
+                          labels: ["com.apple.container.plugin": "cluster", "com.apple.container.resource.role": "control-plane"]),
+        try makeContainer(id: "cluster-dev-worker-1", status: "running",
+                          labels: ["com.apple.container.plugin": "cluster", "com.apple.container.resource.role": "worker"]),
+        try makeContainer(id: "k8s-dev", status: "stopped", labels: ["com.apple.container.plugin": "k8s"]),
+        try makeContainer(id: "buildkit", status: "running", labels: ["com.apple.container.plugin": "builder"]),
+    ]
+
+    #expect(containers.excludingClusterNodes.map(\.configuration.id) == ["web", "buildkit"])
+    #expect(containers[0].clusterNodeActionHelp == nil)
+    #expect(containers[4].clusterNodeActionHelp == nil)
+    #expect(containers[2].clusterNodeActionHelp?.contains("cluster-dev from Clusters") == true)
+    #expect(containers[3].clusterNodeActionHelp?.contains("k8s-dev") == true)
+}
+
 // MARK: - start error classification
 
 @MainActor

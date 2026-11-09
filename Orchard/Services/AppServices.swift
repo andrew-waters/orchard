@@ -162,6 +162,7 @@ final class AppServices: ObservableObject {
         }
         // DNS → System: the daemon's `dns.domain` stands in when no default is chosen in Orchard.
         dnsService.refreshSystemProperties = { [weak systemService] in await systemService?.loadSystemProperties(showLoading: false) }
+        dnsService.readContainerDNSDefaults = { try await backend.containerDNSDefaults() }
         dnsService.daemonDefaultDomain = { [weak systemService] in
             systemService?.systemProperties
                 .first(where: { $0.id == "dns.domain" && !$0.isUndefined && !$0.value.isEmpty })?.value

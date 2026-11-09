@@ -67,3 +67,26 @@ extension Container {
         return "\(plugin) · \(role)"
     }
 }
+
+// MARK: - Cluster nodes act with their cluster
+
+/// Stopping, killing, restarting or deleting one node of a cluster on its own breaks the
+/// cluster's kubeadm state, so Orchard leaves those to the cluster. Container 1.7.1 hides nodes
+/// from the CLI's `stop`, `kill`, `delete` and `prune` for the same reason
+/// (apple/container#2462), but Orchard drives the runtime over XPC and skips that filter, so it
+/// applies its own, on every version. Logs, exec, stats and export still work on a node.
+extension Container {
+    /// Why Stop, Kill and Delete are off for this container, or nil when they aren't.
+    var clusterNodeActionHelp: String? {
+        guard isK8sNode else { return nil }
+        let cluster = K8sCluster.clusterName(for: self) ?? configuration.id
+        return "Part of cluster \(cluster). Stopping or deleting one node breaks the cluster, so stop or delete \(cluster) from Clusters instead."
+    }
+}
+
+extension Sequence where Element == Container {
+    /// These containers less any cluster node, for bulk actions and their counts.
+    var excludingClusterNodes: [Container] {
+        filter { !$0.isK8sNode }
+    }
+}

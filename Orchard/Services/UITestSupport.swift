@@ -91,6 +91,7 @@ struct UITestBackend: ContainerBackend {
     ) async throws -> Int32 { 0 }
     func containerLogs(id: String) async throws -> [FileHandle] { [] }
     func daemonDNSDomain() async throws -> String? { nil }
+    func containerDNSDefaults() async throws -> ContainerDNSDefaults { ContainerDNSDefaults() }
     func exportContainer(id: String, to destination: URL) async throws {}
     func normalizeImageReference(_ reference: String) async throws -> String {
         let canonical = canonicalImageReference(reference)
