@@ -147,8 +147,8 @@ final class AppServices: ObservableObject {
         clusterService.existingContainerIDs = { [weak containerListService] in
             Set(containerListService?.containers.map(\.configuration.id) ?? [])
         }
-        clusterService.currentClusters = { [weak containerListService] in
-            K8sCluster.group(containers: containerListService?.containers ?? [])
+        clusterService.currentClusters = { [weak clusterService, weak containerListService] in
+            clusterService?.clusters(from: containerListService?.containers ?? []) ?? []
         }
         clusterService.containerVersion = { [weak systemService] in systemService?.containerVersion }
         // Stats samples running machines through their backing container (re-keyed to the
@@ -174,6 +174,11 @@ final class AppServices: ObservableObject {
         }
         // System → containers side effects.
         systemService.onSystemStarted = { [weak containerListService] in await containerListService?.loadContainers() }
-        systemService.onSystemStopped = { [weak containerListService] in containerListService?.containers.removeAll() }
+        systemService.onSystemStopped = { [weak containerListService, weak clusterService] in
+            containerListService?.containers.removeAll()
+            // Stopped clusters' nodes leave the list with everything else; their records must
+            // not read as clusters whose nodes are gone.
+            clusterService?.resetStoredConfigurations()
+        }
     }
 }

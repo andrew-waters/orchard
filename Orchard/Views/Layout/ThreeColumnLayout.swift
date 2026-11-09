@@ -711,7 +711,7 @@ struct TabColumnView: View {
             }
         case .clusters:
             if selectedCluster == nil {
-                selectedCluster = K8sCluster.group(containers: containerListService.containers).first?.name
+                selectedCluster = clusterService.clusters(from: containerListService.containers).first?.name
             }
         case .compose:
             if composeService.selectedProject == nil {
@@ -800,7 +800,7 @@ struct TabColumnView: View {
         case .machines:
             return machineService.machines.count
         case .clusters:
-            return K8sCluster.group(containers: containerListService.containers).count
+            return clusterService.clusters(from: containerListService.containers).count
         case .compose:
             return ComposeProject.group(
                 containers: containerListService.containers,

@@ -325,7 +325,7 @@ func recreateSettingsMatchPluginDefault() throws {
 
     let settings = service.clusterService.recreateSettings(for: try stoppedCluster())
 
-    #expect(settings == ClusterRecreateSettings(name: "k8s-dev", cpus: 2, memoryGiB: 2, nodeImage: .pluginDefault, cni: .kindnet, workers: 0))
+    #expect(settings == ClusterRecreateSettings(name: "k8s-dev", cpus: 2, memoryGiB: 2, nodeImage: .pluginDefault, cni: .kindnet, workerGroups: []))
 }
 
 @MainActor

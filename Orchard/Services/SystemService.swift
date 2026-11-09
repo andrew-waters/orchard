@@ -43,6 +43,12 @@ final class SystemService: ObservableObject {
     @Published var parsedContainerVersion: String?
     @Published var kernelConfig: KernelConfig = KernelConfig()
     @Published var isKernelLoading = false
+    /// The default kernel against the recommended one. Read by `loadKernelStatus`.
+    @Published var kernelStatus: KernelStatus = .unknown
+    /// Whether container's rebuildable data is left out of Time Machine. Nil until read.
+    @Published var backupExclusionState: BackupExclusion.State?
+    /// The app root's exclusions. Overridable for tests, which must not touch the real one.
+    var backupExclusion = BackupExclusion()
     @Published var systemProperties: [SystemProperty] = []
     @Published var isSystemPropertiesLoading = false
     @Published var systemDiskUsage: SystemDiskUsage?
@@ -277,6 +283,51 @@ final class SystemService: ObservableObject {
 
     // MARK: - Kernel
 
+    /// Where container keeps its kernels and the `default.kernel-<arch>` symlinks.
+    nonisolated static var kernelsDirectory: String {
+        NSHomeDirectory() + "/Library/Application Support/com.apple.container/kernels/"
+    }
+
+    /// The default kernel symlink's target, arm64 first. Nil when there is no default kernel.
+    nonisolated static func defaultKernelTarget(in directory: String = kernelsDirectory) -> String? {
+        let fileManager = FileManager.default
+        for arch in [KernelArch.arm64, .amd64] {
+            if let target = try? fileManager.destinationOfSymbolicLink(atPath: directory + "default.kernel-\(arch.rawValue)") {
+                return target
+            }
+        }
+        return nil
+    }
+
+    /// Compare the default kernel with `kernel.binaryPath` from `systemProperties`. Run after
+    /// every property load, so a load that succeeds after a failed one updates it. Before, any
+    /// `vmlinux-*` kernel read as recommended, so someone still on an older version's kernel
+    /// was told they had the recommended one.
+    func loadKernelStatus() {
+        let recommended = systemProperties.first(where: { $0.id == "kernel.binaryPath" })?.value
+        let status = KernelStatus.compare(
+            installedTarget: Self.defaultKernelTarget(), recommendedBinaryPath: recommended)
+        // The properties reload every few seconds; only publish a change.
+        if status != kernelStatus { kernelStatus = status }
+    }
+
+    // MARK: - Time Machine
+
+    func loadBackupExclusionState() {
+        backupExclusionState = backupExclusion.state()
+    }
+
+    /// Leave `snapshots/` and `containers/` out of Time Machine, as the user asked, then read
+    /// the state again so the row shows what is really set.
+    func excludeRebuildableDataFromBackups() {
+        do {
+            try backupExclusion.excludeRebuildable()
+        } catch {
+            alertCenter.error("Couldn't leave container's rebuildable data out of Time Machine: \(error.localizedDescription)")
+        }
+        loadBackupExclusionState()
+    }
+
     func loadKernelConfig() async {
         isKernelLoading = true
 
@@ -300,7 +351,8 @@ final class SystemService: ObservableObject {
 
             if let kernelPath = kernelPath {
                 let resolvedPath = try fileManager.destinationOfSymbolicLink(atPath: kernelPath)
-                if resolvedPath.contains("vmlinux-") {
+                loadKernelStatus()
+                if case .recommended = kernelStatus {
                     self.kernelConfig = KernelConfig(arch: arch, isRecommended: true)
                 } else {
                     self.kernelConfig = KernelConfig(binary: resolvedPath, arch: arch)
@@ -340,6 +392,7 @@ final class SystemService: ObservableObject {
 
             if !result.failed {
                 self.kernelConfig = KernelConfig(isRecommended: true)
+                loadKernelStatus()
             } else {
                 self.alertCenter.error(result.stderr ?? "Failed to set recommended kernel")
             }
@@ -378,6 +431,8 @@ final class SystemService: ObservableObject {
     // MARK: - System properties
 
     func loadSystemProperties(showLoading: Bool = true) async {
+        // The recommended kernel is a property, so its status follows every load, failed or not.
+        defer { loadKernelStatus() }
         if showLoading {
             isSystemPropertiesLoading = true
             alertCenter.dismiss()

@@ -49,6 +49,14 @@ enum K8sNodeImageCatalog {
         return tag.isEmpty ? nil : String(tag)
     }
 
+    /// `reference` without its tag or digest: `docker.io/kindest/node` for
+    /// `docker.io/kindest/node:v1.35.5@sha256:<digest>`. A registry port's colon is kept.
+    static func repository(of reference: String) -> String {
+        let nameAndTag = reference.split(separator: "@", maxSplits: 1).first.map(String.init) ?? reference
+        guard tag(of: nameAndTag) != nil, let colon = nameAndTag.lastIndex(of: ":") else { return nameAndTag }
+        return String(nameAndTag[..<colon])
+    }
+
     struct HubTag: Decodable, Equatable {
         let name: String
         let digest: String?

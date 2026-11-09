@@ -21,7 +21,7 @@ struct ClustersListView: View {
     @FocusState var listFocusedTab: TabSelection?
 
     private var clusters: [K8sCluster] {
-        K8sCluster.group(containers: containerListService.containers)
+        clusterService.clusters(from: containerListService.containers)
     }
 
     private var filteredClusters: [K8sCluster] {
@@ -286,14 +286,18 @@ struct ClustersListView: View {
 
         var body: some View {
             let nodeCount = cluster.nodes.count
+            let nodes = nodeCount == 1 ? "1 node" : "\(nodeCount) nodes"
             ListItemRow(
                 icon: "helm",
                 iconColor: isAwaitingCNI ? .blue : cluster.isRunning ? .green : .secondary,
                 primaryText: cluster.name,
-                secondaryLeftText: nodeCount == 1 ? "1 node" : "\(nodeCount) nodes",
-                secondaryRightText: isBusy ? "Working…" : isAwaitingCNI ? "Waiting for CNI" : cluster.status.capitalized,
+                // The Kubernetes version is known from the clusters service's record (1.7).
+                secondaryLeftText: cluster.stored.map { "\($0.kubernetesVersion) · \(nodes)" } ?? nodes,
+                secondaryRightText: isBusy ? "Working…" : isAwaitingCNI ? "Waiting for CNI"
+                    : nodeCount == 0 ? "No Nodes" : cluster.status.capitalized,
                 isSelected: isSelected
             )
+            .help(cluster.stored?.creationDate.map { "Created \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")
         }
     }
 

@@ -26,7 +26,7 @@ struct ClusterDetailView: View {
     }
 
     private var cluster: K8sCluster? {
-        K8sCluster.group(containers: containerListService.containers)
+        clusterService.clusters(from: containerListService.containers)
             .first(where: { $0.name == clusterName })
     }
 
@@ -43,7 +43,9 @@ struct ClusterDetailView: View {
                         if stranded {
                             strandedBanner
                         }
-                        if !cluster.isRunning {
+                        if cluster.nodes.isEmpty {
+                            noNodesBanner
+                        } else if !cluster.isRunning {
                             if !stranded {
                                 stoppedBanner
                             }
@@ -52,8 +54,13 @@ struct ClusterDetailView: View {
                         }
                         // A stranded cluster can't be seen by the plugin at all, so its own
                         // banner covers this too.
-                        if supportsLocalImages && !stranded {
+                        if supportsLocalImages && !stranded && !cluster.nodes.isEmpty {
                             localImagesBanner(cluster)
+                        }
+                        if ClusterService.isUnlisted(
+                            cluster, containerVersion: systemService.containerVersion,
+                            storedConfigurationsLoaded: clusterService.storedConfigurationsLoaded) && !stranded {
+                            unlistedBanner
                         }
 
                         VStack(alignment: .leading, spacing: 12) {
@@ -117,9 +124,14 @@ struct ClusterDetailView: View {
                         .frame(width: 8, height: 8)
                         .help(awaitingCNI ? "Waiting for a CNI" : cluster.status.capitalized)
                 }
-                Text(cluster.nodes.count == 1 ? "Kubernetes cluster · 1 node" : "Kubernetes cluster · \(cluster.nodes.count) nodes")
+                Text(ClusterService.subtitle(for: cluster))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                if let created = cluster.stored?.creationDate {
+                    Text("Created \(created.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             Spacer()
 
@@ -297,6 +309,44 @@ struct ClusterDetailView: View {
         }
         .padding(12)
         .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// A cluster made before container 1.7 has no stored configuration, so the CLI's
+    /// `cluster ls` doesn't list it, though its delete and write-config still find it by its
+    /// containers. Information, not a fault.
+    private var unlistedBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Not listed by container cluster ls")
+                    .font(.subheadline).fontWeight(.medium)
+                Text("Made before Apple container 1.7, so the CLI has no record of its settings and `container cluster ls` leaves it out. Orchard shows it from its node containers, and Delete and Write Kubeconfig still work.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// A cluster the clusters service has a record of whose node containers are all gone.
+    private var noNodesBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("No nodes")
+                    .font(.subheadline).fontWeight(.medium)
+                Text("Apple container has a record of this cluster, but its node containers are gone. Recreate creates it again with the Kubernetes version, CNI and workers it was made with, and container's default CPUs and memory, or Delete removes the record.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     /// A cluster made by the `k8s` plugin before container 1.6.1, which the renamed plugin

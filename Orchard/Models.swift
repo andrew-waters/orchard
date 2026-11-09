@@ -721,6 +721,39 @@ struct KernelConfig: Codable, Equatable {
     }
 }
 
+/// How the default kernel compares with the one the running container version recommends.
+enum KernelStatus: Equatable {
+    /// Not read yet, or the recommended kernel isn't known (the property list failed).
+    case unknown
+    /// No default kernel is installed.
+    case notInstalled
+    /// The recommended kernel, by file name.
+    case recommended(String)
+    /// A Kata build other than the recommended one, such as the kernel an older container
+    /// version recommended. Both are file names, e.g. `vmlinux-6.18.35-197-debug`.
+    case outdated(installed: String, recommended: String)
+    /// A kernel set with `system kernel set --binary` or `--tar`, which isn't flagged as out of date.
+    case custom(String)
+
+    /// Compare the default kernel symlink's target with `kernel.binaryPath` from the system
+    /// properties, which the installed container version fills in (1.7.1:
+    /// `opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug`). Matched on file names, since
+    /// the installed kernel keeps its archive member's name. A name shaped like Kata's
+    /// (`vmlinux-<version>-<build>`, optionally `-debug`) that isn't the recommended one is out
+    /// of date; anything else is custom.
+    static func compare(installedTarget: String?, recommendedBinaryPath: String?) -> KernelStatus {
+        guard let installedTarget, !installedTarget.isEmpty else { return .notInstalled }
+        let installed = URL(fileURLWithPath: installedTarget).lastPathComponent
+        guard let recommendedBinaryPath, !recommendedBinaryPath.isEmpty else { return .unknown }
+        let recommended = URL(fileURLWithPath: recommendedBinaryPath).lastPathComponent
+        if installed == recommended { return .recommended(installed) }
+        if installed.wholeMatch(of: #/vmlinux-\d+\.\d+(\.\d+)?-\d+(-[a-z]+)?/#) != nil {
+            return .outdated(installed: installed, recommended: recommended)
+        }
+        return .custom(installed)
+    }
+}
+
 enum KernelArch: String, CaseIterable, Codable {
     case amd64 = "amd64"
     case arm64 = "arm64"
