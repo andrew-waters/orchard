@@ -508,11 +508,15 @@ final class ContainerListService: ObservableObject {
     /// thrown.
     ///
     /// A cluster node is refused before anything is deleted: recreating one on its own, from an
-    /// edit or a mount removal, breaks its cluster as surely as deleting it.
+    /// edit or a mount removal, breaks its cluster as surely as deleting it. `oldContainer` is the
+    /// caller's own copy, such as the one an Edit sheet opened with, so the check holds even when
+    /// a refresh since has dropped it from `containers`; without one the list decides.
     func recreateContainer(
-        oldContainerId: String, newConfig: ContainerRunConfig, originalConfig: ContainerRunConfig? = nil
+        oldContainerId: String, newConfig: ContainerRunConfig, originalConfig: ContainerRunConfig? = nil,
+        oldContainer: Container? = nil
     ) async throws {
-        if let help = containers.first(where: { $0.configuration.id == oldContainerId })?.clusterNodeActionHelp {
+        let old = oldContainer ?? containers.first(where: { $0.configuration.id == oldContainerId })
+        if let help = old?.clusterNodeActionHelp {
             throw OrchardError.generic("Did not recreate \(oldContainerId): \(help)")
         }
         var config = newConfig

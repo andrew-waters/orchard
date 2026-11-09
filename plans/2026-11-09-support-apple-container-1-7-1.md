@@ -76,7 +76,7 @@ Applies on every version, not just 1.7.1 (agreed 2026-11-09): stopping, killing 
 - [x] Cluster node actions: service backstop, views, bulk filters
 - [x] `[container.dns]` resolution in the backend, `DNSService` defaults, Settings rows, form label
 - [x] Unit tests for each part
-- [x] App builds and OrchardTests pass (629 tests after the review fixes)
+- [x] App builds and OrchardTests pass (630 tests after the review fixes)
 - [x] Smoke test on 1.7.1 (Andrew, 2026-11-09): system reports running, every tab loads, a cluster created with local images runs a pod from a locally built image, node actions are blocked, a container from the Run form picks up `[container.dns]` nameservers (after `container system stop && start`, which 1.7.1 needs to reread `config.toml`)
 - [ ] Smoke test on 1.6.1: Load Image still works, gates unchanged. Not run: it needs a downgrade; the 1.6.x paths are covered by unit tests only
 - [x] CHANGELOG, README (requirements, clusters, DNS) and `site/clusters.html`
