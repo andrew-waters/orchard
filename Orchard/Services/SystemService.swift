@@ -299,13 +299,16 @@ final class SystemService: ObservableObject {
         return nil
     }
 
-    /// Compare the default kernel with `kernel.binaryPath` from `systemProperties`, so load
-    /// those first. Before, any `vmlinux-*` kernel read as recommended, so someone still on an
-    /// older version's kernel was told they had the recommended one.
+    /// Compare the default kernel with `kernel.binaryPath` from `systemProperties`. Run after
+    /// every property load, so a load that succeeds after a failed one updates it. Before, any
+    /// `vmlinux-*` kernel read as recommended, so someone still on an older version's kernel
+    /// was told they had the recommended one.
     func loadKernelStatus() {
         let recommended = systemProperties.first(where: { $0.id == "kernel.binaryPath" })?.value
-        kernelStatus = KernelStatus.compare(
+        let status = KernelStatus.compare(
             installedTarget: Self.defaultKernelTarget(), recommendedBinaryPath: recommended)
+        // The properties reload every few seconds; only publish a change.
+        if status != kernelStatus { kernelStatus = status }
     }
 
     // MARK: - Time Machine
@@ -428,6 +431,8 @@ final class SystemService: ObservableObject {
     // MARK: - System properties
 
     func loadSystemProperties(showLoading: Bool = true) async {
+        // The recommended kernel is a property, so its status follows every load, failed or not.
+        defer { loadKernelStatus() }
         if showLoading {
             isSystemPropertiesLoading = true
             alertCenter.dismiss()

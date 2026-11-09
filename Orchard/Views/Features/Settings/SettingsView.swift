@@ -26,8 +26,6 @@ struct SettingsView: View {
         .onAppear {
             Task {
                 await systemService.loadSystemProperties(showLoading: true)
-                // The recommended kernel is a system property, so this follows the load.
-                systemService.loadKernelStatus()
                 systemService.loadBackupExclusionState()
                 await dnsService.load(showLoading: true)
             }

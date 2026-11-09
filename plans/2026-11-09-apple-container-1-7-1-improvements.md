@@ -22,7 +22,7 @@ Upstream facts, read from the 1.7.1 tag:
 
 ## 1. Size worker nodes separately
 
-- [x] `ClusterWorkerGroup { count, cpus: Int?, memoryGiB: Int? }` in `ClusterService`. `performCreate` takes `[ClusterWorkerGroup]`: a group with no size is `--workers <n>`, a sized one `--workers count=<n>,cpus=<n>,memory=<n>g`. Below 1.7 only the plain form is sent (sizes dropped), and a pure `nonisolated static func workerArguments(_:containerVersion:)` builds them for tests.
+- [x] `ClusterWorkerGroup { count, cpus: Int?, memoryGiB: Int? }` in `ClusterService`. `performCreate` takes `[ClusterWorkerGroup]`: a group with no size is `--workers <n>`, a sized one `--workers count=<n>,cpus=<n>,memory=<n>GB`. Below 1.7 only the plain form is sent (sizes dropped), and a pure `nonisolated static func workerArguments(_:containerVersion:)` builds them for tests.
 - [x] `supportsWorkerSizing(containerVersion:)`: `>= 1.7`.
 - [x] Create Cluster (1.7+): the resources fields are labelled as the control plane's once workers > 0, and a **Worker size** override (CPUs, memory) appears under the worker count. Off says what an unsized worker gets: a quarter of the Mac's CPUs and memory, at least 2 CPUs and 2 GB. Below 1.7 the form is unchanged and says workers match the control plane.
 - [x] Remembered options gain the worker size (optional fields, so older saved options still decode).
@@ -32,7 +32,7 @@ Upstream facts, read from the 1.7.1 tag:
 ## 2. Read cluster details from the clusters service
 
 - [x] `StoredClusterConfiguration` (own small `Decodable`, not upstream's type, so a field upstream adds or validates differently can't fail the decode), parsed by a pure `parseClusterList(json:)`.
-- [x] `ClusterService.storedConfigurations: [String: StoredClusterConfiguration]`, refreshed on 1.7+ when the Clusters tab appears, after create, delete and recreate, and with the plugin probe. A failed run or bad JSON keeps the last good value and logs; below 1.7 it stays empty.
+- [x] `ClusterService.storedConfigurations: [String: StoredClusterConfiguration]`, refreshed on 1.7+ when the Clusters tab appears, after create, delete and recreate, and with the plugin probe. Only the newest load applies. A failed run or bad JSON empties it, leaves `storedConfigurationsLoaded` false and logs, as does a system stop; below 1.7 it stays empty.
 - [x] `K8sCluster` gains `stored: StoredClusterConfiguration?`; `K8sCluster.group(containers:stored:)` attaches it by name. Node state still comes from the snapshot. A stored cluster with no node containers is listed with no nodes, so it can be deleted or recreated, as the CLI lists it (agreed 2026-11-09).
 - [x] The list and detail show the Kubernetes version and creation date when known. On 1.7+, a cluster with no stored configuration shows a short note: made before Apple container 1.7, so `container cluster ls` doesn't list it; Delete still works.
 - [x] Recreate takes the CNI and Kubernetes version (as `kindest/node:<version>` when the image isn't otherwise known) from the stored configuration first, then the remembered options.
@@ -41,7 +41,7 @@ Upstream facts, read from the 1.7.1 tag:
 ## 3. Report the recommended kernel accurately
 
 - [x] `KernelStatus`: `.recommended`, `.outdated(installed:recommended:)`, `.custom`, `.notInstalled`, `.unknown`. A pure `KernelStatus.compare(installedTarget:recommendedBinaryPath:)` compares file names. A Kata build name (`vmlinux-<version>-<build>[-debug]`) that isn't the recommended one is outdated; anything else is custom. With no recommended path (property list failed), today's behaviour stands.
-- [x] `loadKernelConfig` reads `kernel.binaryPath` from the system properties already loaded by `loadSystemProperties`.
+- [x] `loadKernelStatus` reads `kernel.binaryPath` from the system properties, and runs after every `loadSystemProperties`.
 - [x] Settings: outdated shows both versions and **Use recommended kernel**, which calls the existing `setRecommendedKernel()`. Custom stays custom, unflagged.
 - [x] Tests: recommended, outdated (the 1.6.1 kernel `vmlinux-6.18.35-197-debug` against 1.7.1), custom, and no recommended path.
 
