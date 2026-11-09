@@ -144,7 +144,7 @@ struct GeneralSettingsView: View {
                     get: { settings.defaultDNSDomain ?? "" },
                     set: { dnsService.setDefault($0.isEmpty ? nil : $0) }
                 )) {
-                    Text(dnsService.unsetDomainFallback.map { "container default (\($0))" } ?? "None").tag("")
+                    Text(dnsService.unsetDomainLabel).tag("")
                     ForEach(dnsService.dnsDomains, id: \.domain) { domain in
                         Text(domain.domain).tag(domain.domain)
                     }
@@ -195,7 +195,7 @@ struct GeneralSettingsView: View {
     private var dnsFooter: String {
         var text = "The local DNS domain new containers created in Orchard get by default, so they resolve as name.domain. Compose projects brought up in Orchard use it too; `container compose` in a terminal uses container's default."
         if !dnsService.containerDNSDefaults.isEmpty {
-            text += " The defaults above are set under `[container.dns]` in `~/.config/container/config.toml`, and apply to every container that doesn't set its own, as they do for `container run`. Edit that file to change them."
+            text += " The defaults above are set under `[container.dns]` in `~/.config/container/config.toml`, and apply to every container that doesn't set its own, as they do for `container run`. Edit that file, then restart container (`container system stop && container system start`), to change them."
         }
         if let domain = dnsService.containerDefaultDomain {
             text += " Its domain, \(domain), comes before the one chosen here."

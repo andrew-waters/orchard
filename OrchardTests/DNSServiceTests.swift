@@ -300,3 +300,36 @@ func runFormPrefillsOrchardDefault() async {
 
     #expect(service.dnsService.runFormDomain == "b.test")
 }
+
+@MainActor
+@Test("Empty-choice label: read from the configuration the create reads, and unknown is not None")
+func unsetDomainLabelStates() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test"]"#, stderr: nil) }
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend, runner: runner)
+    // A stale cached property must not decide the label: the configuration read does.
+    service.dnsService.daemonDefaultDomain = { "stale.test" }
+
+    // Before any read the domain isn't known.
+    #expect(service.dnsService.unsetDomainLabel == "container default")
+
+    // Read, with no domain anywhere: None.
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "None")
+
+    // [dns].domain, read through the backend as the create reads it.
+    backend.daemonDNSDomainHandler = { "stack" }
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "container default (stack)")
+
+    // [container.dns].domain comes first.
+    service.dnsService.readContainerDNSDefaults = { ContainerDNSDefaults(domain: "corp.test") }
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "container default (corp.test)")
+
+    // A failed read says the domain isn't known, rather than None or the last one.
+    backend.daemonDNSDomainHandler = { throw OrchardError.generic("unreadable") }
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "container default")
+}

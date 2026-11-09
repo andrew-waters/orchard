@@ -173,7 +173,7 @@ struct ContainerConfigForm: View {
 
                     Picker("DNS Domain", selection: $config.dnsDomain) {
                         // Empty takes the default from container's config.toml, so it says which.
-                        Text(dnsService.unsetDomainFallback.map { "container default (\($0))" } ?? "None").tag("")
+                        Text(dnsService.unsetDomainLabel).tag("")
                         ForEach(dnsService.dnsDomains, id: \.domain) { domain in
                             Text(domain.domain).tag(domain.domain)
                         }

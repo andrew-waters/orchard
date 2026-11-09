@@ -10,7 +10,6 @@ import ContainerizationOCI
 func commitVersionGate() {
     #expect(supportsContainerCommit(containerVersion: "1.6.0"))
     #expect(supportsContainerCommit(containerVersion: "1.7.1"))
-    #expect(supportsContainerCommit(containerVersion: "1.7.1"))
     #expect(!supportsContainerCommit(containerVersion: "1.5.0"))
     #expect(!supportsContainerCommit(containerVersion: nil))
 }

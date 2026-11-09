@@ -21,10 +21,19 @@ final class DNSService: ObservableObject {
     var daemonDefaultDomain: @MainActor () -> String? = { nil }
     /// The `[container.dns]` defaults from `config.toml` (container 1.7.1). Set by the owner.
     var readContainerDNSDefaults: () async throws -> ContainerDNSDefaults = { ContainerDNSDefaults() }
+    /// The `[dns].domain` from `config.toml`, read now as the create reads it, not from the
+    /// cached system properties. Set by the owner.
+    var readHostDNSDomain: () async throws -> String? = { nil }
 
     /// The `[container.dns]` defaults every container gets for the DNS fields it leaves empty,
     /// as of the last load. Empty when `config.toml` sets none, or it couldn't be read.
     @Published var containerDNSDefaults = ContainerDNSDefaults()
+    /// `[dns].domain` as of the last load that read the configuration.
+    @Published private(set) var hostDNSDomain: String?
+    /// Whether the last load read container's configuration. False until one has, and after
+    /// one that failed: then the domain a container would fall back to isn't known, which is
+    /// not the same as there being none.
+    @Published private(set) var hasReadDNSConfig = false
 
     /// `[container.dns].domain`, when set.
     var containerDefaultDomain: String? {
@@ -52,7 +61,15 @@ final class DNSService: ObservableObject {
     /// the daemon's `[dns].domain`. Orchard's chosen default reaches a container through the
     /// form, which starts on it, so it isn't part of this.
     var unsetDomainFallback: String? {
-        containerDefaultDomain ?? daemonDefaultDomain()
+        containerDefaultDomain ?? hostDNSDomain
+    }
+
+    /// The label for a DNS domain picker's empty choice: the domain a container then gets,
+    /// "None" when the configuration was read and sets none, and no domain at all when it
+    /// couldn't be read, rather than claim there is none.
+    var unsetDomainLabel: String {
+        guard hasReadDNSConfig else { return "container default" }
+        return unsetDomainFallback.map { "container default (\($0))" } ?? "None"
     }
 
     init(runner: CommandRunner, settings: SettingsStore, alertCenter: AlertCenter) {
@@ -73,9 +90,16 @@ final class DNSService: ObservableObject {
         if showLoading {
             await refreshSystemProperties()
         }
-        // A file read, cheap enough for every load. One that fails keeps what was read before.
-        if let defaults = try? await readContainerDNSDefaults() {
+        // Read from container's configuration as the create reads it, cheap enough for every
+        // load. One that fails keeps what was read before, but says the domain isn't known.
+        do {
+            let defaults = try await readContainerDNSDefaults()
+            let hostDomain = try await readHostDNSDomain()
             containerDNSDefaults = defaults
+            hostDNSDomain = hostDomain.flatMap { $0.isEmpty ? nil : $0 }
+            hasReadDNSConfig = true
+        } catch {
+            hasReadDNSConfig = false
         }
 
         do {
