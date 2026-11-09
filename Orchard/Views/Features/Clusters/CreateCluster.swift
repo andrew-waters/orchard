@@ -256,7 +256,7 @@ struct CreateClusterView: View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle("Use local images", isOn: $useLocalImages)
             Text(useLocalImages
-                 ? "The nodes pull from this Mac's images, so an image built or pulled in Orchard runs in the cluster without copying it in. Only a create can turn this on: an existing cluster gets it by being recreated."
+                 ? "The nodes pull from this Mac's images, so an image built or pulled in Orchard runs in the cluster without copying it in. Only a create can turn this on: an existing cluster gets it by being recreated. Privileged pods and pods with a hostPath mount can read every image here, private ones included, and pods use a local image without its pull secrets, so turn this off for workloads you don't trust."
                  : "The nodes keep their own image store and pull from registries only. Images on this Mac can't be loaded into them later.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
