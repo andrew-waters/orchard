@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Bring Orchard in line with Apple container 1.7.1: size worker nodes apart from the control plane, read each cluster's stored configuration from `cluster ls --format json`, report an out-of-date kernel against the running version's recommended one, and offer to leave snapshots/ and containers/ out of Time Machine. Builds on #176."
 issues: [andrew-waters/orchard#174]
 touches: [andrew-waters/orchard]
@@ -54,7 +54,7 @@ Upstream facts, read from the 1.7.1 tag:
 
 ## 5. Retest builds on 1.7.1
 
-- [ ] Manual, by Andrew: Images tab builds on 1.7.1, a multi-stage one and one copying the whole context; retest and close or update open build issues. No code change.
+- [x] Manual, by Andrew: Images tab builds on 1.7.1, a multi-stage one and one copying the whole context; retest and close or update open build issues. No code change. Retested 2026-11-09: a two-stage build whose first stage copies the whole context (nested files and `.dockerignore` checked inside the build) built and ran correctly. No open Orchard issues about build failures.
 
 ## Docs
 
