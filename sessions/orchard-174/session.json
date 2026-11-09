@@ -1,6 +1,7 @@
 {
   "box" : "Andrew’s MacBook Air",
   "branch" : "174-apple-container-1-7-1-improvements",
+  "finishedAt" : "2026-11-09T16:03:43Z",
   "issue" : "andrew-waters/orchard#174",
   "pullRequests" : [
     "https://github.com/andrew-waters/orchard/pull/177"
