@@ -79,10 +79,10 @@ struct ContainerCreateSpec: Sendable {
     var networkAliases: [String] = []
     /// The domain used when `dnsDomain` is empty and `config.toml` sets no `[container.dns]`
     /// domain, for the hostname, the aliases and the resolver's domain: Orchard's default domain,
-    /// for a compose service whose file has no say in it. Unlike `dnsDomain` it does not bring the default nameservers, so the container
-    /// keeps the network's own unless the file names others.
+    /// for a compose service whose file has no say in it. Unlike `dnsDomain` it does not bring
+    /// the default nameservers, so the container keeps the network's own unless the file names
+    /// others.
     var fallbackDNSDomain: String? = nil
-
 }
 
 /// The `[container.dns]` defaults in container's `config.toml` (apple/container#1614,
