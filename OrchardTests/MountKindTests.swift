@@ -134,3 +134,23 @@ func mountKindSymbolsAreDistinct() {
     let kinds: [ContainerRunConfig.VolumeMapping.Kind] = [.bind, .volume(name: "v"), .tmpfs, .block(format: "ext4")]
     #expect(Set(kinds.map(\.systemImage)).count == kinds.count)
 }
+
+@MainActor
+@Test("Removing a cluster node's mount leaves the node alone and says why")
+func mountRemovalRefusesClusterNode() async throws {
+    let backend = MockContainerBackend()
+    backend.imagePlatformsResult = ["linux/arm64"]
+    let service = makeService(backend: backend)
+    let node = try makeContainer(
+        id: "cluster-dev", status: "running",
+        labels: ["com.apple.container.plugin": "cluster", "com.apple.container.resource.role": "control-plane"],
+        mountsJSON: mixedMountsJSON)
+    let list = service.containerListService
+    list.containers = [node]
+
+    await list.deleteMounts(list.allMounts.filter { $0.mount.destination == "/x" })
+
+    #expect(backend.deletedContainers.isEmpty)
+    #expect(backend.createdSpecs.isEmpty)
+    #expect(service.alertCenter.current?.message.contains("Clusters") == true)
+}

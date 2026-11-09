@@ -506,9 +506,15 @@ final class ContainerListService: ObservableObject {
     /// example an alias another container already has. Given `originalConfig`, the container is
     /// then created again as it was, so a refused edit doesn't lose it, and the refusal is still
     /// thrown.
+    ///
+    /// A cluster node is refused before anything is deleted: recreating one on its own, from an
+    /// edit or a mount removal, breaks its cluster as surely as deleting it.
     func recreateContainer(
         oldContainerId: String, newConfig: ContainerRunConfig, originalConfig: ContainerRunConfig? = nil
     ) async throws {
+        if let help = containers.first(where: { $0.configuration.id == oldContainerId })?.clusterNodeActionHelp {
+            throw OrchardError.generic("Did not recreate \(oldContainerId): \(help)")
+        }
         var config = newConfig
         do {
             config.platform = try await checkedRecreatePlatform(for: newConfig)
