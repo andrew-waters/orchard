@@ -423,7 +423,7 @@ func recreateStoredWithoutNodes() throws {
 }
 
 @MainActor
-@Test("Recreate settings: workers missing from the stored count are added back, not lost")
+@Test("Recreate settings: workers missing from the stored count are added back, sized like the rest")
 func recreateRestoresMissingWorkers() throws {
     let service = makeService()
     service.systemService.containerVersion = "1.7.1"
@@ -436,8 +436,29 @@ func recreateRestoresMissingWorkers() throws {
         stored: try stored()).first { $0.name == "dev" })
 
     let settings = service.clusterService.recreateSettings(for: cluster)
-    #expect(settings.workerGroups == [ClusterWorkerGroup(count: 1, cpus: 4, memoryGiB: 8), ClusterWorkerGroup(count: 1)])
-    #expect(settings.workers == 2)
+    // One group, so the sheet's worker count stays editable.
+    #expect(settings.workerGroups == [ClusterWorkerGroup(count: 2, cpus: 4, memoryGiB: 8)])
+}
+
+@MainActor
+@Test("Recreate settings: with workers of several sizes left, the missing ones get the default size")
+func recreateRestoresMissingWorkersMixedSizes() throws {
+    let service = makeService()
+    service.systemService.containerVersion = "1.7.1"
+    let json = #"[{"configuration":{"name":"dev","kubernetesVersion":"v1.35.5","nodes":[{"name":"dev","roles":["control-plane"]},{"name":"dev-worker-1","roles":["worker"]},{"name":"dev-worker-2","roles":["worker"]},{"name":"dev-worker-3","roles":["worker"]}]}}]"#
+    let cluster = try #require(K8sCluster.group(
+        containers: [
+            try node("dev", role: "control-plane"),
+            try node("dev-worker-1", role: "worker", cpus: 4, memoryGiB: 8),
+            try node("dev-worker-2", role: "worker", cpus: 2, memoryGiB: 2),
+        ],
+        stored: try stored(json)).first)
+
+    #expect(service.clusterService.recreateSettings(for: cluster).workerGroups == [
+        ClusterWorkerGroup(count: 1, cpus: 4, memoryGiB: 8),
+        ClusterWorkerGroup(count: 1, cpus: 2, memoryGiB: 2),
+        ClusterWorkerGroup(count: 1),
+    ])
 }
 
 @MainActor

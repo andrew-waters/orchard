@@ -535,8 +535,9 @@ final class ClusterService: ObservableObject {
     /// the cluster, and a remembered count is stale after a delete and create outside Orchard.
     /// On 1.7 they carry their sizes, one group per size. When the stored record (1.7) has more
     /// workers than are left, the missing ones are added back rather than lost: sized as
-    /// remembered when the remembered groups add up to the stored count, else as an unsized
-    /// group, which gets container's defaults. A cluster with no stored record and no workers
+    /// remembered when the remembered groups add up to the stored count, else like the workers
+    /// left when they are all one size, else as an unsized group, which gets container's
+    /// defaults. A cluster with no stored record and no workers
     /// left falls back to what Orchard remembers. Below 1.7 there are no sizes to keep.
     private func recreateWorkerGroups(cluster: K8sCluster, remembered: [ClusterWorkerGroup]) -> [ClusterWorkerGroup] {
         let live = ClusterWorkerGroup.groups(of: cluster.workers)
@@ -547,7 +548,16 @@ final class ClusterService: ObservableObject {
             let missing = stored.workerCount - liveCount
             // Remembered was checked against the record in `recreateSettings`, so when it adds
             // up to the stored count it describes the whole cluster as it was made.
-            groups = rememberedCount == stored.workerCount ? remembered : live + [ClusterWorkerGroup(count: missing)]
+            if rememberedCount == stored.workerCount {
+                groups = remembered
+            } else if live.count == 1, var only = live.first {
+                // Workers left all one size, as one `--workers` group makes them: the missing
+                // ones were most likely that size too, and the sheet keeps one editable group.
+                only.count += missing
+                groups = [only]
+            } else {
+                groups = live + [ClusterWorkerGroup(count: missing)]
+            }
         } else if liveCount > 0 {
             groups = live
         } else if cluster.stored != nil {
