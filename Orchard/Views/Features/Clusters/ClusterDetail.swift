@@ -50,6 +50,11 @@ struct ClusterDetailView: View {
                         } else if awaitingCNI {
                             awaitingCNIBanner
                         }
+                        // A stranded cluster can't be seen by the plugin at all, so its own
+                        // banner covers this too.
+                        if supportsLocalImages && !stranded {
+                            localImagesBanner(cluster)
+                        }
 
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Resource Usage")
@@ -161,10 +166,13 @@ struct ClusterDetailView: View {
                     .buttonStyle(BorderedButtonStyle())
                     .help(ClusterService.kubeconfigPath)
 
-                    Button("Load Image…") { showLoadImageSheet = true }
-                        .buttonStyle(BorderedButtonStyle())
-                        .disabled(busy || clusterService.isLoadingImage || stranded)
-                        .help(stranded ? ClusterService.strandedHelp : "")
+                    // Container 1.7 removed load-image; Use local images replaces it.
+                    if !supportsLocalImages {
+                        Button("Load Image…") { showLoadImageSheet = true }
+                            .buttonStyle(BorderedButtonStyle())
+                            .disabled(busy || clusterService.isLoadingImage || stranded)
+                            .help(stranded ? ClusterService.strandedHelp : "")
+                    }
                 }
                 Button("Delete") { showDeleteConfirmation = true }
                     .buttonStyle(BorderedButtonStyle())
@@ -207,6 +215,46 @@ struct ClusterDetailView: View {
 
     private var supportsWorkers: Bool {
         ClusterService.supportsWorkerNodes(containerVersion: systemService.containerVersion)
+    }
+
+    private var supportsLocalImages: Bool {
+        ClusterService.supportsSharedImageStore(containerVersion: systemService.containerVersion)
+    }
+
+    /// Whether the cluster sees this Mac's images (`--shared-image-store`, container 1.7). Only a
+    /// create can turn it on, so a cluster without it is pointed at Recreate, whose sheet has
+    /// the option.
+    private func localImagesBanner(_ cluster: K8sCluster) -> some View {
+        let shared = cluster.usesSharedImageStore
+        return HStack(alignment: .top, spacing: 10) {
+            SwiftUI.Image(systemName: shared ? "photo.stack" : "photo.stack.fill")
+                .foregroundStyle(shared ? Color.green : Color.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(shared ? "Uses this Mac's images" : "Doesn't see this Mac's images")
+                    .font(.subheadline).fontWeight(.medium)
+                Text(shared
+                     ? "The nodes pull from this Mac's image store, so a pod can run an image built or pulled in Orchard without a registry."
+                     : "The nodes pull from registries only. To run images built or pulled in Orchard, recreate the cluster with Use local images on. Workloads in it are not kept.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !shared {
+                    Button("Recreate…") {
+                        Task {
+                            // Opened to turn the option on, so the sheet starts with it on.
+                            var settings = await clusterService.prepareRecreate(cluster)
+                            settings.sharedImageStore = true
+                            recreateSettings = settings
+                        }
+                    }
+                    .controlSize(.small)
+                    .disabled(clusterService.busyClusters.contains(cluster.name))
+                    .padding(.top, 4)
+                }
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     /// Before 1.6.0 the plugin creates single-node clusters only. From 1.6.0 workers are
@@ -260,7 +308,7 @@ struct ClusterDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Made by an older Apple container")
                     .font(.subheadline).fontWeight(.medium)
-                Text("Apple container 1.6.1 renamed its Kubernetes plugin, and the renamed plugin can't see clusters made before it, so loading images and writing the kubeconfig are off. Recreate deletes this cluster and creates it again with the same settings under the new plugin. Workloads and images loaded into it are not kept. Delete removes its node containers directly.")
+                Text("Apple container 1.6.1 renamed its Kubernetes plugin, and the renamed plugin can't see clusters made before it, so \(supportsLocalImages ? "writing the kubeconfig is" : "loading images and writing the kubeconfig are") off. Recreate deletes this cluster and creates it again with the same settings under the new plugin. Workloads and images loaded into it are not kept. Delete removes its node containers directly.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

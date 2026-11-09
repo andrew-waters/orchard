@@ -444,6 +444,17 @@ enum CommandPaletteCatalog {
         }
     }
 
+    private static func stopEntry(_ id: String) -> PaletteEntry {
+        PaletteEntry(
+            id: "container:\(id):stop",
+            section: .containers,
+            icon: "stop.circle",
+            title: "Stop: \(id)",
+            keywords: "stop halt container \(id)",
+            showsWhenEmpty: false,
+            action: .stopContainer(id))
+    }
+
     private static func containerEntries(_ container: Container, supportsCommit: Bool) -> [PaletteEntry] {
         let id = container.configuration.id
         let running = container.status == "running"
@@ -460,14 +471,10 @@ enum CommandPaletteCatalog {
                 action: .selectContainer(id)),
         ]
         if running {
-            entries.append(PaletteEntry(
-                id: "container:\(id):stop",
-                section: .containers,
-                icon: "stop.circle",
-                title: "Stop: \(id)",
-                keywords: "stop halt container \(id)",
-                showsWhenEmpty: false,
-                action: .stopContainer(id)))
+            // A cluster node stops with its cluster, so it has no Stop of its own.
+            if !container.isK8sNode {
+                entries.append(stopEntry(id))
+            }
             entries.append(PaletteEntry(
                 id: "container:\(id):console",
                 section: .containers,

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Clusters · Orchard</title>
-  <meta name="description" content="Manage local Kubernetes clusters created with Apple container's cluster plugin from Orchard: create and delete clusters at the Kubernetes version you choose, load local images, and get a kubectl-ready terminal in one click." />
+  <meta name="description" content="Manage local Kubernetes clusters created with Apple container's cluster plugin from Orchard: create and delete clusters at the Kubernetes version you choose, run local images, and get a kubectl-ready terminal in one click." />
   <meta property="og:title" content="Clusters · Orchard" />
   <meta property="og:description" content="Local Kubernetes clusters on Apple container, from a native macOS app." />
   <meta property="og:image" content="assets/screens/clusters.png" />
@@ -66,7 +66,7 @@
         <div class="grid">
           <div class="card"><h3>Clusters, grouped</h3><p>Node containers are grouped into named clusters with per-node role, status, IP, CPUs, memory and published ports. Expand a cluster in the list (or press the right arrow key) to see its nodes and open any of them.</p></div>
           <div class="card"><h3>Lifecycle</h3><p>Create at the Kubernetes version you choose, with optional CPU/memory overrides, worker nodes (container 1.6.0+) and a CNI of your choosing (kindnet, your own manifest, or none at all on container 1.6.0+), and delete with confirmation before anything destructive.</p></div>
-          <div class="card"><h3>Load local images</h3><p>Push any image from Orchard's image list into the cluster's containerd, on every node or only the ones you pick, so pods can use it without a registry.</p></div>
+          <div class="card"><h3>Run local images</h3><p>On container 1.7 and later, a cluster created with <strong>Use local images</strong> pulls straight from your Mac's image store, so pods run images built or pulled in Orchard without a registry. On 1.6.x, push an image into the cluster's containerd instead, on every node or only the ones you pick.</p></div>
           <div class="card"><h3>kubectl access</h3><p>Write or merge the cluster's context into your kubeconfig, copy the kubeconfig path, or open a terminal with the context already selected.</p></div>
           <div class="card"><h3>Plugin badges</h3><p>Cluster nodes show a plugin badge (e.g. "cluster · control-plane", or "k8s · control-plane" for a node made before 1.6.1) in the containers list and detail header.</p></div>
           <div class="card"><h3>Guardrails</h3><p>Installs without the cluster plugin get an explanatory state with upgrade guidance instead of broken buttons.</p></div>
@@ -85,7 +85,7 @@
           </li>
           <li>
             <h3>Create a cluster</h3>
-            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>cluster-dev</code> (<code>k8s-dev</code> before container 1.6.1); resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the cluster plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. Under <strong>Advanced</strong>, <strong>Workers</strong> adds that many worker nodes (container 1.6.0 and later), and <strong>CNI</strong> keeps the default kindnet, applies a manifest of yours in its place, or (container 1.6.0 and later) installs none, for you to add your own afterwards. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
+            <p>Click <strong>+</strong> (or "Create Cluster"). The default name is <code>cluster-dev</code> (<code>k8s-dev</code> before container 1.6.1); resource defaults come from the runtime unless you override them. <strong>Kubernetes Version</strong> defaults to the node image the cluster plugin ships with (marked Recommended); the menu also lists the newest <code>kindest/node</code> release of each version from 1.31, or you can give any tagged image. On container 1.7 and later, <strong>Use local images</strong> (on by default) lets the nodes pull from your Mac's image store; turn it off for workloads you don't trust (see <a href="#shared-images">Local images are shared with the cluster</a>). Under <strong>Advanced</strong>, <strong>Workers</strong> adds that many worker nodes (container 1.6.0 and later), and <strong>CNI</strong> keeps the default kindnet, applies a manifest of yours in its place, or (container 1.6.0 and later) installs none, for you to add your own afterwards. The first create pulls the Kubernetes node image (roughly 850&nbsp;MB) and bootstraps the control plane with <code>kubeadm</code>, so expect it to take several minutes.</p>
           </li>
           <li>
             <h3>Point kubectl at it</h3>
@@ -93,7 +93,8 @@
           </li>
           <li>
             <h3>Run your images</h3>
-            <p><strong>Load Image…</strong> exports an image from Orchard's local store into the cluster nodes' containerd. On a cluster with workers you can load it into every node (the default) or only the nodes you select. Reference it from a pod spec with <code>imagePullPolicy: Never</code> (or a matching tag) and no registry is needed.</p>
+            <p>On container 1.7 and later, a cluster created with <strong>Use local images</strong> sees every image on your Mac: reference one from a pod spec by the name Orchard shows and no registry is needed. After rebuilding a tag, use a new tag or <code>imagePullPolicy: Always</code>: with the default <code>IfNotPresent</code>, a node keeps the image it already has and a new pod runs the old build. Its detail says whether it can see your images; a cluster created without the option offers <strong>Recreate</strong> to turn it on, since only a create can. Container 1.7.1 removed <code>cluster load-image</code>, so <strong>Load Image</strong> is gone there.</p>
+            <p>On container 1.6.x, <strong>Load Image…</strong> exports an image from Orchard's local store into the cluster nodes' containerd. On a cluster with workers you can load it into every node (the default) or only the nodes you select. Reference it from a pod spec with <code>imagePullPolicy: Never</code> (or a matching tag).</p>
           </li>
         </ol>
       </div>
@@ -110,7 +111,17 @@
 
         <div class="callout warn">
           <h4>Clusters made before container 1.6.1</h4>
-          <p>Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, and the renamed plugin only sees nodes it labelled itself. A cluster made on 1.6.0 or earlier still shows in Orchard after you upgrade, with a note saying so, but <strong>Load Image</strong> and <strong>Write Kubeconfig</strong> are off for it because the CLI can't find it. <strong>Recreate</strong> deletes it and creates it again under the new plugin with the same settings. <strong>Delete</strong> removes its node containers directly, which leaves the cluster's context in your kubeconfig.</p>
+          <p>Container 1.6.1 renamed the plugin from <code>k8s</code> to <code>cluster</code>, and the renamed plugin only sees nodes it labelled itself. A cluster made on 1.6.0 or earlier still shows in Orchard after you upgrade, with a note saying so, but <strong>Write Kubeconfig</strong>, and on 1.6.x <strong>Load Image</strong>, are off for it because the CLI can't find it. <strong>Recreate</strong> deletes it and creates it again under the new plugin with the same settings. <strong>Delete</strong> removes its node containers directly, which leaves the cluster's context in your kubeconfig.</p>
+        </div>
+
+        <div class="callout warn" id="shared-images">
+          <h4>Local images are shared with the cluster</h4>
+          <p>With <strong>Use local images</strong> on, anything with root on a node, including privileged pods and pods with a <code>hostPath</code> mount, can read every image in your Mac's image store, private images pulled with your registry credentials included. A local image is also used before a registry image of the same name, for every pull policy and without the pod's pull secrets. Nodes can't add, change or delete images on your Mac. Turn the option off when you create a cluster for workloads you don't trust; it can only be changed by recreating the cluster.</p>
+        </div>
+
+        <div class="callout warn">
+          <h4>Nodes go with their cluster</h4>
+          <p>Stopping, force stopping or deleting one node on its own breaks the cluster's Kubernetes state, so Orchard doesn't offer it on any container version, and container 1.7.1's CLI refuses it too. In Containers, a node's Stop and Delete are off with a note pointing here, and Stop All and bulk actions skip nodes. Stop or delete the cluster from Clusters instead. Logs, terminals, stats and export work on a node as on any container.</p>
         </div>
 
         <div class="callout info">

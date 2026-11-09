@@ -199,7 +199,8 @@ struct EditContainerView: View {
                 try await containerListService.recreateContainer(
                     oldContainerId: container.configuration.id,
                     newConfig: config,
-                    originalConfig: original
+                    originalConfig: original,
+                    oldContainer: container
                 )
             } catch {
                 // Keep the sheet open with the error, so the user can adjust the form and retry.

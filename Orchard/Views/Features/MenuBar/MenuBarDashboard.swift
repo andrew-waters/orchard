@@ -313,8 +313,9 @@ struct MenuBarView: View {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.5)
-            } else if !row.isRunning && row.isClusterNode {
-                // Nothing to press: a stopped cluster node can only be recreated.
+            } else if row.isClusterNode {
+                // Nothing to press: a cluster node stops with its cluster, and a stopped one
+                // can only be recreated.
                 Color.clear
             } else {
                 Button {
@@ -338,12 +339,13 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private func rowMenu(_ row: Row) -> some View {
-        if row.isRunning {
+        if row.isClusterNode {
+            // Stop and Remove are the cluster's: say so rather than offer nothing.
+            Text(containers(for: row).first?.clusterNodeActionHelp ?? "Part of a cluster")
+        } else if row.isRunning {
             Button("Stop") { stop(row) }
         } else {
-            if !row.isClusterNode {
-                Button("Start") { Task { @MainActor in await containerListService.startContainer(row.id) } }
-            }
+            Button("Start") { Task { @MainActor in await containerListService.startContainer(row.id) } }
             Button("Remove") {
                 OwnedSandboxConfirmation.run(.remove, containers: containers(for: row), pending: $pendingOwnedConfirmation) {
                     Task { @MainActor in await containerListService.removeContainer(row.id) }

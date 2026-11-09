@@ -167,3 +167,169 @@ func dnsDefaultKeptWhenListFails() async {
 
     #expect(service.settings.defaultDNSDomain == "b.test")
 }
+
+// MARK: - [container.dns] defaults (container 1.7.1)
+
+private func dnsSpec(
+    domain: String = "", nameservers: [String] = [], search: [String] = [], options: [String] = [],
+    fallback: String? = nil
+) -> ContainerCreateSpec {
+    var spec = ContainerCreateSpec(
+        id: "web", imageRef: "nginx", environment: [], workingDirectory: "",
+        commandOverride: [], volumes: [], publishedPorts: [], dnsDomain: domain,
+        networkName: "", autoRemove: false, cpus: 1, memoryBytes: 1 << 30)
+    spec.dnsNameservers = nameservers
+    spec.dnsSearchDomains = search
+    spec.dnsOptions = options
+    spec.fallbackDNSDomain = fallback
+    return spec
+}
+
+private let configDefaults = ContainerDNSDefaults(
+    domain: "corp.test", nameservers: ["10.0.0.53"], searchDomains: ["corp.test"], options: ["ndots:2"])
+
+private func resolve(_ spec: ContainerCreateSpec, _ defaults: ContainerDNSDefaults = ContainerDNSDefaults(), host: String? = nil) -> ResolvedContainerDNS {
+    resolveContainerDNS(spec, defaults: defaults, hostDomain: host, defaultNameservers: ["1.1.1.1"])
+}
+
+@Test("DNS resolve: with no defaults, an empty spec still gets a configuration, with nothing in it")
+func resolveNoDefaults() {
+    #expect(resolve(dnsSpec()) == ResolvedContainerDNS(nameservers: [], domain: nil, searchDomains: [], options: []))
+}
+
+@Test("DNS resolve: a spec that sets nothing gets every [container.dns] default")
+func resolveDefaultsOnly() {
+    #expect(resolve(dnsSpec(), configDefaults, host: "host.test") == ResolvedContainerDNS(
+        nameservers: ["10.0.0.53"], domain: "corp.test", searchDomains: ["corp.test"], options: ["ndots:2"]))
+}
+
+@Test("DNS resolve: each field set in Orchard wins over its default, and the rest still default")
+func resolveOrchardFieldWins() {
+    let resolved = resolve(dnsSpec(domain: "test", nameservers: ["9.9.9.9"]), configDefaults, host: "host.test")
+    #expect(resolved == ResolvedContainerDNS(
+        nameservers: ["9.9.9.9"], domain: "test", searchDomains: ["corp.test"], options: ["ndots:2"]))
+    #expect(resolve(dnsSpec(search: ["a.test"], options: ["rotate"]), configDefaults).searchDomains == ["a.test"])
+    #expect(resolve(dnsSpec(search: ["a.test"], options: ["rotate"]), configDefaults).options == ["rotate"])
+}
+
+@Test("DNS resolve: the domain goes own, [container.dns], Orchard's fallback, then [dns].domain")
+func resolveDomainOrder() {
+    #expect(resolve(dnsSpec(domain: "own", fallback: "orchard"), configDefaults, host: "host").domain == "own")
+    #expect(resolve(dnsSpec(fallback: "orchard"), configDefaults, host: "host").domain == "corp.test")
+    #expect(resolve(dnsSpec(fallback: "orchard"), ContainerDNSDefaults(), host: "host").domain == "orchard")
+    #expect(resolve(dnsSpec(), ContainerDNSDefaults(), host: "host").domain == "host")
+    #expect(resolve(dnsSpec(), ContainerDNSDefaults(domain: ""), host: "").domain == nil)
+}
+
+@Test("DNS resolve: a domain set in Orchard brings the default nameservers only when nothing names any")
+func resolveDefaultNameservers() {
+    #expect(resolve(dnsSpec(domain: "test")).nameservers == ["1.1.1.1"])
+    #expect(resolve(dnsSpec(domain: "test"), configDefaults).nameservers == ["10.0.0.53"])
+    // A domain that only defaulted keeps the network's own nameserver, as before.
+    #expect(resolve(dnsSpec(fallback: "orchard")).nameservers.isEmpty)
+    #expect(resolve(dnsSpec(), ContainerDNSDefaults(domain: "corp.test")).nameservers.isEmpty)
+}
+
+@MainActor
+@Test("DNS default: [container.dns].domain beats the Orchard preference, which beats [dns].domain")
+func dnsDefaultContainerConfigFirst() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test","b.test","c.test"]"#, stderr: nil) }
+    let service = makeService(runner: runner)
+    service.dnsService.daemonDefaultDomain = { "a.test" }
+    service.dnsService.readContainerDNSDefaults = { ContainerDNSDefaults(domain: "c.test", nameservers: ["10.0.0.53"]) }
+    service.settings.setDefaultDNSDomain("b.test")
+
+    await service.dnsService.load(showLoading: false)
+
+    #expect(service.dnsService.containerDNSDefaults.nameservers == ["10.0.0.53"])
+    #expect(service.dnsService.defaultDomain == "c.test")
+    #expect(service.dnsService.unsetDomainFallback == "c.test")
+    #expect(service.dnsService.dnsDomains.first(where: \.isDefault)?.domain == "c.test")
+}
+
+@MainActor
+@Test("DNS default: an unreadable config.toml keeps the defaults read before")
+func dnsDefaultsKeptWhenUnreadable() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test"]"#, stderr: nil) }
+    let service = makeService(runner: runner)
+    service.dnsService.readContainerDNSDefaults = { ContainerDNSDefaults(domain: "c.test") }
+    await service.dnsService.load(showLoading: false)
+    service.dnsService.readContainerDNSDefaults = { throw OrchardError.generic("unreadable") }
+
+    await service.dnsService.load(showLoading: false)
+
+    #expect(service.dnsService.containerDefaultDomain == "c.test")
+}
+
+@MainActor
+@Test("Run form: a [container.dns] domain is left to the create, so it keeps the network's nameservers")
+func runFormLeavesConfigDomainToCreate() async throws {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["corp.test","b.test"]"#, stderr: nil) }
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend, runner: runner)
+    let defaults = ContainerDNSDefaults(domain: "corp.test")
+    service.dnsService.readContainerDNSDefaults = { defaults }
+    service.settings.setDefaultDNSDomain("b.test")
+    await service.dnsService.load(showLoading: false)
+
+    // The form starts on the empty choice, which names corp.test, rather than copying it in.
+    #expect(service.dnsService.runFormDomain == nil)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.dnsDomain = service.dnsService.runFormDomain ?? ""
+    await service.containerListService.runContainer(config: config)
+
+    let spec = try #require(backend.createdSpecs.first)
+    #expect(spec.dnsDomain.isEmpty)
+    let resolved = resolveContainerDNS(spec, defaults: defaults, hostDomain: nil, defaultNameservers: ["1.1.1.1"])
+    #expect(resolved.domain == "corp.test")
+    #expect(resolved.nameservers.isEmpty)
+}
+
+@MainActor
+@Test("Run form: with no [container.dns] domain it starts on Orchard's chosen default, as before")
+func runFormPrefillsOrchardDefault() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test","b.test"]"#, stderr: nil) }
+    let service = makeService(runner: runner)
+    service.dnsService.readContainerDNSDefaults = { ContainerDNSDefaults(nameservers: ["10.0.0.53"]) }
+    service.settings.setDefaultDNSDomain("b.test")
+    await service.dnsService.load(showLoading: false)
+
+    #expect(service.dnsService.runFormDomain == "b.test")
+}
+
+@MainActor
+@Test("Empty-choice label: read from the configuration the create reads, and unknown is not None")
+func unsetDomainLabelStates() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test"]"#, stderr: nil) }
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend, runner: runner)
+    // A stale cached property must not decide the label: the configuration read does.
+    service.dnsService.daemonDefaultDomain = { "stale.test" }
+
+    // Before any read the domain isn't known.
+    #expect(service.dnsService.unsetDomainLabel == "container default")
+
+    // Read, with no domain anywhere: None.
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "None")
+
+    // [dns].domain, read through the backend as the create reads it.
+    backend.daemonDNSDomainHandler = { "stack" }
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "container default (stack)")
+
+    // [container.dns].domain comes first.
+    service.dnsService.readContainerDNSDefaults = { ContainerDNSDefaults(domain: "corp.test") }
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "container default (corp.test)")
+
+    // A failed read says the domain isn't known, rather than None or the last one.
+    backend.daemonDNSDomainHandler = { throw OrchardError.generic("unreadable") }
+    await service.dnsService.load(showLoading: false)
+    #expect(service.dnsService.unsetDomainLabel == "container default")
+}

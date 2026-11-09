@@ -135,7 +135,19 @@ final class ContainerListService: ObservableObject {
         }
     }
 
+    /// The backstop for Stop, Force Stop and Delete on a cluster node, whatever view asked: the
+    /// views leave them out, and this refuses any path that gets through, saying why. Start has
+    /// its own, which points at Recreate.
+    private func refuseClusterNode(_ id: String) -> Bool {
+        guard let help = containers.first(where: { $0.configuration.id == id })?.clusterNodeActionHelp else {
+            return false
+        }
+        alertCenter.error(help)
+        return true
+    }
+
     func forceStopContainer(_ id: String) async {
+        if refuseClusterNode(id) { return }
         loadingContainers.insert(id)
         self.alertCenter.dismiss()
 
@@ -152,6 +164,7 @@ final class ContainerListService: ObservableObject {
     }
 
     func stopContainer(_ id: String) async {
+        if refuseClusterNode(id) { return }
         loadingContainers.insert(id)
         self.alertCenter.dismiss()
 
@@ -318,6 +331,7 @@ final class ContainerListService: ObservableObject {
     }
 
     func removeContainer(_ id: String) async {
+        if refuseClusterNode(id) { return }
         loadingContainers.insert(id)
         self.alertCenter.dismiss()
 
@@ -338,8 +352,11 @@ final class ContainerListService: ObservableObject {
         }
     }
 
+    /// Remove each of `ids`, skipping cluster nodes: a bulk remove leaves them to their cluster
+    /// without an alert per node.
     func removeContainers(_ ids: [String]) async {
-        for id in ids {
+        let nodes = Set(containers.filter(\.isK8sNode).map(\.configuration.id))
+        for id in ids where !nodes.contains(id) {
             await removeContainer(id)
         }
     }
@@ -489,9 +506,19 @@ final class ContainerListService: ObservableObject {
     /// example an alias another container already has. Given `originalConfig`, the container is
     /// then created again as it was, so a refused edit doesn't lose it, and the refusal is still
     /// thrown.
+    ///
+    /// A cluster node is refused before anything is deleted: recreating one on its own, from an
+    /// edit or a mount removal, breaks its cluster as surely as deleting it. `oldContainer` is the
+    /// caller's own copy, such as the one an Edit sheet opened with, so the check holds even when
+    /// a refresh since has dropped it from `containers`; without one the list decides.
     func recreateContainer(
-        oldContainerId: String, newConfig: ContainerRunConfig, originalConfig: ContainerRunConfig? = nil
+        oldContainerId: String, newConfig: ContainerRunConfig, originalConfig: ContainerRunConfig? = nil,
+        oldContainer: Container? = nil
     ) async throws {
+        let old = oldContainer ?? containers.first(where: { $0.configuration.id == oldContainerId })
+        if let help = old?.clusterNodeActionHelp {
+            throw OrchardError.generic("Did not recreate \(oldContainerId): \(help)")
+        }
         var config = newConfig
         do {
             config.platform = try await checkedRecreatePlatform(for: newConfig)

@@ -171,7 +171,7 @@ struct ContainersListView: View {
             Spacer()
 
             Menu {
-                let startable = stopped.filter { !$0.isK8sNode }
+                let startable = stopped.excludingClusterNodes
                 Button("Start All (\(startable.count))") {
                     let ids = startable.map { $0.configuration.id }
                     Task {
@@ -182,9 +182,11 @@ struct ContainersListView: View {
                 }
                 .disabled(startable.isEmpty)
 
-                Button("Stop All (\(running.count))") {
-                    let ids = running.map { $0.configuration.id }
-                    OwnedSandboxConfirmation.run(.stop, containers: running, pending: $pendingOwnedConfirmation) {
+                // Cluster nodes stop with their cluster, so they are left out here too.
+                let stoppable = running.excludingClusterNodes
+                Button("Stop All (\(stoppable.count))") {
+                    let ids = stoppable.map { $0.configuration.id }
+                    OwnedSandboxConfirmation.run(.stop, containers: stoppable, pending: $pendingOwnedConfirmation) {
                         Task {
                             for id in ids {
                                 await containerListService.stopContainer(id)
@@ -192,7 +194,7 @@ struct ContainersListView: View {
                         }
                     }
                 }
-                .disabled(running.isEmpty)
+                .disabled(stoppable.isEmpty)
             } label: {
                 SwiftUI.Image(systemName: "ellipsis.circle")
                     .font(.system(size: 12))
@@ -220,26 +222,34 @@ struct ContainersListView: View {
         let runningContainers = targetContainers.filter { $0.status.lowercased() == "running" }
         let anyRunning = !runningContainers.isEmpty
         let anyStopped = targetContainers.contains { $0.status.lowercased() != "running" }
+        // Cluster nodes stop and go with their cluster, so Stop, Force Stop and Remove leave them out.
+        let stoppableContainers = runningContainers.excludingClusterNodes
+        let stoppableIds = stoppableContainers.map { $0.configuration.id }
 
-        if anyRunning {
-            Button(multiple ? "Stop \(targetIds.count) Containers" : "Stop Container") {
-                OwnedSandboxConfirmation.run(.stop, containers: runningContainers, pending: $pendingOwnedConfirmation) {
+        if !multiple, let help = container.clusterNodeActionHelp {
+            Text(help)
+        }
+        if !stoppableIds.isEmpty {
+            Button(stoppableIds.count > 1 ? "Stop \(stoppableIds.count) Containers" : "Stop Container") {
+                OwnedSandboxConfirmation.run(.stop, containers: stoppableContainers, pending: $pendingOwnedConfirmation) {
                     Task {
-                        for id in targetIds {
+                        for id in stoppableIds {
                             await containerListService.stopContainer(id)
                         }
                     }
                 }
             }
-            Button(multiple ? "Force Stop \(targetIds.count) Containers" : "Force Stop", role: .destructive) {
-                OwnedSandboxConfirmation.run(.forceStop, containers: runningContainers, pending: $pendingOwnedConfirmation) {
+            Button(stoppableIds.count > 1 ? "Force Stop \(stoppableIds.count) Containers" : "Force Stop", role: .destructive) {
+                OwnedSandboxConfirmation.run(.forceStop, containers: stoppableContainers, pending: $pendingOwnedConfirmation) {
                     Task {
-                        for id in targetIds {
+                        for id in stoppableIds {
                             await containerListService.forceStopContainer(id)
                         }
                     }
                 }
             }
+        }
+        if anyRunning {
             // Only running containers can be trimmed, so a mixed selection reclaims
             // just the running ones.
             let runningIds = runningContainers.map { $0.configuration.id }
@@ -288,7 +298,9 @@ struct ContainersListView: View {
 
         // Only stopped containers can be removed, as everywhere else, so a mixed selection
         // removes just the stopped ones and a running container offers no Remove.
-        let stoppedContainers = targetContainers.filter { $0.status.lowercased() != "running" }
+        let stoppedContainers = targetContainers
+            .filter { $0.status.lowercased() != "running" }
+            .excludingClusterNodes
         if !stoppedContainers.isEmpty {
             let stoppedIds = stoppedContainers.map { $0.configuration.id }
             Divider()

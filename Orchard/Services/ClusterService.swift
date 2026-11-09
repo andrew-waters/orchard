@@ -40,6 +40,16 @@ struct K8sCluster: Identifiable, Equatable {
     /// A cluster is running when its control plane is; workers can lag behind.
     var isRunning: Bool { controlPlane?.isRunning ?? false }
     var status: String { controlPlane?.container.status ?? nodes.first?.container.status ?? "unknown" }
+    /// Whether the cluster's nodes pull from the Mac's own image store, as a cluster made with
+    /// `cluster create --shared-image-store` (container 1.7) does. Read off the control plane's
+    /// mounts, so it holds for a cluster made outside Orchard too.
+    var usesSharedImageStore: Bool {
+        guard let node = controlPlane ?? nodes.first else { return false }
+        return node.container.configuration.mounts.contains { $0.destination == Self.hostStoreSocketMountPath }
+    }
+    /// Where `--shared-image-store` mounts the host store's socket in each node
+    /// (`ClusterHelper.nodeHostStoreSocketPath` upstream).
+    static let hostStoreSocketMountPath = "/opt/cluster-shim/hoststore.sock"
     /// Made by the `k8s` plugin, before container 1.6.1. From 1.6.1 the CLI only sees nodes
     /// labelled `cluster`, so such a cluster can't be managed through it: see `ClusterService.isStranded`.
     var isLegacy: Bool { !nodes.isEmpty && nodes.allSatisfy { $0.container.owningPlugin == Self.legacyPluginName } }
@@ -145,6 +155,8 @@ struct ClusterRecreateSettings: Equatable, Identifiable {
     let nodeImage: NodeImage
     let cni: ClusterCNI
     let workers: Int
+    /// Whether the nodes use the Mac's image store (`--shared-image-store`, container 1.7).
+    var sharedImageStore: Bool = false
 
     var id: String { name }
 }
@@ -232,10 +244,14 @@ final class ClusterService: ObservableObject {
         /// True for a cluster created with no CNI. Separate from `cni` so it can never be taken
         /// for a path, and nil in options saved before it existed.
         let noCNI: Bool?
+        /// Whether the cluster was created with `--shared-image-store`. Nil in options saved
+        /// before it existed.
+        let sharedImageStore: Bool?
 
-        init(nodeImage: String?, cni: ClusterCNI, workers: Int) {
+        init(nodeImage: String?, cni: ClusterCNI, workers: Int, sharedImageStore: Bool) {
             self.nodeImage = nodeImage
             self.workers = workers
+            self.sharedImageStore = sharedImageStore
             switch cni {
             case .kindnet:
                 self.cni = nil
@@ -314,7 +330,10 @@ final class ClusterService: ObservableObject {
             // The live count wins: unlike the image and CNI it can be read off the cluster, and a
             // remembered one is stale after a delete and create outside Orchard. Remembered only
             // covers a cluster left with no workers.
-            workers: cluster.workers.isEmpty ? (remembered?.workers ?? 0) : cluster.workers.count)
+            workers: cluster.workers.isEmpty ? (remembered?.workers ?? 0) : cluster.workers.count,
+            // Likewise the node's mount wins, and the remembered choice covers a cluster with no
+            // node left to read it from.
+            sharedImageStore: cluster.nodes.isEmpty ? (remembered?.sharedImageStore ?? false) : cluster.usesSharedImageStore)
     }
 
     /// Container 1.6.0 added worker nodes (`k8s create --workers`, `k8s load-image --node`).
@@ -329,6 +348,18 @@ final class ClusterService: ObservableObject {
     nonisolated static func supportsNoCNI(containerVersion: String?) -> Bool {
         isContainerVersion(containerVersion, atLeast: [1, 6])
     }
+
+    /// Container 1.7 replaced `cluster load-image` with `cluster create --shared-image-store`
+    /// (apple/container#2437), which lets the nodes pull from the Mac's own image store. Load
+    /// Image is offered below 1.7 only, and the create option from 1.7.
+    nonisolated static func supportsSharedImageStore(containerVersion: String?) -> Bool {
+        isContainerVersion(containerVersion, atLeast: [1, 7])
+    }
+
+    var supportsSharedImageStore: Bool { Self.supportsSharedImageStore(containerVersion: containerVersion()) }
+
+    /// Why Load Image is gone on 1.7, wherever it would have been.
+    nonisolated static let loadImageRemovedHelp = "Apple container 1.7 removed Load Image. A cluster created with Use local images pulls from this Mac's images instead."
 
     /// The plugin's subcommand: container 1.6.1 renamed `k8s` to `cluster` (apple/container#2427).
     /// Nil (the system is stopped) or an unparseable version is `k8s`, like the other gates.
@@ -434,8 +465,14 @@ final class ClusterService: ObservableObject {
     ///
     /// `workers` above 0 adds that many worker nodes (1.6.0). The flag is left out at 0, the
     /// CLI's own default, so a 1.5.x install never sees it.
+    ///
+    /// `sharedImageStore` lets the nodes pull from the Mac's image store (1.7). It is only ever
+    /// passed on 1.7 or later, whatever the caller asks for.
     @discardableResult
-    func create(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI = .kindnet, workers: Int = 0) async -> Bool {
+    func create(
+        name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI = .kindnet, workers: Int = 0,
+        sharedImageStore: Bool = false
+    ) async -> Bool {
         // A taken name fails in the CLI, and must not first overwrite what the existing
         // cluster was created with: its Recreate would then rebuild it from the wrong choices.
         // The list is refreshed first, since a container made outside Orchard since the last
@@ -443,15 +480,16 @@ final class ClusterService: ObservableObject {
         await reloadContainers()
         return await performCreate(
             name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
-            rememberOptions: !existingContainerIDs().contains(name))
+            sharedImageStore: sharedImageStore, rememberOptions: !existingContainerIDs().contains(name))
     }
 
     /// `create`, with the options' save decided by the caller. Recreate always saves: its
     /// delete has succeeded, though the container list may not have caught up yet.
     private func performCreate(
         name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI, workers: Int,
-        rememberOptions: Bool
+        sharedImageStore: Bool, rememberOptions: Bool
     ) async -> Bool {
+        let sharedImageStore = sharedImageStore && supportsSharedImageStore
         var arguments = [pluginCommand, "create", "--name", name]
         if let cpus { arguments += ["--cpus", String(cpus)] }
         if let memory, !memory.isEmpty { arguments += ["--memory", memory] }
@@ -462,6 +500,7 @@ final class ClusterService: ObservableObject {
         case .userInstalled: arguments += ["--cni", "NONE"]
         }
         if workers > 0 { arguments += ["--workers", String(workers)] }
+        if sharedImageStore { arguments.append("--shared-image-store") }
 
         isCreating = true
         defer { isCreating = false }
@@ -470,7 +509,7 @@ final class ClusterService: ObservableObject {
         if rememberOptions {
             setRememberedOptions(
                 RememberedOptions(nodeImage: nodeImage?.isEmpty == false ? nodeImage : nil,
-                                  cni: cni, workers: workers),
+                                  cni: cni, workers: workers, sharedImageStore: sharedImageStore),
                 for: name)
         }
         // A recreate starts the wait again; anything else under this name has stopped waiting.
@@ -525,7 +564,10 @@ final class ClusterService: ObservableObject {
     /// has to delete first and then retype what they created. Stops if the delete fails,
     /// which leaves the cluster as it was.
     @discardableResult
-    func recreate(name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI, workers: Int = 0) async -> Bool {
+    func recreate(
+        name: String, cpus: Int?, memory: String?, nodeImage: String?, cni: ClusterCNI, workers: Int = 0,
+        sharedImageStore: Bool = false
+    ) async -> Bool {
         busyClusters.insert(name)
         defer { busyClusters.remove(name) }
         let deleted = await runClusterCommand(
@@ -533,7 +575,7 @@ final class ClusterService: ObservableObject {
         guard deleted else { return false }
         return await performCreate(
             name: name, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
-            rememberOptions: true)
+            sharedImageStore: sharedImageStore, rememberOptions: true)
     }
 
     /// The plugin's delete, or for a stranded cluster a forced delete of each node container,
@@ -657,8 +699,15 @@ final class ClusterService: ObservableObject {
     /// Load a local image into the cluster's containerd (`container cluster load-image`),
     /// so cluster workloads can use images built or pulled in Orchard. Empty `nodes` loads it
     /// into every node; otherwise only into those named, one `--node` each (1.6.0).
+    ///
+    /// Refused from container 1.7, which removed the subcommand: the views don't offer it there,
+    /// and this keeps any other path from running a command that can only fail.
     @discardableResult
     func loadImage(cluster: String, reference: String, nodes: [String] = []) async -> Bool {
+        guard !supportsSharedImageStore else {
+            alertCenter.error(Self.loadImageRemovedHelp)
+            return false
+        }
         isLoadingImage = true
         defer { isLoadingImage = false }
         return await runClusterCommand(

@@ -466,7 +466,7 @@ func groupClusterWithWorkers() throws {
 
 @Test("Worker nodes are offered from container 1.6.0, and not when the version is unknown")
 func supportsWorkerNodesByVersion() {
-    for version in ["1.6.0", "1.6.1", "1.10.0", "2.0", "2.0.0"] {
+    for version in ["1.6.0", "1.6.1", "1.7.1", "1.10.0", "2.0", "2.0.0"] {
         #expect(ClusterService.supportsWorkerNodes(containerVersion: version), "\(version)")
     }
     for version in ["1.5.0", "1.5.10", "0.9.0", "1", "", "unknown", "1.6.0-beta"] {
@@ -580,6 +580,7 @@ private func runningCluster() throws -> K8sCluster {
 @Test("No CNI is offered from container 1.6.0, and not when the version is unknown")
 func supportsNoCNIByVersion() {
     #expect(ClusterService.supportsNoCNI(containerVersion: "1.6.0"))
+    #expect(ClusterService.supportsNoCNI(containerVersion: "1.7.1"))
     #expect(ClusterService.supportsNoCNI(containerVersion: "2.0"))
     #expect(!ClusterService.supportsNoCNI(containerVersion: "1.5.10"))
     #expect(!ClusterService.supportsNoCNI(containerVersion: nil))
@@ -732,6 +733,7 @@ private func clusterNode(_ id: String, role: String? = nil, status: String = "ru
 func pluginCommandByVersion() {
     #expect(ClusterService.pluginCommand(containerVersion: "1.6.1") == "cluster")
     #expect(ClusterService.pluginCommand(containerVersion: "1.7") == "cluster")
+    #expect(ClusterService.pluginCommand(containerVersion: "1.7.1") == "cluster")
     #expect(ClusterService.pluginCommand(containerVersion: "1.6.0") == "k8s")
     #expect(ClusterService.pluginCommand(containerVersion: "1.6") == "k8s")
     #expect(ClusterService.pluginCommand(containerVersion: nil) == "k8s")
@@ -832,4 +834,115 @@ func legacyDeleteOnOldInstall() async throws {
 
     await service.clusterService.delete(name: "k8s-dev")
     #expect(runner.calls.last == ["k8s", "delete", "--name", "k8s-dev"])
+}
+
+// MARK: - Local images (1.7)
+
+/// A 1.7 control-plane node, with the host store socket mounted when made with `--shared-image-store`.
+private func sharedStoreNode(_ id: String, shared: Bool) throws -> Container {
+    let mounts = shared
+        ? #"[{ "type": { "virtiofs": {} }, "source": "/Users/me/Library/Application Support/com.apple.container/cluster-hoststore.sock", "options": [], "destination": "/opt/cluster-shim/hoststore.sock" }]"#
+        : "[]"
+    return try makeContainer(
+        id: id, status: "running",
+        labels: ["com.apple.container.plugin": "cluster", "com.apple.container.resource.role": "control-plane,worker"],
+        mountsJSON: mounts)
+}
+
+@Test("Local images are offered from container 1.7, and Load Image below it")
+func supportsSharedImageStoreByVersion() {
+    for version in ["1.7.0", "1.7.1", "1.10.0", "2.0"] {
+        #expect(ClusterService.supportsSharedImageStore(containerVersion: version), "\(version)")
+    }
+    for version in ["1.6.1", "1.6.0", "1.5.10", "garbage"] {
+        #expect(!ClusterService.supportsSharedImageStore(containerVersion: version), "\(version)")
+    }
+    #expect(!ClusterService.supportsSharedImageStore(containerVersion: nil))
+}
+
+@MainActor
+@Test("Create on 1.7.1: Use local images passes --shared-image-store, and leaving it off doesn't")
+func createSharedImageStoreArguments() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.7.1"
+
+    await service.clusterService.create(name: "shared", cpus: nil, memory: nil, nodeImage: nil, sharedImageStore: true)
+    await service.clusterService.create(name: "own", cpus: nil, memory: nil, nodeImage: nil, sharedImageStore: false)
+
+    #expect(runner.calls.contains(["cluster", "create", "--name", "shared", "--shared-image-store"]))
+    #expect(runner.calls.contains(["cluster", "create", "--name", "own"]))
+}
+
+@MainActor
+@Test("Create below 1.7: --shared-image-store is never passed, even when asked for")
+func createSharedImageStoreUnsupported() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.6.1"
+
+    await service.clusterService.create(name: "cluster-dev", cpus: nil, memory: nil, nodeImage: nil, sharedImageStore: true)
+    await service.clusterService.recreate(name: "cluster-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .kindnet, sharedImageStore: true)
+
+    #expect(!runner.calls.contains { $0.contains("--shared-image-store") })
+    #expect(runner.calls.contains(["cluster", "create", "--name", "cluster-dev"]))
+}
+
+@MainActor
+@Test("Load Image on 1.7.1 never runs the removed load-image, and says why")
+func loadImageRefusedOn17() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.7.1"
+
+    let loaded = await service.clusterService.loadImage(cluster: "cluster-dev", reference: "demo-api:latest")
+
+    #expect(!loaded)
+    #expect(!runner.calls.contains { $0.contains("load-image") })
+    #expect(service.alertCenter.current?.message == ClusterService.loadImageRemovedHelp)
+}
+
+@Test("A cluster sees local images when its control plane has the host store socket mounted")
+func clusterUsesSharedImageStore() throws {
+    let shared = try #require(K8sCluster.group(containers: [try sharedStoreNode("shared", shared: true)]).first)
+    let own = try #require(K8sCluster.group(containers: [try sharedStoreNode("own", shared: false)]).first)
+    #expect(shared.usesSharedImageStore)
+    #expect(!own.usesSharedImageStore)
+}
+
+@MainActor
+@Test("Recreate settings: Use local images comes from the node, so a cluster made outside Orchard keeps it")
+func recreateSettingsSharedImageStore() throws {
+    let service = makeService()
+    let shared = try #require(K8sCluster.group(containers: [try sharedStoreNode("shared", shared: true)]).first)
+    let own = try #require(K8sCluster.group(containers: [try sharedStoreNode("own", shared: false)]).first)
+
+    #expect(service.clusterService.recreateSettings(for: shared).sharedImageStore)
+    #expect(!service.clusterService.recreateSettings(for: own).sharedImageStore)
+}
+
+@MainActor
+@Test("Recreate: passes Use local images back to the create")
+func recreateRestoresSharedImageStore() async {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.7.1"
+
+    await service.clusterService.recreate(name: "cluster-dev", cpus: nil, memory: nil, nodeImage: nil, cni: .kindnet, sharedImageStore: true)
+
+    #expect(runner.calls.contains(["cluster", "delete", "--name", "cluster-dev"]))
+    #expect(runner.calls.contains(["cluster", "create", "--name", "cluster-dev", "--shared-image-store"]))
+}
+
+@MainActor
+@Test("Remembered options: Use local images is remembered with the cluster's other create options")
+func rememberedSharedImageStore() async {
+    let service = makeService()
+    service.systemService.containerVersion = "1.7.1"
+    await service.clusterService.create(name: "shared", cpus: nil, memory: nil, nodeImage: nil, sharedImageStore: true)
+    await service.clusterService.create(name: "own", cpus: nil, memory: nil, nodeImage: nil, sharedImageStore: false)
+
+    // No node left to read it from, so the remembered choice decides.
+    #expect(service.clusterService.recreateSettings(for: K8sCluster(name: "shared", nodes: [])).sharedImageStore)
+    #expect(!service.clusterService.recreateSettings(for: K8sCluster(name: "own", nodes: [])).sharedImageStore)
 }

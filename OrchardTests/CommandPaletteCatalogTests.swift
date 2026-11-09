@@ -91,6 +91,16 @@ struct CommandPaletteCatalogTests {
         #expect(!unsupported.contains { $0.hasSuffix(":commit") })
     }
 
+    @Test("A running cluster node gets no stop verb, but keeps console and logs")
+    func clusterNodeHasNoStopVerb() throws {
+        let all = ids(catalog(containers: [
+            try makeContainer(id: "cluster-dev", status: "running", labels: ["com.apple.container.plugin": "cluster"]),
+        ]))
+        #expect(!all.contains("container:cluster-dev:stop"))
+        #expect(all.contains("container:cluster-dev:console"))
+        #expect(all.contains("container:cluster-dev:logs"))
+    }
+
     @Test("A stopped k8s node gets no start verb: it can only be recreated")
     func clusterNodeHasNoStartVerb() throws {
         let all = ids(catalog(containers: [

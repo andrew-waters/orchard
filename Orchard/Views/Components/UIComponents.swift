@@ -344,9 +344,16 @@ struct ContainerRow: View {
                     Divider()
                 }
 
-                Button("Stop Container") {
-                    stopContainer(container.configuration.id)
+                if let help = container.clusterNodeActionHelp {
+                    Text(help)
+                } else {
+                    Button("Stop Container") {
+                        stopContainer(container.configuration.id)
+                    }
                 }
+            } else if let help = container.clusterNodeActionHelp {
+                // A node is neither started nor removed on its own.
+                Text(help)
             } else {
                 Button("Start Container") {
                     startContainer(container.configuration.id)

@@ -70,9 +70,8 @@ struct ContainerConfigForm: View {
             await networkService.load(showLoading: false)
             await dnsService.load(showLoading: false)
             await modelService.load(showLoading: false)
-            if config.dnsDomain.isEmpty,
-               let defaultDomain = dnsService.dnsDomains.first(where: { $0.isDefault }) {
-                config.dnsDomain = defaultDomain.domain
+            if config.dnsDomain.isEmpty, let domain = dnsService.runFormDomain {
+                config.dnsDomain = domain
             }
         }
         .task {
@@ -173,7 +172,8 @@ struct ContainerConfigForm: View {
                         .fontWeight(.medium)
 
                     Picker("DNS Domain", selection: $config.dnsDomain) {
-                        Text("None").tag("")
+                        // Empty takes the default from container's config.toml, so it says which.
+                        Text(dnsService.unsetDomainLabel).tag("")
                         ForEach(dnsService.dnsDomains, id: \.domain) { domain in
                             Text(domain.domain).tag(domain.domain)
                         }

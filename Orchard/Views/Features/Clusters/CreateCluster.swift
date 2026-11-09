@@ -3,7 +3,8 @@ import UniformTypeIdentifiers
 
 /// Create a local Kubernetes cluster via `container cluster create`. Mirrors the CLI's
 /// options: name, optional resource overrides, the Kubernetes version (as a node image),
-/// and, under Advanced, worker nodes (1.6.0) and the CNI: kindnet, a manifest, or none (1.6.0).
+/// whether the nodes use the Mac's images (1.7), and, under Advanced, worker nodes (1.6.0) and
+/// the CNI: kindnet, a manifest, or none (1.6.0).
 struct CreateClusterView: View {
     /// `pluginDefault` passes no `--node-image`, so the CLI uses its own default even when
     /// Orchard could not read which one that is.
@@ -38,6 +39,8 @@ struct CreateClusterView: View {
     /// Set when a recreated cluster had no CNI but this install can't skip it, so it gets kindnet.
     @State private var cniFallbackNote: String?
     @State private var workers: Int = 0
+    /// `--shared-image-store`: on by default for a new cluster, as the cluster's choice when recreating.
+    @State private var useLocalImages = true
     @State private var validationError: String?
 
     /// Set when recreating: the sheet opens filled in from the existing cluster, keeps its
@@ -74,6 +77,7 @@ struct CreateClusterView: View {
             _cniChoice = State(initialValue: .userInstalled)
         }
         _workers = State(initialValue: recreating.workers)
+        _useLocalImages = State(initialValue: recreating.sharedImageStore)
         _showAdvanced = State(initialValue: recreating.cni != .kindnet || recreating.workers > 0)
     }
 
@@ -116,6 +120,10 @@ struct CreateClusterView: View {
                     }
 
                     kubernetesVersionField
+
+                    if supportsLocalImages {
+                        localImagesField
+                    }
 
                     DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
                         VStack(alignment: .leading, spacing: 20) {
@@ -236,6 +244,24 @@ struct CreateClusterView: View {
                     .textFieldStyle(.roundedBorder)
             }
         }
+    }
+
+    // MARK: - Local images
+
+    private var supportsLocalImages: Bool {
+        ClusterService.supportsSharedImageStore(containerVersion: systemService.containerVersion)
+    }
+
+    private var localImagesField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("Use local images", isOn: $useLocalImages)
+            Text(useLocalImages
+                 ? "The nodes pull from this Mac's images, so an image built or pulled in Orchard runs in the cluster without copying it in. Only a create can turn this on: an existing cluster gets it by being recreated. Privileged pods and pods with a hostPath mount can read every image here, private ones included, and pods use a local image without its pull secrets, so turn this off for workloads you don't trust."
+                 : "The nodes keep their own image store and pull from registries only. Images on this Mac can't be loaded into them later.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Workers
@@ -427,11 +453,16 @@ struct CreateClusterView: View {
             let cpus = overrideResources ? cpus : nil
             let memory = overrideResources ? "\(memoryGiB)GB" : nil
             let workers = supportsWorkers ? workers : 0
+            let sharedImageStore = supportsLocalImages && useLocalImages
             let created: Bool
             if recreating == nil {
-                created = await clusterService.create(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers)
+                created = await clusterService.create(
+                    name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
+                    sharedImageStore: sharedImageStore)
             } else {
-                created = await clusterService.recreate(name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers)
+                created = await clusterService.recreate(
+                    name: trimmedName, cpus: cpus, memory: memory, nodeImage: nodeImage, cni: cni, workers: workers,
+                    sharedImageStore: sharedImageStore)
             }
             if created { await MainActor.run { dismiss() } }
         }

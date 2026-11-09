@@ -77,17 +77,82 @@ struct ContainerCreateSpec: Sendable {
     /// Extra DNS names for the attachment, as entered: `api`, `.gateway` or fully qualified.
     /// The create adds `dnsDomain` to a name without a dot, as `container run` does.
     var networkAliases: [String] = []
-    /// The domain used when `dnsDomain` is empty, for the hostname, the aliases and the
-    /// resolver's domain: Orchard's default domain, for a compose service whose file has no say
-    /// in it. Unlike `dnsDomain` it does not bring the default nameservers, so the container
-    /// keeps the network's own unless the file names others.
+    /// The domain used when `dnsDomain` is empty and `config.toml` sets no `[container.dns]`
+    /// domain, for the hostname, the aliases and the resolver's domain: Orchard's default domain,
+    /// for a compose service whose file has no say in it. Unlike `dnsDomain` it does not bring
+    /// the default nameservers, so the container keeps the network's own unless the file names
+    /// others.
     var fallbackDNSDomain: String? = nil
+}
 
-    /// The domain the container is created under: its own, else the fallback, else none.
-    var effectiveDNSDomain: String {
-        if !dnsDomain.isEmpty { return dnsDomain }
-        return fallbackDNSDomain ?? ""
+/// The `[container.dns]` defaults in container's `config.toml` (apple/container#1614,
+/// container 1.7.1): what a container gets for each DNS field it doesn't set itself.
+struct ContainerDNSDefaults: Equatable, Sendable {
+    var domain: String? = nil
+    var nameservers: [String] = []
+    var searchDomains: [String] = []
+    var options: [String] = []
+
+    var isEmpty: Bool {
+        (domain ?? "").isEmpty && nameservers.isEmpty && searchDomains.isEmpty && options.isEmpty
     }
+
+    init(domain: String? = nil, nameservers: [String] = [], searchDomains: [String] = [], options: [String] = []) {
+        self.domain = domain.flatMap { $0.isEmpty ? nil : $0 }
+        self.nameservers = nameservers
+        self.searchDomains = searchDomains
+        self.options = options
+    }
+
+    /// From the `[container.dns]` section as container's configuration loader reads it; nil
+    /// (no section) is no defaults. The one place both the create and Settings read it through.
+    init(_ config: ContainerDNSConfig?) {
+        self.init(
+            domain: config?.domain,
+            nameservers: config?.nameservers ?? [],
+            searchDomains: config?.searchDomains ?? [],
+            options: config?.options ?? [])
+    }
+}
+
+/// The resolver configuration a container is created with.
+struct ResolvedContainerDNS: Equatable {
+    var nameservers: [String]
+    var domain: String?
+    var searchDomains: [String]
+    var options: [String]
+}
+
+/// The DNS a container Orchard creates gets, with the precedence `container run` gives it
+/// (`Utility.dnsConfiguration` upstream): each field the spec sets wins, then the
+/// `[container.dns]` defaults, then, for the domain only, the host's `[dns].domain`.
+///
+/// The domain goes the spec's own, `[container.dns].domain`, the spec's fallback (Orchard's
+/// chosen default, for compose), then `hostDomain`. Two of Orchard's own rules stay: when the
+/// spec names a domain and nothing names nameservers, the default nameservers are added; and
+/// a configuration is always returned, so the container always gets an `/etc/resolv.conf`.
+func resolveContainerDNS(
+    _ spec: ContainerCreateSpec,
+    defaults: ContainerDNSDefaults,
+    hostDomain: String?,
+    defaultNameservers: [String]
+) -> ResolvedContainerDNS {
+    func nonEmpty(_ value: String?) -> String? { value.flatMap { $0.isEmpty ? nil : $0 } }
+    func pick(_ own: [String], _ fallback: [String]) -> [String] { own.isEmpty ? fallback : own }
+
+    let domain = nonEmpty(spec.dnsDomain)
+        ?? nonEmpty(defaults.domain)
+        ?? nonEmpty(spec.fallbackDNSDomain)
+        ?? nonEmpty(hostDomain)
+    var nameservers = pick(spec.dnsNameservers, defaults.nameservers)
+    if nameservers.isEmpty && !spec.dnsDomain.isEmpty {
+        nameservers = defaultNameservers
+    }
+    return ResolvedContainerDNS(
+        nameservers: nameservers,
+        domain: domain,
+        searchDomains: pick(spec.dnsSearchDomains, defaults.searchDomains),
+        options: pick(spec.dnsOptions, defaults.options))
 }
 
 /// Combine an image's entrypoint and cmd with a user command override into the final
@@ -178,6 +243,9 @@ protocol ContainerBackend: Sendable {
     /// the system configuration now rather than from a cache, or nil when none is set. What
     /// `container run` and the compose plugin qualify hostnames with.
     func daemonDNSDomain() async throws -> String?
+    /// The `[container.dns]` defaults in container's `config.toml` (container 1.7.1), which
+    /// `container run` applies to every container it creates. Empty when none are set.
+    func containerDNSDefaults() async throws -> ContainerDNSDefaults
     /// Export the container's filesystem as a tar archive at `destination`,
     /// replacing any existing file there.
     func exportContainer(id: String, to destination: URL) async throws
@@ -239,7 +307,7 @@ func mapContainerError(_ error: Error) -> Error {
 /// The apple/container release Orchard's client libraries are built against. Keep in
 /// sync with the container package pin in project.pbxproj, and the README's Requirements,
 /// when bumping. release.yml reads this line for the release notes' requirements.
-let supportedContainerVersion = "1.6.1"
+let supportedContainerVersion = "1.7.1"
 
 /// Whether an installed container version (`container --version`'s `1.6.0`) is at least
 /// `minimum`, compared component by component. Nil (the system is stopped) or an unparseable
@@ -288,6 +356,12 @@ struct LiveContainerBackend: ContainerBackend {
         do {
             let domain = try await loadContainerSystemConfig().dns.domain
             return domain.flatMap { $0.isEmpty ? nil : $0 }
+        } catch { throw mapContainerError(error) }
+    }
+
+    func containerDNSDefaults() async throws -> ContainerDNSDefaults {
+        do {
+            return ContainerDNSDefaults(try await loadContainerSystemConfig().container.dns)
         } catch { throw mapContainerError(error) }
     }
 
@@ -620,25 +694,30 @@ struct LiveContainerBackend: ContainerBackend {
                 ))
             }
 
+            let systemConfig = try await loadContainerSystemConfig()
+
             // Always send a resolver configuration, even an empty one. The runtime fills in the
             // network's own nameserver only when a configuration is present with no nameservers;
             // with none at all the container gets no /etc/resolv.conf, and every lookup in it
-            // falls back to [::1]:53 and is refused. `container run` sends one the same way.
-            let nameservers = spec.dnsNameservers.isEmpty && !spec.dnsDomain.isEmpty
-                ? ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers
-                : spec.dnsNameservers
-            let domain = spec.effectiveDNSDomain
+            // falls back to [::1]:53 and is refused. `container run` sends one the same way, and
+            // like it applies the `[container.dns]` defaults here, on the client: the API server
+            // never sees them.
+            let resolved = resolveContainerDNS(
+                spec,
+                defaults: ContainerDNSDefaults(systemConfig.container.dns),
+                hostDomain: systemConfig.dns.domain,
+                defaultNameservers: ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers)
+            let domain = resolved.domain ?? ""
             let dns = ContainerResource.ContainerConfiguration.DNSConfiguration(
-                nameservers: nameservers,
-                domain: domain.isEmpty ? nil : domain,
-                searchDomains: spec.dnsSearchDomains,
-                options: spec.dnsOptions
+                nameservers: resolved.nameservers,
+                domain: resolved.domain,
+                searchDomains: resolved.searchDomains,
+                options: resolved.options
             )
 
             // Choose the platform the way `container run` does, then fetch, unpack and read the
             // config for it. Fetching with a platform pulls that variant when the stored image
             // lacks it.
-            let systemConfig = try await loadContainerSystemConfig()
             let candidates = (try? await imagePlatforms(reference: spec.imageRef)) ?? []
             let platformName = try ContainerPlatform.resolve(requested: spec.platform, candidates: candidates)
             if let refusal = ContainerPlatform.rosettaRefusal(for: platformName) {
