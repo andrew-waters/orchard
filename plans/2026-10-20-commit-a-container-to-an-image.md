@@ -75,4 +75,4 @@ Offered on container 1.6.0 or later, as the issue asks. The work is client side 
 - [x] README, site, CHANGELOG
 - [x] OrchardTests pass (469 tests, 10 of them new)
 - [x] Checked on 1.6.0 through `LiveContainerBackend.commitContainer`, driven from a throwaway test against the local runtime: a running container (which kept running) and a stopped one both committed and appear in the image list; `container run --entrypoint cat <image> /marker` shows each container's changed file; committing a second container to an existing reference replaced it. The committed image's entrypoint is the container's executable (`sh` for `sh -c ...`), so the sheet says to override the entrypoint to run something else.
-- [ ] Clicked through in the app: the sheet from the header, context menu and Cmd+K, the replace confirmation, and View Image
+- [x] Clicked through in the app: the sheet from the header, context menu and Cmd+K, the replace confirmation, and View Image

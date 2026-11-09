@@ -70,7 +70,7 @@ apple/container 1.6.1 renames the Kubernetes plugin from `k8s` to `cluster` (app
 - [x] A failed command's alert keeps only the last progress line and the last 10 lines of the rest (found in testing)
 - [x] Package pin, `supportedContainerVersion`, hook kill, README and CHANGELOG for 1.6.1
 - [x] Hand test on 1.6.0 and 1.6.1 (see the PR)
-- [ ] A 1.6.1 build against a 1.6.0 install: containers, machines, a build and a hook
+- [x] A 1.6.1 build against a 1.6.0 install: containers, machines, a build and a hook
 
 ## Out of scope
 
