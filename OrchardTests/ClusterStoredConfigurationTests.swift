@@ -211,14 +211,16 @@ func groupWithStoredConfigurations() throws {
     // Made before 1.7: no stored configuration, so `cluster ls` doesn't list it.
     let old = try #require(clusters.first { $0.name == "old" })
     #expect(old.stored == nil)
-    #expect(ClusterService.isUnlisted(old, containerVersion: "1.7.1"))
-    #expect(!ClusterService.isUnlisted(old, containerVersion: "1.6.1"))
-    #expect(!ClusterService.isUnlisted(dev, containerVersion: "1.7.1"))
+    #expect(ClusterService.isUnlisted(old, containerVersion: "1.7.1", storedConfigurationsLoaded: true))
+    #expect(!ClusterService.isUnlisted(old, containerVersion: "1.6.1", storedConfigurationsLoaded: true))
+    #expect(!ClusterService.isUnlisted(dev, containerVersion: "1.7.1", storedConfigurationsLoaded: true))
+    // Before `cluster ls` has been read, or after it failed, a missing record says nothing.
+    #expect(!ClusterService.isUnlisted(old, containerVersion: "1.7.1", storedConfigurationsLoaded: false))
 
     // Stored, but its nodes are gone: listed with none, so it can be deleted.
     let bare = try #require(clusters.first { $0.name == "bare" })
     #expect(bare.nodes.isEmpty)
-    #expect(!ClusterService.isUnlisted(bare, containerVersion: "1.7.1"))
+    #expect(!ClusterService.isUnlisted(bare, containerVersion: "1.7.1", storedConfigurationsLoaded: true))
 }
 
 @Test("Subtitle: the Kubernetes version when it's stored")
@@ -231,25 +233,112 @@ func clusterSubtitle() throws {
 }
 
 @MainActor
-@Test("Loading cluster ls on 1.7.1, and a failure or bad output keeps the last good list")
+@Test("Loading cluster ls on 1.7.1, and a failure or bad output falls back to the containers alone")
 func loadStoredConfigurations() async {
     let runner = MockCommandRunner()
     runner.defaultResult = ProcessResult(exitCode: 0, stdout: clusterListJSON, stderr: nil)
     let service = makeService(runner: runner)
     service.systemService.containerVersion = "1.7.1"
+    #expect(!service.clusterService.storedConfigurationsLoaded)
 
     await service.clusterService.loadStoredConfigurations()
     #expect(runner.calls.last == ["cluster", "list", "--format", "json"])
     #expect(Set(service.clusterService.storedConfigurations.keys) == ["dev", "bare"])
+    #expect(service.clusterService.storedConfigurationsLoaded)
 
     runner.defaultResult = ProcessResult(exitCode: 1, stdout: nil, stderr: "XPC connection error")
     await service.clusterService.loadStoredConfigurations()
-    #expect(service.clusterService.storedConfigurations.count == 2)
+    #expect(service.clusterService.storedConfigurations.isEmpty)
+    #expect(!service.clusterService.storedConfigurationsLoaded)
 
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: clusterListJSON, stderr: nil)
+    await service.clusterService.loadStoredConfigurations()
     runner.defaultResult = ProcessResult(exitCode: 0, stdout: "Error: something", stderr: nil)
     await service.clusterService.loadStoredConfigurations()
-    #expect(service.clusterService.storedConfigurations.count == 2)
+    #expect(service.clusterService.storedConfigurations.isEmpty)
+    #expect(!service.clusterService.storedConfigurationsLoaded)
     #expect(service.alertCenter.current == nil)
+}
+
+@MainActor
+@Test("A system stop forgets the stored configurations, so stopped clusters don't read as having no nodes")
+func systemStopResetsStoredConfigurations() async throws {
+    let runner = MockCommandRunner()
+    runner.defaultResult = ProcessResult(exitCode: 0, stdout: clusterListJSON, stderr: nil)
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.7.1"
+    await service.clusterService.loadStoredConfigurations()
+    #expect(!service.clusterService.storedConfigurations.isEmpty)
+
+    // What the system stop hook does: the container list empties and the records go with it.
+    service.systemService.onSystemStopped()
+    #expect(service.clusterService.storedConfigurations.isEmpty)
+    #expect(!service.clusterService.storedConfigurationsLoaded)
+    #expect(service.clusterService.clusters(from: []).isEmpty)
+}
+
+@MainActor
+@Test("An older cluster ls that finishes last doesn't overwrite a newer one")
+func staleStoredConfigurationLoadIsDropped() async throws {
+    let runner = MockCommandRunner()
+    let service = makeService(runner: runner)
+    service.systemService.containerVersion = "1.7.1"
+    let gate = AsyncGate()
+    let calls = Counter()
+    runner.runHandler = { _, _ in
+        // The first run, from before a delete, is held until the second has finished.
+        if calls.next() == 1 {
+            await gate.wait()
+            return ProcessResult(exitCode: 0, stdout: clusterListJSON, stderr: nil)
+        }
+        return ProcessResult(exitCode: 0, stdout: "[]", stderr: nil)
+    }
+
+    let older = Task { await service.clusterService.loadStoredConfigurations() }
+    while calls.value < 1 { await Task.yield() }
+    await service.clusterService.loadStoredConfigurations()
+    await gate.open()
+    await older.value
+
+    #expect(service.clusterService.storedConfigurations.isEmpty)
+    #expect(service.clusterService.storedConfigurationsLoaded)
+}
+
+@MainActor
+@Test("Recreate settings: a cluster with no nodes has no resources to restore, so the defaults apply")
+func recreateWithoutNodesLeavesResourcesUnset() throws {
+    let service = makeService()
+    service.systemService.containerVersion = "1.7.1"
+    let cluster = try #require(K8sCluster.group(containers: [], stored: try stored()).first { $0.name == "dev" })
+
+    let settings = service.clusterService.recreateSettings(for: cluster)
+    #expect(settings.cpus == nil)
+    #expect(settings.memoryGiB == nil)
+}
+
+/// Holds a mock run until the test lets it go.
+private actor AsyncGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters = []
+    }
+}
+
+/// A thread-safe call count for a mock's run handler.
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func next() -> Int { lock.withLock { count += 1; return count } }
 }
 
 @MainActor

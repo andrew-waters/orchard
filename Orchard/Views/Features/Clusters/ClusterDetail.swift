@@ -57,7 +57,9 @@ struct ClusterDetailView: View {
                         if supportsLocalImages && !stranded && !cluster.nodes.isEmpty {
                             localImagesBanner(cluster)
                         }
-                        if ClusterService.isUnlisted(cluster, containerVersion: systemService.containerVersion) && !stranded {
+                        if ClusterService.isUnlisted(
+                            cluster, containerVersion: systemService.containerVersion,
+                            storedConfigurationsLoaded: clusterService.storedConfigurationsLoaded) && !stranded {
                             unlistedBanner
                         }
 
@@ -337,7 +339,7 @@ struct ClusterDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("No nodes")
                     .font(.subheadline).fontWeight(.medium)
-                Text("Apple container has a record of this cluster, but its node containers are gone. Recreate creates it again with the settings it was made with, or Delete removes the record.")
+                Text("Apple container has a record of this cluster, but its node containers are gone. Recreate creates it again with the Kubernetes version, CNI and workers it was made with, and container's default CPUs and memory, or Delete removes the record.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

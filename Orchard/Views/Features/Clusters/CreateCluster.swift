@@ -60,9 +60,10 @@ struct CreateClusterView: View {
         self.recreating = recreating
         guard let recreating else { return }
         _name = State(initialValue: recreating.name)
-        _overrideResources = State(initialValue: true)
-        _cpus = State(initialValue: recreating.cpus)
-        _memoryGiB = State(initialValue: recreating.memoryGiB)
+        // A cluster with no node left has no resources to read, so it gets container's defaults.
+        _overrideResources = State(initialValue: recreating.cpus != nil || recreating.memoryGiB != nil)
+        if let cpus = recreating.cpus { _cpus = State(initialValue: cpus) }
+        if let memoryGiB = recreating.memoryGiB { _memoryGiB = State(initialValue: memoryGiB) }
         switch recreating.nodeImage {
         case .pluginDefault:
             _nodeImageChoice = State(initialValue: .pluginDefault)

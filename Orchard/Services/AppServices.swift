@@ -174,6 +174,11 @@ final class AppServices: ObservableObject {
         }
         // System → containers side effects.
         systemService.onSystemStarted = { [weak containerListService] in await containerListService?.loadContainers() }
-        systemService.onSystemStopped = { [weak containerListService] in containerListService?.containers.removeAll() }
+        systemService.onSystemStopped = { [weak containerListService, weak clusterService] in
+            containerListService?.containers.removeAll()
+            // Stopped clusters' nodes leave the list with everything else; their records must
+            // not read as clusters whose nodes are gone.
+            clusterService?.resetStoredConfigurations()
+        }
     }
 }

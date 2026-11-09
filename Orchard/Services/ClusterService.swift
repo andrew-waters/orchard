@@ -299,8 +299,10 @@ struct ClusterRecreateSettings: Equatable, Identifiable {
     }
 
     let name: String
-    let cpus: Int
-    let memoryGiB: Int
+    /// The control plane's CPUs and memory, read off its node. Nil for a cluster with no node
+    /// left to read them from, which then gets container's defaults.
+    let cpus: Int?
+    let memoryGiB: Int?
     let nodeImage: NodeImage
     let cni: ClusterCNI
     /// One group per worker size. On 1.7 a group read off live workers carries their size;
@@ -344,12 +346,21 @@ final class ClusterService: ObservableObject {
     /// tab switch can't hide a selected node in a collapsed cluster. Collapsed by default.
     @Published var expandedClusters: Set<String> = []
     /// What the clusters service stored for each cluster, by name, from `cluster ls --format
-    /// json` (container 1.7). Empty below 1.7. A failed or unreadable list keeps the last good
-    /// one, so the Clusters tab carries on from the container list as before.
+    /// json` (container 1.7). Empty below 1.7, while the system is stopped, and after a failed
+    /// or unreadable list, so the Clusters tab then works from the container list as before.
     @Published var storedConfigurations: [String: StoredClusterConfiguration] = [:]
-    /// The clusters the node containers made up when `storedConfigurations` was last loaded,
-    /// so `containersChanged` only reloads it when a cluster comes or goes.
+    /// True when `storedConfigurations` is the result of a successful `cluster ls`. Until then
+    /// a cluster without a record can't be told apart from one made before 1.7.
+    @Published private(set) var storedConfigurationsLoaded = false
+    /// Bumped by each load and reset, so an older `cluster ls` that finishes last can't
+    /// overwrite a newer result: one started before a delete would bring the cluster back.
+    private var storedConfigurationGeneration: UInt64 = 0
+    /// The clusters the node containers made up at the last successful load, so
+    /// `containersChanged` only reloads when a cluster comes or goes.
     private var storedConfigurationClusterNames: Set<String>?
+    /// The clusters a `containersChanged` load is running for, so repeated changes to the
+    /// same clusters don't start another.
+    private var storedConfigurationPendingNames: Set<String>?
 
     /// Overridable for tests, which must not reach Docker Hub.
     var fetchNodeImageTags: @Sendable () async throws -> [K8sNodeImageCatalog.HubTag] = {
@@ -481,8 +492,8 @@ final class ClusterService: ObservableObject {
             if let image = options.nodeImage, K8sNodeImageCatalog.tag(of: image) != stored.kubernetesVersion { return nil }
             return options.clusterCNI == stored.clusterCNI ? options : nil
         }
-        let cpus = resources?.cpus ?? 2
-        let memoryGiB = max(1, (resources?.memoryInBytes ?? 4 * 1_073_741_824) / 1_073_741_824)
+        let cpus = resources?.cpus
+        let memoryGiB = resources.map { max(1, $0.memoryInBytes / 1_073_741_824) }
 
         let nodeImage: ClusterRecreateSettings.NodeImage
         if let stored {
@@ -634,10 +645,13 @@ final class ClusterService: ObservableObject {
         cluster.isLegacy && pluginCommand(containerVersion: containerVersion) == K8sCluster.pluginName
     }
 
-    /// A cluster with nodes but no stored configuration on 1.7 or later: made before 1.7, so
-    /// `cluster ls` doesn't list it (apple/container#2451). Its delete and write-config still work.
-    nonisolated static func isUnlisted(_ cluster: K8sCluster, containerVersion: String?) -> Bool {
-        supportsStoredClusterConfiguration(containerVersion: containerVersion) && cluster.stored == nil && !cluster.nodes.isEmpty
+    /// A cluster with nodes but no stored configuration on 1.7 or later, once `cluster ls` has
+    /// been read: made before 1.7, so `cluster ls` doesn't list it (apple/container#2451). Its
+    /// delete and write-config still work. Never true before a successful load, or after a
+    /// failed one, when a missing record says nothing.
+    nonisolated static func isUnlisted(_ cluster: K8sCluster, containerVersion: String?, storedConfigurationsLoaded: Bool) -> Bool {
+        storedConfigurationsLoaded && supportsStoredClusterConfiguration(containerVersion: containerVersion)
+            && cluster.stored == nil && !cluster.nodes.isEmpty
     }
 
     /// "Kubernetes v1.35.5 · 3 nodes", or "Kubernetes cluster · 3 nodes" when the version isn't known.
@@ -711,40 +725,67 @@ final class ClusterService: ObservableObject {
         K8sCluster.group(containers: containers, stored: storedConfigurations)
     }
 
-    /// Load `storedConfigurations` from `cluster ls --format json`. Below 1.7, or with the
-    /// system stopped, it is emptied without running anything. A failed run or unparseable
-    /// output is logged and leaves the last good value.
-    func loadStoredConfigurations() async {
+    /// Load `storedConfigurations` from `cluster ls --format json`. Below 1.7 it is emptied
+    /// without running anything. A failed run or unparseable output (the system stopped, say)
+    /// is logged and empties it too, so nothing stale is shown: no record is shown as a
+    /// cluster with no nodes, and none is called unlisted. Only the newest load is applied.
+    /// `clusterNames` is what the node containers made up when it was asked for, recorded on
+    /// success for `containersChanged`.
+    func loadStoredConfigurations(clusterNames: Set<String>? = nil) async {
+        storedConfigurationGeneration &+= 1
+        let generation = storedConfigurationGeneration
         guard Self.supportsStoredClusterConfiguration(containerVersion: containerVersion()) else {
-            storedConfigurations = [:]
+            resetStoredConfigurations()
             return
         }
+        var loaded: [StoredClusterConfiguration]?
         do {
             let result = try await runner.run(
                 program: settings.safeContainerBinaryPath(),
                 arguments: [pluginCommand, "list", "--format", "json"])
-            guard !result.failed else {
+            if result.failed {
                 Log.containers.error("cluster list failed (\(result.exitCode)): \(result.stderr ?? "")")
-                return
+            } else {
+                loaded = StoredClusterConfiguration.parseList(json: result.stdout ?? "")
+                if loaded == nil { Log.containers.error("cluster list output could not be parsed") }
             }
-            guard let parsed = StoredClusterConfiguration.parseList(json: result.stdout ?? "") else {
-                Log.containers.error("cluster list output could not be parsed")
-                return
-            }
-            storedConfigurations = Dictionary(parsed.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
         } catch {
             Log.containers.error("cluster list could not run: \(error.localizedDescription)")
         }
+        guard generation == storedConfigurationGeneration else { return }
+        guard let loaded else {
+            resetStoredConfigurations()
+            return
+        }
+        storedConfigurations = Dictionary(loaded.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        storedConfigurationsLoaded = true
+        storedConfigurationClusterNames = clusterNames
+    }
+
+    /// Forget every stored configuration and stop any load in flight from applying. On a
+    /// system stop, since a stopped cluster's nodes leave the container list and its record
+    /// would otherwise read as a cluster whose nodes are gone.
+    func resetStoredConfigurations() {
+        storedConfigurationGeneration &+= 1
+        storedConfigurations = [:]
+        storedConfigurationsLoaded = false
+        storedConfigurationClusterNames = nil
+        storedConfigurationPendingNames = nil
     }
 
     /// Reload `storedConfigurations` when the clusters the node containers make up have
-    /// changed since the last load, so a cluster made or deleted with the CLI picks up its
-    /// stored configuration without waiting for the Clusters tab. Called on each container list change.
+    /// changed since the last successful load, so a cluster made or deleted with the CLI picks
+    /// up its stored configuration without waiting for the Clusters tab. A failed load is
+    /// tried again on the next change. Called on each container list change.
     func containersChanged(_ containers: [Container]) {
         let names = Set(containers.compactMap(K8sCluster.clusterName(for:)))
-        guard names != storedConfigurationClusterNames else { return }
-        storedConfigurationClusterNames = names
-        Task { await loadStoredConfigurations() }
+        if storedConfigurationsLoaded && names == storedConfigurationClusterNames { return }
+        guard names != storedConfigurationPendingNames else { return }
+        storedConfigurationPendingNames = names
+        Task {
+            await loadStoredConfigurations(clusterNames: names)
+            if storedConfigurationPendingNames == names { storedConfigurationPendingNames = nil }
+        }
     }
 
     /// Fill `pluginDefaultNodeImage` and `nodeImageOptions` for the Create Cluster sheet. A
