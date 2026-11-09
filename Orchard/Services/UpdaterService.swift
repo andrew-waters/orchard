@@ -17,8 +17,12 @@ final class UpdaterService: ObservableObject {
     @Published var canCheckForUpdates = false
 
     init() {
+        // Not started under the UI smoke suite: once Sparkle has seen a launch it asks whether
+        // it may check automatically, and that modal sheet sits over the main window, so a
+        // later test can't find the sidebar. The menu item stays, disabled.
+        let isUITest = ProcessInfo.processInfo.arguments.contains(uiTestMockBackendArgument)
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: !isUITest,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
