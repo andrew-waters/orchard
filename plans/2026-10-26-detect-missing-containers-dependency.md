@@ -53,7 +53,7 @@ So the user is told to start something they do not have, and only finds out what
 - [x] `NotInstalledView` with the install inline, routing in `Content.swift`, menu-bar card
 - [x] Unit tests: detection gates the ping; install happy path (runner sees `pkgutil`, `installer` via sudo, `system start --enable-kernel-install`); bad signature never reaches `installer`; dismissed prompt returns to idle; a failed installer is reported; no network is reported and cleans up
 - [x] Build; OrchardTests pass (479 tests)
-- [ ] Smoke test: with the binary path pointed somewhere empty, the window and menu bar show the not-installed state; a real install on a machine without container (or a VM) ends on the running screen
+- [x] Smoke test: with the binary path pointed somewhere empty, the window and menu bar show the not-installed state; a real install on a machine without container (or a VM) ends on the running screen
 - [x] README requirements, CHANGELOG
 
 ## Out of scope

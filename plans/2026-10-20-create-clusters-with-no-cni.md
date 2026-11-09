@@ -31,4 +31,4 @@ apple/container 1.6.0 (apple/container#2277) lets `container k8s create --cni NO
 - [x] Tests in `ClusterServiceTests.swift`: `--cni NONE`; waiting on create, not on a failed one; remembered and passed on by recreate; the readiness parser; the check clears and stops, keeps the wait on failure, and skips other and stopped clusters; version gate
 - [x] README, site clusters guide, CHANGELOG
 - [x] App builds; OrchardTests pass (450 tests, 9 of them new; the whole unit target)
-- [ ] Checked in the running app against container 1.6.0: create with None finishes promptly, shows waiting, applying a CNI clears it, recreate keeps None
+- [x] Checked in the running app against container 1.6.0: create with None finishes promptly, shows waiting, applying a CNI clears it, recreate keeps None

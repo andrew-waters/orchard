@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "Move the compose plugin's hook rules (what a failed hook means for the plan, how the failure reads, how much output is kept) into a library product, so Orchard can replace its ported ComposeHooks copy with the package's."
 issues: [andrew-waters/orchard#130, andrew-waters/orchard#148, andrew-waters/orchard#149, andrew-waters/orchard#150]
 touches: [andrew-waters/compose, andrew-waters/orchard]

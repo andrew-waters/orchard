@@ -1,6 +1,6 @@
 ---
 type: plan
-status: in-progress
+status: done
 summary: "The compose package (0.5.0) plans post_start and pre_stop hooks as Operation.runHook and can run them. Orchard must handle the new case when it bumps: run hooks, or list them as not honoured, but never skip them silently."
 issues: [andrew-waters/orchard#126, andrew-waters/orchard#127, andrew-waters/orchard#128, andrew-waters/orchard#129, andrew-waters/orchard#130]
 touches: [andrew-waters/compose, andrew-waters/orchard]
