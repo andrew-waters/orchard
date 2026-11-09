@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-11-09
+
 ### Added
 - On Apple container 1.7.1, Create Cluster has a **Use local images** option, on by default, which lets the nodes pull from the Mac's own image store (`container cluster create --shared-image-store`) ([#173](https://github.com/andrew-waters/orchard/issues/173)). An image built or pulled in Orchard then runs in the cluster without a registry or a copy. A cluster's detail says whether it can see the Mac's images; one that can't points to **Recreate**, since only a create can turn it on. Recreate keeps the choice.
 - Containers Orchard creates follow the `[container.dns]` defaults in container's `config.toml` (nameservers, search domains, options and domain), as `container run` does from container 1.7.1 ([#173](https://github.com/andrew-waters/orchard/issues/173)). A field set in Orchard wins, then `[container.dns]`, then Orchard's chosen default domain, then container's `[dns].domain`. This covers the Run form, compose, sandboxes and model servers. Settings > General shows the defaults read-only next to the DNS Domain picker, and the Run form's empty domain choice names the domain it falls back to.
