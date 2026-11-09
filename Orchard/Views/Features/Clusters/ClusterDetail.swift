@@ -308,7 +308,7 @@ struct ClusterDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Made by an older Apple container")
                     .font(.subheadline).fontWeight(.medium)
-                Text("Apple container 1.6.1 renamed its Kubernetes plugin, and the renamed plugin can't see clusters made before it, so loading images and writing the kubeconfig are off. Recreate deletes this cluster and creates it again with the same settings under the new plugin. Workloads and images loaded into it are not kept. Delete removes its node containers directly.")
+                Text("Apple container 1.6.1 renamed its Kubernetes plugin, and the renamed plugin can't see clusters made before it, so \(supportsLocalImages ? "writing the kubeconfig is" : "loading images and writing the kubeconfig are") off. Recreate deletes this cluster and creates it again with the same settings under the new plugin. Workloads and images loaded into it are not kept. Delete removes its node containers directly.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

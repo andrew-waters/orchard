@@ -38,6 +38,16 @@ final class DNSService: ObservableObject {
         containerDefaultDomain ?? settings.defaultDNSDomain ?? daemonDefaultDomain()
     }
 
+    /// The domain the Run form starts on: the default when it is one of the DNS domains here,
+    /// unless it comes from `[container.dns]`. That one is left to the create, as `container run`
+    /// leaves it: copied into the form it would count as a domain set in Orchard and bring the
+    /// default nameservers, where a defaulted domain keeps the network's own. The form's empty
+    /// choice names it instead.
+    var runFormDomain: String? {
+        guard containerDefaultDomain == nil else { return nil }
+        return dnsDomains.first(where: \.isDefault)?.domain
+    }
+
     /// What a container created with no domain of its own gets: `[container.dns].domain`, else
     /// the daemon's `[dns].domain`. Orchard's chosen default reaches a container through the
     /// form, which starts on it, so it isn't part of this.

@@ -83,13 +83,6 @@ struct ContainerCreateSpec: Sendable {
     /// keeps the network's own unless the file names others.
     var fallbackDNSDomain: String? = nil
 
-    /// The domain this spec asks for: its own, else the fallback, else none. The create puts
-    /// `config.toml`'s `[container.dns].domain` between the two and the host's `[dns].domain`
-    /// after them: see `resolveContainerDNS`.
-    var effectiveDNSDomain: String {
-        if !dnsDomain.isEmpty { return dnsDomain }
-        return fallbackDNSDomain ?? ""
-    }
 }
 
 /// The `[container.dns]` defaults in container's `config.toml` (apple/container#1614,
@@ -102,6 +95,23 @@ struct ContainerDNSDefaults: Equatable, Sendable {
 
     var isEmpty: Bool {
         (domain ?? "").isEmpty && nameservers.isEmpty && searchDomains.isEmpty && options.isEmpty
+    }
+
+    init(domain: String? = nil, nameservers: [String] = [], searchDomains: [String] = [], options: [String] = []) {
+        self.domain = domain.flatMap { $0.isEmpty ? nil : $0 }
+        self.nameservers = nameservers
+        self.searchDomains = searchDomains
+        self.options = options
+    }
+
+    /// From the `[container.dns]` section as container's configuration loader reads it; nil
+    /// (no section) is no defaults. The one place both the create and Settings read it through.
+    init(_ config: ContainerDNSConfig?) {
+        self.init(
+            domain: config?.domain,
+            nameservers: config?.nameservers ?? [],
+            searchDomains: config?.searchDomains ?? [],
+            options: config?.options ?? [])
     }
 }
 
@@ -351,12 +361,7 @@ struct LiveContainerBackend: ContainerBackend {
 
     func containerDNSDefaults() async throws -> ContainerDNSDefaults {
         do {
-            guard let dns = try await loadContainerSystemConfig().container.dns else { return ContainerDNSDefaults() }
-            return ContainerDNSDefaults(
-                domain: dns.domain.flatMap { $0.isEmpty ? nil : $0 },
-                nameservers: dns.nameservers ?? [],
-                searchDomains: dns.searchDomains ?? [],
-                options: dns.options ?? [])
+            return ContainerDNSDefaults(try await loadContainerSystemConfig().container.dns)
         } catch { throw mapContainerError(error) }
     }
 
@@ -697,14 +702,9 @@ struct LiveContainerBackend: ContainerBackend {
             // falls back to [::1]:53 and is refused. `container run` sends one the same way, and
             // like it applies the `[container.dns]` defaults here, on the client: the API server
             // never sees them.
-            let configDNS = systemConfig.container.dns
             let resolved = resolveContainerDNS(
                 spec,
-                defaults: ContainerDNSDefaults(
-                    domain: configDNS?.domain,
-                    nameservers: configDNS?.nameservers ?? [],
-                    searchDomains: configDNS?.searchDomains ?? [],
-                    options: configDNS?.options ?? []),
+                defaults: ContainerDNSDefaults(systemConfig.container.dns),
                 hostDomain: systemConfig.dns.domain,
                 defaultNameservers: ContainerResource.ContainerConfiguration.DNSConfiguration.defaultNameservers)
             let domain = resolved.domain ?? ""

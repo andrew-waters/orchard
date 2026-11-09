@@ -951,12 +951,14 @@ struct ComposeDNSDomainTests {
     func createSpecFallback() throws {
         let operation = try Self.create()
         let spec = ComposeService.createSpec(from: operation, dnsDomain: "test")
-        // Its own domain stays empty: that is what sends the default nameservers.
+        // Its own domain stays empty: that is what keeps the default nameservers out.
         #expect(spec.dnsDomain.isEmpty)
         #expect(spec.dnsNameservers.isEmpty)
         #expect(spec.fallbackDNSDomain == "test")
-        #expect(spec.effectiveDNSDomain == "test")
-        #expect(NetworkAliases.hostname(id: spec.id, domain: spec.effectiveDNSDomain) == "shop-web.test.")
+        let resolved = Self.resolve(spec)
+        #expect(resolved.domain == "test")
+        #expect(resolved.nameservers.isEmpty)
+        #expect(NetworkAliases.hostname(id: spec.id, domain: resolved.domain ?? "") == "shop-web.test.")
     }
 
     @Test("With no domain, or an empty one, a compose container keeps the bare name")
@@ -965,8 +967,8 @@ struct ComposeDNSDomainTests {
         for domain in [nil, ""] as [String?] {
             let spec = ComposeService.createSpec(from: operation, dnsDomain: domain)
             #expect(spec.fallbackDNSDomain == nil)
-            #expect(spec.effectiveDNSDomain == "")
-            #expect(NetworkAliases.hostname(id: spec.id, domain: spec.effectiveDNSDomain) == "shop-web")
+            #expect(Self.resolve(spec).domain == nil)
+            #expect(NetworkAliases.hostname(id: spec.id, domain: Self.resolve(spec).domain ?? "") == "shop-web")
         }
     }
 
@@ -977,9 +979,14 @@ struct ComposeDNSDomainTests {
             commandOverride: [], volumes: [], publishedPorts: [], dnsDomain: "local",
             networkName: "", autoRemove: false, cpus: 1, memoryBytes: 1 << 30
         )
-        #expect(spec.effectiveDNSDomain == "local")
+        #expect(Self.resolve(spec).domain == "local")
         spec.fallbackDNSDomain = "test"
-        #expect(spec.effectiveDNSDomain == "local")
+        #expect(Self.resolve(spec).domain == "local")
+    }
+
+    /// The DNS the create gives `spec` with no `config.toml` defaults and no host domain.
+    private static func resolve(_ spec: ContainerCreateSpec) -> ResolvedContainerDNS {
+        resolveContainerDNS(spec, defaults: ContainerDNSDefaults(), hostDomain: nil, defaultNameservers: ["1.1.1.1"])
     }
 
     @Test("Up creates containers under the domain chosen in Orchard, without asking the daemon")

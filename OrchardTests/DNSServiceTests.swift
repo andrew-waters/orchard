@@ -262,3 +262,41 @@ func dnsDefaultsKeptWhenUnreadable() async {
 
     #expect(service.dnsService.containerDefaultDomain == "c.test")
 }
+
+@MainActor
+@Test("Run form: a [container.dns] domain is left to the create, so it keeps the network's nameservers")
+func runFormLeavesConfigDomainToCreate() async throws {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["corp.test","b.test"]"#, stderr: nil) }
+    let backend = MockContainerBackend()
+    let service = makeService(backend: backend, runner: runner)
+    let defaults = ContainerDNSDefaults(domain: "corp.test")
+    service.dnsService.readContainerDNSDefaults = { defaults }
+    service.settings.setDefaultDNSDomain("b.test")
+    await service.dnsService.load(showLoading: false)
+
+    // The form starts on the empty choice, which names corp.test, rather than copying it in.
+    #expect(service.dnsService.runFormDomain == nil)
+    var config = ContainerRunConfig(name: "web", image: "nginx")
+    config.dnsDomain = service.dnsService.runFormDomain ?? ""
+    await service.containerListService.runContainer(config: config)
+
+    let spec = try #require(backend.createdSpecs.first)
+    #expect(spec.dnsDomain.isEmpty)
+    let resolved = resolveContainerDNS(spec, defaults: defaults, hostDomain: nil, defaultNameservers: ["1.1.1.1"])
+    #expect(resolved.domain == "corp.test")
+    #expect(resolved.nameservers.isEmpty)
+}
+
+@MainActor
+@Test("Run form: with no [container.dns] domain it starts on Orchard's chosen default, as before")
+func runFormPrefillsOrchardDefault() async {
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, _ in ProcessResult(exitCode: 0, stdout: #"["a.test","b.test"]"#, stderr: nil) }
+    let service = makeService(runner: runner)
+    service.dnsService.readContainerDNSDefaults = { ContainerDNSDefaults(nameservers: ["10.0.0.53"]) }
+    service.settings.setDefaultDNSDomain("b.test")
+    await service.dnsService.load(showLoading: false)
+
+    #expect(service.dnsService.runFormDomain == "b.test")
+}

@@ -70,9 +70,8 @@ struct ContainerConfigForm: View {
             await networkService.load(showLoading: false)
             await dnsService.load(showLoading: false)
             await modelService.load(showLoading: false)
-            if config.dnsDomain.isEmpty,
-               let defaultDomain = dnsService.dnsDomains.first(where: { $0.isDefault }) {
-                config.dnsDomain = defaultDomain.domain
+            if config.dnsDomain.isEmpty, let domain = dnsService.runFormDomain {
+                config.dnsDomain = domain
             }
         }
         .task {
