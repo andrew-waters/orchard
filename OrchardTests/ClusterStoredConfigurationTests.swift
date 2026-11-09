@@ -142,6 +142,10 @@ func recreateRemembersWorkerSizes() async throws {
     let cluster = try #require(K8sCluster.group(containers: [try node("dev", role: "control-plane")]).first)
     let settings = service.clusterService.recreateSettings(for: cluster)
     #expect(settings.workerGroups == groups)
+    // With a stored record of the same two workers, the remembered sizes are kept too.
+    let storedCluster = try #require(K8sCluster.group(
+        containers: [try node("dev", role: "control-plane")], stored: try stored()).first { $0.name == "dev" })
+    #expect(service.clusterService.recreateSettings(for: storedCluster).workerGroups == groups)
 
     await service.clusterService.recreate(
         name: "dev", cpus: nil, memory: nil, nodeImage: nil, cni: .kindnet, workerGroups: settings.workerGroups)
@@ -416,6 +420,41 @@ func recreateStoredWithoutNodes() throws {
     let settings = service.clusterService.recreateSettings(for: cluster)
     #expect(settings.workerGroups == [ClusterWorkerGroup(count: 2)])
     #expect(settings.sharedImageStore)
+}
+
+@MainActor
+@Test("Recreate settings: workers missing from the stored count are added back, not lost")
+func recreateRestoresMissingWorkers() throws {
+    let service = makeService()
+    service.systemService.containerVersion = "1.7.1"
+    // The record has two workers; only one is left, made in a terminal so nothing is remembered.
+    let cluster = try #require(K8sCluster.group(
+        containers: [
+            try node("dev", role: "control-plane"),
+            try node("dev-worker-1", role: "worker", cpus: 4, memoryGiB: 8),
+        ],
+        stored: try stored()).first { $0.name == "dev" })
+
+    let settings = service.clusterService.recreateSettings(for: cluster)
+    #expect(settings.workerGroups == [ClusterWorkerGroup(count: 1, cpus: 4, memoryGiB: 8), ClusterWorkerGroup(count: 1)])
+    #expect(settings.workers == 2)
+}
+
+@MainActor
+@Test("Recreate settings: missing workers take their remembered sizes when the record agrees")
+func recreateRestoresMissingWorkersFromRemembered() async throws {
+    let service = makeService()
+    service.systemService.containerVersion = "1.7.1"
+    let groups = [ClusterWorkerGroup(count: 2, cpus: 4, memoryGiB: 8)]
+    await service.clusterService.create(name: "dev", cpus: nil, memory: nil, nodeImage: nil, workerGroups: groups)
+    let cluster = try #require(K8sCluster.group(
+        containers: [
+            try node("dev", role: "control-plane"),
+            try node("dev-worker-1", role: "worker", cpus: 4, memoryGiB: 8),
+        ],
+        stored: try stored()).first { $0.name == "dev" })
+
+    #expect(service.clusterService.recreateSettings(for: cluster).workerGroups == groups)
 }
 
 @MainActor

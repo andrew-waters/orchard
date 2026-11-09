@@ -533,17 +533,25 @@ final class ClusterService: ObservableObject {
 
     /// The workers to recreate. The live workers win: unlike the image they can be read off
     /// the cluster, and a remembered count is stale after a delete and create outside Orchard.
-    /// On 1.7 they carry their sizes, one group per size. A cluster left with no workers falls
-    /// back to the stored count, sized as remembered when the remembered groups add up to it,
-    /// and then to what Orchard remembers. Below 1.7 there are no sizes to keep.
+    /// On 1.7 they carry their sizes, one group per size. When the stored record (1.7) has more
+    /// workers than are left, the missing ones are added back rather than lost: sized as
+    /// remembered when the remembered groups add up to the stored count, else as an unsized
+    /// group, which gets container's defaults. A cluster with no stored record and no workers
+    /// left falls back to what Orchard remembers. Below 1.7 there are no sizes to keep.
     private func recreateWorkerGroups(cluster: K8sCluster, remembered: [ClusterWorkerGroup]) -> [ClusterWorkerGroup] {
+        let live = ClusterWorkerGroup.groups(of: cluster.workers)
+        let liveCount = cluster.workers.count
+        let rememberedCount = remembered.reduce(0) { $0 + $1.count }
         let groups: [ClusterWorkerGroup]
-        if !cluster.workers.isEmpty {
-            groups = ClusterWorkerGroup.groups(of: cluster.workers)
-        } else if let stored = cluster.stored {
-            let count = stored.workerCount
-            let rememberedCount = remembered.reduce(0) { $0 + $1.count }
-            groups = count == 0 ? [] : (rememberedCount == count ? remembered : [ClusterWorkerGroup(count: count)])
+        if let stored = cluster.stored, stored.workerCount > liveCount {
+            let missing = stored.workerCount - liveCount
+            // Remembered was checked against the record in `recreateSettings`, so when it adds
+            // up to the stored count it describes the whole cluster as it was made.
+            groups = rememberedCount == stored.workerCount ? remembered : live + [ClusterWorkerGroup(count: missing)]
+        } else if liveCount > 0 {
+            groups = live
+        } else if cluster.stored != nil {
+            groups = []
         } else {
             groups = remembered
         }

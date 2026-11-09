@@ -352,11 +352,11 @@ struct CreateClusterView: View {
     private var keptWorkerGroupsField: some View {
         field(
             title: "Workers",
-            caption: "This cluster's workers come in more than one size, so they're recreated as they are. Workloads run on the workers only."
+            caption: "This cluster's workers come in more than one size, so they're recreated as they are. Workers whose size isn't known, such as ones whose containers are gone, get container's defaults. Workloads run on the workers only."
         ) {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(Array(keptWorkerGroups.enumerated()), id: \.offset) { _, group in
-                    Text(ClusterWorkerGroup.summary(of: group))
+                    Text(ClusterWorkerGroup.summary(of: group) + (group.isSized ? "" : ", default size"))
                 }
             }
         }
