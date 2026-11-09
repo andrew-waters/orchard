@@ -155,7 +155,8 @@ struct ContentView: View {
                    selectedSandbox == nil || !sandboxes.contains(where: { $0.id == selectedSandbox }) {
                     selectedSandbox = sandboxes.first?.id
                 }
-                let clusters = K8sCluster.group(containers: newContainers)
+                clusterService.containersChanged(newContainers)
+                let clusters = clusterService.clusters(from: newContainers)
                 if selectedTab == .clusters,
                    selectedCluster == nil || !clusters.contains(where: { $0.name == selectedCluster }) {
                     selectedCluster = clusters.first?.name
@@ -568,7 +569,7 @@ struct ContentView: View {
             images: imageService.images,
             mounts: containerListService.allMounts,
             machines: machineService.machines,
-            clusters: K8sCluster.group(containers: containerListService.containers),
+            clusters: clusterService.clusters(from: containerListService.containers),
             providers: modelService.providers,
             sandboxes: detectSandboxes(
                 containers: containerListService.containers,

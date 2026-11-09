@@ -26,6 +26,9 @@ struct SettingsView: View {
         .onAppear {
             Task {
                 await systemService.loadSystemProperties(showLoading: true)
+                // The recommended kernel is a system property, so this follows the load.
+                systemService.loadKernelStatus()
+                systemService.loadBackupExclusionState()
                 await dnsService.load(showLoading: true)
             }
         }
@@ -217,11 +220,15 @@ struct GeneralSettingsView: View {
 
 /// Read-only `container` daemon system-properties. These are daemon state, not user
 /// preferences. They're set in `~/.config/container/config.toml`; the CLI can't write them.
+/// Above them, the kernel against the recommended one, and whether rebuildable data is left
+/// out of Time Machine, each with the one action that fixes it.
 struct SystemSettingsView: View {
     @EnvironmentObject var systemService: SystemService
 
     var body: some View {
         Form {
+            kernelSection
+            timeMachineSection
             daemonProperty(
                 title: "Build Rosetta",
                 propertyId: "build.rosetta",
@@ -259,6 +266,106 @@ struct SystemSettingsView: View {
             )
         }
         .formStyle(.grouped)
+    }
+
+    // MARK: - Kernel
+
+    /// The default kernel against the one the installed container version recommends. Only an
+    /// out-of-date Kata kernel offers the switch; a custom kernel is the user's choice.
+    @ViewBuilder
+    private var kernelSection: some View {
+        switch systemService.kernelStatus {
+        case .unknown:
+            EmptyView()
+        case .notInstalled:
+            Section {
+                LabeledContent("Kernel") { Text("Not installed").foregroundStyle(.secondary) }
+                useRecommendedKernelButton
+            } footer: {
+                Text("Containers need a kernel. The recommended one is the kernel this version of Apple container is tested with.")
+                    .foregroundColor(.secondary)
+            }
+        case .recommended(let name):
+            Section {
+                LabeledContent("Kernel") { kernelName(name) }
+            } footer: {
+                Text("The recommended kernel for this version of Apple container.")
+                    .foregroundColor(.secondary)
+            }
+        case .outdated(let installed, let recommended):
+            Section {
+                LabeledContent("Installed Kernel") { kernelName(installed) }
+                LabeledContent("Recommended Kernel") { kernelName(recommended) }
+                useRecommendedKernelButton
+            } footer: {
+                Text("The kernel installed isn't the one this version of Apple container recommends, likely because it came with an earlier version. Containers already running keep their kernel until they're restarted.")
+                    .foregroundColor(.secondary)
+            }
+        case .custom(let name):
+            Section {
+                LabeledContent("Kernel") { kernelName(name) }
+            } footer: {
+                Text("A custom kernel, set with `container system kernel set`.")
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func kernelName(_ name: String) -> some View {
+        Text(name)
+            .font(.system(.body, design: .monospaced))
+            .fontWeight(.medium)
+            .textSelection(.enabled)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .help(name)
+    }
+
+    private var useRecommendedKernelButton: some View {
+        HStack {
+            Spacer()
+            if systemService.isKernelLoading {
+                ProgressView().controlSize(.small)
+            }
+            Button("Use Recommended Kernel") {
+                Task { await systemService.setRecommendedKernel() }
+            }
+            .disabled(systemService.isKernelLoading)
+        }
+    }
+
+    // MARK: - Time Machine
+
+    /// Whether `snapshots/` and `containers/` are left out of Time Machine. Shown here only, with
+    /// no alert or badge, so someone who put them back in their backups isn't nagged.
+    @ViewBuilder
+    private var timeMachineSection: some View {
+        switch systemService.backupExclusionState {
+        case nil, .missing?:
+            EmptyView()
+        case .excluded?:
+            Section {
+                LabeledContent("Time Machine") { Text("Rebuildable data left out").fontWeight(.medium) }
+            } footer: {
+                Text("Image snapshots and container file systems aren't backed up, as they can be rebuilt by pulling the image or recreating the container. Named volumes are still backed up.")
+                    .foregroundColor(.secondary)
+            }
+        case .included(let directories)?:
+            Section {
+                LabeledContent("Time Machine") {
+                    Text("Backs up \(directories.joined(separator: " and "))").fontWeight(.medium)
+                }
+                HStack {
+                    Spacer()
+                    Button("Leave Out of Backups") {
+                        systemService.excludeRebuildableDataFromBackups()
+                    }
+                }
+            } footer: {
+                Text("Image snapshots (`snapshots`) and container file systems (`containers`) are large and can be rebuilt by pulling the image or recreating the container, so backing them up slows Time Machine and can cost older backups. Apple container 1.7.1 leaves them out on new installs. Named volumes (`volumes`) stay backed up. Undo with `tmutil removeexclusion` on the folders in ~/Library/Application Support/com.apple.container.")
+                    .foregroundColor(.secondary)
+            }
+        }
     }
 
     /// A read-only daemon property row: label, its value (from `systemProperties`), and a

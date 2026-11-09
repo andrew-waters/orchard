@@ -92,7 +92,7 @@ Orchard manages **local Kubernetes clusters** built on Apple container's cluster
 ![A local Kubernetes cluster in Orchard - nodes table with role, IP and resources, and one-click kubectl access](site/assets/screens/clusters.png)
 
 - Node containers are grouped into named clusters, with per-node role, status, IP, CPUs, memory and published ports. Expand a cluster in the list to see its nodes and open any of them
-- Create clusters from the app, choosing the Kubernetes version, resource overrides, worker nodes (container 1.6.0+) and the CNI: kindnet, your own manifest, or none at all (container 1.6.0+) for installing Cilium, Calico or similar yourself. A cluster with no CNI shows as waiting for one until its nodes are Ready
+- Create clusters from the app, choosing the Kubernetes version, resource overrides, worker nodes (container 1.6.0+) sized apart from the control plane (container 1.7.1+) and the CNI: kindnet, your own manifest, or none at all (container 1.6.0+) for installing Cilium, Calico or similar yourself. A cluster with no CNI shows as waiting for one until its nodes are Ready
 - On container 1.7 and later, create a cluster with **Use local images** (on by default) so its nodes pull from the Mac's image store, and pods run images built or pulled in Orchard without a registry. On container 1.6.x, load any local image into the cluster's containerd instead, on every node or only the ones you pick
 - Cluster nodes are stopped and deleted with their cluster, never on their own, since acting on one node breaks the cluster
 - Write or merge the cluster's context into your kubeconfig, copy its path, or open a terminal with the kubectl context already selected

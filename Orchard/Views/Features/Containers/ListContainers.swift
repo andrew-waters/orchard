@@ -274,7 +274,7 @@ struct ContainersListView: View {
             }
         } else if !multiple, anyStopped, container.isK8sNode,
                   let clusterName = K8sCluster.clusterName(for: container),
-                  let cluster = K8sCluster.group(containers: containerListService.containers).first(where: { $0.name == clusterName }) {
+                  let cluster = clusterService.clusters(from: containerListService.containers).first(where: { $0.name == clusterName }) {
             Button("Recreate Cluster…") {
                 Task { recreateSettings = await clusterService.prepareRecreate(cluster) }
             }

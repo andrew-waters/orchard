@@ -25,7 +25,7 @@ struct ContainerDetailHeader: View {
     /// The cluster this container is a node of, for Recreate.
     private var owningCluster: K8sCluster? {
         guard let name = K8sCluster.clusterName(for: container) else { return nil }
-        return K8sCluster.group(containers: containerListService.containers).first { $0.name == name }
+        return clusterService.clusters(from: containerListService.containers).first { $0.name == name }
     }
 
     /// Badge shown when the container is a sandbox (an isolated workload). Tapping it
