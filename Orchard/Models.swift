@@ -489,6 +489,7 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
         case lmStudio
         case mlxServer
         case omlx
+        case rapidMLX
         case custom
 
         var displayName: String {
@@ -497,6 +498,7 @@ struct ModelProvider: Identifiable, Equatable, Sendable {
             case .lmStudio: return "LM Studio"
             case .mlxServer: return "MLX Server"
             case .omlx: return "oMLX"
+            case .rapidMLX: return "Rapid-MLX"
             case .custom: return "Custom"
             }
         }

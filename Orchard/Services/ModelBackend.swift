@@ -175,6 +175,10 @@ struct LiveModelBackend: ModelBackend {
         if models.contains(where: { ($0["owned_by"] as? String) == "omlx" }) {
             return .omlx
         }
+        // Rapid-MLX shares the OpenAI endpoint and identifies itself in the listing.
+        if models.contains(where: { ($0["owned_by"] as? String) == "rapid-mlx" }) {
+            return .rapidMLX
+        }
         return kind
     }
 

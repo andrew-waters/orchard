@@ -56,6 +56,15 @@ func refineKindOMLX() {
     #expect(LiveModelBackend.refineKind(.mlxServer, data: json, api: .openAI) == .omlx)
 }
 
+@Test("Refine: a Rapid-MLX listing reclassifies any OpenAI endpoint",
+      arguments: [ModelProvider.Kind.mlxServer, .lmStudio, .custom])
+func refineKindRapidMLX(kind: ModelProvider.Kind) {
+    let json = Data(#"{"object":"list","data":[{"id":"mlx-community/Qwen3.5-4B-MLX-4bit","owned_by":"rapid-mlx","context_window":262144}]}"#.utf8)
+    #expect(LiveModelBackend.refineKind(kind, data: json, api: .openAI) == .rapidMLX)
+    #expect(LiveModelBackend.refineKind(.ollama, data: json, api: .ollama) == .ollama)
+    #expect(ModelProvider.Kind.rapidMLX.displayName == "Rapid-MLX")
+}
+
 @Test("Refine: other owned_by values and non-OpenAI APIs keep the candidate's kind")
 func refineKindPassthrough() {
     let mlx = Data(#"{"object":"list","data":[{"id":"llama-3.2-1b","owned_by":"mlx"}]}"#.utf8)
@@ -108,6 +117,17 @@ func probeClassifiesOK() {
     #expect(provider?.kind == .omlx)
     #expect(provider?.models == ["qwen3-4b"])
     #expect(provider?.requiresAPIKey == false)
+}
+
+@Test("Probe: a Rapid-MLX listing yields an unlocked provider with stable endpoint identity")
+func probeClassifiesRapidMLX() {
+    let endpoint = ModelEndpoint(id: "test.rapid-mlx", kind: .mlxServer, port: 8000, api: .openAI)
+    let json = Data(#"{"object":"list","data":[{"id":"mlx-community/Qwen3.5-4B-MLX-4bit","owned_by":"rapid-mlx"}]}"#.utf8)
+    let provider = LiveModelBackend.provider(from: 200, data: json, endpoint: endpoint)
+    #expect(provider?.kind == .rapidMLX)
+    #expect(provider?.models == ["mlx-community/Qwen3.5-4B-MLX-4bit"])
+    #expect(provider?.requiresAPIKey == false)
+    #expect(provider?.id == endpoint.id)
 }
 
 @Test("Probe: 401 and 403 surface a locked provider instead of hiding the server", arguments: [401, 403])

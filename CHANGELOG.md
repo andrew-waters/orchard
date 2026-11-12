@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The AI Models section now recognises [Rapid-MLX](https://github.com/raullenchai/Rapid-MLX), a local LLM inference server for Apple Silicon, by the `owned_by: rapid-mlx` stamp in its OpenAI-compatible models listing. Its default base URL is `http://localhost:8000/v1`, using the existing port 8000 probe.
+
 ## [2.7.1] - 2026-11-09
 
 ### Added
