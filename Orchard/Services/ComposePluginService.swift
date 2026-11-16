@@ -275,11 +275,47 @@ final class ComposePluginService: ObservableObject {
     /// exists is not writable by this user. A Homebrew prefix is the user's own, so a plugin
     /// goes in there without a prompt, and without leaving root-owned files in the keg.
     nonisolated static func needsAdministrator(toWrite path: String, fileManager: FileManager = .default) -> Bool {
-        var candidate = URL(fileURLWithPath: path)
+        var candidate = URL(fileURLWithPath: resolvedInstallPath(path, fileManager: fileManager))
         while !fileManager.fileExists(atPath: candidate.path), candidate.path != "/" {
             candidate.deleteLastPathComponent()
         }
         return !fileManager.isWritableFile(atPath: candidate.path)
+    }
+
+    /// Resolve symlinked path components even when their target does not exist yet.
+    ///
+    /// `URL.resolvingSymlinksInPath()` leaves a dangling symlink unresolved, and
+    /// `/usr/bin/install -d` fails (`No such file or directory`) when an ancestor in the
+    /// path is a dangling symlink — such as Homebrew's `container` `1.7.1_2` keg, whose
+    /// `libexec/container-plugins` symlinks to `HOMEBREW_PREFIX/libexec/container-plugins`
+    /// before that directory has been created (#179).
+    nonisolated static func resolvedInstallPath(_ path: String, fileManager: FileManager = .default) -> String {
+        var remaining = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        var resolved = URL(fileURLWithPath: "/")
+        var symlinkHops = 0
+        let maxSymlinkHops = 40
+
+        while !remaining.isEmpty {
+            let component = remaining.removeFirst()
+            if component == "." { continue }
+            if component == ".." {
+                if resolved.path != "/" { resolved.deleteLastPathComponent() }
+                continue
+            }
+            resolved.appendPathComponent(component)
+            if symlinkHops < maxSymlinkHops,
+               let target = try? fileManager.destinationOfSymbolicLink(atPath: resolved.path) {
+                symlinkHops += 1
+                if target.hasPrefix("/") {
+                    resolved = URL(fileURLWithPath: "/")
+                } else {
+                    resolved.deleteLastPathComponent()
+                }
+                let targetComponents = target.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+                remaining.insert(contentsOf: targetComponents, at: 0)
+            }
+        }
+        return resolved.path
     }
 
     /// The installed plugin binary, from whichever directory the CLI would find a *complete*
@@ -495,7 +531,7 @@ final class ComposePluginService: ObservableObject {
     /// Miss either and the CLI reports only "Plugin not found", with nothing to say which half
     /// is wrong. Writing the two files in place also means nothing is removed as root.
     private func copyIntoPlace(from unpacked: URL) async throws -> Bool {
-        let dir = installPath
+        let dir = Self.resolvedInstallPath(installPath, fileManager: fileManager)
         let binary = unpacked.appendingPathComponent("bin/compose").path
         let config = unpacked.appendingPathComponent("config.toml").path
         let script = """
