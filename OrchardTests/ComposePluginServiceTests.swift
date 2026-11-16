@@ -121,8 +121,8 @@ func composePluginResolvesDanglingSymlink() throws {
     #expect(ComposePluginService.needsAdministrator(toWrite: roLink.appendingPathComponent("compose").path))
 }
 
-@Test("Install path: symlink cycles terminate without looping")
-func composePluginSymlinkCycleTerminates() throws {
+@Test("Install path: symlink cycles fail resolution instead of leaking queued components")
+func composePluginSymlinkCycleFails() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("ComposePluginServiceTests-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -132,9 +132,51 @@ func composePluginSymlinkCycleTerminates() throws {
     let b = root.appendingPathComponent("b")
     try FileManager.default.createSymbolicLink(atPath: a.path, withDestinationPath: "b")
     try FileManager.default.createSymbolicLink(atPath: b.path, withDestinationPath: "a")
+    #expect(ComposePluginService.resolvedInstallPath(a.appendingPathComponent("compose").path) == nil)
 
-    let resolved = ComposePluginService.resolvedInstallPath(a.appendingPathComponent("compose").path)
-    #expect(resolved.hasSuffix("/compose"))
+    // Dot components in a cycle (`link -> link/../elsewhere`) must fail once the hop limit
+    // is reached rather than skipping further resolution and returning `.../elsewhere/compose`.
+    let link = root.appendingPathComponent("link")
+    try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "link/../elsewhere")
+    let cyclicPath = link.appendingPathComponent("compose").path
+    #expect(ComposePluginService.resolvedInstallPath(cyclicPath) == nil)
+    #expect(!ComposePluginService.needsAdministrator(toWrite: cyclicPath))
+}
+
+@MainActor
+@Test("Install: cyclic install path stops copyIntoPlace without running install")
+func composePluginCyclicInstallAborts() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ComposePluginServiceTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let link = root.appendingPathComponent("link")
+    try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "link/../elsewhere")
+    let cyclicInstallPath = link.appendingPathComponent("compose").path
+
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, args in
+        if args == ["compose", "--version"] {
+            return ProcessResult(
+                exitCode: 64,
+                stdout: nil,
+                stderr: "Error: unknown command 'compose'\n  - \(cyclicInstallPath)\n"
+            )
+        }
+        return ProcessResult(exitCode: 0, stdout: nil, stderr: nil)
+    }
+
+    let service = ComposePluginService(commandRunner: runner, containerBinaryPath: { "/opt/homebrew/bin/container" })
+    await service.refresh()
+    #expect(service.installPath == cyclicInstallPath)
+
+    let unpacked = root.appendingPathComponent("unpacked/compose")
+    await #expect(throws: Error.self) {
+        _ = try await service.copyIntoPlace(from: unpacked)
+    }
+    #expect(runner.calls == [["compose", "--version"]])
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("elsewhere").path))
 }
 
 // MARK: - Updates (#155)
