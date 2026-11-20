@@ -1,0 +1,36 @@
+{
+  "author" : "Intecpsp",
+  "effort" : 2,
+  "event" : "APPROVE",
+  "findings" : [
+    {
+      "category" : "performance",
+      "decision" : "kept",
+      "excerpt" : "A path that can't be resolved (a loop) is only caught here, after `install()` ha",
+      "key" : "Orchard/Services/ComposePluginService.swift:536:A path that can't be resolved (a loop) is only caught here, ",
+      "line" : 536,
+      "path" : "Orchard/Services/ComposePluginService.swift",
+      "posted_at" : "2026-11-20T23:20:57Z",
+      "severity" : "nit"
+    },
+    {
+      "category" : "maintainability",
+      "decision" : "kept",
+      "excerpt" : "`copyIntoPlace` lost `private` only so the new test can call it, and `@testable ",
+      "key" : "Orchard/Services/ComposePluginService.swift:535:`copyIntoPlace` lost `private` only so the new test can call",
+      "line" : 535,
+      "path" : "Orchard/Services/ComposePluginService.swift",
+      "posted_at" : "2026-11-20T23:20:57Z",
+      "severity" : "nit"
+    }
+  ],
+  "number" : 180,
+  "posted_at" : "2026-11-20T23:20:57Z",
+  "repo" : "andrew-waters/orchard",
+  "reviewer" : "andrew-waters",
+  "started_at" : "2026-11-20T23:17:31Z",
+  "state" : "OPEN",
+  "title" : "Resolve dangling symlinks when installing the compose plugin",
+  "updated_at" : "2026-11-20T23:20:59Z",
+  "verdict" : "approve"
+}
