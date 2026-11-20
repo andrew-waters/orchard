@@ -392,9 +392,10 @@ final class ComposePluginService: ObservableObject {
 
         do {
             state = .working(.findingRelease)
-            // Resolved before anything is downloaded, so a path that cannot be resolved (a
+            // Checked before anything is downloaded, so a path that cannot be resolved (a
             // symlink cycle) fails straight away rather than after fetching the release.
-            guard let installDirectory = Self.resolvedInstallPath(installPath, fileManager: fileManager) else {
+            // `copyIntoPlace` resolves it again, in case a link changed during the download.
+            guard Self.resolvedInstallPath(installPath, fileManager: fileManager) != nil else {
                 throw InstallError.badResponse
             }
             let release = try await latestRelease()
@@ -413,7 +414,7 @@ final class ComposePluginService: ObservableObject {
 
             try Task.checkCancellation()
             state = .working(.installing)
-            guard try await copyIntoPlace(from: unpacked, into: installDirectory) else {
+            guard try await copyIntoPlace(from: unpacked) else {
                 // The authorisation prompt was dismissed. Not a failure worth reporting: go
                 // back to describing whatever the machine actually looks like.
                 try? fileManager.removeItem(at: scratch)
@@ -538,8 +539,12 @@ final class ComposePluginService: ObservableObject {
     /// Miss either and the CLI reports only "Plugin not found", with nothing to say which half
     /// is wrong. Writing the two files in place also means nothing is removed as root.
     ///
-    /// `dir` is the install path with its symlinks already resolved (see `resolvedInstallPath`).
-    private func copyIntoPlace(from unpacked: URL, into dir: String) async throws -> Bool {
+    /// The install path is resolved here, just before writing, rather than earlier in
+    /// `install()`, so the files land wherever its symlinks point now.
+    private func copyIntoPlace(from unpacked: URL) async throws -> Bool {
+        guard let dir = Self.resolvedInstallPath(installPath, fileManager: fileManager) else {
+            throw InstallError.badResponse
+        }
         let binary = unpacked.appendingPathComponent("bin/compose").path
         let config = unpacked.appendingPathComponent("config.toml").path
         let script = """
