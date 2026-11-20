@@ -275,11 +275,49 @@ final class ComposePluginService: ObservableObject {
     /// exists is not writable by this user. A Homebrew prefix is the user's own, so a plugin
     /// goes in there without a prompt, and without leaving root-owned files in the keg.
     nonisolated static func needsAdministrator(toWrite path: String, fileManager: FileManager = .default) -> Bool {
-        var candidate = URL(fileURLWithPath: path)
+        guard let resolved = resolvedInstallPath(path, fileManager: fileManager) else { return false }
+        var candidate = URL(fileURLWithPath: resolved)
         while !fileManager.fileExists(atPath: candidate.path), candidate.path != "/" {
             candidate.deleteLastPathComponent()
         }
         return !fileManager.isWritableFile(atPath: candidate.path)
+    }
+
+    /// Resolve symlinked path components even when their target does not exist yet.
+    ///
+    /// `URL.resolvingSymlinksInPath()` leaves a dangling symlink unresolved, and
+    /// `/usr/bin/install -d` fails (`No such file or directory`) when an ancestor in the
+    /// path is a dangling symlink — such as Homebrew's `container` `1.7.1_2` keg, whose
+    /// `libexec/container-plugins` symlinks to `HOMEBREW_PREFIX/libexec/container-plugins`
+    /// before that directory has been created (#179). Returns `nil` when symlink expansion
+    /// exceeds `maxSymlinkHops` so cyclic links fail rather than resolving queued components.
+    nonisolated static func resolvedInstallPath(_ path: String, fileManager: FileManager = .default) -> String? {
+        var remaining = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        var resolved = URL(fileURLWithPath: "/")
+        var symlinkHops = 0
+        let maxSymlinkHops = 40
+
+        while !remaining.isEmpty {
+            let component = remaining.removeFirst()
+            if component == "." { continue }
+            if component == ".." {
+                if resolved.path != "/" { resolved.deleteLastPathComponent() }
+                continue
+            }
+            resolved.appendPathComponent(component)
+            if let target = try? fileManager.destinationOfSymbolicLink(atPath: resolved.path) {
+                guard symlinkHops < maxSymlinkHops else { return nil }
+                symlinkHops += 1
+                if target.hasPrefix("/") {
+                    resolved = URL(fileURLWithPath: "/")
+                } else {
+                    resolved.deleteLastPathComponent()
+                }
+                let targetComponents = target.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+                remaining.insert(contentsOf: targetComponents, at: 0)
+            }
+        }
+        return resolved.path
     }
 
     /// The installed plugin binary, from whichever directory the CLI would find a *complete*
@@ -354,6 +392,12 @@ final class ComposePluginService: ObservableObject {
 
         do {
             state = .working(.findingRelease)
+            // Checked before anything is downloaded, so a path that cannot be resolved (a
+            // symlink cycle) fails straight away rather than after fetching the release.
+            // `copyIntoPlace` resolves it again, in case a link changed during the download.
+            guard Self.resolvedInstallPath(installPath, fileManager: fileManager) != nil else {
+                throw InstallError.badResponse
+            }
             let release = try await latestRelease()
             targetVersion = release.tag
             latestVersion = release.tag
@@ -494,8 +538,13 @@ final class ComposePluginService: ObservableObject {
     /// a plugin is a directory named after its binary, holding `config.toml` and `bin/<name>`.
     /// Miss either and the CLI reports only "Plugin not found", with nothing to say which half
     /// is wrong. Writing the two files in place also means nothing is removed as root.
+    ///
+    /// The install path is resolved here, just before writing, rather than earlier in
+    /// `install()`, so the files land wherever its symlinks point now.
     private func copyIntoPlace(from unpacked: URL) async throws -> Bool {
-        let dir = installPath
+        guard let dir = Self.resolvedInstallPath(installPath, fileManager: fileManager) else {
+            throw InstallError.badResponse
+        }
         let binary = unpacked.appendingPathComponent("bin/compose").path
         let config = unpacked.appendingPathComponent("config.toml").path
         let script = """

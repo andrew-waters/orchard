@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - The AI Models section now recognises [Rapid-MLX](https://github.com/raullenchai/Rapid-MLX), a local LLM inference server for Apple Silicon, by the `owned_by: rapid-mlx` stamp in its OpenAI-compatible models listing. Its default base URL is `http://localhost:8000/v1`, using the existing port 8000 probe.
 
+### Fixed
+- Installing or updating the `container compose` plugin now works on Homebrew `container` `1.7.1_2` when `$HOMEBREW_PREFIX/libexec/container-plugins` has not been created yet ([#179](https://github.com/andrew-waters/orchard/issues/179)). Homebrew symlinks the keg's `libexec/container-plugins` to `$HOMEBREW_PREFIX/libexec/container-plugins` so plugins survive upgrades, leaving a dangling symlink until the target directory is created; Orchard now resolves symlinked ancestors before running `install -d` so the target directory is created cleanly.
+
 ## [2.7.1] - 2026-11-09
 
 ### Added

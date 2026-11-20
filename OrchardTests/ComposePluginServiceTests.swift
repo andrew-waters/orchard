@@ -85,6 +85,98 @@ func composePluginNeedsAdministrator() throws {
     #expect(ComposePluginService.needsAdministrator(toWrite: "/System/Library/container-plugins/compose"))
 }
 
+@Test("Install path: dangling symlinks are resolved to their target so install -d can create them")
+func composePluginResolvesDanglingSymlink() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ComposePluginServiceTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    // Mirror Homebrew container 1.7.1_2: <prefix>/Cellar/container/1.7.1_2/libexec/container-plugins
+    // points to ../../../../libexec/container-plugins before <prefix>/libexec exists.
+    let kegLibexec = root.appendingPathComponent("Cellar/container/1.7.1_2/libexec")
+    try FileManager.default.createDirectory(at: kegLibexec, withIntermediateDirectories: true)
+    let symlink = kegLibexec.appendingPathComponent("container-plugins")
+    try FileManager.default.createSymbolicLink(
+        atPath: symlink.path,
+        withDestinationPath: "../../../../libexec/container-plugins"
+    )
+
+    let expectedRoot = try #require(realpath(root.path, nil).map { ptr in
+        defer { free(ptr) }
+        return URL(fileURLWithPath: String(cString: ptr))
+    })
+    let resolved = ComposePluginService.resolvedInstallPath(
+        symlink.appendingPathComponent("compose").path
+    )
+    #expect(resolved == expectedRoot.appendingPathComponent("libexec/container-plugins/compose").path)
+    #expect(!ComposePluginService.needsAdministrator(toWrite: symlink.appendingPathComponent("compose").path))
+
+    // A dangling symlink into a read-only system directory still flags administrator privileges.
+    let roLink = root.appendingPathComponent("system-plugins")
+    try FileManager.default.createSymbolicLink(
+        atPath: roLink.path,
+        withDestinationPath: "/System/Library/nonexistent-container-plugins"
+    )
+    #expect(ComposePluginService.needsAdministrator(toWrite: roLink.appendingPathComponent("compose").path))
+}
+
+@Test("Install path: symlink cycles fail resolution instead of leaking queued components")
+func composePluginSymlinkCycleFails() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ComposePluginServiceTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let a = root.appendingPathComponent("a")
+    let b = root.appendingPathComponent("b")
+    try FileManager.default.createSymbolicLink(atPath: a.path, withDestinationPath: "b")
+    try FileManager.default.createSymbolicLink(atPath: b.path, withDestinationPath: "a")
+    #expect(ComposePluginService.resolvedInstallPath(a.appendingPathComponent("compose").path) == nil)
+
+    // Dot components in a cycle (`link -> link/../elsewhere`) must fail once the hop limit
+    // is reached rather than skipping further resolution and returning `.../elsewhere/compose`.
+    let link = root.appendingPathComponent("link")
+    try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "link/../elsewhere")
+    let cyclicPath = link.appendingPathComponent("compose").path
+    #expect(ComposePluginService.resolvedInstallPath(cyclicPath) == nil)
+    #expect(!ComposePluginService.needsAdministrator(toWrite: cyclicPath))
+}
+
+@MainActor
+@Test("Install: a cyclic install path fails before downloading or running install")
+func composePluginCyclicInstallAborts() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ComposePluginServiceTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let link = root.appendingPathComponent("link")
+    try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "link/../elsewhere")
+    let cyclicInstallPath = link.appendingPathComponent("compose").path
+
+    let runner = MockCommandRunner()
+    runner.runHandler = { _, args in
+        if args == ["compose", "--version"] {
+            return ProcessResult(
+                exitCode: 64,
+                stdout: nil,
+                stderr: "Error: unknown command 'compose'\n  - \(cyclicInstallPath)\n"
+            )
+        }
+        return ProcessResult(exitCode: 0, stdout: nil, stderr: nil)
+    }
+
+    let service = ComposePluginService(commandRunner: runner, containerBinaryPath: { "/opt/homebrew/bin/container" })
+    await service.refresh()
+    #expect(service.installPath == cyclicInstallPath)
+
+    await service.install()
+    #expect(service.state == .failed("The plugin could not be installed."))
+    #expect(runner.calls == [["compose", "--version"]])
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("elsewhere").path))
+}
+
 // MARK: - Updates (#155)
 
 @Test("Versions: dotted numbers parse, with an optional v; anything else does not")
