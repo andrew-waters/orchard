@@ -144,7 +144,7 @@ func composePluginSymlinkCycleFails() throws {
 }
 
 @MainActor
-@Test("Install: cyclic install path stops copyIntoPlace without running install")
+@Test("Install: a cyclic install path fails before downloading or running install")
 func composePluginCyclicInstallAborts() async throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("ComposePluginServiceTests-\(UUID().uuidString)")
@@ -171,10 +171,8 @@ func composePluginCyclicInstallAborts() async throws {
     await service.refresh()
     #expect(service.installPath == cyclicInstallPath)
 
-    let unpacked = root.appendingPathComponent("unpacked/compose")
-    await #expect(throws: Error.self) {
-        _ = try await service.copyIntoPlace(from: unpacked)
-    }
+    await service.install()
+    #expect(service.state == .failed("The plugin could not be installed."))
     #expect(runner.calls == [["compose", "--version"]])
     #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("elsewhere").path))
 }

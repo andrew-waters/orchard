@@ -392,6 +392,11 @@ final class ComposePluginService: ObservableObject {
 
         do {
             state = .working(.findingRelease)
+            // Resolved before anything is downloaded, so a path that cannot be resolved (a
+            // symlink cycle) fails straight away rather than after fetching the release.
+            guard let installDirectory = Self.resolvedInstallPath(installPath, fileManager: fileManager) else {
+                throw InstallError.badResponse
+            }
             let release = try await latestRelease()
             targetVersion = release.tag
             latestVersion = release.tag
@@ -408,7 +413,7 @@ final class ComposePluginService: ObservableObject {
 
             try Task.checkCancellation()
             state = .working(.installing)
-            guard try await copyIntoPlace(from: unpacked) else {
+            guard try await copyIntoPlace(from: unpacked, into: installDirectory) else {
                 // The authorisation prompt was dismissed. Not a failure worth reporting: go
                 // back to describing whatever the machine actually looks like.
                 try? fileManager.removeItem(at: scratch)
@@ -532,10 +537,9 @@ final class ComposePluginService: ObservableObject {
     /// a plugin is a directory named after its binary, holding `config.toml` and `bin/<name>`.
     /// Miss either and the CLI reports only "Plugin not found", with nothing to say which half
     /// is wrong. Writing the two files in place also means nothing is removed as root.
-    func copyIntoPlace(from unpacked: URL) async throws -> Bool {
-        guard let dir = Self.resolvedInstallPath(installPath, fileManager: fileManager) else {
-            throw InstallError.badResponse
-        }
+    ///
+    /// `dir` is the install path with its symlinks already resolved (see `resolvedInstallPath`).
+    private func copyIntoPlace(from unpacked: URL, into dir: String) async throws -> Bool {
         let binary = unpacked.appendingPathComponent("bin/compose").path
         let config = unpacked.appendingPathComponent("config.toml").path
         let script = """
