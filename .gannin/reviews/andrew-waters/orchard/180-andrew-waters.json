@@ -11,6 +11,7 @@
       "line" : 536,
       "path" : "Orchard/Services/ComposePluginService.swift",
       "posted_at" : "2026-11-20T23:20:57Z",
+      "resolved_at" : "2026-11-21T00:03:53Z",
       "severity" : "nit"
     },
     {
@@ -21,16 +22,18 @@
       "line" : 535,
       "path" : "Orchard/Services/ComposePluginService.swift",
       "posted_at" : "2026-11-20T23:20:57Z",
+      "resolved_at" : "2026-11-21T00:03:53Z",
       "severity" : "nit"
     }
   ],
+  "merged_at" : "2026-11-20T23:44:01Z",
   "number" : 180,
   "posted_at" : "2026-11-20T23:20:57Z",
   "repo" : "andrew-waters/orchard",
   "reviewer" : "andrew-waters",
   "started_at" : "2026-11-20T23:17:31Z",
-  "state" : "OPEN",
+  "state" : "MERGED",
   "title" : "Resolve dangling symlinks when installing the compose plugin",
-  "updated_at" : "2026-11-20T23:20:59Z",
+  "updated_at" : "2026-11-21T00:03:53Z",
   "verdict" : "approve"
 }
